@@ -1,0 +1,10 @@
+tzlocal
+psutil
+toml
+cryptography
+pytz
+py-cpuinfo
+gevent
+influxdb-client
+flask
+pillow

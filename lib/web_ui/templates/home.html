@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Home Page{% endblock %}
+{% block content %}
+<h1>SYNTRAF</h1>
+<p class="text-info">Welcome, have a nice troubleshooting...</p>
+
+<div class="container">
+  <div class="row">
+    {% for database in conn_db %}
+        <div class="col-sm-3">
+          {% if database.status == "ONLINE" %}
+            <div class="card text-white bg-success mb-3" style="max-width: 30rem;">
+          {%- else -%}
+            <div class="card text-white bg-danger mb-3" style="max-width: 30rem;">
+          {%- endif %}
+              <div class="card-header">Status of database: '{{ database.DB_UID }}'</div>
+              <div class="card-body">
+                <h4 class="card-title">{{ database.status }}</h4>
+                <p class="card-text">
+                    Since: {{ database.status_time }}
+                    Data backlog: {{ database.write_queue.queue | length }}
+                </p>
+              </div>
+         </div>
+        </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+        <div class="col-sm-3">
+            <div class="card text-white bg-success mb-3" style="max-width: 30rem;">
+              <div class="card-header"><a href="/stats.html">Online clients</a></div>
+              <div class="card-body">
+                <h4 class="card-title">{{ online_client }}</h4>
+                <p class="card-text"></p>
+              </div>
+            </div>
+        </div>
+        <div class="col-sm-3">
+            <div class="card text-white bg-danger mb-3" style="max-width: 30rem;">
+              <div class="card-header"><a href="/stats.html">Offline clients</a></div>
+              <div class="card-body">
+                <h4 class="card-title">{{ offline_client }}</h4>
+                <p class="card-text"></p>
+              </div>
+            </div>
+        </div>
+  </div>
+</div>
+{% endblock %}

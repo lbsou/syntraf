@@ -1,0 +1,6 @@
+tzlocal
+psutil
+toml
+cryptography
+pytz
+py-cpuinfo

@@ -1,0 +1,478 @@
+{% extends "base.html" %}
+{% block title %}Stats{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/st.css">
+<meta http-equiv="refresh" content="3000" >
+<script type="text/javascript" src='/static/js/d3_6_7_0.min.js'></script>
+<script type="text/javascript" src='/static/js/crossfilter_1_5_4.min.js'></script>
+<script type="text/javascript" src='/static/js/dc_4_2_7.min.js'></script>
+{% endblock %}
+{% block content %}
+<h2>Clients status</h2>
+
+<div class="modal fade" id="modal_system_stats_empty" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div  class="modal-content text-center">
+            </br>
+            <i class="fa fa-exclamation-triangle fa-2x" style="color:yellow" aria-hidden="true"></i>
+            </br>
+            <div id="error_modal_text"></div>
+            </br>
+            <div><button type="button" class="btn btn-light" data-dismiss="modal">Close</button></div>
+            </br>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modal_thread_status" tabindex="-1" role="dialog" aria-labelledby="Modal-vert-center-demo-label" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modal_thread_status_label">Running thread(s)</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+            <div class="table-responsive">
+                <table id="table_thread_status" class="table table-striped table-hover table-bordered table-sm text-center">
+                    <thead>
+                        <tr>
+                            <th class="text-center" style="width: 10%">TYPE</th>
+                            <th class="text-center" style="width: 30%">START TIME</th>
+                            <th class="text-center" style="width: 10%">GROUP</th>
+                            <th class="text-center" style="width: 10%">OPPOSITE SIDE CLIENT_UID</th>
+                            <th class="text-center" style="width: 10%">LISTENER PORT</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+            </div>
+
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" data-dismiss="modal">OK</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="modal_system_stats" tabindex="-1" role="dialog" aria-labelledby="Modal-vert-center-demo-label" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modal_system_stats_label"></h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+            <div class="table-responsive">
+                <table class="table">
+                    <tr>
+                        <td>NODE_NAME</td>
+                        <td id="modal_system_infos_node_name"></td>
+                    </tr>
+                    <tr>
+                        <td>OS</td>
+                        <td id="modal_system_infos_system"></td>
+                    </tr>
+
+                    <tr>
+                        <td>OS_RELEASE</td>
+                        <td id="modal_system_infos_release"></td>
+                    </tr>
+                    <tr>
+                        <td>OS_VERSION</td>
+                        <td id="modal_system_infos_version"></td>
+                    </tr>
+                    <tr>
+                        <td>CPU_ARCH</td>
+                        <td id="modal_system_infos_processor"></td>
+                    </tr>
+                    <tr>
+                        <td>CPU_MODEL</td>
+                        <td id="modal_system_infos_cpu_model"></td>
+                    </tr>
+                    <tr>
+                        <td>CPU_FREQUENCY</td>
+                        <td id="modal_system_infos_cpu_frequency"></td>
+                    </tr>
+                    <tr>
+                        <td>CPU_COUNT_PHYSICAL</td>
+                        <td id="modal_system_infos_cpu_count_physical"></td>
+                    </tr>
+                    <tr>
+                        <td>CPU_COUNT_LOGICAL</td>
+                        <td id="modal_system_infos_cpu_count_logical"></td>
+                    </tr>
+                    <tr>
+                        <td>MEMORY_TOTAL_PHYSICAL</td>
+                        <td id="modal_system_infos_memory_mb_physical"></td>
+                    </tr>
+                    <tr>
+                        <td>PYTHON_VERSION</td>
+                        <td id="modal_system_infos_python_version"></td>
+                    </tr>
+                    <tr>
+                        <td>BOOT_TIME</td>
+                        <td id="modal_system_infos_boot_time"></td>
+                    </tr>
+                    <tr>
+                        <td>TIMEZONE</td>
+                        <td id="modal_system_infos_timezone"></td>
+                    </tr>
+                </table>
+            </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" data-dismiss="modal">OK</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<table id="status" class="table table-striped table-hover table-bordered table-sm" style="width:100%">
+    <thead>
+        <tr>
+            <th class="text-center" style="width: 10%">CLIENT</th>
+            <th class="text-center" style="width: 10%">STATUS</th>
+            <th class="text-center" style="width: 10%">SINCE</th>
+            <th class="text-center" style="width: 10%">VERSION</th>
+            <th class="text-center" style="width: 10%">CLOCK SKEW</th>
+            <th class="text-center" style="width: 10%">IP ADDRESS</th>
+            <th class="text-center" style="width: 10%">% OF CPU USAGE *</th>
+            <th class="text-center" style="width: 10%">% OF FREE MEMORY</th>
+            <th class="text-center" style="width: 10%">% OF NETWORK USAGE (RX)</th>
+            <th class="text-center" style="width: 10%">% OF NETWORK USAGE (TX)</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for key, data in dict_of_clients.items() %}
+            <tr>
+                <td class="text-center align-middle">
+                    <div class="btn-group dropright">
+                      <button type="button" id="button_menu_client" class="btn btn-primary-outline dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        {{ key }}
+                      </button>
+                      <div class="dropdown-menu">
+                        <a class="dropdown-item" href="#" onclick="reconnect_client('{{ key }}')">Reconnect</a>
+                        <a class="dropdown-item" href="#" onclick="restart_client('{{ key }}')">Restart</a>
+                        <a class="dropdown-item" href="#">Pause</a>
+                        <a type="button" class="dropdown-item btn btn-info" id="dd_sys_infos_{{ key }}" data-client-uid="{{ key }}" onclick="get_sys_infos(this)">System informations</a>
+                        <a type="button" class="dropdown-item btn btn-info" id="dd_thread_status_{{ key }}" data-client-uid="{{ key }}" onclick="get_thread_status(this)">Thread status</a>
+                      </div>
+                    </div>
+                </td>
+                <td class="text-center align-middle"><div id="{{ key }}_status" data-toggle="tooltip" data-placement="top" title=""></div></td>
+                <td class="text-center align-middle"><div id="{{ key }}_status_since"></div></td>
+                <td class="text-center align-middle"><div id="{{ key }}_syntraf_version"></div></td>
+                <td class="text-center align-middle"><div id="{{ key }}_clock_skew"></div></td>
+                <td class="text-center align-middle"><div id="{{ key }}_ip_address"></div></td>
+                <td class="text-center align-middle"><span id="{{ key }}_cpu_pct_usage"></span><small><br/></small></td>
+                <td class="text-center align-middle"><span id="{{ key }}_mem_pct_free"></span><small><br/></small></td>
+                <td class="text-center align-middle"><span id="{{ key }}_if_pct_usage_rx"></span><small><br/></small></td>
+                <td class="text-center align-middle"><span id="{{ key }}_if_pct_usage_tx"></span><small><br/></small></td>
+            </tr>
+        {% endfor %}
+    </tbody>
+    <span id="linetest"></span>
+
+</table>
+* Represent the logical CPU with the maximum usage at the time of reading.
+<script>
+
+setInterval(update_system_stats, 1000)
+
+$(document).ready(function() {
+    $('#status').dataTable({stateSave: true});
+    $('#table_thread_status').dataTable({stateSave: true});
+} );
+
+
+function confirmation() {
+
+
+}
+
+async function update_system_stats() {
+
+    const fd = new FormData();
+    fd.append('ACTION', "GET_SYSTEM_STATS");
+
+    // send `POST` request
+    const response = await fetch('/api', {
+        method: 'POST',
+        body: fd
+    })
+
+    var system_stats = await response.text();
+
+    if ("E1001" == system_stats) {
+        $('#modal_system_stats_empty').modal('show');
+    }
+    else {
+
+        // Get system_stats back as dictionary
+        var system_stats = JSON.parse(system_stats);
+
+        for (let [client_uid, data] of Object.entries(system_stats)) {
+            data = JSON.parse(data)
+
+            document.getElementById(client_uid + '_status').innerHTML= data['status'];
+           // document.getElementById(client_uid + '_status').title = data['status_explanation'];
+            $("#" + client_uid + "_status").attr("title", data['status_explanation']).tooltip();
+
+            if (data['status'] == "DISCONNECTED"){
+                document.getElementById(client_uid + '_status').className = "text-warning text-muted";
+                document.getElementById(client_uid + '_status_since').className = "text-danger text-muted";
+                document.getElementById(client_uid + '_syntraf_version').className = "text-danger text-muted";
+                document.getElementById(client_uid + '_clock_skew').className = "text-danger text-muted";
+                document.getElementById(client_uid + '_ip_address').className = "text-danger text-muted";
+            }
+            else if (data['status'] == "CONNECTED"){
+                document.getElementById(client_uid + '_status').className = "text-success";
+                document.getElementById(client_uid + '_status_since').className = "";
+                document.getElementById(client_uid + '_syntraf_version').className = "";
+                document.getElementById(client_uid + '_clock_skew').className = "";
+                document.getElementById(client_uid + '_ip_address').className = "";
+
+                // Displaying the clock skew
+                document.getElementById(client_uid + '_clock_skew').title = Math.round(data['clock_skew_in_seconds']) + " seconds";
+                document.getElementById(client_uid + '_clock_skew').innerHTML= '<i class="fa fa-clock" aria-hidden="true"></i>';
+                if (data['clock_skew_in_seconds'] >= 10){
+                    document.getElementById(client_uid + '_clock_skew').className = "text-danger";
+                }
+                else if (data['clock_skew_in_seconds'] == -1){
+                    document.getElementById(client_uid + '_clock_skew').className = "text-muted";
+                }
+                else{
+                    document.getElementById(client_uid + '_clock_skew').className = "text-success";
+                }
+
+            }
+            else{
+                document.getElementById(client_uid + '_status').className = "text-danger text-muted";
+                document.getElementById(client_uid + '_status_since').className = "text-muted";
+                document.getElementById(client_uid + '_syntraf_version').className = "text-muted";
+                document.getElementById(client_uid + '_clock_skew').className = "text-muted";
+                document.getElementById(client_uid + '_ip_address').className = "text-muted";
+            }
+
+            document.getElementById(client_uid + '_status_since').innerHTML= data['status_since'];
+            document.getElementById(client_uid + '_syntraf_version').innerHTML= data['syntraf_version'];
+            document.getElementById(client_uid + '_ip_address').innerHTML= data['ip_address'];
+
+
+        }
+
+        const timeConv = d3.timeParse("%Y-%m-%d %H:%M:%S.%f");
+        for (let [client_uid, data] of Object.entries(system_stats)) {
+          data = JSON.parse(data)
+
+          if (data['system_stats']['cpu_pct_usage'].length >= 1) {
+              render_chart_for_metric(client_uid, data, "cpu_pct_usage", timeConv)
+          }
+          if (data['system_stats']['mem_pct_free'].length >= 1) {
+              render_chart_for_metric(client_uid, data, "mem_pct_free", timeConv)
+          }
+          if (data['system_stats']['if_pct_usage_rx'].length >= 1) {
+              render_chart_for_metric(client_uid, data, "if_pct_usage_rx", timeConv)
+          }
+          if (data['system_stats']['if_pct_usage_tx'].length >= 1) {
+              render_chart_for_metric(client_uid, data, "if_pct_usage_tx", timeConv)
+          }
+        }
+    }
+}
+
+function render_chart_for_metric(client_uid, data_client, metric, timeConv) {
+
+    //console.log(typeof(data_client[metric]));
+    //console.log(data_client[metric]);
+    //console.log(data_client[metric]);
+    //console.log(data_client[metric][0]);
+
+    console.log(data_client['system_stats'][metric]);
+
+    var minDate = new Date(data_client['system_stats'][metric][0][0]);
+    var maxDate = new Date(data_client['system_stats'][metric][data_client['system_stats'][metric].length - 1][0]);
+
+    //minDate.setSeconds(minDate.getSeconds() - 1);
+    //maxDate.setSeconds(maxDate.getSeconds() + 1);
+
+    //data_client[metric].unshift({timestamp: minDate, value: 0})
+    //data_client[metric].push({timestamp: maxDate, value: 0})
+
+    //console.log(minDate + " " + maxDate);
+
+    // convert all date
+    data_client['system_stats'][metric].forEach(function(d) {
+        d[0] = timeConv(d[0]);
+        //d.timestamp = new Date(d.timestamp).getTime()/1000; // Convert to EPOCH
+    });
+
+    //console.log(data_client[metric]);
+
+    var xf_cpu = crossfilter(data_client['system_stats'][metric])
+    var xf_cpu_by_value = xf_cpu.dimension(function(d) {return +d[1];});
+    var xf_cpu_by_timestamp = xf_cpu.dimension(function(d) {return d[0];});
+    var dimension_group = xf_cpu_by_timestamp.group().reduceSum(function(d) {return +d[1]})
+
+    //console.log(dimension_group.top(100));
+
+    var minVal = dimension_group.all()[0]['key'];
+    var maxVal = dimension_group.all()[dimension_group.all().length - 1]['key'];
+
+    //console.log(minVal + " - " + maxVal);
+
+    var lineChart = new dc.LineChart("#" + client_uid + "_" + metric);
+    lineChart
+      .width(100)
+      .height(20)
+      .margins({left: -1, top: 0, right: 0, bottom: 0})
+      .brushOn(false)
+      .dimension(xf_cpu_by_timestamp)
+      .group(dimension_group)
+      .x(d3.scaleTime().domain([minVal, maxVal]))
+      .y(d3.scaleLinear().domain([0, 100]))
+      lineChart.renderArea(false);
+    lineChart.ordinalColors(d3.schemeCategory10);
+    lineChart.render();
+
+}
+
+async function restart_client(client) {
+        const API_URL = "/api";
+        const xhr = new XMLHttpRequest();
+        const fd = new FormData();
+        fd.append("ACTION", "RESTART_CLIENT");
+        fd.append("CLIENT", client);
+        //xhr.open("POST", API_URL);
+        //xhr.send(fd);
+
+
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        })
+        answer = await response.text();
+
+        if ("E1003" == answer) {
+            document.getElementById("error_modal_text").innerHTML = "Unable to send this action, this client is not connected";
+            $('#modal_system_stats_empty').modal('show');
+        }
+
+}
+
+async function reconnect_client(client) {
+        const API_URL = "/api";
+        const xhr = new XMLHttpRequest();
+        const fd = new FormData();
+        fd.append("ACTION", "RECONNECT_CLIENT");
+        fd.append("CLIENT", client);
+        //xhr.open("POST", API_URL);
+        //xhr.send(fd);
+
+
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        })
+        answer = await response.text();
+
+        if ("E1003" == answer) {
+            document.getElementById("error_modal_text").innerHTML = "Unable to send this action, this client is not connected";
+            $('#modal_system_stats_empty').modal('show');
+        }
+
+}
+
+$(document).ready(function() {
+    $("body").tooltip({ selector: '[data-toggle=tooltip]' });
+});
+
+$(function () {
+  $('[data-toggle="tooltip"]').tooltip()
+})
+
+async function get_sys_infos(source)
+{
+    var client_uid = source.getAttribute('data-client-uid');
+
+    const fd = new FormData();
+    fd.append('ACTION', "GET_SYSTEM_INFOS");
+    fd.append('CLIENT_UID', client_uid);
+
+    // send `POST` request
+    const response = await fetch('/api', {
+        method: 'POST',
+        body: fd
+    })
+
+    system_infos = await response.text();
+
+    if ("E1001" == system_infos) {
+        document.getElementById("error_modal_text").innerHTML = "This information is not available until this client connect to the server.";
+        $('#modal_system_stats_empty').modal('show');
+    }
+    else {
+            system_infos = JSON.parse(system_infos);
+            document.getElementById('modal_system_stats_label').innerHTML= 'System informations of ' + client_uid;
+            document.getElementById('modal_system_infos_system').innerHTML= system_infos["SYSTEM"];
+            document.getElementById('modal_system_infos_node_name').innerHTML=system_infos["NODE_NAME"];
+            document.getElementById('modal_system_infos_release').innerHTML=system_infos["RELEASE"];
+            document.getElementById('modal_system_infos_version').innerHTML=system_infos["VERSION"];
+            document.getElementById('modal_system_infos_processor').innerHTML=system_infos["PROCESSOR"];
+            document.getElementById('modal_system_infos_python_version').innerHTML=system_infos["PYTHON_VERSION"];
+            document.getElementById('modal_system_infos_cpu_model').innerHTML=system_infos["CPU_MODEL"];
+            document.getElementById('modal_system_infos_cpu_count_logical').innerHTML=system_infos["CPU_LOGICAL"];
+            document.getElementById('modal_system_infos_cpu_count_physical').innerHTML=system_infos["CPU_PHYSICAL"];
+            document.getElementById('modal_system_infos_cpu_frequency').innerHTML=system_infos["CPU_FREQUENCY"];
+            document.getElementById('modal_system_infos_memory_mb_physical').innerHTML=system_infos["MEMORY_MB"] + " MB";
+            document.getElementById('modal_system_infos_boot_time').innerHTML=system_infos["BOOT_TIME"];
+            document.getElementById('modal_system_infos_timezone').innerHTML=system_infos["TIMEZONE"];
+            $('#modal_system_stats').modal('show');
+    }
+}
+
+async function get_thread_status(source)
+{
+    var client_uid = source.getAttribute('data-client-uid');
+
+    const fd = new FormData();
+    fd.append('ACTION', "GET_THREAD_STATUS");
+    fd.append('CLIENT_UID', client_uid);
+
+    // send `POST` request
+    const response = await fetch('/api', {
+        method: 'POST',
+        body: fd
+    })
+
+    thread_status = await response.text();
+
+    if ("E1001" == thread_status) {
+        document.getElementById("error_modal_text").innerHTML = "This information is not available until this client connect to the server.";
+        $('#modal_system_stats_empty').modal('show');
+    }
+    else {
+            thread_status = JSON.parse(thread_status);
+            console.log(thread_status);
+
+            var datatable = $('#table_thread_status').DataTable();
+            datatable.clear().draw();
+            for (let [id, data] of Object.entries(thread_status)){
+                datatable.row.add([data.syntraf_instance_type, data.starttime, data.group, data.opposite_side, data.listener_port]).draw(false);
+            }
+
+            $('#modal_thread_status').modal('show');
+
+    }
+}
+
+
+</script>
+
+{% endblock %}

@@ -1,0 +1,17 @@
+firewall-cmd --zone=public --remove-port=3000/tcp --permanent
+firewall-cmd --reload
+
+firewall-cmd --new-zone=influxdb-access --permanent
+firewall-cmd --zone=influxdb-access --add-source=142.83.68.69/32 --permanent
+firewall-cmd --zone=influxdb-access --add-source=174.89.239.85/32 --permanent
+firewall-cmd --zone=influxdb-access --add-source=192.168.2.0/24 --permanent
+firewall-cmd --zone=influxdb-access --add-source=199.84.4.0/23 --permanent
+firewall-cmd --zone=influxdb-access --add-port=8086/tcp --permanent
+firewall-cmd --zone=influxdb-access --add-port=3000/tcp --permanent
+firewall-cmd --reload
+
+
+
+
+https://www.tecmint.com/open-port-for-specific-ip-address-in-firewalld/
+
