@@ -356,6 +356,11 @@ BANDWIDTH / 8 * 1024 / PACKET_SIZE
 
 ## KNOWN ISSUES
 
+https://bytemeta.vip/repo/dmlc/GNNLens2/issues/14  
+ImportError: cannot import name 'safe_join' from 'flask' #14  
+Since 2.1.0, flask deprecates safe_join, as elaborated in its release note here. For now, a workaround is to degrade flask to an older version like pip install Flask==2.0.3. This should be fixed in the future release of GNNLens2 by either restricting Flask version or follow the latest recommended practice.  
+Credit to @SherylHYX for reporting the issue.  
+
 ### 'IPERF3: ERROR - TEST AUTHORIZATION FAILED'  
 - Clock skew >= 10 seconds (you should apply time sync over all node of the mesh)  
 - Bad RSA Key (internally managed, unlikely)  
