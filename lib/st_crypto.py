@@ -24,7 +24,7 @@ server_log = logging.getLogger(__name__)
 
 
 def gen_iperf3_password_hash(username, password):
-    digest = hashes.Hash(hashes.SHA256())
+    digest = hashes.Hash(hashes.SHA256(), backend=default_backend())
     # {$user}$password
     # ie : {mario}rossi
     future_hash = "{" + username + "}" + password
@@ -85,6 +85,7 @@ def gen_cert(log, path, suffix_filename, parameters, config, type_of_service):
         private_key = rsa.generate_private_key(
             public_exponent=65537,
             key_size=DefaultValues.DEFAULT_KEY_SIZE,
+            backend=default_backend()
         )
 
         public_key = private_key.public_key()
@@ -122,7 +123,7 @@ def gen_cert(log, path, suffix_filename, parameters, config, type_of_service):
         ).add_extension(
             x509.SubjectAlternativeName([x509.DNSName(socket.gethostname())]),
             critical=False,
-        ).sign(private_key, hashes.SHA256())
+        ).sign(private_key, hashes.SHA256(), default_backend())
         # Write our certificate to disk, will override existing certificate
         with open(os.path.join(path, "certificate_" + suffix_filename + ".pem"), "wb") as f:
             f.write(cert.public_bytes(serialization.Encoding.PEM))
