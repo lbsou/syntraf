@@ -22,7 +22,7 @@ For a long time, I was looking for an open-source tool to generate synthetic tra
 
 ## Technologies
 The tool is :
-- purely developed with Python >= 3.8
+- developed with Python >= 3.8
 - compatible with Linux, MacOSX and Windows (you will need an iperf3 binary to do so)  
 - compatible with influxdb >= 2.0  
 
@@ -31,44 +31,8 @@ Note on netifaces installation : The netifaces package require setuptools, wheel
 ## Terminology
 You will see references to 'CONNECTORS' and 'LISTENERS'. Those are basically substitute words for IPERF CLIENT (CONNECTORS) and IPERF SERVER (LISTENERS) when handled by SYNTRAF.
 
-## Scalability
-
-When using SYNTRAF in a mesh topology, the amount of bandwidth can quickly become unwieldy. You must ensure that it won't affect your network!  
-
-The formula to calculate the total bandwidth required to form a complete mesh is as follow (considering we create two independent connections between nodes in SYNTRAF):  
-
-SN=N(N-1)*x Kbps  
-
-You then divide by the number of nodes to obtain the bandwidth usage per nodes.  
-
-|  |  |
-| --- | --- |
-| 4 nodes: <br />1 056 Kbps=4(4-1)*88 Kbps <br />1 056 / 4 = 264 Kbps / nodes | ![MESH](/doc/mesh/mesh_4_nodes.png) |
-| 8 nodes: <br />4 928 Kbps=8(8-1)*88 Kbps <br />4 928 / 8 = 616 Kbps / nodes | ![MESH](/doc/mesh/mesh_8_nodes.png) |
-| 16 nodes: <br /> 21 120 Kbps=16(16-1)*88 Kbps <br />21 120 / 16 = 1 320 Kbps / nodes | ![MESH](/doc/mesh/mesh_16_nodes.png) |
-| 32 nodes: <br /> 87 296 Kbps=32(32-1)*88 Kbps <br />87 296 / 32 = 2 728 Kbps / nodes | ![MESH](/doc/mesh/mesh_32_nodes.png) | 
-| 64 nodes: <br /> 354 816 Kbps=64(64-1)*88 Kbps <br /> 354 816 / 64 = 5 544 Kbps / nodes | ![MESH](/doc/mesh/mesh_64_nodes.png) |
-
-What you should understand : Do not try to create a mesh with too much nodes in it. YOU HAVE BEEN WARNED.  
-
 ## Use cases
-Baby step
-
-### Scenario 1
-In this scenario, we have two site for which we want to obtain the network stability metric triad (jitter, latency and loss).  
-- SYNTRAF is listening at location "B" on ip 10.1.1.1 with a CONNECTOR on port 5000.  
-- At location "A", we do not have access to a python environment, and so, we will run only an iperf3 client.
-
-Here is a basic iperf3 instance that you could run from the location "A" which would generate, for a full day, a continuous synthetic traffic of 100K:  
-```iperf3.exe -c 10.1.1.1 -u -t 86400 -b 100K -p 5000```
-
-![Visio SYNTRAF](/doc/images/SYNTRAF_SCENARIO1.png)
-
-In the next scenario, we are going to use two instance of SYNTRAF
-
-![Visio SYNTRAF](/doc/images/SYNTRAF.png)
-
-
+TODO
 
 ## Configuration
 
@@ -324,6 +288,26 @@ data
 	|> aggregateWindow(every: 1m, fn: mean)
 	|> to(bucket: "SYNTRAF_1MIN")
 ```
+
+## Scalability
+
+When using SYNTRAF in a mesh topology, the amount of bandwidth can quickly become unwieldy. You must ensure that it won't affect your network!  
+
+The formula to calculate the total bandwidth required to form a complete mesh is as follow (considering we create two independent connections between nodes in SYNTRAF):  
+
+SN=N(N-1)*x Kbps  
+
+You then divide by the number of nodes to obtain the bandwidth usage per nodes.  
+
+|  |  |
+| --- | --- |
+| 4 nodes: <br />1 056 Kbps=4(4-1)*88 Kbps <br />1 056 / 4 = 264 Kbps / nodes | ![MESH](/doc/mesh/mesh_4_nodes.png) |
+| 8 nodes: <br />4 928 Kbps=8(8-1)*88 Kbps <br />4 928 / 8 = 616 Kbps / nodes | ![MESH](/doc/mesh/mesh_8_nodes.png) |
+| 16 nodes: <br /> 21 120 Kbps=16(16-1)*88 Kbps <br />21 120 / 16 = 1 320 Kbps / nodes | ![MESH](/doc/mesh/mesh_16_nodes.png) |
+| 32 nodes: <br /> 87 296 Kbps=32(32-1)*88 Kbps <br />87 296 / 32 = 2 728 Kbps / nodes | ![MESH](/doc/mesh/mesh_32_nodes.png) | 
+| 64 nodes: <br /> 354 816 Kbps=64(64-1)*88 Kbps <br /> 354 816 / 64 = 5 544 Kbps / nodes | ![MESH](/doc/mesh/mesh_64_nodes.png) |
+
+What you should understand : Do not try to create a mesh with too much nodes in it. YOU HAVE BEEN WARNED.  
 
 ## FAQ
 
