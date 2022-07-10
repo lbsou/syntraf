@@ -31,8 +31,13 @@ Note on netifaces installation : The netifaces package require setuptools, wheel
 ## Terminology
 You will see references to 'CONNECTORS' and 'LISTENERS'. Those are basically substitute words for IPERF CLIENT (CONNECTORS) and IPERF SERVER (LISTENERS) when handled by SYNTRAF.
 
-## Use cases
-TODO
+## Screenshots
+
+![MESH](/doc/images/WEBUI_CLIENTS_STATUS.png)
+![MESH](/doc/images/WEBUI_CLIENTS_STATUS_SYSINFOS.png)
+![MESH](/doc/images/WEBUI_CLIENTS_STATUS_THREAD_INFOS.png)
+![MESH](/doc/images/WEBUI_MESHMAPS.png)
+
 
 ## Configuration
 
