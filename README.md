@@ -33,10 +33,10 @@ You will see references to 'CONNECTORS' and 'LISTENERS'. Those are basically sub
 
 ## Screenshots
 
-![MESH](/doc/images/WEBUI_CLIENTS_STATUS.png)
-![MESH](/doc/images/WEBUI_CLIENTS_STATUS_SYSINFOS.png)
-![MESH](/doc/images/WEBUI_CLIENTS_STATUS_THREAD_INFOS.png)
-![MESH](/doc/images/WEBUI_MESHMAPS.png)
+![CLIENTS_STATUS](/doc/images/WEBUI_CLIENTS_STATUS.png)
+![CLIENTS_STATUS_SYSINFOS](/doc/images/WEBUI_CLIENTS_STATUS_SYSINFOS.png)
+![CLIENTS_STATUS_THREAD_INFOS](/doc/images/WEBUI_CLIENTS_STATUS_THREAD_INFOS.png)
+![WEBUI_MESHMAPS](/doc/images/WEBUI_MESHMAPS.png)
 
 
 ## Configuration
