@@ -6,5 +6,5 @@ pytz
 py-cpuinfo
 gevent
 influxdb-client
-flask
+Flask==2.0.3
 pillow

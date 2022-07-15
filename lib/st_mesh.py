@@ -252,7 +252,7 @@ def client_sck_init(_config):
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        #set_tcp_ka(s, client_log)
+        set_tcp_ka(s, client_log)
 
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
 

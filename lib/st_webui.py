@@ -20,6 +20,7 @@ if not CompilationOptions.client_only:
     # PACKAGE IMPORT
     import toml
     import json
+    from pprint import pp
 
     app = Flask(__name__, template_folder=os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, "lib", "web_ui", "templates"))
     app.config['EXPLAIN_TEMPLATE_LOADING'] = False
@@ -69,11 +70,6 @@ class flask_wrapper (object):
             gen_config = toml.dumps(self._dict_by_node_generated_config).replace("\n", "<br/>")
             online_client = 0
             offline_client = 0
-            for item in self.stats_dict_for_webui:
-                if self.stats_dict_for_webui[item]['status'] == "CONNECTED":
-                    online_client += 1
-                elif self.stats_dict_for_webui[item]['status'] == "DISCONNECTED" or self.stats_dict_for_webui[item]['status'] == "UNSEEN":
-                    offline_client += 1
 
             return render_template('home.html', title='SYNTRAF WEBUI', config=self.config, gen_config=gen_config, conn_db=self.conn_db, online_client=online_client, offline_client=offline_client, syntraf_version=DefaultValues.SYNTRAF_VERSION)
 
@@ -237,6 +233,20 @@ class flask_wrapper (object):
                         print(a, "@", b)
 
                     return self.config['SERVER']['TOKEN']
+
+                elif requested_action == "GET_NUMBER_OF_ONLINE_CLIENT":
+                    online_client = 0
+                    for client in self.dict_of_clients.values():
+                        if client.status == "CONNECTED":
+                            online_client += 1
+                    return str(online_client)
+
+                elif requested_action == "GET_NUMBER_OF_OFFLINE_CLIENT":
+                    offline_client = 0
+                    for client in self.dict_of_clients.values():
+                        if client.status == "DISCONNECTED" or client.status == "UNSEEN":
+                            offline_client += 1
+                    return str(offline_client)
 
                 return "OK"
             else:

@@ -23,7 +23,7 @@
             <ul class="navbar-nav mr-auto">
 
               <li class="nav-item">
-                <a class="nav-link" href="maps.html">Mesh maps</a>
+                <a class="nav-link" href="maps.html">Maps</a>
               </li>
               <li class="nav-item dropdown">
                 <a class="nav-link dropdown-toggle" data-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">Clients</a>
@@ -58,3 +58,27 @@
         {% block content %}{% endblock %}
     </body>
 </html>
+
+<script>
+
+setInterval(get_client_number_by_status, 5000)
+
+async function get_client_number_by_status()
+{
+    const fd = new FormData();
+    fd.append('ACTION', "GET_NUMBER_OF_ONLINE_CLIENT");
+
+    // send `POST` request
+    const response = await fetch('/api', {
+        method: 'POST',
+        body: fd
+    })
+
+    client_status = await response.text();
+        client_status = JSON.parse(client_status);
+        //console.log(client_status);
+        alert(client_status);
+
+}
+
+</script>

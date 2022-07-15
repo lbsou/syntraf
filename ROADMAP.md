@@ -24,28 +24,25 @@ v0.4 - The makeover aka CINDERELLA
  - Show in webui the potential and actual client bandwidth usage  
  - Integrate client and group editing with visual map
  - Remote action : pause
- - fix memory leak in client status webui
+ X fix memory leak in client status webui [FIXED 2022-07-13 - LBS]
 
 
 v0.5 - On the other side lies the truth - SUBMARINE
  - udp ping
  - Quic tunnel
-
-
+ 
 v0.6 - Better understanding of what's going on - PULSAR
  - Manage alerts
  - saving system stats to database
  - include system stats in Grafana dashboard
  - save client logs to server
-
-
+ 
 v0.7 - Add security aka K9
  - User login and user management
  - Group  
  - API security
  - webui compartementalized access
  - client auth
-
 
 v0.8
  - Edit database retention

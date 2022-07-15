@@ -315,15 +315,15 @@ function render_chart_for_metric(client_uid, data_client, metric, timeConv) {
 
     //console.log(data_client[metric]);
 
-    var xf_cpu = crossfilter(data_client['system_stats'][metric])
-    var xf_cpu_by_value = xf_cpu.dimension(function(d) {return +d[1];});
-    var xf_cpu_by_timestamp = xf_cpu.dimension(function(d) {return d[0];});
-    var dimension_group = xf_cpu_by_timestamp.group().reduceSum(function(d) {return +d[1]})
+     xf_cpu = crossfilter(data_client['system_stats'][metric])
+     xf_cpu_by_value = xf_cpu.dimension(function(d) {return +d[1];});
+     xf_cpu_by_timestamp = xf_cpu.dimension(function(d) {return d[0];});
+     dimension_group = xf_cpu_by_timestamp.group().reduceSum(function(d) {return +d[1]})
 
     //console.log(dimension_group.top(100));
 
-    var minVal = dimension_group.all()[0]['key'];
-    var maxVal = dimension_group.all()[dimension_group.all().length - 1]['key'];
+     minVal = dimension_group.all()[0]['key'];
+     maxVal = dimension_group.all()[dimension_group.all().length - 1]['key'];
 
     //console.log(minVal + " - " + maxVal);
 
@@ -351,7 +351,6 @@ async function restart_client(client) {
         fd.append("CLIENT", client);
         //xhr.open("POST", API_URL);
         //xhr.send(fd);
-
 
         const response = await fetch('/api', {
             method: 'POST',
