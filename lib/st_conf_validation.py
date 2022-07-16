@@ -1262,13 +1262,27 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
                                 listener_client1_port = find_free_port(_dict_port_ref, client['UID'])
                                 listener_client2_port = find_free_port(_dict_port_ref, client2['UID'])
 
+                                client_ip = client['IP_ADDRESS']
+                                client2_ip = client2['IP_ADDRESS']
+
+                                if 'OVERRIDE_DST_NODE_IP' in client:
+                                    for k, v in client['OVERRIDE_DST_NODE_IP'].items():
+                                        if k == client2['UID']:
+                                            client2_ip = v
+
+                                if 'OVERRIDE_DST_NODE_IP' in client2:
+                                    for k, v in client2['OVERRIDE_DST_NODE_IP'].items():
+                                        if k == client['UID']:
+                                            client_ip = v
+
+
                                 # add the listeners and connectors of the current pair
                                 obj_listener_client_listener = st_obj_mesh(syntraf_instance_type="LISTENER",
                                                                                 UID_CLIENT=client2['UID'],
                                                                                 UID_SERVER=client['UID'],
                                                                                 PORT=listener_client1_port,
                                                                                 INTERVAL=mesh_group['INTERVAL'],
-                                                                                BIND_ADDRESS=client['IP_ADDRESS'],
+                                                                                BIND_ADDRESS=client_ip,
                                                                                 CLIENT_PARAM_DSCP=mesh_group['DSCP'],
                                                                                 MESH_GROUP=mesh_group['UID'],
                                                                                 CLIENT_PARAM_PACKET_SIZE=mesh_group[
@@ -1277,8 +1291,7 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
                                 obj_connector_client_connector = st_obj_mesh(syntraf_instance_type="CONNECTOR",
                                                                                 UID_CLIENT=client['UID'],
                                                                                 UID_SERVER=client2['UID'],
-                                                                                DESTINATION_ADDRESS=client2[
-                                                                                  'IP_ADDRESS'],
+                                                                                DESTINATION_ADDRESS=client2_ip,
                                                                                 PORT=listener_client2_port,
                                                                                 BANDWIDTH=mesh_group['BANDWIDTH'],
                                                                                 DSCP=mesh_group['DSCP'],
@@ -1290,7 +1303,7 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
                                                                                 UID_SERVER=client2['UID'],
                                                                                 PORT=listener_client2_port,
                                                                                 INTERVAL=mesh_group['INTERVAL'],
-                                                                                BIND_ADDRESS=client2['IP_ADDRESS'],
+                                                                                BIND_ADDRESS=client2_ip,
                                                                                 CLIENT_PARAM_DSCP=mesh_group['DSCP'],
                                                                                 MESH_GROUP=mesh_group['UID'],
                                                                                 CLIENT_PARAM_PACKET_SIZE=mesh_group[
@@ -1299,8 +1312,7 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
                                 obj_connector_client2_connector = st_obj_mesh(syntraf_instance_type="CONNECTOR",
                                                                                 UID_CLIENT=client2['UID'],
                                                                                 UID_SERVER=client['UID'],
-                                                                                DESTINATION_ADDRESS=client[
-                                                                                   'IP_ADDRESS'],
+                                                                                DESTINATION_ADDRESS=client_ip,
                                                                                 PORT=listener_client1_port,
                                                                                 BANDWIDTH=mesh_group['BANDWIDTH'],
                                                                                 DSCP=mesh_group['DSCP'],
