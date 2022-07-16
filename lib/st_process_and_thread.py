@@ -181,7 +181,6 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
         if 'LISTENERS' in config:
 
             for listener, listener_v in config['LISTENERS'].items():
-                print(f"CHECKING {k}-{v}")
                 # check if a st_obj_process_n_thread exist with LISTENER instance_type and the name corresponding the current listener config of the loop
                 # the goal is to see if it's already running
                 for thr in threads_n_processes:
