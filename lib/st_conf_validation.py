@@ -924,6 +924,18 @@ def config_validation_server(_config, parameters):
                 log.debug(
                     f"IS 'SERVER_CLIENT' MESH_GROUP_UID_LIST VALUE VALID FOR SERVER_CLIENT '{server_client['UID']}' : PARAMETER NOT FOUND")
 
+            # Validate OVERRIDE_DST_NODE_IP
+            if 'OVERRIDE_DST_NODE_IP' in server_client:
+                if not validate_override_dst_node_ip(server_client, _config):
+                    log.error(
+                        f"IS 'SERVER_CLIENT' OVERRIDE_DST_NODE_IP VALUE VALID FOR SERVER_CLIENT '{server_client['UID']}' : NO")
+                    return False, None, None
+                else:
+                    log.debug(
+                        f"IS 'SERVER_CLIENT' OVERRIDE_DST_NODE_IP VALUE '{server_client['OVERRIDE_DST_NODE_IP']}' VALID FOR SERVER_CLIENT '{server_client['UID']}' : YES")
+            else:
+                log.debug(
+                    f"IS 'SERVER_CLIENT' OVERRIDE_DST_NODE_IP VALUE VALID FOR SERVER_CLIENT '{server_client['UID']}' : PARAMETER NOT FOUND")
 
             # Validate MESH_GROUP UID LIST
             if 'P2P_GROUP_UID_LIST' in server_client:
@@ -1066,6 +1078,39 @@ def validate_mesh_group_uid_list(server_client, _config):
 
     return True
 
+
+#################################################################################
+### Validation of a MESH_GROUP_UID
+### All the nodes specified must exists
+### The format of the IP address specified must be valid
+### exemple : {'CENTOS8-VM': '10.2.0.201', 'LAB3-VM': '10.2.0.201'}
+#################################################################################
+def validate_override_dst_node_ip(server_client, _config):
+    validation_ok = True
+
+    #validation of the IP's
+    for ip in server_client['OVERRIDE_DST_NODE_IP'].values():
+        if not is_ip_or_hostname_valid(ip, "CLIENT_IP"):
+            log.error(
+                f"IS '{ip}' A VALID IP ADDRESS IN OVERRIDE_DST_NODE_IP IN SERVER_CLIENT '{server_client['UID']}' : NO")
+            validation_ok = False
+        else:
+            log.debug(
+                f"IS '{ip}' A VALID IP ADDRESS IN OVERRIDE_DST_NODE_IP IN SERVER_CLIENT '{server_client['UID']}' : YES")
+
+    # validation of the client's UID
+    for override_ip_client_uid in server_client['OVERRIDE_DST_NODE_IP']:
+        found = False
+        for server_client in _config['SERVER_CLIENT']:
+            if server_client['UID'] == override_ip_client_uid:
+                found = True
+        if not found:
+            log.error(f"IS {override_ip_client_uid} CLIENT UID IN OVERRIDE_DST_NODE_IP IN SERVER_CLIENT '{server_client['UID']}' EXIST : NO")
+            validation_ok = False
+        else:
+            log.debug(
+                f"IS {override_ip_client_uid} CLIENT UID IN OVERRIDE_DST_NODE_IP IN SERVER_CLIENT '{server_client['UID']}' EXIST : YES")
+    return validation_ok
 
 #################################################################################
 ### Validation of an IP Adresse (ipv4)
