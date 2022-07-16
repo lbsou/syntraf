@@ -91,8 +91,8 @@ def parse_line_to_array(line, _config, listener_dict_key, conn_db, dict_data_to_
                      _config['LISTENERS'][listener_dict_key]['UID_SERVER'], timestamp, utime, bitrate, jitter,
                      loss], _config, listener_dict_key, packet_loss, packet_total, dict_data_to_send_to_server)
 
-                log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - listener:{listener_dict_key}")
-                log.debug(f"timestamp:{timestamp.strftime('%d/%m/%Y %H:%M:%S')}, bitrate: {bitrate}, jitter: {jitter}, loss: {loss}, packet_loss: {packet_loss}, packet_total: {packet_total}")
+            log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - listener:{listener_dict_key}")
+            log.debug(f"timestamp:{timestamp.strftime('%d/%m/%Y %H:%M:%S')}, bitrate: {bitrate}, jitter: {jitter}, loss: {loss}, packet_loss: {packet_loss}, packet_total: {packet_total}")
 
             #elif _config['GLOBAL']['DB_ENGINE'].upper() == "INFLUXDB2":
             #    json_body = generate_json([_config['LISTENERS'][listener_dict_key]['UID_CLIENT'],
