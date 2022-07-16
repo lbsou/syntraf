@@ -1236,6 +1236,7 @@ def close_listeners_and_connectors(threads_n_processes):
     for thr in threads_n_processes:
         if thr.syntraf_instance_type == "LISTENER" or thr.syntraf_instance_type == "CONNECTOR":
             thr.close()
+            threads_n_processes.remove(thr)
 
 
 def update_config(data, _config):
