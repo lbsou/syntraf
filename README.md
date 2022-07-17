@@ -11,9 +11,7 @@ Table of contents
 * [Setup](#setup)
 * [Todo](#todo)
 
-## Warning! Alpha stage!
-
-SYNTRAF WEBUI IS STILL UNSTABLE.  
+SYNTRAF WEBUI IS STILL UNDER HEAVY DEVELOPMENT!
 LOOKING FOR COLLABORATORS!  
 Email me at shadow131 @ hotmail [dot] com  
 
