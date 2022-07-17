@@ -39,7 +39,7 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
                     log.warning(f"SYNTRAF HAS DETECTED AN OUTAGE, {qty_of_event_to_report} EVENTS WHERE LOST. GENERATING 100% LOSSES VALUES BETWEEN ")
                     #{time.strftime('%Y-%m-%d %H:%M:%S', utime_last_event)} AND {time.strftime('%Y-%m-%d %H:%M:%S', utime_now)}
 
-                    for utime_generated in range(utime_last_event + interval, utime_now - interval, interval):
+                    for utime_generated in range(int(utime_last_event) + interval, int(utime_now) - interval, interval):
                         dt_generated = datetime.datetime.strptime(time.strftime('%Y-%m-%d %H:%M:%S', utime_generated), "%Y-%m-%d %H:%M:%S")
                         timezone = pytz.timezone(DefaultValues.TIMEZONE)
                         dt_tz_generated = timezone.localize(dt_generated)
