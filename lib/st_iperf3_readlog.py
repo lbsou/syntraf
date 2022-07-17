@@ -28,7 +28,7 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
 
             # Iperf3 stop generating events when a network outage is too long, but we still want to report the losses
             # If we already received a log in the past
-            log.debug(f"OUTAGE_MECHANISM DEBUG utime_last_event:{utime_last_event})
+            log.debug(f"OUTAGE_MECHANISM DEBUG utime_last_event:{utime_last_event}")
             if utime_last_event != 0:
                 # If iperf3 did not write any events for the double of the interval he's supposed to
 
