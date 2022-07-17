@@ -185,7 +185,11 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                 # the goal is to see if it's already running
                 for thr in threads_n_processes:
                     if thr.syntraf_instance_type == "LISTENER" and thr.name == listener:
-                        thr_temp = thr
+                        if thr.subproc is NoneType:
+                            threads_n_processes.remove(thr)
+                            thr_temp = None
+                        else:
+                            thr_temp = thr
                         break
                     else:
                         thr_temp = None
