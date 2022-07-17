@@ -944,8 +944,8 @@ def handler(_config, _dict_by_node_generated_config, conn_db, dict_of_commands_f
                 received_data = ""
                 received_data = sock_rcv(sckt)
 
-                if received_data is None:
-                    received_data = sock_rcv(sckt)
+                #if received_data is None:
+                #    received_data = sock_rcv(sckt)
 
                 if received_data is None:
                     server_log.debug(f"CONTEXT: {dict_of_clients[uid].client_uid} - INVALID DATA RECEIVED")
