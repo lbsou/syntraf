@@ -49,7 +49,7 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
 
                         save_to_server([uid_client, uid_server, timestamp_generated, utime_generated_utc, "0", "0", "100"], _config, listener_dict_key, "0", "0", dict_data_to_send_to_server)
                         log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - listener:{listener_dict_key}")
-                        log.debug(f"timestamp:{timestamp.strftime('%d/%m/%Y %H:%M:%S')}, bitrate: 0, jitter: 0, loss: 100, packet_loss: 0, packet_total: 0")
+                        log.debug(f"timestamp:{timestamp_generated}, bitrate: 0, jitter: 0, loss: 100, packet_loss: 0, packet_total: 0")
 
             if not line:
                 time.sleep(interval / 2)
