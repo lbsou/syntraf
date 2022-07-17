@@ -31,13 +31,12 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
             log.debug(f"OUTAGE_MECHANISM DEBUG utime_last_event:{utime_last_event}")
             if utime_last_event != 0:
                 # If iperf3 did not write any events for the double of the interval he's supposed to
-
                 log.debug(f"OUTAGE_MECHANISM DEBUG utime_now:{utime_now} utime_last_event:{utime_last_event} utime_now - utime_last_event: {(utime_now - utime_last_event)}")
 
                 if (utime_now - utime_last_event) >= (2 * interval):
                     # Save new event to database with 100% loss for every time interval
                     qty_of_event_to_report = (utime_now - utime_last_event) / interval
-                    log.warning(f"SYNTRAF HAS DETECTED AN OUTAGE, {qty_of_event_to_report} EVENTS WHERE LOST. GENERATING 100% LOSSES VALUES BETWEEN ")
+                    log.warning(f"SYNTRAF HAS DETECTED AN OUTAGE, {qty_of_event_to_report} EVENTS WHERE LOST. GENERATING 100% LOSSES VALUES.")
                     #{time.strftime('%Y-%m-%d %H:%M:%S', utime_last_event)} AND {time.strftime('%Y-%m-%d %H:%M:%S', utime_now)}
 
                     for utime_generated in range(int(utime_last_event) + interval, int(utime_now) - interval, interval):
