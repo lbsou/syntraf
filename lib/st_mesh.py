@@ -523,7 +523,7 @@ def client_command_diffconfig(_config, received_data, threads_n_processes):
     try:
         client_log.info("RECEIVED A REQUEST TO UPDATE LOCAL CONFIG WITH A DIFFCONFIG")
 
-        # A dynamic client just connected and we need to add his IP address to the local config
+        # A dynamic client just connected, we need to add his IP address to the local config
         if received_data['PAYLOAD']['ELEMENT'] == "CLIENT_IP":
             # In case there was no CONNECTORS associated with that client, there is no IP to update.
 
@@ -788,7 +788,7 @@ def server_auth(received_data, obj_client, _config, address, dict_of_commands_fo
                 # So that we can track that this is a dynamic client and rollback the ip when disconnection occur.
                 obj_client.bool_dynamic_client = True
 
-                # Updating the client config with the ip address he's coming from
+                # Updating the client object with the ip address he's coming from
                 server_client['IP_ADDRESS'] = obj_client.ip_address
 
                 # We need to regenerate the config, we pass the _dict_by_node_generated_config variable to avoid the webui and process_and_thread to continue to use the old memory pointer
@@ -797,9 +797,20 @@ def server_auth(received_data, obj_client, _config, address, dict_of_commands_fo
 
                 # Telling to every other client to update their config
                 for server_client in _config['SERVER_CLIENT']:
-                    if not server_client['UID'] == obj_client.client_uid:
-                        dict_of_commands_for_network_clients[server_client['UID']] = []
-                        dict_of_commands_for_network_clients[server_client['UID']].append({"ACTION": "UPDATED_CONFIG", "ELEMENT": "CLIENT_IP", "CLIENT_UID": obj_client.client_uid, "IP_ADDRESS": obj_client.ip_address})
+
+                    # If there is an existing OVERRIDE_DST_NODE_IP, do not update the config
+                    skip_flag = False
+                    if 'OVERRIDE_DST_NODE_IP' in server_client:
+                        if server_client['OVERRIDE_DST_NODE_IP']:
+                            for override_ip_client_uid in server_client['OVERRIDE_DST_NODE_IP']:
+                                if override_ip_client_uid == obj_client.client_uid:
+                                    skip_flag = True
+
+                    if not skip_flag:
+                        # Do not update the client itself
+                        if not server_client['UID'] == obj_client.client_uid:
+                            dict_of_commands_for_network_clients[server_client['UID']] = []
+                            dict_of_commands_for_network_clients[server_client['UID']].append({"ACTION": "UPDATED_CONFIG", "ELEMENT": "CLIENT_IP", "CLIENT_UID": obj_client.client_uid, "IP_ADDRESS": obj_client.ip_address})
 
     # Show an alert in the log when the clock skew is too great
     server_log.debug(f"CONTEXT: {obj_client.client_uid} - STARTING VALIDATION OF CLOCK SKEW")
