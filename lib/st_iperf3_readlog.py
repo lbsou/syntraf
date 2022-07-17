@@ -41,7 +41,7 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
                     #{time.strftime('%Y-%m-%d %H:%M:%S', utime_last_event)} AND {time.strftime('%Y-%m-%d %H:%M:%S', utime_now)}
 
                     for utime_generated in range(int(utime_last_event) + interval, int(utime_now) - interval, interval):
-                        dt_generated = time.strftime('%Y-%m-%d %H:%M:%S', utime_generated)
+                        dt_generated = datetime.datetime.fromtimestamp(utime_generated)
                         timezone = pytz.timezone(DefaultValues.TIMEZONE)
                         dt_tz_generated = timezone.localize(dt_generated)
                         timestamp_generated = dt_tz_generated.astimezone(pytz.timezone("UTC"))
