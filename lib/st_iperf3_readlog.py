@@ -16,13 +16,12 @@ log = logging.getLogger(__name__)
 #################################################################################
 def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dict_data_to_send_to_server):
     utime_last_event = 0
-    utime_now = time.time()
-
     try:
         # seek the end
         file.seek(0, os.SEEK_END)
 
         while True:
+            utime_now = time.time()
             # reading last line
             line = file.readline()
 
