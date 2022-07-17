@@ -36,7 +36,8 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
                 if (utime_now - utime_last_event) >= (2 * interval):
                     # Save new event to database with 100% loss for every time interval
                     qty_of_event_to_report = (utime_now - utime_last_event) / interval
-                    log.warning(f"SYNTRAF HAS DETECTED AN OUTAGE, {qty_of_event_to_report} EVENTS WHERE LOST. GENERATING 100% LOSSES VALUES BETWEEN {time.strftime('%Y-%m-%d %H:%M:%S', utime_last_event)} AND {time.strftime('%Y-%m-%d %H:%M:%S', utime_now)}")
+                    log.warning(f"SYNTRAF HAS DETECTED AN OUTAGE, {qty_of_event_to_report} EVENTS WHERE LOST. GENERATING 100% LOSSES VALUES BETWEEN ")
+                    #{time.strftime('%Y-%m-%d %H:%M:%S', utime_last_event)} AND {time.strftime('%Y-%m-%d %H:%M:%S', utime_now)}
 
                     for utime_generated in range(utime_last_event + interval, utime_now - interval, interval):
                         dt_generated = datetime.datetime.strptime(time.strftime('%Y-%m-%d %H:%M:%S', utime_generated), "%Y-%m-%d %H:%M:%S")
