@@ -12,9 +12,10 @@ log = logging.getLogger(__name__)
 
 
 #################################################################################
-### YIELD LINE OF IPERF LOG AND TRUNCATE IT AFTER
+### YIELD LINE FROM IPERF3 OUTPUT FILE AND TRUNCATE IT AFTER
 #################################################################################
-def tail(file):
+def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dict_data_to_send_to_server):
+    utime_last_event = 0
     try:
         # seek the end
         file.seek(0, os.SEEK_END)
@@ -23,10 +24,33 @@ def tail(file):
             # reading last line
             line = file.readline()
 
-            # Else, sleep
+            # Iperf3 stop generating events when a network outage is too long, but we still want to report the losses
+            utime_now = time.time()
+            # If we already received a log in the past
+            if utime_last_event != 0:
+                # If iperf3 did not write any events for the double of the interval he's supposed to
+                if (utime_now - utime_last_event) >= (2 * interval):
+                    # Save new event to database with 100% loss for every time interval
+                    qty_of_event_to_report = (utime_now - utime_last_event) / interval
+                    log.warning(f"SYNTRAF HAS DETECTED AN OUTAGE, {qty_of_event_to_report} EVENTS WHERE LOST. GENERATING 100% LOSSES VALUES BETWEEN {time.strftime('%Y-%m-%d %H:%M:%S', utime_last_event)} AND {time.strftime('%Y-%m-%d %H:%M:%S', utime_now)}")
+
+                    for utime_generated in range(utime_last_event + interval, utime_now - interval, interval):
+                        dt_generated = datetime.datetime.strptime(time.strftime('%Y-%m-%d %H:%M:%S', utime_generated), "%Y-%m-%d %H:%M:%S")
+                        timezone = pytz.timezone(DefaultValues.TIMEZONE)
+                        dt_tz_generated = timezone.localize(dt_generated)
+                        timestamp_generated = dt_tz_generated.astimezone(pytz.timezone("UTC"))
+                        utime_generated_utc = dt_tz_generated.astimezone(pytz.timezone("UTC")).timestamp()
+
+                        save_to_server([uid_client, uid_server, timestamp_generated, utime_generated_utc, "0", "0", "100"], _config, listener_dict_key, "0", "0", dict_data_to_send_to_server)
+                        log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - listener:{listener_dict_key}")
+                        log.debug(f"timestamp:{timestamp.strftime('%d/%m/%Y %H:%M:%S')}, bitrate: 0, jitter: 0, loss: 100, packet_loss: 0, packet_total: 0")
+
             if not line:
-                time.sleep(0.2)
+                time.sleep(interval / 2)
                 continue
+            else:
+                last_event_time = time.time()
+
             file.seek(0)
             # truncate the line to keep the file empty
             file.truncate()
@@ -69,8 +93,6 @@ def parse_line_to_array(line, _config, listener_dict_key, conn_db, dict_data_to_
             # loss
             x = re.findall(r"\((.*)%\)", line)
             loss = str(x[0])
-            #if (bitrate == "0.00"):
-            #    loss = 100
 
             # packet_loss
             x = re.findall(r"ms  (.*)\/.*\(", line)
@@ -83,7 +105,7 @@ def parse_line_to_array(line, _config, listener_dict_key, conn_db, dict_data_to_
             # when 100% packet loss, iperf report 0 for all values except jitter
             # ie: [  5]   4.00-5.00   sec  0.00 Bytes  0.00 bits/sec  0.024 ms  0/0 (0%)
             if bitrate == "0.00" and loss == "0" and packet_loss == "0" and packet_total == "0":
-                loss = 100
+                loss = "100"
 
             if _config['CLIENT']['FORWARD_METRICS_TO_SERVER']:
                 save_to_server(
@@ -108,7 +130,6 @@ def parse_line_to_array(line, _config, listener_dict_key, conn_db, dict_data_to_
 
     return True
 
-
 #################################################################################
 ### FUNCTION USE WITH THREAD TO READ LOGS
 #################################################################################
@@ -117,7 +138,8 @@ def read_log(listener_dict_key, _config, stop_thread, dict_data_to_send_to_serve
     pathlib.Path(os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['LISTENERS'][listener_dict_key]['PORT']) + ".log")).touch()
     file = open(
         os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['LISTENERS'][listener_dict_key]['PORT']) + ".log"), "r+")
-    lines = tail(file)
+
+    lines = tail(file, int(_config['LISTENERS'][listener_dict_key]['INTERVAL']), _config['LISTENERS'][listener_dict_key]['UID_CLIENT'], _config['LISTENERS'][listener_dict_key]['UID_SERVER'], _config, listener_dict_key, dict_data_to_send_to_server)
     log.info(f"READING LOGS FOR LISTENER {listener_dict_key} FROM {file.name} ")
     try:
         for line in lines:
