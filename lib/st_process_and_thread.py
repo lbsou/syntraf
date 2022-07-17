@@ -208,7 +208,7 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                     threads_n_processes.append(thread_or_process)
                 # Was launch, but is it running?
                 else:
-                    log.error(f"DEBUG C42, type of thr_temp: {type(thr_temp)}")
+                    log.error(f"DEBUG C42, type of thr_temp: {type(thr_temp.subproc)}")
                     # The subproc is not running
                     if not thr_temp.subproc.poll() is None:
                         # Print the last breath
