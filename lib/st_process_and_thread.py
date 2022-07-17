@@ -190,6 +190,15 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                     else:
                         thr_temp = None
 
+                    # BUG
+                '''2022-07-17 07:11:21 - LIB.ST_PROCESS_AND_THREAD - INFO - CLIENT RE-INITIATED : 45.72.188.91:6531
+                2022-07-17 07:11:23 - LIB.ST_PROCESS_AND_THREAD - ERROR - manage_listeners_process:AttributeError:'NoneType' object has no attribute 'poll'
+               Traceback (most recent call last):
+                 File "/opt/syntraf/lib/st_process_and_thread.py", line 204, in manage_listeners_process
+                   if not thr_temp.subproc.poll() is None:
+               AttributeError: 'NoneType' object has no attribute 'poll'''
+
+
                 # Was never launch
                 if not thr_temp:
                     # starting the new iperf server
@@ -197,9 +206,9 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                                                                 syntraf_instance_type="LISTENER",
                                                                 starttime=datetime.now().strftime("%d/%m/%Y %H:%M:%S"), opposite_side=listener_v['UID_CLIENT'], group=listener_v['MESH_GROUP'], port=listener_v['PORT'])
                     threads_n_processes.append(thread_or_process)
-
                 # Was launch, but is it running?
                 else:
+                    log.error(f"DEBUG C42, type of thr_temp: {type(thr_temp)}")
                     # The subproc is not running
                     if not thr_temp.subproc.poll() is None:
                         # Print the last breath
