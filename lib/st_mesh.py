@@ -369,7 +369,6 @@ def client_receive_configuration(_config, ssl_conn, threads_n_processes):
         raise exc
 
 
-
 def client_send_system_infos(ssl_conn):
     try:
         client_log.debug(f"SENDING SYSTEM INFOS TO SERVER")
@@ -524,9 +523,10 @@ def client_command_diffconfig(_config, received_data, threads_n_processes):
     try:
         client_log.info("RECEIVED A REQUEST TO UPDATE LOCAL CONFIG WITH A DIFFCONFIG")
 
-        # A dynamic client just connected and now we need to add his IP address to the local config
+        # A dynamic client just connected and we need to add his IP address to the local config
         if received_data['PAYLOAD']['ELEMENT'] == "CLIENT_IP":
             # In case there was no CONNECTORS associated with that client, there is no IP to update.
+
             if 'CONNECTORS' in _config:
                 for key, connector in _config['CONNECTORS'].items():
                     # If a CONNECTOR config match the client_uid, change the destination_address for the one we just received.
@@ -917,11 +917,21 @@ def server_forget_dynamic_client_ip(obj_client, _config, dict_of_commands_for_ne
         # It will trigger on the client, a termination of the running CONNECTORS associated with that IP and prevent it from restarting because "0.0.0.0" is use as a condition in
         # process_and_thread to not launch a CONNECTOR
         for server_client in _config['SERVER_CLIENT']:
-            # no need to update the client for whom we are sending this update.
-            if not obj_client.client_uid == server_client['UID']:
-                if not server_client['UID'] in dict_of_commands_for_network_clients:
-                    dict_of_commands_for_network_clients[server_client['UID']] = []
-                dict_of_commands_for_network_clients[server_client['UID']].append({"ACTION": "UPDATED_CONFIG", "ELEMENT": "CLIENT_IP", "CLIENT_UID": obj_client.client_uid, "IP_ADDRESS": "0.0.0.0"})
+
+            # If there is an existing OVERRIDE_DST_NODE_IP, do not update the IP
+            skip_flag = False
+            if 'OVERRIDE_DST_NODE_IP' in server_client:
+                if server_client['OVERRIDE_DST_NODE_IP']:
+                    for override_ip_client_uid in server_client['OVERRIDE_DST_NODE_IP']:
+                        if override_ip_client_uid == obj_client.client_uid:
+                            skip_flag = True
+
+            if not skip_flag:
+                # Make sure we are not updating the dynamic client itself
+                if not obj_client.client_uid == server_client['UID']:
+                    if not server_client['UID'] in dict_of_commands_for_network_clients:
+                        dict_of_commands_for_network_clients[server_client['UID']] = []
+                    dict_of_commands_for_network_clients[server_client['UID']].append({"ACTION": "UPDATED_CONFIG", "ELEMENT": "CLIENT_IP", "CLIENT_UID": obj_client.client_uid, "IP_ADDRESS": "0.0.0.0"})
 
 
 def server_save_thread_status(obj_client, received_data):
