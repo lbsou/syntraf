@@ -54,7 +54,7 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
                 time.sleep(interval / 2)
                 continue
             else:
-                last_event_time = time.time()
+                utime_last_event = time.time()
 
             file.seek(0)
             # truncate the line to keep the file empty
