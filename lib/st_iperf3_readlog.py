@@ -16,6 +16,8 @@ log = logging.getLogger(__name__)
 #################################################################################
 def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dict_data_to_send_to_server):
     utime_last_event = 0
+    utime_now = time.time()
+
     try:
         # seek the end
         file.seek(0, os.SEEK_END)
@@ -25,10 +27,13 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
             line = file.readline()
 
             # Iperf3 stop generating events when a network outage is too long, but we still want to report the losses
-            utime_now = time.time()
             # If we already received a log in the past
+            log.debug(f"OUTAGE_MECHANISM DEBUG utime_last_event:{utime_last_event})
             if utime_last_event != 0:
                 # If iperf3 did not write any events for the double of the interval he's supposed to
+
+                log.debug(f"OUTAGE_MECHANISM DEBUG utime_now:{utime_now} utime_last_event:{utime_last_event})
+
                 if (utime_now - utime_last_event) >= (2 * interval):
                     # Save new event to database with 100% loss for every time interval
                     qty_of_event_to_report = (utime_now - utime_last_event) / interval
