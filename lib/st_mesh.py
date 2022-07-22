@@ -958,7 +958,7 @@ def handler(_config, _dict_by_node_generated_config, conn_db, dict_of_commands_f
         nonlocal dict_of_client_pending_acceptance
 
         uid = address[0]
-        dict_of_clients[uid] = cc_client(status="CONNECTING", status_since=datetime.now().strftime("%d/%m/%Y %H:%M:%S"),  status_explanation="NOT YET AUTHENTICATED", client_uid="UNKNOWN", bool_dynamic_client=False, tcp_port=address[1], ip_address=address[0])
+        dict_of_clients[uid] = cc_client(status="CONNECTING", status_since=datetime.now().strftime("%d/%m/%Y %H:%M:%S"), status_explanation="NOT YET AUTHENTICATED", client_uid="UNKNOWN", bool_dynamic_client=False, tcp_port=address[1], ip_address=address[0])
 
         try:
             while True:
@@ -1180,6 +1180,7 @@ def set_tcp_ka(sckt, log):
 
     TCP_USER_TIMEOUT (rfc5482), Kernel 2.6.37 :
 
+    https://man7.org/linux/man-pages/man7/tcp.7.html
 
     """
 

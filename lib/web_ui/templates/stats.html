@@ -220,7 +220,7 @@ async function update_system_stats() {
         for (let [client_uid, data] of Object.entries(system_stats)) {
             data = JSON.parse(data)
 
-            document.getElementById(client_uid + '_status').innerHTML= data['status'];
+            document.getElementById(client_uid + '_status').innerHTML = data['status'];
            // document.getElementById(client_uid + '_status').title = data['status_explanation'];
             $("#" + client_uid + "_status").attr("title", data['status_explanation']).tooltip();
 

@@ -68,10 +68,7 @@ class flask_wrapper (object):
         @app.route('/home.html')
         def index():
             gen_config = toml.dumps(self._dict_by_node_generated_config).replace("\n", "<br/>")
-            online_client = 0
-            offline_client = 0
-
-            return render_template('home.html', title='SYNTRAF WEBUI', config=self.config, gen_config=gen_config, conn_db=self.conn_db, online_client=online_client, offline_client=offline_client, syntraf_version=DefaultValues.SYNTRAF_VERSION)
+            return render_template('home.html', title='SYNTRAF WEBUI', config=self.config, gen_config=gen_config, conn_db=self.conn_db, syntraf_version=DefaultValues.SYNTRAF_VERSION)
 
         @app.route('/generated_client_config.html')
         def generated_config():
@@ -242,15 +239,27 @@ class flask_wrapper (object):
                     return str(online_client)
 
                 elif requested_action == "GET_NUMBER_OF_OFFLINE_CLIENT":
-                    offline_client = 0
+                    online_client = 0
+                    offline_client = len(self.config['SERVER_CLIENT'])
+
                     for client in self.dict_of_clients.values():
-                        if client.status == "DISCONNECTED" or client.status == "UNSEEN":
-                            offline_client += 1
-                    return str(offline_client)
+                        if client.status == "CONNECTED":
+                            online_client += 1
+
+                    return str(offline_client - online_client)
+
+                elif requested_action == "GET_LIST_OF_DATABASES_INFOS":
+                    list_of_databases_infos = {}
+                    for db in self.conn_db:
+                        db.force_status_check()
+                        list_of_databases_infos[db.DB_UID] = {"STATUS": db.status, "STATUS_TIME": db.status_time, "BACKLOG": len(db.write_queue.queue)}
+                    return jsonify(list_of_databases_infos)
 
                 return "OK"
             else:
                 return "OK"
+
+
 
         def flask_logger(logfile):
             for i in range(10000):

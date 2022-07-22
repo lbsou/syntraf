@@ -57,6 +57,9 @@ class InfluxObj(object):
                         self.DB_ORG = database['DB_ORG']
                         self.DB_BUCKET = database['DB_BUCKET']
                         self.DB_UID = database_uid
+                        self.DB_SERVER = database['DB_SERVER']
+                        self.DB_PORT = database['DB_PORT']
+                        self.prefix = prefix
 
                         health = self._connection.health()
 
@@ -81,6 +84,20 @@ class InfluxObj(object):
         self.write_api = self._connection.write_api(write_options=SYNCHRONOUS)
         self.query_api = self._connection.query_api()
 
+    def force_status_check(self):
+        health = self._connection.health()
+
+        if health.status == "pass":
+            log.info(
+                f"CONNECTION TO DATABASE '{self.DB_UID}', '{self.prefix}://{self.DB_SERVER}:{self.DB_PORT}' SUCCESSFUL")
+            self.status = "ONLINE"
+
+        else:
+            log.error(
+                f"CONNECTION TO DATABASE '{self.DB_UID}', '{self.prefix}://{self.DB_SERVER}:{self.DB_PORT}' FAILED")
+            self.status = "OFFLINE"
+        self.status_time = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
     def save_metrics_to_database_with_buffer(self, payload, address, client_uid):
         try:
             # Batch write
@@ -93,7 +110,7 @@ class InfluxObj(object):
 
             #log.debug(f"{len(payload)} ELEMENTS FROM {client_uid}/{address[0]} HAS BEEN WRITTEN TO DATABASE")
 
-            # If status changed, update status dans timestamp
+            # If status changed, update status in timestamp
             if not self.status == "ONLINE":
                 self.status = "ONLINE"
                 self.status_time = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
