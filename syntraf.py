@@ -121,9 +121,19 @@ def run():
     conn_db = []
     # initializing database
 
+    flag_at_least_one_db_online = False
     if "SERVER" in config:
         for database in config['DATABASE']:
-            conn_db.append(InfluxObj(config, database['DB_UID']))
+            new_conn = InfluxObj(config, database['DB_UID'])
+            conn_db.append(new_conn)
+            if new_conn.status == "ONLINE":
+                flag_at_least_one_db_online = True
+    if not flag_at_least_one_db_online:
+        # We should print a message
+        log.warning(f"**********************************************************************************************")
+        log.warning(f"NO DATABASES ONLINE AT THE MOMENT")
+        log.warning(f"DEPENDING ON YOUR CONFIGURATION, SOME DATA COULD BE RECORDED WHEN DATABASE WILL BE BACK ONLINE")
+        log.warning(f"**********************************************************************************************")
 
     try:
         with open(pid_file, 'w') as f:
