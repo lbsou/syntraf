@@ -155,7 +155,6 @@ def run():
     atexit.register(onclose, pid_file, threads_n_processes, shared_mem, config)
 
     # SERVER, This object keep track of all the client resources
-    stats_dict_for_webui = {}
     dict_of_clients = {}
 
     # CLIENT, This object keep track of the local resources
@@ -176,7 +175,7 @@ def run():
         reload_flag = False
 
         # launch iperf_listeners, iperf_connectors read_log, client, server
-        threads_n_processes, subprocess_iperf_dict = launch_and_respawn_workers(config, threads_n_processes, stats_dict_for_webui, obj_stats, dict_of_clients, dict_data_to_send_to_server, dict_of_commands_for_network_clients, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_of_client_pending_acceptance, results.config_file, conn_db, subprocess_iperf_dict)
+        threads_n_processes, subprocess_iperf_dict = launch_and_respawn_workers(config, threads_n_processes, obj_stats, dict_of_clients, dict_data_to_send_to_server, dict_of_commands_for_network_clients, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_of_client_pending_acceptance, results.config_file, conn_db, subprocess_iperf_dict)
 
         # Validate if reload flag has been set by user with another instance of the script (-r)
         try:

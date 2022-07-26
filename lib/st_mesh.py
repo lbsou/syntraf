@@ -1088,7 +1088,7 @@ def handler(_config, _dict_by_node_generated_config, conn_db, dict_of_commands_f
 ###  https://dadruid5.com/2018/07/30/running-a-gevent-streamserver-in-a-thread-for-maximum-control/#:~:text=StreamServer%20Gevent%20maintains%20a%20server%20through%20gevent.server.StreamServer.%20This,pool%20for%20controlling%20the%20number%20of%20connections%20created%3A
 ###  https://stackoverflow.com/questions/21631799/how-can-i-pass-parameters-to-a-requesthandler
 #################################################################################
-def server(_config, threads_n_processes, stop_thread, dict_by_node_generated_config, obj_stats, stats_dict_for_webui, conn_db, dict_of_commands_for_network_clients, dict_of_clients, dict_of_client_pending_acceptance):
+def server(_config, threads_n_processes, stop_thread, dict_by_node_generated_config, obj_stats, conn_db, dict_of_commands_for_network_clients, dict_of_clients, dict_of_client_pending_acceptance):
     pool = Pool(DefaultValues.DEFAULT_SERVER_POOL_SIZE)
 
     try:
@@ -1132,7 +1132,7 @@ def server(_config, threads_n_processes, stop_thread, dict_by_node_generated_con
         # Creating GEvent SSL StreamServer
         if _config['SERVER']['SERVER_X509_SELFSIGNED_DIRECTORY'] == "NO":
             try:
-                server = StreamServer(s, handler(_config, dict_by_node_generated_config, stats_dict_for_webui, conn_db, dict_of_commands_for_network_clients, dict_of_clients, dict_of_client_pending_acceptance), keyfile=_config['SERVER']['SERVER_X509_PRIVATE_KEY'], certfile=_config['SERVER']['SERVER_X509_CERTIFICATE'], server_side=True, cert_reqs=ssl.CERT_NONE, do_handshake_on_connect=True, spawn=pool)
+                server = StreamServer(s, handler(_config, dict_by_node_generated_config, conn_db, dict_of_commands_for_network_clients, dict_of_clients, dict_of_client_pending_acceptance), keyfile=_config['SERVER']['SERVER_X509_PRIVATE_KEY'], certfile=_config['SERVER']['SERVER_X509_CERTIFICATE'], server_side=True, cert_reqs=ssl.CERT_NONE, do_handshake_on_connect=True, spawn=pool)
                 server_log.debug(f"BINDING CONTROL CHANNEL SERVER SSL SOCKET TO '{_config['SERVER']['SERVER']}:{_config['SERVER']['SERVER_PORT']}' SUCCESSFUL")
                 server_log.debug(f"CONTROL CHANNEL SERVER SSL SOCKET LISTENING")
 

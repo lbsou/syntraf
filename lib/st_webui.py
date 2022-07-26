@@ -30,14 +30,13 @@ log = logging.getLogger(__name__)
 
 
 class flask_wrapper (object):
-    def __init__(self, threads_n_processes_param, subprocess_iperf_dict, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server, config, stats_dict_for_webui, config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients):
+    def __init__(self, threads_n_processes_param, subprocess_iperf_dict, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server, config, config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients):
         self.conn_db = conn_db
         self.threads_n_processes = threads_n_processes_param
         self.subprocess_iperf_dict = subprocess_iperf_dict
         self._dict_by_node_generated_config = _dict_by_node_generated_config
         self.dict_data_to_send_to_server = dict_data_to_send_to_server
         self.config = config
-        self.stats_dict_for_webui = stats_dict_for_webui
         self.config_file_path = config_file_path
         self.dict_of_commands_for_network_clients = dict_of_commands_for_network_clients
         self.dict_of_clients = dict_of_clients
@@ -118,7 +117,7 @@ class flask_wrapper (object):
 
         @app.route('/stats.html')
         def stats():
-            return render_template('stats.html', title='SYNTRAF WEBUI', stats_dict_for_webui=self.stats_dict_for_webui, config=self.config, _dict_by_node_generated_config=self._dict_by_node_generated_config, syntraf_version=DefaultValues.SYNTRAF_VERSION, dict_of_clients=self.dict_of_clients)
+            return render_template('stats.html', title='SYNTRAF WEBUI', config=self.config, _dict_by_node_generated_config=self._dict_by_node_generated_config, syntraf_version=DefaultValues.SYNTRAF_VERSION, dict_of_clients=self.dict_of_clients)
 
         @app.route('/clients_configuration.html')
         def clients_configurations():

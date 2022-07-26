@@ -26,7 +26,7 @@ log = logging.getLogger(__name__)
 #################################################################################
 ### DO THE INITIAL LAUNCH AND WATCHDOG OF (LISTENERS, CONNECTORS, CLIENT AND SERVER)
 #################################################################################
-def launch_and_respawn_workers(config, threads_n_processes,  stats_dict_for_webui, obj_stats, dict_of_clients, dict_data_to_send_to_server, dict_of_commands_for_network_clients, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_of_client_pending_acceptance, config_file_path, conn_db, subprocess_iperf_dict=dict()):
+def launch_and_respawn_workers(config, threads_n_processes,  obj_stats, dict_of_clients, dict_data_to_send_to_server, dict_of_commands_for_network_clients, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_of_client_pending_acceptance, config_file_path, conn_db, subprocess_iperf_dict=dict()):
     try:
         # STATS
         list = [thr for thr in threads_n_processes if getattr(thr, 'syntraf_instance_type') == "STATS"]
@@ -47,13 +47,13 @@ def launch_and_respawn_workers(config, threads_n_processes,  stats_dict_for_webu
 
         # SERVER
         if "SERVER" in config:
-            manage_mesh(config, threads_n_processes, "SERVER", obj_stats, dict_of_client_pending_acceptance=dict_of_client_pending_acceptance, dict_of_clients=dict_of_clients, conn_db=conn_db, stats_dict_for_webui=stats_dict_for_webui, _dict_by_node_generated_config=_dict_by_node_generated_config, dict_of_commands_for_network_clients=dict_of_commands_for_network_clients)
+            manage_mesh(config, threads_n_processes, "SERVER", obj_stats, dict_of_client_pending_acceptance=dict_of_client_pending_acceptance, dict_of_clients=dict_of_clients, conn_db=conn_db, _dict_by_node_generated_config=_dict_by_node_generated_config, dict_of_commands_for_network_clients=dict_of_commands_for_network_clients)
 
             # WEBUI
             list = [thr for thr in threads_n_processes if getattr(thr, 'syntraf_instance_type') == "WEBUI"]
             if not list:
                 thr_webui = threading.Thread(target=launch_webui,
-                                              args=(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server, config, stats_dict_for_webui, config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients),
+                                              args=(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server, config, config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients),
                                               daemon=True)
                 thr_webui.name = "WEBUI"
                 thr_webui.start()
@@ -80,9 +80,9 @@ def launch_and_respawn_workers(config, threads_n_processes,  stats_dict_for_webu
     return threads_n_processes, subprocess_iperf_dict
 
 
-def launch_webui(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server, config, stats_dict_for_webui, config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients):
+def launch_webui(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server, config, config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients):
     # start webui
-    app = flask_wrapper(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server, config, stats_dict_for_webui, config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients)
+    app = flask_wrapper(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server, config, config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients)
     app.inject()
     app.run()
 
@@ -114,7 +114,7 @@ def init_client_obj_dict(config, dict_of_clients):
                                                    'cpu_pct_usage': list_stats_cpu_pct_usage}
 
 
-def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, dict_of_client_pending_acceptance={}, dict_of_clients={}, dict_data_to_send_to_server=[], conn_db=None, stats_dict_for_webui=None, _dict_by_node_generated_config=dict(), dict_of_commands_for_network_clients=dict()):
+def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, dict_of_client_pending_acceptance={}, dict_of_clients={}, dict_data_to_send_to_server=[], conn_db=None, _dict_by_node_generated_config=dict(), dict_of_commands_for_network_clients=dict()):
     # Variable to be able to stop thread. It is in a list to be mutable and will be assigned inside a st_obj_thread_n_process object
     stop_thread = [False]
     try:
@@ -139,7 +139,7 @@ def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, dict_of_clien
                 elif mesh_type == "SERVER":
                     init_client_obj_dict(config, dict_of_clients)
                     thread_run = threading.Thread(target=eval(mesh_type.lower()),
-                                                  args=(config, threads_n_processes, stop_thread, _dict_by_node_generated_config, obj_stats, stats_dict_for_webui, conn_db, dict_of_commands_for_network_clients, dict_of_clients, dict_of_client_pending_acceptance), daemon=True)
+                                                  args=(config, threads_n_processes, stop_thread, _dict_by_node_generated_config, obj_stats, conn_db, dict_of_commands_for_network_clients, dict_of_clients, dict_of_client_pending_acceptance), daemon=True)
                 thread_run.daemon = True
                 thread_run.name = mesh_type
                 thread_run.start()
@@ -159,7 +159,7 @@ def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, dict_of_clien
                 elif mesh_type == "SERVER":
                     init_client_obj_dict(config, dict_of_clients)
                     thread_run = threading.Thread(target=eval(mesh_type.lower()),
-                                                  args=(config, threads_n_processes, stop_thread, _dict_by_node_generated_config, obj_stats, stats_dict_for_webui, conn_db, dict_of_commands_for_network_clients, dict_of_clients, dict_of_client_pending_acceptance), daemon=True)
+                                                  args=(config, threads_n_processes, stop_thread, _dict_by_node_generated_config, obj_stats, conn_db, dict_of_commands_for_network_clients, dict_of_clients, dict_of_client_pending_acceptance), daemon=True)
                 thread_run.daemon = True
                 thread_run.name = mesh_type
                 thread_run.start()
