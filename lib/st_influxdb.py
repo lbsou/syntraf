@@ -87,16 +87,21 @@ class InfluxObj(object):
     def force_status_check(self):
         health = self._connection.health()
 
-        if health.status == "pass":
-            log.info(
-                f"CONNECTION TO DATABASE '{self.DB_UID}', '{self.prefix}://{self.DB_SERVER}:{self.DB_PORT}' SUCCESSFUL")
-            self.status = "ONLINE"
+        # The status has changed. Update the status and the status timestamp.
+        if self.status == "ONLINE" and health.status == "fail" or self.status == "OFFLINE" and health.status == "pass":
 
-        else:
-            log.error(
-                f"CONNECTION TO DATABASE '{self.DB_UID}', '{self.prefix}://{self.DB_SERVER}:{self.DB_PORT}' FAILED")
-            self.status = "OFFLINE"
-        self.status_time = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            # Updating status and timestamp
+            if health.status == "pass":
+                self.status = "ONLINE"
+            elif health.status == "fail":
+                self.status = "OFFLINE"
+            self.status_time = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
+            # logging the event
+            if self.status == "ONLINE":
+                log.info(f"DATABASE '{self.DB_UID}', '{self.prefix}://{self.DB_SERVER}:{self.DB_PORT}' IS NOW {self.status}")
+            elif self.status == "OFFLINE":
+                log.warning(f"DATABASE '{self.DB_UID}', '{self.prefix}://{self.DB_SERVER}:{self.DB_PORT}' IS NOW {self.status}")
 
     def save_metrics_to_database_with_buffer(self, payload, address, client_uid):
         try:
