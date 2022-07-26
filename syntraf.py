@@ -131,7 +131,7 @@ def run():
     if not flag_at_least_one_db_online:
         # We should print a message
         log.warning(f"**********************************************************************************************")
-        log.warning(f"NO DATABASES ONLINE AT THE MOMENT")
+        log.warning(f"NO DATABASES ONLINE AT THE MOMENT, DATA WILL BE VOLATILE")
         log.warning(f"DEPENDING ON YOUR CONFIGURATION, SOME DATA COULD BE RECORDED WHEN DATABASE WILL BE BACK ONLINE")
         log.warning(f"**********************************************************************************************")
 

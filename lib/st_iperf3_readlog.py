@@ -50,6 +50,8 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
                         log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - listener:{listener_dict_key}")
                         log.debug(f"timestamp:{timestamp_generated}, bitrate: 0, jitter: 0, loss: 100, packet_loss: 0, packet_total: 0")
 
+                    utime_last_event = time.time()
+
             if not line:
                 time.sleep(interval / 2)
                 continue
