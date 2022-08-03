@@ -16,15 +16,26 @@ LOOKING FOR COLLABORATORS!
 Email me at shadow131 @ hotmail [dot] com  
 
 ## Introduction
-For a long time, I was looking for an open-source tool to generate synthetic traffic without the pain of managing the connections and reading the results in CLI. SYNTRAF stand for "synthetic traffic" and aim at providing exactly that by generating customizable UDP connection between hosts with iperf3, storing the result in a time series database with influxdb which you can visualize in the tool of your choice (I'm using Grafana).
+For a long time, I was looking for an open-source tool to generate synthetic traffic without the pain of managing the connections and reading the results in CLI. SYNTRAF stand for "synthetic traffic" and aim at providing exactly that by generating customizable UDP connection between hosts with iperf3, storing the result in a time series database with influxdb which you can visualize in the tool of your choice (I'm using Grafana).  
+
+You will need a SYNTRAF server to manage the clients and acquire the metrics, and SYNTRAF clients that will establish a control channel to the SYNTRAF server and iperf3 connection to the other clients.  
+
+Configurations are centrally managed in the SYNTRAF server and provided to the clients upon connection.
+
+The connections between the iperf3 client are authenticated with credentials.  
+
+## Use cases  
+Put in place multiple tests between multiple nodes quickly;
+Visualize iperf3 results history/live;
+Visualize outage on a network;
+
 
 ## Technologies
 The tool is :
 - developed with Python >= 3.8
-- compatible with Linux, MacOSX and Windows (you will need an iperf3 binary to do so)  
+- compatible with Linux, MacOSX and Windows
 - compatible with influxdb >= 2.0  
-
-Note on netifaces installation : The netifaces package require setuptools, wheel and python-devel.  
+- compatible with iperf3 >= 3.9
 
 ## Terminology
 You will see references to 'CONNECTORS' and 'LISTENERS'. Those are basically substitute words for IPERF CLIENT (CONNECTORS) and IPERF SERVER (LISTENERS) when handled by SYNTRAF.
