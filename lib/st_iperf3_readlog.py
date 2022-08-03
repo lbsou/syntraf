@@ -30,14 +30,13 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
             # If we already received a log in the past
             log.debug(f"OUTAGE_MECHANISM DEBUG utime_last_event:{utime_last_event}")
             if utime_last_event != 0:
-                # If iperf3 did not write any events for the double of the interval he's supposed to
                 log.debug(f"OUTAGE_MECHANISM DEBUG utime_now:{utime_now} utime_last_event:{utime_last_event} utime_now - utime_last_event: {(utime_now - utime_last_event)}")
 
+                # If iperf3 did not write any events for the double of the interval he's supposed to
                 if (utime_now - utime_last_event) >= (2 * interval):
                     # Save new event to database with 100% loss for every time interval
                     qty_of_event_to_report = (utime_now - utime_last_event) / interval
                     log.warning(f"SYNTRAF HAS DETECTED AN OUTAGE, {qty_of_event_to_report} EVENTS WHERE LOST. GENERATING 100% LOSSES VALUES.")
-                    #{time.strftime('%Y-%m-%d %H:%M:%S', utime_last_event)} AND {time.strftime('%Y-%m-%d %H:%M:%S', utime_now)}
 
                     for utime_generated in range(int(utime_last_event) + interval, int(utime_now) - interval, interval):
                         dt_generated = datetime.datetime.fromtimestamp(utime_generated)
@@ -50,7 +49,7 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
                         log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - listener:{listener_dict_key}")
                         log.debug(f"timestamp:{timestamp_generated}, bitrate: 0, jitter: 0, loss: 100, packet_loss: 0, packet_total: 0")
 
-                    utime_last_event = time.time()
+                        utime_last_event = time.time()
 
             if not line:
                 time.sleep(interval / 2)
