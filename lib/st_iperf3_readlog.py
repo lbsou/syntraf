@@ -39,7 +39,7 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
                 if (utime_now - utime_last_event) >= (2 * interval):
                     # Save new event to database with 100% loss for every time interval
                     qty_of_event_to_report = (utime_now - utime_last_event) / interval
-                    log.warning(f"SYNTRAF HAS DETECTED AN OUTAGE, {qty_of_event_to_report} EVENTS WHERE LOST. GENERATING 100% LOSSES VALUES.")
+                    log.warning(f"listener:{listener_dict_key} - SYNTRAF HAS DETECTED AN OUTAGE, {qty_of_event_to_report} EVENTS WHERE LOST. GENERATING 100% LOSSES VALUES.")
 
                     for utime_generated in range(int(utime_last_event) + interval, int(utime_now), interval):
                         dt_generated = datetime.datetime.fromtimestamp(utime_generated)
@@ -128,7 +128,7 @@ def parse_line_to_array(line, _config, listener_dict_key, conn_db, dict_data_to_
                 log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - listener:{listener_dict_key}")
                 log.debug(f"timestamp:{timestamp.strftime('%d/%m/%Y %H:%M:%S')}, bitrate: {bitrate}, jitter: {jitter}, loss: {loss}, packet_loss: {packet_loss}, packet_total: {packet_total}")
         else:
-            log.debug(line)
+            log.debug(f"listener:{listener_dict_key} {line}")
     except Exception as exc:
         log.error(f"parse_line_to_array:{type(exc).__name__}:{exc}", exc_info=True)
         return False
