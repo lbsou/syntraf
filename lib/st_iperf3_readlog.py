@@ -23,13 +23,16 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
         while True:
             utime_now = time.time()
             dt_now = datetime.datetime.now()
+
             # reading last line
             line = file.readline()
 
-            # Iperf3 stop generating events when a network outage is too long, but we still want to report the losses
-            # If we already received a log in the past
+            '''
+            Iperf3 stop generating events when the connection is lost for too long [how much exactly?], but we still want to report the losses
+            # For that, we need to already have received a log in the past (utime_last_event != 0) and the current log file of iperf3 must not yield line (not line)
+            '''
             log.debug(f"OUTAGE_MECHANISM DEBUG utime_last_event:{utime_last_event}")
-            if utime_last_event != 0 and line is None:
+            if utime_last_event != 0 and not line:
                 log.debug(f"OUTAGE_MECHANISM DEBUG utime_now:{utime_now} utime_last_event:{utime_last_event} utime_now - utime_last_event: {(utime_now - utime_last_event)}")
 
                 # If iperf3 did not write any events for the double of the interval he's supposed to
@@ -50,18 +53,17 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
                         log.debug(f"timestamp:{timestamp_generated}, bitrate: 0, jitter: 0, loss: 100, packet_loss: 0, packet_total: 0")
 
                     utime_last_event = utime_now
-
-            if not line:
+            # Service has not started receiving stuff yet
+            # looped too fast but still inside the no outage interval
+            elif not line:
                 time.sleep(interval / 2)
                 continue
             else:
                 utime_last_event = time.time()
+                file.seek(0)
+                file.truncate()
+                yield line
 
-            file.seek(0)
-            # truncate the line to keep the file empty
-            file.truncate()
-
-            yield line
     except Exception as exc:
         log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
 
