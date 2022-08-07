@@ -53,6 +53,9 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
                         log.debug(f"timestamp:{timestamp_generated}, bitrate: 0, jitter: 0, loss: 100, packet_loss: 0, packet_total: 0")
 
                     utime_last_event = utime_now
+                else:
+                    time.sleep(interval / 2)
+                    continue
             # Service has not started receiving stuff yet
             # looped too fast but still inside the no outage interval
             elif not line:
