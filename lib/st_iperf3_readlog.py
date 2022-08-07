@@ -12,7 +12,7 @@ log = logging.getLogger(__name__)
 
 
 #################################################################################
-### YIELD LINE FROM IPERF3 OUTPUT FILE AND TRUNCATE IT AFTER
+### YIELD LINE FROM IPERF3 OUTPUT FILE
 #################################################################################
 def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dict_data_to_send_to_server):
     utime_last_event = 0
@@ -48,6 +48,7 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
                         timestamp_generated = dt_tz_generated.astimezone(pytz.timezone("UTC"))
                         utime_generated_utc = dt_tz_generated.astimezone(pytz.timezone("UTC")).timestamp()
 
+                        # we could just yield a line, but that would required building a line with the same format as iperf3, it's a hack IMHO, prefer to save directly here.
                         save_to_server([uid_client, uid_server, timestamp_generated, utime_generated_utc, "0", "0", "100"], _config, listener_dict_key, "0", "0", dict_data_to_send_to_server)
                         log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - listener:{listener_dict_key}")
                         log.debug(f"timestamp:{timestamp_generated}, bitrate: 0, jitter: 0, loss: 100, packet_loss: 0, packet_total: 0")
@@ -126,15 +127,8 @@ def parse_line_to_array(line, _config, listener_dict_key, conn_db, dict_data_to_
 
                 log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - listener:{listener_dict_key}")
                 log.debug(f"timestamp:{timestamp.strftime('%d/%m/%Y %H:%M:%S')}, bitrate: {bitrate}, jitter: {jitter}, loss: {loss}, packet_loss: {packet_loss}, packet_total: {packet_total}")
-
-            #elif _config['GLOBAL']['DB_ENGINE'].upper() == "INFLUXDB2":
-            #    json_body = generate_json([_config['LISTENERS'][listener_dict_key]['UID_CLIENT'],
-            #         _config['LISTENERS'][listener_dict_key]['UID_SERVER'], timestamp, utime, bitrate, jitter, loss], _config, listener_dict_key, packet_loss, packet_total)
-            #    for conn in conn_db:
-            #        result = conn.save_metrics_to_database_with_buffer(json_body)
-            #
-            #    log.debug(f"WRITING_TO_INFLUXDB2 - listener:{listener_dict_key},timestamp:{timestamp},utime:{utime},bitrate:{bitrate},jitter:{jitter},loss:{loss},packet_loss:{packet_loss},packet_total:{packet_total}")
-
+        else:
+            log.debug(line)
     except Exception as exc:
         log.error(f"parse_line_to_array:{type(exc).__name__}:{exc}", exc_info=True)
         return False
