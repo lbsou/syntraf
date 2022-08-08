@@ -64,7 +64,7 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
                 log.debug(f"OUTAGE_MECHANISM DEBUG utime_last_event:{utime_last_event}")
                 log.debug(f"{utime_last_event}{line}{listener_just_started_or_absent}")
 
-                if utime_last_event != 0 and not line and not listener_just_started_or_absent:
+                if utime_last_event != 0 and not line:
                     log.debug(
                         f"OUTAGE_MECHANISM DEBUG utime_now:{utime_now} utime_last_event:{utime_last_event} utime_now - utime_last_event: {(utime_now - utime_last_event)}")
 
