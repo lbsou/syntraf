@@ -1155,6 +1155,10 @@ def server(_config, threads_n_processes, stop_thread, dict_by_node_generated_con
             server_log.error(f"UNABLE TO START SERVER ON '{_config['SERVER']['SERVER']}:{_config['SERVER']['SERVER_PORT']}' : {msg}")
             sys.exit()
 
+        except Exception as exc:
+            server_log.error(f"server:{type(exc).__name__}:{exc}", exc_info=True)
+            print(traceback.format_exc())
+
     except Exception as exc:
         server_log.error(f"server:{type(exc).__name__}:{exc}", exc_info=True)
         print(traceback.format_exc())
