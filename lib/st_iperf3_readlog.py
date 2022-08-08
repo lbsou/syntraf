@@ -14,7 +14,7 @@ log = logging.getLogger(__name__)
 #################################################################################
 ### YIELD LINE FROM IPERF3 OUTPUT FILE
 #################################################################################
-def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dict_data_to_send_to_server):
+def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dict_data_to_send_to_server, threads_n_processes):
     utime_last_event = 0
     try:
         # seek the end
@@ -26,6 +26,11 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
 
             # reading last line
             line = file.readline()
+
+            for obj_thread_n_process in threads_n_processes:
+                print(obj_thread_n_process['name'] + "   " + listener_dict_key)
+                if obj_thread_n_process['name'] == listener_dict_key:
+                    print("found!")
 
             '''
             Iperf3 stop generating events when the connection is lost for too long [how much exactly?], but we still want to report the losses
@@ -127,8 +132,6 @@ def parse_line_to_array(line, _config, listener_dict_key, conn_db, dict_data_to_
 
                 log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - listener:{listener_dict_key}")
                 log.debug(f"timestamp:{timestamp.strftime('%d/%m/%Y %H:%M:%S')}, bitrate: {bitrate}, jitter: {jitter}, loss: {loss}, packet_loss: {packet_loss}, packet_total: {packet_total}")
-        else:
-            log.debug(f"listener:{listener_dict_key} {line}")
     except Exception as exc:
         log.error(f"parse_line_to_array:{type(exc).__name__}:{exc}", exc_info=True)
         return False
@@ -138,13 +141,13 @@ def parse_line_to_array(line, _config, listener_dict_key, conn_db, dict_data_to_
 #################################################################################
 ### FUNCTION USE WITH THREAD TO READ LOGS
 #################################################################################
-def read_log(listener_dict_key, _config, stop_thread, dict_data_to_send_to_server, conn_db):
+def read_log(listener_dict_key, _config, stop_thread, dict_data_to_send_to_server, conn_db, threads_n_processes):
     # Opening file and using generator
     pathlib.Path(os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['LISTENERS'][listener_dict_key]['PORT']) + ".log")).touch()
     file = open(
         os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['LISTENERS'][listener_dict_key]['PORT']) + ".log"), "r+")
 
-    lines = tail(file, int(_config['LISTENERS'][listener_dict_key]['INTERVAL']), _config['LISTENERS'][listener_dict_key]['UID_CLIENT'], _config['LISTENERS'][listener_dict_key]['UID_SERVER'], _config, listener_dict_key, dict_data_to_send_to_server)
+    lines = tail(file, int(_config['LISTENERS'][listener_dict_key]['INTERVAL']), _config['LISTENERS'][listener_dict_key]['UID_CLIENT'], _config['LISTENERS'][listener_dict_key]['UID_SERVER'], _config, listener_dict_key, dict_data_to_send_to_server, threads_n_processes)
     log.info(f"READING LOGS FOR LISTENER {listener_dict_key} FROM {file.name} ")
     try:
         for line in lines:
