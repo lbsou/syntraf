@@ -144,6 +144,11 @@ git clone https://github.com/lbsou/syntraf.git
 
 ### Install the required Python modules
 
+First install python and pip
+```
+yum install python3 pip3
+```
+
 The "client_only" variable in the module st_global.py allow you to configure the SYNTRAF package as a client only. This is helpful to have a smaller footprint when installing SYNTRAF or compiling a version for Windows with pyinstaller. 
 
 As a consequence, there is two dependencies file available, choose the one that fit the value of the "client_only" variable. 
@@ -184,20 +189,24 @@ yum groupinstall "Development Tools"
 yum install openssl-devel
 ```
 
-Then you can download, compile and install iperf
-
+Then you can download (https://github.com/esnet/iperf/tags), compile and install iperf 
 ```
-git clone https://github.com/esnet/iperf.git
-cd iperf
+wget https://github.com/esnet/iperf/archive/refs/tags/3.11.tar.gz  
+tar -xvzf 3.11.tar.gz  
+cd iperf-3.11 
 ./configure 
 make
-make install
+make install  
 ```
 
-The you can validate the directory where iperf3 was installed
+Then you can validate the directory where iperf3 was installed
 
 ```
 whereis iperf3
+```
+or
+```
+find / -name iperf3
 ```
 
 #### WINDOWS
