@@ -25,7 +25,7 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
         values = line.split(" ")
         log.error("TOP")
         while True:
-
+            log.error(len(values))
             if (len(values) >= 20 and ("omitted" not in line) and ("terminated" not in line) and (
                     "Interval" not in line) and ("receiver" not in line) and ("------------" not in line) and (
                     "- - - - - - - - -" not in line)):
