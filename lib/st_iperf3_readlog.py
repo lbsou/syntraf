@@ -83,6 +83,8 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
                     file.seek(0)
                     file.truncate()
                     yield line
+            else:
+                time.sleep(interval / 2)
 
     except Exception as exc:
         log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
