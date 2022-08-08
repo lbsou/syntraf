@@ -83,7 +83,7 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
                         file.truncate()
                         yield line
                 else:
-                    log.debug("tail():NOT METRICS")
+                    log.debug(f"tail():NOT METRICS:{line}")
                     time.sleep(interval / 2)
                     continue
             else:
