@@ -16,30 +16,33 @@ log = logging.getLogger(__name__)
 #################################################################################
 def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dict_data_to_send_to_server, threads_n_processes):
     utime_last_event = 0
-    listener_just_started = False
+    listener_just_started_or_absent = False
     try:
         # seek the end
         file.seek(0, os.SEEK_END)
 
         while True:
             utime_now = time.time()
-            dt_now = datetime.datetime.now()
 
             # reading last line
             line = file.readline()
 
+            flag_no_thread_found = True
             for obj_thread_n_process in threads_n_processes:
                 if obj_thread_n_process.name == listener_dict_key:
+                    flag_no_thread_found = False
                     dt_delta = datetime.datetime.now() - datetime.datetime.strptime(obj_thread_n_process.starttime, "%d/%m/%Y %H:%M:%S")
                     if dt_delta.total_seconds() <= 60:
-                        listener_just_started = True
+                        listener_just_started_or_absent = True
+
+            if flag_no_thread_found: listener_just_started_or_absent = True
 
             '''
             Iperf3 stop generating events when the connection is lost for too long [how much exactly?], but we still want to report the losses
             # For that, we need to already have received a log in the past (utime_last_event != 0) and the current log file of iperf3 must not yield line (not line)
             '''
             log.debug(f"OUTAGE_MECHANISM DEBUG utime_last_event:{utime_last_event}")
-            if utime_last_event != 0 and not line and not listener_just_started:
+            if utime_last_event != 0 and not line and not listener_just_started_or_absent:
                 log.debug(f"OUTAGE_MECHANISM DEBUG utime_now:{utime_now} utime_last_event:{utime_last_event} utime_now - utime_last_event: {(utime_now - utime_last_event)}")
 
                 # If iperf3 did not write any events for the double of the interval he's supposed to
