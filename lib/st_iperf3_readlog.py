@@ -20,65 +20,71 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
     try:
         # seek the end
         file.seek(0, os.SEEK_END)
+        # reading last line
+        line = file.readline()
+        values = line.split(" ")
 
         while True:
-            utime_now = time.time()
-            listener_just_started_or_absent = False
+            if (len(values) >= 20 and ("omitted" not in line) and ("terminated" not in line) and (
+                    "Interval" not in line) and ("receiver" not in line) and ("------------" not in line) and (
+                    "- - - - - - - - -" not in line)):
 
-            # reading last line
-            line = file.readline()
+                utime_now = time.time()
+                listener_just_started_or_absent = False
 
-            # Get the infos of the starttime of the current listener, if it has just started or does not exist, do no log an outage, it's just iperf that is not running.
-            flag_no_thread_found = True
-            for obj_thread_n_process in threads_n_processes:
-                if obj_thread_n_process.name == listener_dict_key and obj_thread_n_process.syntraf_instance_type == "LISTENER":
-                    flag_no_thread_found = False
-                    dt_delta = datetime.datetime.now() - datetime.datetime.strptime(obj_thread_n_process.starttime, "%d/%m/%Y %H:%M:%S")
-                    if dt_delta.total_seconds() <= 60:
-                        listener_just_started_or_absent = True
 
-            if flag_no_thread_found: listener_just_started_or_absent = True
 
-            '''
-            Iperf3 stop generating events when the connection is lost for too long [how much exactly?], but we still want to report the losses
-            # For that, we need to already have received a log in the past (utime_last_event != 0) and the current log file of iperf3 must not yield line (not line)
-            '''
-            log.debug(f"OUTAGE_MECHANISM DEBUG utime_last_event:{utime_last_event}")
-            if utime_last_event != 0 and not line and not listener_just_started_or_absent:
-                log.debug(f"OUTAGE_MECHANISM DEBUG utime_now:{utime_now} utime_last_event:{utime_last_event} utime_now - utime_last_event: {(utime_now - utime_last_event)}")
+                # Get the infos of the starttime of the current listener, if it has just started or does not exist, do no log an outage, it's just iperf that is not running.
+                flag_no_thread_found = True
+                for obj_thread_n_process in threads_n_processes:
+                    if obj_thread_n_process.name == listener_dict_key and obj_thread_n_process.syntraf_instance_type == "LISTENER":
+                        flag_no_thread_found = False
+                        dt_delta = datetime.datetime.now() - datetime.datetime.strptime(obj_thread_n_process.starttime, "%d/%m/%Y %H:%M:%S")
+                        if dt_delta.total_seconds() <= 60:
+                            listener_just_started_or_absent = True
 
-                # If iperf3 did not write any events for the double of the interval he's supposed to
-                if (utime_now - utime_last_event) >= (2 * interval):
-                    # Save new event to database with 100% loss for every time interval
-                    qty_of_event_to_report = (utime_now - utime_last_event) / interval
-                    log.warning(f"listener:{listener_dict_key} - SYNTRAF HAS DETECTED AN OUTAGE, {qty_of_event_to_report} EVENTS WHERE LOST. GENERATING 100% LOSSES VALUES.")
+                if flag_no_thread_found: listener_just_started_or_absent = True
 
-                    for utime_generated in range(int(utime_last_event) + interval, int(utime_now), interval):
-                        dt_generated = datetime.datetime.fromtimestamp(utime_generated)
-                        timezone = pytz.timezone(DefaultValues.TIMEZONE)
-                        dt_tz_generated = timezone.localize(dt_generated)
-                        timestamp_generated = dt_tz_generated.astimezone(pytz.timezone("UTC"))
-                        utime_generated_utc = dt_tz_generated.astimezone(pytz.timezone("UTC")).timestamp()
+                '''
+                Iperf3 stop generating events when the connection is lost for too long [how much exactly?], but we still want to report the losses
+                # For that, we need to already have received a log in the past (utime_last_event != 0) and the current log file of iperf3 must not yield line (not line)
+                '''
+                log.debug(f"OUTAGE_MECHANISM DEBUG utime_last_event:{utime_last_event}")
+                if utime_last_event != 0 and not line and not listener_just_started_or_absent:
+                    log.debug(f"OUTAGE_MECHANISM DEBUG utime_now:{utime_now} utime_last_event:{utime_last_event} utime_now - utime_last_event: {(utime_now - utime_last_event)}")
 
-                        # we could just yield a line, but that would required building a line with the same format as iperf3, it's a hack IMHO, prefer to save directly here.
-                        save_to_server([uid_client, uid_server, timestamp_generated, utime_generated_utc, "0", "0", "100"], _config, listener_dict_key, "0", "0", dict_data_to_send_to_server)
-                        log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - listener:{listener_dict_key}")
-                        log.debug(f"timestamp:{timestamp_generated}, bitrate: 0, jitter: 0, loss: 100, packet_loss: 0, packet_total: 0")
+                    # If iperf3 did not write any events for the double of the interval he's supposed to
+                    if (utime_now - utime_last_event) >= (2 * interval):
+                        # Save new event to database with 100% loss for every time interval
+                        qty_of_event_to_report = (utime_now - utime_last_event) / interval
+                        log.warning(f"listener:{listener_dict_key} - SYNTRAF HAS DETECTED AN OUTAGE, {qty_of_event_to_report} EVENTS WHERE LOST. GENERATING 100% LOSSES VALUES.")
 
-                    utime_last_event = utime_now
-                else:
+                        for utime_generated in range(int(utime_last_event) + interval, int(utime_now), interval):
+                            dt_generated = datetime.datetime.fromtimestamp(utime_generated)
+                            timezone = pytz.timezone(DefaultValues.TIMEZONE)
+                            dt_tz_generated = timezone.localize(dt_generated)
+                            timestamp_generated = dt_tz_generated.astimezone(pytz.timezone("UTC"))
+                            utime_generated_utc = dt_tz_generated.astimezone(pytz.timezone("UTC")).timestamp()
+
+                            # we could just yield a line, but that would required building a line with the same format as iperf3, it's a hack IMHO, prefer to save directly here.
+                            save_to_server([uid_client, uid_server, timestamp_generated, utime_generated_utc, "0", "0", "100"], _config, listener_dict_key, "0", "0", dict_data_to_send_to_server)
+                            log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - listener:{listener_dict_key}")
+                            log.debug(f"timestamp:{timestamp_generated}, bitrate: 0, jitter: 0, loss: 100, packet_loss: 0, packet_total: 0")
+
+                        utime_last_event = utime_now
+                    else:
+                        time.sleep(interval / 2)
+                        continue
+                # Service has not started receiving stuff yet
+                # looped too fast but still inside the no outage interval
+                elif not line:
                     time.sleep(interval / 2)
                     continue
-            # Service has not started receiving stuff yet
-            # looped too fast but still inside the no outage interval
-            elif not line:
-                time.sleep(interval / 2)
-                continue
-            else:
-                utime_last_event = time.time()
-                file.seek(0)
-                file.truncate()
-                yield line
+                else:
+                    utime_last_event = time.time()
+                    file.seek(0)
+                    file.truncate()
+                    yield line
 
     except Exception as exc:
         log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
