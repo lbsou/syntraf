@@ -113,6 +113,7 @@ class InfluxObj(object):
                     print(f"server:{type(exc).__name__}:{exc}")
                     print(traceback.format_exc())
 
+
             #log.debug(f"{len(payload)} ELEMENTS FROM {client_uid}/{address[0]} HAS BEEN WRITTEN TO DATABASE")
 
             # If status changed, update status in timestamp
@@ -125,6 +126,7 @@ class InfluxObj(object):
             #log.debug(f"{len(payload)} ELEMENTS FROM {client_uid}/{address[0]} HAS **NOT** BEEN WRITTEN TO DATABASE")
             print(f"server:{type(exc).__name__}:{exc}")
             print(traceback.format_exc())
+
 
             # if len(self.write_queue.queue) == DefaultValues.DEFAULT_WRITE_QUEUE_BUFFER_DEPTH: self.write_queue.queue.popleft()
             # self.write_queue.put({"DB_BUCKET": self.DB_BUCKET, "DB_ORG": self.DB_ORG, "JSON_PAYLOAD": JSON_PAYLOAD})

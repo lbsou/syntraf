@@ -1,15 +1,28 @@
 # SYNTRAF GLOBAL IMPORT
 from lib.st_global import CompilationOptions, DefaultValues
 
+
+
 # SYNTRAF SERVER IMPORT
 if not CompilationOptions.client_only:
     from lib.st_crypto import *
     from lib.st_read_toml import *
 
-    from flask import Flask, Response, render_template, request, send_from_directory, current_app, safe_join, jsonify
+    from flask import Flask, Response, render_template, request, send_from_directory, current_app, safe_join, jsonify, make_response
     from gevent.pywsgi import WSGIServer
     from gevent.pool import Pool
     from PIL import Image
+    from flask_sqlalchemy import SQLAlchemy
+
+    # If python-dotenv is installed, running the flask command will set environment variables defined in the files .env and .flaskenv
+    import os
+    from dotenv import load_dotenv
+    import uuid  # for public id
+    from werkzeug.security import generate_password_hash, check_password_hash
+    # IMPORTS  FOR JWT
+    import jwt
+    from datetime import datetime, timedelta
+    from functools import wraps
 
     # BUILTIN IMPORT
     import os
@@ -25,6 +38,10 @@ if not CompilationOptions.client_only:
     app = Flask(__name__, template_folder=os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, "lib", "web_ui", "templates"))
     app.config['EXPLAIN_TEMPLATE_LOADING'] = False
     app.debug = False
+    load_dotenv()
+    SECRET_KEY = os.getenv("SECRET_KEY")
+    API_KEY = os.getenv("API_KEY")
+
 
 log = logging.getLogger(__name__)
 
