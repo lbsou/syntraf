@@ -212,7 +212,7 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                         #Make sure that every time we start a new listener, we start a new read_log to make sure the outage mechanism is working correctly
                         for obj_thread_n_process in threads_n_processes:
                             if obj_thread_n_process.name == listener and obj_thread_n_process.syntraf_instance_type == "READ_LOG":
-                                obj_thread_n_process.close()
+                                obj_thread_n_process.subproc.kill()
                                 threads_n_processes.remove(obj_thread_n_process)
 
                         # starting the new iperf server
