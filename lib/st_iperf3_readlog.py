@@ -27,6 +27,7 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
             # reading last line
             line = file.readline()
 
+            # Get the infos of the starttime of the current listener, if it has just started or does not exist, do no log an outage, it's just iperf that is not running.
             flag_no_thread_found = True
             for obj_thread_n_process in threads_n_processes:
                 if obj_thread_n_process.name == listener_dict_key:
