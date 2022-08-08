@@ -87,7 +87,7 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
                     time.sleep(interval / 2)
                     continue
             else:
-                log.debug("tail():NO LINE")
+                #log.debug("tail():NO LINE")
                 time.sleep(interval / 2)
                 continue
     except Exception as exc:
