@@ -229,7 +229,7 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                                     stop_thread = [False]
                                     thread_run = threading.Thread(target=read_log,
                                                                   args=(
-                                                                  listener, config, stop_thread, dict_data_to_send_to_server, conn_db),
+                                                                  listener, config, stop_thread, dict_data_to_send_to_server, conn_db, threads_n_processes),
                                                                   daemon=True)
                                     thread_run.daemon = True
                                     thread_run.name = str(listener)
@@ -246,7 +246,7 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                         if not got_a_readlog_instance:
                             # Was never launch, starting the new READLOG thread
                             thread_run = threading.Thread(target=read_log,
-                                                          args=(listener, config, stop_thread, dict_data_to_send_to_server, conn_db),
+                                                          args=(listener, config, stop_thread, dict_data_to_send_to_server, conn_db, threads_n_processes),
                                                           daemon=True)
                             thread_run.daemon = True
                             thread_run.name = str(listener)
