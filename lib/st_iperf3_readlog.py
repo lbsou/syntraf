@@ -83,11 +83,11 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
                         file.truncate()
                         yield line
                 else:
-                    log.debug(f"tail():NOT METRICS:{line}")
+                    log.debug(f"tail():LINE DOES NOT CONTAIN METRICS:{line}")
                     time.sleep(interval / 2)
                     continue
             else:
-                #log.debug("tail():NO LINE")
+                #NO LINE
                 time.sleep(interval / 2)
                 continue
     except Exception as exc:
