@@ -23,7 +23,7 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
         # reading last line
         line = file.readline()
         values = line.split(" ")
-        print("TOP")
+        log.error("TOP")
         while True:
 
             if (len(values) >= 20 and ("omitted" not in line) and ("terminated" not in line) and (
@@ -77,17 +77,17 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
                 # Service has not started receiving stuff yet
                 # looped too fast but still inside the no outage interval
                 elif not line:
-                    print("HERE2")
+                    log.error("HERE2")
                     time.sleep(interval / 2)
                     continue
                 else:
-                    print("HERE3")
+                    log.error("HERE3")
                     utime_last_event = time.time()
                     file.seek(0)
                     file.truncate()
                     yield line
             else:
-                print("HERE")
+                log.error("HERE4")
                 time.sleep(interval / 2)
                 continue
 
