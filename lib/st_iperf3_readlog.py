@@ -28,8 +28,8 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
             line = file.readline()
 
             for obj_thread_n_process in threads_n_processes:
-                print(obj_thread_n_process['name'] + "   " + listener_dict_key)
-                if obj_thread_n_process['name'] == listener_dict_key:
+                print(obj_thread_n_process.name + "   " + listener_dict_key)
+                if obj_thread_n_process.name == listener_dict_key:
                     print("found!")
 
             '''
