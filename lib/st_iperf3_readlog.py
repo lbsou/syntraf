@@ -29,7 +29,8 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
 
             for obj_thread_n_process in threads_n_processes:
                 if obj_thread_n_process.name == listener_dict_key:
-                    log.debug(datetime.datetime.now() - datetime.datetime.strptime(obj_thread_n_process.starttime, "%d/%m/%Y %H:%M:%S").total_seconds())
+                    dt_delta = datetime.datetime.now() - datetime.datetime.strptime(obj_thread_n_process.starttime, "%d/%m/%Y %H:%M:%S")
+                    log.debug(dt_delta.total_seconds())
 
             '''
             Iperf3 stop generating events when the connection is lost for too long [how much exactly?], but we still want to report the losses
