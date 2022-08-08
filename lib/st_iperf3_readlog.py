@@ -73,26 +73,21 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
 
                             utime_last_event = utime_now
                         else:
+                            log.error("tail():WTF")
                             time.sleep(interval / 2)
                             continue
-                    # Service has not started receiving stuff yet
-                    # looped too fast but still inside the no outage interval
-                    elif not line:
-                        log.error("HERE2")
-                        time.sleep(interval / 2)
-                        continue
                     else:
-                        log.error("HERE3")
+                        log.error("tail():YIELDING LINE")
                         utime_last_event = time.time()
                         file.seek(0)
                         file.truncate()
                         yield line
                 else:
-                    log.error("HERE4")
+                    log.debug("tail():NOT METRICS")
                     time.sleep(interval / 2)
                     continue
             else:
-                log.error("HERE5")
+                log.debug("tail():NO LINE")
                 time.sleep(interval / 2)
                 continue
     except Exception as exc:
