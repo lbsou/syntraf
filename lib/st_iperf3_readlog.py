@@ -32,8 +32,6 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
                 utime_now = time.time()
                 listener_just_started_or_absent = False
 
-
-
                 # Get the infos of the starttime of the current listener, if it has just started or does not exist, do no log an outage, it's just iperf that is not running.
                 flag_no_thread_found = True
                 for obj_thread_n_process in threads_n_processes:
