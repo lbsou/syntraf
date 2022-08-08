@@ -24,8 +24,9 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
         line = file.readline()
         values = line.split(" ")
 
-        if line:
-            while True:
+
+        while True:
+            if line:
                 log.error(len(values))
                 if (len(values) >= 20 and ("omitted" not in line) and ("terminated" not in line) and (
                         "Interval" not in line) and ("receiver" not in line) and ("------------" not in line) and (
@@ -91,7 +92,10 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
                     log.error("HERE4")
                     time.sleep(interval / 2)
                     continue
-
+            else:
+                log.error("HERE5")
+                time.sleep(interval / 2)
+                continue
     except Exception as exc:
         log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
 
