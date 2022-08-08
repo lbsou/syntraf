@@ -34,6 +34,8 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
                     flag_no_thread_found = False
                     dt_delta = datetime.datetime.now() - datetime.datetime.strptime(obj_thread_n_process.starttime, "%d/%m/%Y %H:%M:%S")
                     if dt_delta.total_seconds() <= 60:
+                        log.debug(datetime.datetime.strptime(obj_thread_n_process.starttime, "%d/%m/%Y %H:%M:%S"))
+                        log.debug(dt_delta.total_seconds())
                         listener_just_started_or_absent = True
 
             #if flag_no_thread_found: listener_just_started_or_absent = True
