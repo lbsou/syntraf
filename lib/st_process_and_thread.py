@@ -209,6 +209,12 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                         log.warning(f"IPERF3 SERVER OF LISTENER '{listener}' DIED OR NEVER START. LAST BREATH : '{thr_temp.subproc.communicate()[1]}'")
                         threads_n_processes.remove(thr_temp)
 
+                        #Make sure that every time we start a new listener, we start a new read_log to make sure the outage mechanism is working correctly
+                        for obj_thread_n_process in threads_n_processes:
+                            if obj_thread_n_process.name == listener and obj_thread_n_process.syntraf_instance_type == "READ_LOG":
+                                obj_thread_n_process.close()
+                                threads_n_processes.remove(obj_thread_n_process)
+
                         # starting the new iperf server
                         thread_or_process = st_obj_process_n_thread(subproc=iperf3_server(listener, config), name=listener,
                                                             syntraf_instance_type="LISTENER", starttime=datetime.now().strftime("%d/%m/%Y %H:%M:%S"), opposite_side=listener_v['UID_CLIENT'], group=listener_v['MESH_GROUP'], port=listener_v['PORT'])
