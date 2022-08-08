@@ -23,9 +23,9 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
         # reading last line
         line = file.readline()
         values = line.split(" ")
-
+        print("TOP")
         while True:
-            print("TOP")
+
             if (len(values) >= 20 and ("omitted" not in line) and ("terminated" not in line) and (
                     "Interval" not in line) and ("receiver" not in line) and ("------------" not in line) and (
                     "- - - - - - - - -" not in line)):
