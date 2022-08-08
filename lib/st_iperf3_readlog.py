@@ -38,6 +38,8 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
 
             if flag_no_thread_found: listener_just_started_or_absent = True
 
+            log.debug(f"{listener_just_started_or_absent}-{dt_delta.total_seconds()}")
+
             '''
             Iperf3 stop generating events when the connection is lost for too long [how much exactly?], but we still want to report the losses
             # For that, we need to already have received a log in the past (utime_last_event != 0) and the current log file of iperf3 must not yield line (not line)
