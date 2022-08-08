@@ -53,11 +53,11 @@ class DefaultValues:
     # Non parametrizable in toml file for now
 
     # Restart idle server after # seconds in case it got stuck
-    DEFAULT_IPERF3_SERVER_IDLE_TIMEOUT = "30"
-    DEFAULT_IPERF3_SERVER_ONE_OFF = True
+    DEFAULT_IPERF3_SERVER_IDLE_TIMEOUT = "300"
+    DEFAULT_IPERF3_SERVER_ONE_OFF = False
 
     DEFAULT_IPERF3_CLIENT_CONNECT_TIMEOUT = "5000"
-    DEFAULT_IPERF3_RCV_TIMEOUT = "9999995000"
+    DEFAULT_IPERF3_RCV_TIMEOUT = "5000"
 
     # LOGGING
     DEFAULT_LOGGING_MAX_SIZE_PER_FILE = 20_485_760
