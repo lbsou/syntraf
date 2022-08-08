@@ -148,6 +148,7 @@ def read_log(listener_dict_key, _config, stop_thread, dict_data_to_send_to_serve
     log.info(f"READING LOGS FOR LISTENER {listener_dict_key} FROM {file.name} ")
     try:
         for line in lines:
+            log.debug(f"TEMP DEBUG {line}")
             if stop_thread[0] or not parse_line_to_array(line, _config, listener_dict_key, conn_db, dict_data_to_send_to_server):
                 break
 
