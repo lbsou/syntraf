@@ -36,7 +36,7 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
                     if dt_delta.total_seconds() <= 60:
                         listener_just_started_or_absent = True
 
-            if flag_no_thread_found: listener_just_started_or_absent = True
+            #if flag_no_thread_found: listener_just_started_or_absent = True
 
             log.debug(f"{listener_just_started_or_absent}-{dt_delta.total_seconds()}")
 
