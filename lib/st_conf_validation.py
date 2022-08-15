@@ -601,7 +601,9 @@ def config_validation_global(_config):
 
         # validation du binaire iperf3
         if 'IPERF3_BINARY_PATH' in _config['GLOBAL']:
-            if not _config['GLOBAL']['IPERF3_BINARY_PATH'] == "":
+            if _config['GLOBAL']['IPERF3_BINARY_PATH'] == "DISABLE":
+                return True
+            elif not _config['GLOBAL']['IPERF3_BINARY_PATH'] == "":
                 iperf3_file = pathlib.Path(_config['GLOBAL']['IPERF3_BINARY_PATH'])
                 if not iperf3_file.is_file():
                     log.error(
