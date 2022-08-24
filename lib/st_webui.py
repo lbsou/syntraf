@@ -42,9 +42,7 @@ if not CompilationOptions.client_only:
     SECRET_KEY = os.getenv("SECRET_KEY")
     API_KEY = os.getenv("API_KEY")
 
-
-log = logging.getLogger(__name__)
-
+log = logging.getLogger("syntraf." + __name__)
 
 class flask_wrapper (object):
     def __init__(self, threads_n_processes_param, subprocess_iperf_dict, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server, config, config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients):
@@ -78,6 +76,10 @@ class flask_wrapper (object):
         except Exception as exc:
             print(exc)
             pass
+
+        # log_werk = logging.getLogger("werkzeug")
+        # log_werk.setLevel(logging.ERROR)
+        # log_werk.disabled = True
 
     def inject(self):
         @app.route('/')

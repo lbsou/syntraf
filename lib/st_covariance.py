@@ -10,7 +10,7 @@
 # #import matplotlib.pyplot as plt
 #
 #
-# log = logging.getLogger(__name__)
+# log = logging.getLogger("syntraf." + __name__)
 #
 #
 # def init_covar(_config, conn_db):

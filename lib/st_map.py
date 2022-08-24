@@ -6,7 +6,7 @@
 # import sys
 # import pathlib
 #
-# log = logging.getLogger(__name__)
+# log = logging.getLogger("syntraf." + __name__)
 #
 #
 # def generate_map(_list_tuple_for_map_gen, mesh_group_uid):

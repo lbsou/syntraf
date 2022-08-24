@@ -8,7 +8,7 @@ import time
 import logging
 import os
 
-log = logging.getLogger(__name__)
+log = logging.getLogger("syntraf." + __name__)
 
 
 def grab_network_usage(interface_name):

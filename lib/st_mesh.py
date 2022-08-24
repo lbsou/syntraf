@@ -49,8 +49,8 @@ import pytz
 from cpuinfo import get_cpu_info
 import psutil
 
-server_log = logging.getLogger("lib.st_server")
-client_log = logging.getLogger("lib.st_client")
+server_log = logging.getLogger("syntraf." + "lib.st_server")
+client_log = logging.getLogger("syntraf." + "lib.st_client")
 
 
 class cc_client:
@@ -1094,7 +1094,7 @@ def server(_config, threads_n_processes, stop_thread, dict_by_node_generated_con
     try:
         # creating socket
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server_address = (_config['SERVER']['SERVER'], int(_config['SERVER']['SERVER_PORT']))
+        server_address = (_config['SERVER']['BIND_ADDRESS'], int(_config['SERVER']['SERVER_PORT']))
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
         s.settimeout(60)
@@ -1108,18 +1108,18 @@ def server(_config, threads_n_processes, stop_thread, dict_by_node_generated_con
 
     except OSError as exc:
         if exc.errno == 98:  # Address already in use
-            server_log.error(f"ERROR BINDING SOCKET TO '{_config['SERVER']['SERVER']}:{_config['SERVER']['SERVER_PORT']}': 'ADDRESS ALREADY IN USE'")
-            return
+            server_log.error(f"ERROR BINDING SOCKET TO '{_config['SERVER']['BIND_ADDRESS']}:{_config['SERVER']['SERVER_PORT']}': 'ADDRESS ALREADY IN USE'")
+            sys.exit()
         elif exc.errno == 22:  # Invalid argument
-            server_log.error(f"ERROR BINDING SOCKET TO '{_config['SERVER']['SERVER']}:{_config['SERVER']['SERVER_PORT']}': 'INVALID ARGUMENT'")
-            return
+            server_log.error(f"ERROR BINDING SOCKET TO '{_config['SERVER']['BIND_ADDRESS']}:{_config['SERVER']['SERVER_PORT']}': 'INVALID ARGUMENT'")
+            sys.exit()
         else:
-            server_log.error(f"UNHANDLED EXCEPTION WHILE BINDING SOCKET TO '{_config['SERVER']['SERVER']}:{_config['SERVER']['SERVER_PORT']}'")
-            return
+            server_log.error(f"UNHANDLED EXCEPTION WHILE BINDING SOCKET TO '{_config['SERVER']['BIND_ADDRESS']}:{_config['SERVER']['SERVER_PORT']}'")
+            sys.exit()
 
     except Exception as exc:
-        server_log.error(f"ERROR BINDING SOCKET TO '{_config['SERVER']['SERVER']}:{_config['SERVER']['SERVER_PORT']}' : {str(exc[0])} : {str(exc[1])}")
-        return
+        server_log.error(f"ERROR BINDING SOCKET TO '{_config['SERVER']['BIND_ADDRESS']}:{_config['SERVER']['SERVER_PORT']}' : {str(exc[0])} : {str(exc[1])}")
+        sys.exit()
 
     # Generating the rsa keypair for iperf3 authentication
     gen_rsa_iperf3(log, _config)
@@ -1133,35 +1133,37 @@ def server(_config, threads_n_processes, stop_thread, dict_by_node_generated_con
         if _config['SERVER']['SERVER_X509_SELFSIGNED_DIRECTORY'] == "NO":
             try:
                 server = StreamServer(s, handler(_config, dict_by_node_generated_config, conn_db, dict_of_commands_for_network_clients, dict_of_clients, dict_of_client_pending_acceptance), keyfile=_config['SERVER']['SERVER_X509_PRIVATE_KEY'], certfile=_config['SERVER']['SERVER_X509_CERTIFICATE'], server_side=True, cert_reqs=ssl.CERT_NONE, do_handshake_on_connect=True, spawn=pool)
-                server_log.debug(f"BINDING CONTROL CHANNEL SERVER SSL SOCKET TO '{_config['SERVER']['SERVER']}:{_config['SERVER']['SERVER_PORT']}' SUCCESSFUL")
+                server_log.debug(f"BINDING CONTROL CHANNEL SERVER SSL SOCKET TO '{_config['SERVER']['BIND_ADDRESS']}:{_config['SERVER']['SERVER_PORT']}' SUCCESSFUL")
                 server_log.debug(f"CONTROL CHANNEL SERVER SSL SOCKET LISTENING")
 
             except Exception as msg:
-                server_log.error(f"ERROR BINDING SOCKET TO '{_config['SERVER']['SERVER']}:{_config['SERVER']['SERVER_PORT']}' : {str(msg[0])} : {str(msg[1])}")
+                server_log.error(f"ERROR BINDING SOCKET TO '{_config['SERVER']['BIND_ADDRESS']}:{_config['SERVER']['SERVER_PORT']}' : {str(msg[0])} : {str(msg[1])}")
                 sys.exit()
         else:
             try:
                 server = StreamServer(s, handler(_config, dict_by_node_generated_config, conn_db, dict_of_commands_for_network_clients, dict_of_clients, dict_of_client_pending_acceptance), keyfile=os.path.join(_config['SERVER']['SERVER_X509_SELFSIGNED_DIRECTORY'], "private_key_server.pem"), certfile=os.path.join(_config['SERVER']['SERVER_X509_SELFSIGNED_DIRECTORY'], "certificate_server.pem"), server_side=True, cert_reqs=ssl.CERT_NONE, do_handshake_on_connect=True, spawn=pool)
-                server_log.debug(f"BINDING CONTROL CHANNEL SERVER SSL SOCKET TO '{_config['SERVER']['SERVER']}:{_config['SERVER']['SERVER_PORT']}' SUCCESSFUL")
+                server_log.debug(f"BINDING CONTROL CHANNEL SERVER SSL SOCKET TO '{_config['SERVER']['BIND_ADDRESS']}:{_config['SERVER']['SERVER_PORT']}' SUCCESSFUL")
                 server_log.debug(f"CONTROL CHANNEL SERVER SSL SOCKET LISTENING")
             except Exception as msg:
                 server_log.error(
-                    f"ERROR BINDING CONTROL CHANNEL SERVER SSL SOCKET TO '{_config['SERVER']['SERVER']}:{_config['SERVER']['SERVER_PORT']}' : {str(msg[0])} : {str(msg[1])}")
+                    f"ERROR BINDING CONTROL CHANNEL SERVER SSL SOCKET TO '{_config['SERVER']['BIND_ADDRESS']}:{_config['SERVER']['SERVER_PORT']}' : {str(msg)}")
                 sys.exit()
 
         try:
             server.serve_forever()
         except OSError as msg:
-            server_log.error(f"UNABLE TO START SERVER ON '{_config['SERVER']['SERVER']}:{_config['SERVER']['SERVER_PORT']}' : {msg}")
+            server_log.error(f"UNABLE TO START SERVER ON '{_config['SERVER']['BIND_ADDRESS']}:{_config['SERVER']['SERVER_PORT']}' : {msg}")
             sys.exit()
 
         except Exception as exc:
             server_log.error(f"server:{type(exc).__name__}:{exc}", exc_info=True)
             print(traceback.format_exc())
+            sys.exit()
 
     except Exception as exc:
         server_log.error(f"server:{type(exc).__name__}:{exc}", exc_info=True)
         print(traceback.format_exc())
+        sys.exit()
 
 
 def set_tcp_ka(sckt, log):

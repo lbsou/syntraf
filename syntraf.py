@@ -34,8 +34,7 @@ except Exception as exc:
     print("MISSING MODULE: " + str(exc))
     sys.exit()
 
-log = logging.getLogger(__name__)
-
+log = logging.getLogger("syntraf")
 
 #################################################################################
 ### MAIN
@@ -107,7 +106,11 @@ def run():
         sys.exit()
 
     # Initializing logs
-    log_init(results)
+    bool_config_valid, config = read_conf(results.config_file)
+    if not bool_config_valid:
+        log.error(f"CONFIGURATION VALIDATION FAILED")
+        sys.exit()
+    log_init(results, config)
 
     # Validation of configuration
     bool_config_valid, config, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map = validate_config(results)
@@ -123,15 +126,17 @@ def run():
 
     flag_at_least_one_db_online = False
     if "SERVER" in config:
-        for database in config['DATABASE']:
-            new_conn = InfluxObj(config, database['DB_UID'])
-            conn_db.append(new_conn)
-            if new_conn.status == "ONLINE":
-                flag_at_least_one_db_online = True
+        if "DATABASE" in config:
+            for database in config['DATABASE']:
+                new_conn = InfluxObj(config, database['DB_UID'])
+                conn_db.append(new_conn)
+                if new_conn.status == "ONLINE":
+                    flag_at_least_one_db_online = True
+
     if not flag_at_least_one_db_online:
         # We should print a message
         log.warning(f"**********************************************************************************************")
-        log.warning(f"NO DATABASES ONLINE AT THE MOMENT, DATA WILL BE VOLATILE")
+        log.warning(f"NO DATABASES CONFIGURED OR ONLINE AT THE MOMENT, DATA WILL BE VOLATILE")
         log.warning(f"DEPENDING ON YOUR CONFIGURATION, SOME DATA COULD BE RECORDED WHEN DATABASE WILL BE BACK ONLINE")
         log.warning(f"**********************************************************************************************")
 

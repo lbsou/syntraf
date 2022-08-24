@@ -20,7 +20,7 @@ import os
 
 # from lib.st_covariance import *
 
-log = logging.getLogger(__name__)
+log = logging.getLogger("syntraf." + __name__)
 
 
 #################################################################################
@@ -130,6 +130,8 @@ def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, dict_of_clien
 
             # Thread already started, not a initial start. No need to do the validation, only restart if dead
             if thr_temp and not thr_temp.thread_obj.is_alive():
+                log.error("WEBUI THREAD COULD NOT RUN OR DIED, PLEASE INVESTIGATE")
+                sys.exit()
                 threads_n_processes.remove(thr_temp)
 
                 # RESTART MESH INSTANCE
@@ -146,8 +148,11 @@ def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, dict_of_clien
                 thread_or_process = st_obj_process_n_thread(thread_obj=thread_run, name=mesh_type, object_type="THREAD",
                                                             syntraf_instance_type=mesh_type, exit_boolean=stop_thread, starttime=datetime.now().strftime("%d/%m/%Y %H:%M:%S"), opposite_side="", group="", port="")
                 threads_n_processes.append(thread_or_process)
-                log.info(
-                    f"{mesh_type} RE-INITIATED : {config[mesh_type]['SERVER']}:{config[mesh_type]['SERVER_PORT']}")
+                if mesh_type == "CLIENT":
+                    log.info(f"{mesh_type} RE-INITIATED : {config[mesh_type]['SERVER']}:{config[mesh_type]['SERVER_PORT']}")
+                elif mesh_type == "SERVER":
+                    log.info(
+                        f"{mesh_type} RE-INITIATED : {config[mesh_type]['BIND_ADDRESS']}:{config[mesh_type]['SERVER_PORT']}")
             # Validate MESH config and start the thread
             elif thr_temp is None:
                 log.info(f"VALIDATION OF {mesh_type} CONFIG SUCCESSFUL!")
@@ -167,8 +172,13 @@ def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, dict_of_clien
                                                             syntraf_instance_type=mesh_type, exit_boolean=stop_thread, starttime=datetime.now().strftime("%d/%m/%Y %H:%M:%S"), opposite_side="", group="", port="")
 
                 threads_n_processes.append(thread_or_process)
-                log.info(
-                    f"{mesh_type} INITIATED : {config[mesh_type]['SERVER']}:{config[mesh_type]['SERVER_PORT']}")
+                if config[mesh_type] == "CLIENT":
+                    log.info(
+                        f"{mesh_type} INITIATED : {config[mesh_type]['SERVER']}:{config[mesh_type]['SERVER_PORT']}")
+                elif config[mesh_type] == "SERVER":
+                    print(mesh_type)
+                    log.info(
+                    f"{mesh_type} INITIATED : {config[mesh_type]['BIND_ADDRESS']}:{config[mesh_type]['SERVER_PORT']}")
 
     except Exception as exc:
         log.error(f"manage_mesh:{type(exc).__name__}:{exc}", exc_info=True)

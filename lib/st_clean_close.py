@@ -7,7 +7,7 @@ import threading
 from lib.st_global import *
 from lib.st_logging import *
 import logging
-log = logging.getLogger(__name__)
+log = logging.getLogger("syntraf." + __name__)
 
 
 # RETURN TRUE IF PID EXIST
@@ -134,7 +134,7 @@ def start_loading_thread(text):
 
 def onclose(p, threads_n_processes, shared_mem, config):
     config['GLOBAL']['LOG_LEVEL'] = "CRITICAL"
-    set_log_level(config)
+    #set_log_level(config)
     try:
         text = "REMOVING RELOAD_FLAG"
         thr_animation = start_loading_thread(text)

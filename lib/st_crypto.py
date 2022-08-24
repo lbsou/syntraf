@@ -20,7 +20,7 @@ import random
 import string
 import sys
 
-server_log = logging.getLogger(__name__)
+server_log = logging.getLogger("syntraf." + __name__)
 
 
 def gen_iperf3_password_hash(username, password):

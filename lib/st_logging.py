@@ -4,105 +4,185 @@ import sys
 import logging
 import logging.config
 import os
-log = logging.getLogger(__name__)
+
+log = logging.getLogger("syntraf." + __name__)
 
 
 # DEBUG < INFO < WARNING < ERROR < CRITICAL
 #################################################################################
 ###  LOGGING INIT
 #################################################################################
+
 # Initializing logs
-def log_init(results):
+def log_init(results, config={}):
+    logto = DefaultValues.DEFAULT_LOG_TO
+    level = DefaultValues.DEFAULT_LOG_LEVEL
+    level_int = DefaultValues.DEFAULT_LOG_LEVEL_INT
+    logmaxsizeperfile = DefaultValues.DEFAULT_LOG_MAX_SIZE_PER_FILE_MB * 1024 * 1024
+    logfiletokeep = DefaultValues.DEFAULT_LOG_FILE_TO_KEEP
+
+    # Setting LOG DESTINATION
+    if "LOG_TO" in config['GLOBAL']:
+        if isinstance(config['GLOBAL']['LOG_TO'], str):
+            if config['GLOBAL']['LOG_TO'].lower() in ["stdout", "file", "all"]:
+                logto = config['GLOBAL']['LOG_TO'].lower()
+            else:
+                log.info(f"LOG_TO NOT DEFINED, APPLYING DEFAULT '{DefaultValues.DEFAULT_LOG_TO}'")
+        else:
+            log.error(f"LOG_LEVEL IS NOT A STRING, PLEASE FIX THE CONFIGURATION FILE. MAYBE ADD QUOTE?")
+            sys.exit()
+    else:
+        log.info(f"LOG_TO NOT DEFINED, APPLYING DEFAULT '{DefaultValues.DEFAULT_LOG_TO}'")
+
+    # Setting LOG LEVEL
+    if "LOG_LEVEL" in config['GLOBAL']:
+        if isinstance(config['GLOBAL']['LOG_TO'], str):
+            if config['GLOBAL']['LOG_LEVEL'].lower() in ["debug", "info", "warning", "error", "critical"]:
+                level = config['GLOBAL']['LOG_LEVEL'].lower()
+            else:
+                log.info(f"LOG_LEVEL NOT DEFINED, APPLYING DEFAULT '{DefaultValues.DEFAULT_LOG_LEVEL}'")
+        else:
+            log.error(f"LOG_LEVEL IS NOT A STRING, PLEASE FIX THE CONFIGURATION FILE. MAYBE ADD QUOTE?")
+            sys.exit()
+    else:
+        log.info(f"LOG_LEVEL NOT DEFINED, APPLYING DEFAULT '{DefaultValues.DEFAULT_LOG_LEVEL}'")
+
+    if config['GLOBAL']['LOG_LEVEL'].lower() == "critical":
+        level_int = logging.CRITICAL
+    elif config['GLOBAL']['LOG_LEVEL'].lower() == "error":
+        level_int = logging.ERROR
+    elif config['GLOBAL']['LOG_LEVEL'].lower() == "warning":
+        level_int = logging.WARNING
+    elif config['GLOBAL']['LOG_LEVEL'].lower() == "info":
+        level_int = logging.INFO
+    elif config['GLOBAL']['LOG_LEVEL'].lower() == "debug":
+        level_int = logging.DEBUG
+
+    # Setting LOG_MAX_SIZE_PER_FILE_MB
+    if "LOG_MAX_SIZE_PER_FILE_MB" in config['GLOBAL']:
+        if isinstance(config['GLOBAL']['LOG_MAX_SIZE_PER_FILE_MB'], int):
+            if 1 <= int(config['GLOBAL']['LOG_MAX_SIZE_PER_FILE_MB']) <= 100:
+                logmaxsizeperfile = config['GLOBAL']['LOG_MAX_SIZE_PER_FILE_MB']  * 1024 * 1024
+            else:
+                log.info(
+                    f"LOG_MAX_SIZE_PER_FILE_MB NOT DEFINED, APPLYING DEFAULT '{DefaultValues.DEFAULT_LOG_MAX_SIZE_PER_FILE_MB}' TO ALL LOGGER")
+        else:
+            log.error(f"LOG_MAX_SIZE_PER_FILE_MB IS NOT AN INT, PLEASE FIX THE CONFIGURATION FILE. MAYBE REMOVE QUOTE?")
+            sys.exit()
+    else:
+        log.info(
+            f"LOG_MAX_SIZE_PER_FILE_MB NOT DEFINED, APPLYING DEFAULT '{DefaultValues.DEFAULT_LOG_MAX_SIZE_PER_FILE_MB}'")
+
+    # Setting LOG_FILE_TO_KEEP
+    if "LOG_FILE_TO_KEEP" in config['GLOBAL']:
+        if isinstance(config['GLOBAL']['LOG_FILE_TO_KEEP'], int):
+            if 1 <= int(config['GLOBAL']['LOG_FILE_TO_KEEP']) <= 50:
+                logfiletokeep = config['GLOBAL']['LOG_FILE_TO_KEEP']
+            else:
+                log.info(
+                    f"LOG_FILE_TO_KEEP NOT DEFINED, APPLYING DEFAULT '{DefaultValues.DEFAULT_LOG_FILE_TO_KEEP}'")
+        else:
+            log.error(f"LOG_FILE_TO_KEEP IS NOT AN INT, PLEASE FIX THE CONFIGURATION FILE. MAYBE REMOVE QUOTE?")
+            sys.exit()
+    else:
+        log.info(
+            f"LOG_FILE_TO_KEEP NOT DEFINED, APPLYING DEFAULT '{DefaultValues.DEFAULT_LOG_FILE_TO_KEEP}'")
+
     p = pathlib.Path(results.log_dir)
     if p.is_dir():
-        st_system_stats = conf_logging("lib.st_system_stats", os.path.join(str(p), "lib.st_system_stats.log"))
-        st_webui = conf_logging("lib.st_webui",os.path.join(str(p), "lib.st_webui.log"))
-        iperf3_connectors_log = conf_logging("lib.st_iperf3_connectors", os.path.join(str(p), "lib.st_iperf3_connectors.log"))
-        iperf3_listeners_log = conf_logging("lib.st_iperf3_listeners", os.path.join(str(p), "lib.st_iperf3_listeners.log"))
-        map = conf_logging("lib.map", os.path.join(str(p), "lib.st_map.log"))
-        server_log = conf_logging("lib.st_server", os.path.join(str(p), "lib.st_server.log"))
-        client_log = conf_logging("lib.st_client", os.path.join(str(p), "lib.st_client.log"))
-        st_influxdb = conf_logging("lib.st_influxdb", os.path.join(str(p), "lib.st_influxdb.log"))
-        st_crypto = conf_logging("lib.st_crypto", os.path.join(str(p), "lib.st_crypto.log"))
-        st_iperf3_readlog = conf_logging("lib.st_iperf3_readlog", os.path.join(str(p), "lib.st_iperf3_readlog.log"))
-        st_read_toml = conf_logging("lib.st_read_toml", os.path.join(str(p), "lib.st_read_toml.log"))
-        st_logging = conf_logging("lib.st_logging", os.path.join(str(p), "lib.st_logging.log"))
-        st_process_and_thread = conf_logging("lib.st_process_and_thread", os.path.join(str(p), "lib.st_process_and_thread.log"))
-        st_conf_validation = conf_logging("lib.st_conf_validation", os.path.join(str(p), "lib.st_conf_validation.log"))
-        syntraf = conf_logging("__main__", os.path.join(str(p), "syntraf.log"))
-        st_covariance = conf_logging("lib.st_covariance", os.path.join(str(p), "lib.st_covariance.log"))
+        log_file = os.path.join(str(p), DefaultValues.DEFAULT_LOG_FILENAME)
     else:
         print(f"IS LOG DIR {p.absolute()} EXIST : NO")
         sys.exit()
 
+    syntraf = conf_logging("syntraf", log_file, level, level_int, logto, logmaxsizeperfile, logfiletokeep)
+    log.debug(f"LOG LEVEL IS SET TO '{level.upper()}', with a maximum size per file of {config['GLOBAL']['LOG_MAX_SIZE_PER_FILE_MB']}MB and maximum of {logfiletokeep} file on rotation")
 
-def set_log_level(config):
-    try:
-        for name in logging.root.manager.loggerDict:
-            logger = logging.getLogger(name)
-
-            # Setting LOGLEVEL
-            if "LOG_LEVEL" in config['GLOBAL']:
-                    if config['GLOBAL']['LOG_LEVEL'].lower() in ["debug", "info", "warning", "error", "critical"]:
-                        if config['GLOBAL']['LOG_LEVEL'].lower() == "critical":
-                            logger.setLevel(logging.CRITICAL)
-                        elif config['GLOBAL']['LOG_LEVEL'].lower() == "error":
-                            logger.setLevel(logging.ERROR)
-                        elif config['GLOBAL']['LOG_LEVEL'].lower() == "warning":
-                            logger.setLevel(logging.WARNING)
-                        elif config['GLOBAL']['LOG_LEVEL'].lower() == "info":
-                            logger.setLevel(logging.INFO)
-                        elif config['GLOBAL']['LOG_LEVEL'].lower() == "debug":
-                            logger.setLevel(logging.DEBUG)
-                    else:
-                        log.info(
-                            f"LOGLEVEL '{config['GLOBAL']['LOG_LEVEL']}' NOT VALID, APPLYING DEFAULT '{DefaultValues.DEFAULT_LOG_LEVEL}' TO LOGGER '{name}'")
-                        logger.setLevel(DefaultValues.DEFAULT_LOG_LEVEL)
-            else:
-                log.info(f"LOGLEVEL NOT DEFINED, APPLYING DEFAULT '{DefaultValues.DEFAULT_LOG_LEVEL}' TO LOGGER '{name}'")
-                logger.setLevel(DefaultValues.DEFAULT_LOG_LEVEL)
-
-    except Exception as e:
-        log.error(f"main:loglevel:{type(e).__name__}:{e}")
-        return False
-
-    return True
-
+# def set_log_level(config):
+#     try:
+#         for name in logging.root.manager.loggerDict:
+#             logger = logging.getLogger(name)
+#
+#             log.info(f"LOG_TO SET TO '{config['GLOBAL']['LOG_TO'].lower()}', APPLYING VALUE TO LOGGER '{name}'")
+#
+#             # Setting LOGLEVEL
+#             if "LOG_LEVEL" in config['GLOBAL']:
+#                     if config['GLOBAL']['LOG_LEVEL'].lower() in ["debug", "info", "warning", "error", "critical"]:
+#                         if config['GLOBAL']['LOG_LEVEL'].lower() == "critical":
+#                             logger.setLevel(logging.CRITICAL)
+#                         elif config['GLOBAL']['LOG_LEVEL'].lower() == "error":
+#                             logger.setLevel(logging.ERROR)
+#                         elif config['GLOBAL']['LOG_LEVEL'].lower() == "warning":
+#                             logger.setLevel(logging.WARNING)
+#                         elif config['GLOBAL']['LOG_LEVEL'].lower() == "info":
+#                             logger.setLevel(logging.INFO)
+#                         elif config['GLOBAL']['LOG_LEVEL'].lower() == "debug":
+#                             logger.setLevel(logging.DEBUG)
+#                     else:
+#                         log.info(
+#                             f"LOGLEVEL '{config['GLOBAL']['LOG_LEVEL']}' NOT VALID, APPLYING DEFAULT '{DefaultValues.DEFAULT_LOG_LEVEL}' TO LOGGER '{name}'")
+#                         logger.setLevel(DefaultValues.DEFAULT_LOG_LEVEL)
+#             else:
+#                 log.info(f"LOGLEVEL NOT DEFINED, APPLYING DEFAULT '{DefaultValues.DEFAULT_LOG_LEVEL}' TO LOGGER '{name}'")
+#                 logger.setLevel(DefaultValues.DEFAULT_LOG_LEVEL)
+#
+#     except Exception as e:
+#         log.error(f"main:loglevel:{type(e).__name__}:{e}")
+#         return False
+#
+#     return True
 
 #################################################################################
 ###  LOGGING CONFIG
 #################################################################################
-def conf_logging(name, log_file):
+def conf_logging(name, log_file, level, level_int, logto, logmaxsizeperfile, logfiletokeep):
     # OCD display
-    padding = (25-len(name)) * " "
-    logging.config.dictConfig({
-        'version': 1,
-        'disable_existing_loggers': False,
-        'formatters': {
-            f'formatter_for_{name}': {'format': ' %(asctime)s - ' + name.upper() + padding + ' - %(levelname)s - %(message)s',
-                                      'datefmt': '%Y-%m-%d %H:%M:%S'}
+    padding = (25 - len(name)) * " "
+
+    log_dict_config = {}
+    log_dict_config['version'] = 1
+    log_dict_config['disable_existing_loggers'] = False
+    log_dict_config['formatters'] = {
+        f'formatter_for_{name}': {
+            'format': ' %(asctime)s - %(levelname)s - ' + '%(module)s (%(funcName)s,%(lineno)d) - %(message)s',
+            'datefmt': '%Y-%m-%d %H:%M:%S'}
+    }
+    log_dict_config['handlers'] = {
+        f'console_for_{name}': {
+            'level': f'{level.upper()}',
+            'class': 'logging.StreamHandler',
+            'formatter': f'formatter_for_{name}',
+            'stream': 'ext://sys.stdout'
         },
-        'handlers': {
-            f'console_for_{name}': {
-                'level': 'DEBUG',
-                'class': 'logging.StreamHandler',
-                'formatter': f'formatter_for_{name}',
-                'stream': 'ext://sys.stdout'
-            },
-            f'file_for_{name}': {
-                'level': 'DEBUG',
-                'class': 'logging.handlers.RotatingFileHandler',
-                'formatter': f'formatter_for_{name}',
-                'filename': log_file,
-                'maxBytes': DefaultValues.DEFAULT_LOGGING_MAX_SIZE_PER_FILE,
-                'backupCount': 1
-            }
-        },
-        'loggers': {
-            name: {
-                'level': logging.DEBUG,
-                'handlers': [f'console_for_{name}', f'file_for_{name}']
-            }
+        f'file_for_{name}': {
+            'level': f'{level.upper()}',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'formatter': f'formatter_for_{name}',
+            'filename': log_file,
+            'maxBytes': logmaxsizeperfile,
+            'backupCount': logfiletokeep
         }
-    })
+    }
+
+    if logto == "all":
+        log_dict_config['loggers'] = {
+            name: {
+                'level': level_int,
+                'handlers': [f'console_for_{name}', f'file_for_{name}']
+            }}
+    elif logto == "file":
+        log_dict_config['loggers'] = {
+            name: {
+                'level': level_int,
+                'handlers': [f'file_for_{name}']
+            }}
+    elif logto == "stdout":
+        log_dict_config['loggers'] = {
+            name: {
+                'level': level_int,
+                'handlers': [f'console_for_{name}']
+            }}
+
+    logging.config.dictConfig(log_dict_config)
+
     return logging.getLogger(name)

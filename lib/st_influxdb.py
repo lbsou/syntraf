@@ -13,7 +13,7 @@ import traceback
 import hashlib
 from datetime import datetime
 
-log = logging.getLogger(__name__)
+log = logging.getLogger("syntraf." + __name__)
 
 '''
 This class is the object that allow us to write and query the database from all the modules in SYNTRAF
