@@ -8,7 +8,7 @@ import datetime
 import pytz
 import pathlib
 import logging
-log = logging.getLogger(__name__)
+log = logging.getLogger("syntraf." + __name__)
 
 
 #################################################################################

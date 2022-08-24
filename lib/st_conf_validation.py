@@ -22,7 +22,7 @@ import os
 import pytz
 import psutil
 
-log = logging.getLogger(__name__)
+log = logging.getLogger("syntraf." + __name__)
 
 var_cfg_default_bind_arg = ("", "")
 var_cfg_default_bind_add = "*"
@@ -48,7 +48,7 @@ def validate_config(parameters, reload=False):
     bool_conf_valid, config = read_conf(parameters.config_file)
 
     # Before logging anything, set the loglevel. There is a default to INFO if nothing is set (or wrong config) in the config file. (see st_global.py for default config)
-    set_log_level(config)
+    #set_log_level(config)
 
     if not bool_conf_valid:
         return False, None, None, None
@@ -57,6 +57,7 @@ def validate_config(parameters, reload=False):
 
     # Validation of the server config
     _dict_by_node_generated_config = None
+
     if "SERVER" in config:
         ok, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map = config_validation_server(config, parameters)
         if not ok:
@@ -814,13 +815,13 @@ def config_validation_server(_config, parameters):
 
     # Validating the IP address of the mesh server
 
-    if 'SERVER' in _config['SERVER']:
-        if not is_ip_or_hostname_valid(_config['SERVER']['SERVER'], "SERVER"):
-            return False, None, None
-    else:
-        log.error(
-            f"IS SERVER SPECIFIED IN SERVER CONFIGURATION : NO")
-        return False, None, None
+    # if 'SERVER' in _config['SERVER']:
+    #     if not is_ip_or_hostname_valid(_config['SERVER']['BIND_ADDRESS'], "SERVER"):
+    #         return False, None, None
+    # else:
+    #     log.error(
+    #         f"IS SERVER SPECIFIED IN SERVER CONFIGURATION : NO")
+    #     return False, None, None
 
     # Validating the list of mesh token
     if 'TOKEN' in _config['SERVER']:
@@ -844,7 +845,7 @@ def config_validation_server(_config, parameters):
         if not is_port_valid(_config['SERVER']['SERVER_PORT'], "SERVER_PORT"):
             return False, None, None
     else:
-        log.warning(
+        log.info(
             f"IS SERVER_PORT SPECIFIED IN SERVER CONFIGURATION : NO, APPLYING DEFAULT: '{DefaultValues.DEFAULT_SERVER_PORT}'")
         _config['SERVER']['SERVER_PORT'] = DefaultValues.DEFAULT_SERVER_PORT
 
@@ -864,7 +865,7 @@ def config_validation_server(_config, parameters):
                 f"IS MESH_LISTENERS_PORT_RANGE BEGINNING SMALLER THAN THE END : NO")
             return False, None, None
     else:
-        log.warning(
+        log.info(
             f"IS MESH_LISTENERS_PORT_RANGE SPECIFIED IN SERVER CONFIGURATION : NO, APPLYING DEFAULT: '{DefaultValues.DEFAULT_PORT_RANGE}'")
         _config['SERVER']['MESH_LISTENERS_PORT_RANGE'] = DefaultValues.DEFAULT_PORT_RANGE
 
@@ -997,7 +998,7 @@ def config_validation_server(_config, parameters):
             log.error(f"ARE ALL 'P2P_GROUP' VALID : NO")
             return False, None, None
     else:
-        log.error(f"NO 'P2P_GROUP' FOUND!")
+        log.info(f"NO 'P2P_GROUP' FOUND!")
         #return False, None, None
 
     return True, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map

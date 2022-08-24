@@ -4,7 +4,7 @@ import pathlib
 import toml
 import logging
 import sys
-log = logging.getLogger(__name__)
+log = logging.getLogger("syntraf." + __name__)
 
 
 #################################################################################

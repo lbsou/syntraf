@@ -8,8 +8,8 @@ import logging
 import os
 import time
 
-iperf3_connectors_log = logging.getLogger("lib.st_iperf3_connectors")
-iperf3_listeners_log = logging.getLogger("lib.st_iperf3_listeners")
+iperf3_connectors_log = logging.getLogger("syntraf." + "lib.st_iperf3_connectors")
+iperf3_listeners_log = logging.getLogger("syntraf." + "lib.st_iperf3_listeners")
 
 
 #################################################################################
