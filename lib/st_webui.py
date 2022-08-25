@@ -35,7 +35,18 @@ if not CompilationOptions.client_only:
     import json
     from pprint import pp
 
+    # Disable werkzeug console output
+    import flask.cli
+    flask.cli.show_server_banner = lambda *args: None
+    logging.getLogger('werkzeug').disabled = True
+
     app = Flask(__name__, template_folder=os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, "lib", "web_ui", "templates"))
+    app.logger.disabled = True
+    log_w = logging.getLogger('werkzeug')
+    log_w.disabled = True
+
+
+
     app.config['EXPLAIN_TEMPLATE_LOADING'] = False
     app.debug = False
     load_dotenv()
@@ -76,10 +87,6 @@ class flask_wrapper (object):
         except Exception as exc:
             print(exc)
             pass
-
-        # log_werk = logging.getLogger("werkzeug")
-        # log_werk.setLevel(logging.ERROR)
-        # log_werk.disabled = True
 
     def inject(self):
         @app.route('/')

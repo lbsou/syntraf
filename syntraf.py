@@ -49,8 +49,8 @@ def run():
                         help='You  must provide the path of a SYNTRAF config file', required=True)
     parser.add_argument('-l', "--log-dir", action='store', dest='log_dir',
                         help='You  must provide a directory for logging', required=True)
-    parser.add_argument('-r', "--reload", action='store_true',
-                        help='Trigger a reload of configuration on already running SYNTRAF instance', required=False)
+    # parser.add_argument('-r', "--reload", action='store_true',
+    #                     help='Trigger a reload of configuration on already running SYNTRAF instance', required=False)
     parser.add_argument('-v', action='version', version=f'%(prog)s {DefaultValues.SYNTRAF_VERSION}')
     results = parser.parse_args()
 
@@ -61,15 +61,6 @@ def run():
     is_dir_create_on_fail(results.log_dir, "LOG_DIR")
 
     print(f"SYNTRAF v{DefaultValues.SYNTRAF_VERSION}")
-
-    '''
-    Mechanism to reload SYNTRAF using a memshared flag.
-    If the user ask for a reload, first we try to access the memshared var and set it to 1.
-    If it fail, it's because SYNTRAF is not running.
-    If we are running SYNTRAF, we try to access the memshared var in case of unclean shutdown. In that
-    case, we close and unlink it. 
-    If it doesn't exist, we create it and set it to 0.
-    '''
 
     '''
     At startup : 
@@ -84,28 +75,22 @@ def run():
         Running syntraf instance regularly check for the presence of his pid file. If the content is changed for "reload", it means someone asked for a reload. : syntraf.py -r
     '''
     try:
-        if results.reload:
-            shared_mem = init_reload()
-        else:
-            if pid_file.is_file():
-                # If syntraf is already running, exit
-                with open(pid_file_path, 'r') as f:
-                    pid = int(f.readline())
-                    is_running = check_pid(pid)
-                    if is_running:
-                        print("ERROR: ONLY ONE INSTANCE OF SYNTRAF MAY BE RUN AT A TIME")
-                        sys.exit()
-                    else:
-                        print("WARNING : ON PREVIOUS RUN, SYNTRAF WAS UNABLE TO SHUTDOWN GRACEFULLY.")
-                        shared_mem = pid_and_reload_flag_init(pid_file, pid_file_path)
-            else:
-                shared_mem = pid_and_reload_flag_init(pid_file, pid_file_path)
+        if pid_file.is_file():
+            # If syntraf is already running, exit
+            with open(pid_file_path, 'r') as f:
+                pid = int(f.readline())
+                is_running = check_pid(pid)
+                if is_running:
+                    print("ERROR: THIS SYNTRAF INSTANCE IS ALREADY RUNNING.")
+                    sys.exit()
+                else:
+                    print("WARNING: ON PREVIOUS RUN, SYNTRAF WAS UNABLE TO SHUTDOWN GRACEFULLY.")
     except Exception as exc:
-        log.error(f"AN ERROR OCCURED WHILE VALIDATING IF SYNTRAF IS ALREADY RUNNING")
+        log.error(f"ERROR: UNABLE TO VALIDATE IF SYNTRAF IS ALREADY RUNNING.")
         log.error(exc)
         sys.exit()
 
-    # Initializing logs
+    # Initializing logs before config validation
     bool_config_valid, config = read_conf(results.config_file)
     if not bool_config_valid:
         log.error(f"CONFIGURATION VALIDATION FAILED")
@@ -121,9 +106,8 @@ def run():
         log.error(f"CONFIGURATION VALIDATION FAILED")
         sys.exit()
 
-    conn_db = []
     # initializing database
-
+    conn_db = []
     flag_at_least_one_db_online = False
     if "SERVER" in config:
         if "DATABASE" in config:
@@ -157,7 +141,7 @@ def run():
     If program exit with sys.exit() or with SIGINT/SIGBREAK (handler call sys.exit()). 
     Try to shut things down smoothly.
     '''
-    atexit.register(onclose, pid_file, threads_n_processes, shared_mem, config)
+    atexit.register(onclose, pid_file, threads_n_processes, config)
 
     # SERVER, This object keep track of all the client resources
     dict_of_clients = {}
@@ -182,16 +166,16 @@ def run():
         # launch iperf_listeners, iperf_connectors read_log, client, server
         threads_n_processes, subprocess_iperf_dict = launch_and_respawn_workers(config, threads_n_processes, obj_stats, dict_of_clients, dict_data_to_send_to_server, dict_of_commands_for_network_clients, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_of_client_pending_acceptance, results.config_file, conn_db, subprocess_iperf_dict)
 
-        # Validate if reload flag has been set by user with another instance of the script (-r)
-        try:
-            shared_mem = shared_memory.SharedMemory("syntraf_reload_signal")
-        except Exception as e:
-            pass
-
-        if shared_mem.buf[0] == 1:
-            print("RELOAD WAS ASKED BY USER")
-            shared_mem.buf[0] = 0
-            reload_flag = True
+        # # Validate if reload flag has been set by user with another instance of the script (-r)
+        # try:
+        #     shared_mem = shared_memory.SharedMemory("syntraf_reload_signal")
+        # except Exception as e:
+        #     pass
+        #
+        # if shared_mem.buf[0] == 1:
+        #     print("RELOAD WAS ASKED BY USER")
+        #     shared_mem.buf[0] = 0
+        #     reload_flag = True
 
         time.sleep(int(config['GLOBAL']['WATCHDOG_CHECK_RATE']))
 

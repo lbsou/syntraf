@@ -2,7 +2,7 @@ import sys
 import signal
 import psutil
 import time
-from multiprocessing import shared_memory
+#from multiprocessing import shared_memory
 import threading
 from lib.st_global import *
 from lib.st_logging import *
@@ -23,27 +23,27 @@ def check_pid(pid):
         return False
 
 
-def init_reload():
-    '''
-    Running syntraf instance regularly check for the presence of his pid file. If the content is changed for "reload", it means someone asked for a reload. : syntraf.py -r
-    init_reload modify the pid file and insert the word "reload"
-    '''
-
-    try:
-
-        pid_file = pathlib.Path(DefaultValues.SYNTRAF_PID_FILE)
-        if pid_file.is_file():
-            # If syntraf is running, update the pid file
-            with open(pid_file_path, 'r') as f:
-                pid = int(f.readline())
-                is_running = check_pid(pid)
-
-
-
-
-    except Exception as exc:
-        print("CANNOT SEND A RELOAD SIGNAL, SYNTRAF IS NOT RUNNING")
-    sys.exit()
+# def init_reload():
+#     '''
+#     Running syntraf instance regularly check for the presence of his pid file. If the content is changed for "reload", it means someone asked for a reload. : syntraf.py -r
+#     init_reload modify the pid file and insert the word "reload"
+#     '''
+#
+#     try:
+#
+#         pid_file = pathlib.Path(DefaultValues.SYNTRAF_PID_FILE)
+#         if pid_file.is_file():
+#             # If syntraf is running, update the pid file
+#             with open(pid_file_path, 'r') as f:
+#                 pid = int(f.readline())
+#                 is_running = check_pid(pid)
+#
+#
+#
+#
+#     except Exception as exc:
+#         print("CANNOT SEND A RELOAD SIGNAL, SYNTRAF IS NOT RUNNING")
+#     sys.exit()
 
 
 
@@ -61,45 +61,19 @@ def init_reload():
         sys.exit()
     '''
 
-    return shared_mem
+    #return shared_mem
 
 
-def pid_and_reload_flag_init(pid_file, pid_file_path):
-    try:
-        # If opening the shared var is ok, goto else because unclean shutdown or already running
-        shared_mem = shared_memory.SharedMemory("syntraf_reload_signal")
-    except Exception as exc:
-        # if we cannot open the var, program was shutdown cleanly, so create new var.
-        shared_mem = shared_memory.SharedMemory(name="syntraf_reload_signal", create=True, size=1)
-        shared_mem.buf[0] = 0
-    # possible unclean shutdown or already running
-    else:
-        try:
-            # if pid file, still a probable unclean shutdown or running
-            if pid_file.is_file():
-                # open pid file and check if pid is running
-                with open(pid_file_path, 'r') as f:
-                    pid = int(f.readline())
-                    is_running = check_pid(pid)
-                    # if SYNTRAF is not running, remove the shared var
-                    if not is_running:
-                        shared_mem.close()
-                        # TODO
-                        try:
-                            shared_mem.unlink()
-                        except Exception as exc:
-                            pass
-            else:
-                shared_mem.close()
-                # TODO
-                try:
-                    shared_mem.unlink()
-                except Exception as exc:
-                    pass
-        except Exception as exc:
-            log.error(f"pid_and_reload_flag_init:{type(exc).__name__}:{exc}", exc_info=True)
-    return shared_mem
-
+# def pid_and_reload_flag_init(pid_file, pid_file_path):
+#     try:
+#         # if pid file, still a probable unclean shutdown or running
+#         if pid_file.is_file():
+#             # open pid file and check if pid is running
+#             with open(pid_file_path, 'r') as f:
+#                 pid = int(f.readline())
+#                 is_running = check_pid(pid)
+#     except Exception as exc:
+#         log.error(f"pid_and_reload_flag_init:{type(exc).__name__}:{exc}", exc_info=True)
 
 def signal_handler_init():
     signal.signal(signal.SIGINT, handler)
@@ -132,17 +106,13 @@ def start_loading_thread(text):
     return thr_run
 
 
-def onclose(p, threads_n_processes, shared_mem, config):
+def onclose(p, threads_n_processes, config):
     config['GLOBAL']['LOG_LEVEL'] = "CRITICAL"
     #set_log_level(config)
     try:
         text = "REMOVING RELOAD_FLAG"
         thr_animation = start_loading_thread(text)
-        shared_mem.close()
-        try:
-            shared_mem.unlink()
-        except Exception as exc:
-            pass
+
         time.sleep(0.01)
         thr_animation.join(0.01)
         print_sys("\r")
