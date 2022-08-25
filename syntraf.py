@@ -51,7 +51,7 @@ def run():
                         help='You  must provide a directory for logging', required=True)
     parser.add_argument('-r', "--reload", action='store_true',
                         help='Trigger a reload of configuration on already running SYNTRAF instance', required=False)
-    parser.add_argument('-v', action='version', version='%(prog)s 21.04.29.1')
+    parser.add_argument('-v', action='version', version=f'%(prog)s {DefaultValues.SYNTRAF_VERSION}')
     results = parser.parse_args()
 
     # creating pid file var
