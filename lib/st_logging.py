@@ -60,14 +60,18 @@ def log_init(results, config={}):
 
     # Setting LOG_MAX_SIZE_PER_FILE_MB
     if "LOG_MAX_SIZE_PER_FILE_MB" in config['GLOBAL']:
-        if isinstance(config['GLOBAL']['LOG_MAX_SIZE_PER_FILE_MB'], int):
-            if 1 <= int(config['GLOBAL']['LOG_MAX_SIZE_PER_FILE_MB']) <= 100:
-                logmaxsizeperfile = config['GLOBAL']['LOG_MAX_SIZE_PER_FILE_MB']  * 1024 * 1024
+        if isinstance(config['GLOBAL']['LOG_MAX_SIZE_PER_FILE_MB'], str):
+            if config['GLOBAL']['LOG_MAX_SIZE_PER_FILE_MB'].isdigit():
+                if 1 <= int(config['GLOBAL']['LOG_MAX_SIZE_PER_FILE_MB']) <= 100:
+                    logmaxsizeperfile = int(config['GLOBAL']['LOG_MAX_SIZE_PER_FILE_MB'])  * 1024 * 1024
+                else:
+                    log.info(
+                        f"LOG_MAX_SIZE_PER_FILE_MB NOT DEFINED, APPLYING DEFAULT '{DefaultValues.DEFAULT_LOG_MAX_SIZE_PER_FILE_MB}'")
             else:
-                log.info(
-                    f"LOG_MAX_SIZE_PER_FILE_MB NOT DEFINED, APPLYING DEFAULT '{DefaultValues.DEFAULT_LOG_MAX_SIZE_PER_FILE_MB}' TO ALL LOGGER")
+                log.error(f"LOG_MAX_SIZE_PER_FILE_MB IS NOT AN INT, PLEASE FIX THE CONFIGURATION FILE.")
+                sys.exit()
         else:
-            log.error(f"LOG_MAX_SIZE_PER_FILE_MB IS NOT AN INT, PLEASE FIX THE CONFIGURATION FILE. MAYBE REMOVE QUOTE?")
+            log.error(f"LOG_MAX_SIZE_PER_FILE_MB IS NOT AN INT, PLEASE FIX THE CONFIGURATION FILE.")
             sys.exit()
     else:
         log.info(
@@ -75,14 +79,17 @@ def log_init(results, config={}):
 
     # Setting LOG_FILE_TO_KEEP
     if "LOG_FILE_TO_KEEP" in config['GLOBAL']:
-        if isinstance(config['GLOBAL']['LOG_FILE_TO_KEEP'], int):
-            if 1 <= int(config['GLOBAL']['LOG_FILE_TO_KEEP']) <= 50:
-                logfiletokeep = config['GLOBAL']['LOG_FILE_TO_KEEP']
+        if isinstance(config['GLOBAL']['LOG_FILE_TO_KEEP'], str):
+            if config['GLOBAL']['LOG_FILE_TO_KEEP'].isdigit():
+                if 1 <= int(config['GLOBAL']['LOG_FILE_TO_KEEP']) <= 50:
+                    logfiletokeep = int(config['GLOBAL']['LOG_FILE_TO_KEEP'])
+                else:
+                    log.info(f"LOG_FILE_TO_KEEP NOT DEFINED, APPLYING DEFAULT '{DefaultValues.DEFAULT_LOG_FILE_TO_KEEP}'")
             else:
-                log.info(
-                    f"LOG_FILE_TO_KEEP NOT DEFINED, APPLYING DEFAULT '{DefaultValues.DEFAULT_LOG_FILE_TO_KEEP}'")
+                log.error(f"LOG_FILE_TO_KEEP IS NOT AN INT, PLEASE FIX THE CONFIGURATION FILE.")
+                sys.exit()
         else:
-            log.error(f"LOG_FILE_TO_KEEP IS NOT AN INT, PLEASE FIX THE CONFIGURATION FILE. MAYBE REMOVE QUOTE?")
+            log.error(f"LOG_FILE_TO_KEEP IS NOT AN INT, PLEASE FIX THE CONFIGURATION FILE.")
             sys.exit()
     else:
         log.info(

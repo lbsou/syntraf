@@ -20,9 +20,9 @@ For a long time, I was looking for an open-source tool to generate synthetic tra
 
 You will need a SYNTRAF server to manage the clients and acquire the metrics, and SYNTRAF clients that will establish a control channel to the SYNTRAF server and iperf3 connection to the other clients.  
 
-Configurations are centrally managed in the SYNTRAF server and provided to the clients upon connection.
+Configurations are centrally managed by the SYNTRAF server and provided to the clients upon connection.
 
-The connections between the iperf3 client are authenticated with credentials.  
+The connections between the iperf3 clients are authenticated with credentials.  
 
 ## Use cases  
 Put in place multiple tests between multiple nodes quickly;
@@ -42,6 +42,7 @@ You will see references to 'CONNECTORS' and 'LISTENERS'. Those are basically sub
 
 ## Screenshots
 
+![GRAFANA](/doc/images/GRAFANA.png)
 ![CLIENTS_STATUS](/doc/images/WEBUI_CLIENTS_STATUS.png)
 ![CLIENTS_STATUS_SYSINFOS](/doc/images/WEBUI_CLIENTS_STATUS_SYSINFOS.png)
 ![CLIENTS_STATUS_THREAD_INFOS](/doc/images/WEBUI_CLIENTS_STATUS_THREAD_INFOS.png)
