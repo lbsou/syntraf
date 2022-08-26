@@ -2,7 +2,6 @@
 from lib.st_global import CompilationOptions, DefaultValues
 
 
-
 # SYNTRAF SERVER IMPORT
 if not CompilationOptions.client_only:
     from lib.st_crypto import *
