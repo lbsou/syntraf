@@ -12,11 +12,11 @@ if not CompilationOptions.client_only:
     from gevent.pywsgi import WSGIServer
     from gevent.pool import Pool
     from PIL import Image
-    from flask_sqlalchemy import SQLAlchemy
+    #from flask_sqlalchemy import SQLAlchemy
 
     # If python-dotenv is installed, running the flask command will set environment variables defined in the files .env and .flaskenv
     import os
-    from dotenv import load_dotenv
+    #from dotenv import load_dotenv
     import uuid  # for public id
     from werkzeug.security import generate_password_hash, check_password_hash
     # IMPORTS  FOR JWT
@@ -49,7 +49,7 @@ if not CompilationOptions.client_only:
 
     app.config['EXPLAIN_TEMPLATE_LOADING'] = False
     app.debug = False
-    load_dotenv()
+    #load_dotenv()
     SECRET_KEY = os.getenv("SECRET_KEY")
     API_KEY = os.getenv("API_KEY")
 
