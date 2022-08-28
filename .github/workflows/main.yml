@@ -1,2 +1,3 @@
 name: Latest tag
 uses: EndBug/latest-tag@v1.5.0
+on: push
