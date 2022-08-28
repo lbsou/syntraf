@@ -36,7 +36,7 @@ def log_init(results, config={}):
 
     # Setting LOG LEVEL
     if "LOG_LEVEL" in config['GLOBAL']:
-        if isinstance(config['GLOBAL']['LOG_TO'], str):
+        if isinstance(config['GLOBAL']['LOG_LEVEL'], str):
             if config['GLOBAL']['LOG_LEVEL'].lower() in ["debug", "info", "warning", "error", "critical"]:
                 level = config['GLOBAL']['LOG_LEVEL'].lower()
             else:
