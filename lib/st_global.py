@@ -4,6 +4,7 @@ import pathlib
 from tzlocal import get_localzone
 
 
+# Will impact the requirement of modules
 class CompilationOptions:
     client_only = False
 
