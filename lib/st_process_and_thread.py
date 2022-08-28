@@ -130,8 +130,8 @@ def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, dict_of_clien
 
             # Thread already started, not a initial start. No need to do the validation, only restart if dead
             if thr_temp and not thr_temp.thread_obj.is_alive():
-                log.error("WEBUI THREAD COULD NOT RUN OR DIED, PLEASE INVESTIGATE")
-                sys.exit()
+                #log.error("WEBUI THREAD COULD NOT RUN OR DIED, PLEASE INVESTIGATE")
+                #sys.exit()
                 threads_n_processes.remove(thr_temp)
 
                 # RESTART MESH INSTANCE
