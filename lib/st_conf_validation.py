@@ -980,7 +980,8 @@ def config_validation_server(_config, parameters):
     if 'MESH_GROUP' in _config:
         if validate_group(_config, "MESH_GROUP"):
             # As a mesh server, this SYNTRAF must generate the client configuration for each nodes
-            _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map = generate_client_config_mesh(_config)
+            if 'SERVER_CLIENT' in _config:
+                _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map = generate_client_config_mesh(_config)
         else:
             log.error(f"ARE ALL 'MESH_GROUP' VALID : NO")
             return False, None, None
