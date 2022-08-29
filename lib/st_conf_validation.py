@@ -983,7 +983,7 @@ def config_validation_server(_config, parameters):
             if 'SERVER_CLIENT' in _config:
                 _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map = generate_client_config_mesh(_config)
             else:
-                return {}, {}
+                return False, {}, {}
         else:
             log.error(f"ARE ALL 'MESH_GROUP' VALID : NO")
             return False, None, None
