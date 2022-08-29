@@ -9,6 +9,7 @@ class CompilationOptions:
     client_only = False
 
 
+
 class DefaultValues:
     # GLOBAL
     SYNTRAF_VERSION = "0.39"
