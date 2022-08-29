@@ -1,5 +1,0 @@
-jobs:
-  asd:
-    uses: EndBug/latest-tag@latest
-on: push
-        
