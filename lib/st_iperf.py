@@ -91,7 +91,7 @@ def iperf3_server(listener_dict_key, _config):
             for i in args:
                 arguments += " " + i
 
-            print(arguments)
+            #print(arguments)
 
             p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.DEVNULL)
             if p.poll() is None:
