@@ -69,14 +69,15 @@ def iperf3_client(connector_dict_key, _config):
 def iperf3_server(listener_dict_key, _config):
     global var_cfg_default_bind_arg
 
-    if "BIND_ADDRESS" in _config['LISTENERS'][listener_dict_key]:
-        if not _config['LISTENERS'][listener_dict_key]['BIND_ADDRESS'] == "*":
-            var_cfg_default_bind_arg = ("-B", _config['LISTENERS'][listener_dict_key]['BIND_ADDRESS'])
+    #if "BIND_ADDRESS" in _config['LISTENERS'][listener_dict_key]:
+    #    if not _config['LISTENERS'][listener_dict_key]['BIND_ADDRESS'] == "*":
+    #        var_cfg_default_bind_arg = ("-B", _config['LISTENERS'][listener_dict_key]['BIND_ADDRESS'])
 
     if is_port_available(_config['LISTENERS'][listener_dict_key]['BIND_ADDRESS'], str(_config['LISTENERS'][listener_dict_key]['PORT'])):
         try:
             args = (_config['GLOBAL']['IPERF3_BINARY_PATH'], "-s", "-i", _config['LISTENERS'][listener_dict_key]['INTERVAL'],
-                    var_cfg_default_bind_arg[0], var_cfg_default_bind_arg[1], "--logfile",
+                    #var_cfg_default_bind_arg[0], var_cfg_default_bind_arg[1],
+                    "--logfile",
                     os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['LISTENERS'][listener_dict_key]['PORT']) + ".log"), "-f", "k",
                     "--rsa-private-key-path", os.path.join(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'private_key_iperf_client.pem'),
                     "--authorized-users-path", os.path.join(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'credentials.csv'),
