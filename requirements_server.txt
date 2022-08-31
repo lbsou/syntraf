@@ -8,3 +8,6 @@ gevent
 influxdb-client
 Flask==2.0.3
 pillow
+Flask-Login
+Flask-SQLAlchemy
+dotenv

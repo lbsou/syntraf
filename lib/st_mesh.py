@@ -1130,7 +1130,12 @@ def server(_config, threads_n_processes, stop_thread, dict_by_node_generated_con
         server_log.debug(f"CONTROL CHANNEL SERVER SOCKET CREATED")
 
         # Creating GEvent SSL StreamServer
-        if _config['SERVER']['SERVER_X509_SELFSIGNED_DIRECTORY'] == "NO":
+        self_signed_flag = True
+        if 'SERVER_X509_SELFSIGNED' in _config['SERVER']:
+            if _config['SERVER']['SERVER_X509_SELFSIGNED'] == "NO":
+                self_signed_flag = False
+
+        if not self_signed_flag:
             try:
                 server = StreamServer(s, handler(_config, dict_by_node_generated_config, conn_db, dict_of_commands_for_network_clients, dict_of_clients, dict_of_client_pending_acceptance), keyfile=_config['SERVER']['SERVER_X509_PRIVATE_KEY'], certfile=_config['SERVER']['SERVER_X509_CERTIFICATE'], server_side=True, cert_reqs=ssl.CERT_NONE, do_handshake_on_connect=True, spawn=pool)
                 server_log.debug(f"BINDING CONTROL CHANNEL SERVER SSL SOCKET TO '{_config['SERVER']['BIND_ADDRESS']}:{_config['SERVER']['SERVER_PORT']}' SUCCESSFUL")
@@ -1141,7 +1146,7 @@ def server(_config, threads_n_processes, stop_thread, dict_by_node_generated_con
                 sys.exit()
         else:
             try:
-                server = StreamServer(s, handler(_config, dict_by_node_generated_config, conn_db, dict_of_commands_for_network_clients, dict_of_clients, dict_of_client_pending_acceptance), keyfile=os.path.join(_config['SERVER']['SERVER_X509_SELFSIGNED_DIRECTORY'], "private_key_server.pem"), certfile=os.path.join(_config['SERVER']['SERVER_X509_SELFSIGNED_DIRECTORY'], "certificate_server.pem"), server_side=True, cert_reqs=ssl.CERT_NONE, do_handshake_on_connect=True, spawn=pool)
+                server = StreamServer(s, handler(_config, dict_by_node_generated_config, conn_db, dict_of_commands_for_network_clients, dict_of_clients, dict_of_client_pending_acceptance), keyfile=os.path.join(DefaultValues.DEFAULT_SERVER_X509_SELFSIGNED_DIRECTORY, "private_key_server.pem"), certfile=os.path.join(DefaultValues.DEFAULT_SERVER_X509_SELFSIGNED_DIRECTORY, "certificate_server.pem"), server_side=True, cert_reqs=ssl.CERT_NONE, do_handshake_on_connect=True, spawn=pool)
                 server_log.debug(f"BINDING CONTROL CHANNEL SERVER SSL SOCKET TO '{_config['SERVER']['BIND_ADDRESS']}:{_config['SERVER']['SERVER_PORT']}' SUCCESSFUL")
                 server_log.debug(f"CONTROL CHANNEL SERVER SSL SOCKET LISTENING")
             except Exception as msg:

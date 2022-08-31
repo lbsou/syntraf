@@ -26,10 +26,10 @@ class DefaultValues:
     # CONTROL CHANNEL
     DEFAULT_SERVER_POOL_SIZE = 1_000
     DEFAULT_SERVER_X509_SELFSIGNED_DIRECTORY = os.path.join(SYNTRAF_ROOT_DIR, "crypto",
-                                                            "certificate_control_channel_server")
+                                                            "SERVER_X509_SELFSIGNED_DIRECTORY")
     DEFAULT_CLIENT_X509_SELFSIGNED_DIRECTORY = os.path.join(SYNTRAF_ROOT_DIR, "crypto",
-                                                            "certificate_control_channel_client")
-    DEFAULT_WEBUI_X509_SELFSIGNED_DIRECTORY = os.path.join(SYNTRAF_ROOT_DIR, "crypto", "certificate_webui")
+                                                            "CLIENT_X509_SELFSIGNED_DIRECTORY")
+    DEFAULT_WEBUI_X509_SELFSIGNED_DIRECTORY = os.path.join(SYNTRAF_ROOT_DIR, "crypto", "WEBUI_X509_SELFSIGNED_DIRECTORY")
     DEFAULT_SERVER_PORT = "6531"
     DEFAULT_KEY_SIZE = 2_048
     DEFAULT_CLIENT_METRICS_QUEUE_SIZE = 86_400

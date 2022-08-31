@@ -140,58 +140,69 @@ def validate_config(parameters, reload=False):
             return False, None, None, None
 
     # Validation of the WEBUI config
-    if 'WEBUI' in config and 'SERVER' in config:
+    #if 'WEBUI' in config and 'SERVER' in config:
+    if 'SERVER' in config:
         if not config_validation_certificate(config, "WEBUI", parameters):
             log.error(f"VALIDATION OF WEBUI CONFIG FAILED")
             return False, None, None, None
         else:
             log.debug(f"VALIDATION OF WEBUI CONFIG SUCCESSFUL!")
-    else:
-        # Not a mandatory config
-        log.debug(f"NO CLAUSE [WEBUI] FOUND")
+    #else:
+     #   # Not a mandatory config
+    #    log.debug(f"NO CLAUSE [WEBUI] FOUND")
 
     return True, config, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map
 
 
 def config_validation_certificate(_config, type_of_service, parameters):
-    if not config_file_exist_info(_config, type_of_service.upper(), type_of_service.upper() + '_X509_CA_CHAIN', server_log):
-        log.debug(
-            f"IS THERE A VALID '{type_of_service.upper()}_X509_CA_CHAIN' GIVEN : NO")
+    cert_path = os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, "crypto", f'{type_of_service.upper()}_X509_SELFSIGNED_DIRECTORY')
+    private_key_path = os.path.join(cert_path,)
+    certificate_path = os.path.join(cert_path,)
 
-    if (not config_file_exist_info(_config, type_of_service.upper(), f'{type_of_service.upper()}_X509_CERTIFICATE', server_log) or
-            not config_file_exist_info(_config, type_of_service.upper(), f'{type_of_service.upper()}_X509_PRIVATE_KEY', server_log)):
-        log.debug(
-            f"IS THERE VALID X509 CERTIFICATE INFO GIVEN FOR {type_of_service.upper()} ({type_of_service.upper()}_X509_CERTIFICATE, {type_of_service.upper()}_X509_PRIVATE_KEY) : NO, TRYING TO FALLBACK ON SELF-SIGNED CERTIFICATE.")
-
-        # Self Signed config
-        ss_valid_directory = True
-        if f'{type_of_service.upper()}_X509_SELFSIGNED_DIRECTORY' in _config[type_of_service.upper()]:
-            # If directory does not exist, create it. If an error like permission denied, return False to terminate SYNTRAF
-            if not is_dir_create_on_fail(_config[type_of_service.upper()][f'{type_of_service.upper()}_X509_SELFSIGNED_DIRECTORY'], f"{type_of_service.upper()}_X509_SELFSIGNED_DIRECTORY"):
-                ss_valid_directory = False
+    # Do we have explicit cert provided by user?
+    if type_of_service.upper() in _config:
+        if (not config_file_exist_info(_config, type_of_service.upper(), f'{type_of_service.upper()}_X509_CERTIFICATE', server_log) or
+                not config_file_exist_info(_config, type_of_service.upper(), f'{type_of_service.upper()}_X509_PRIVATE_KEY', server_log)):
+            log.debug(f"IS THERE VALID X509 CERTIFICATE INFO GIVEN FOR {type_of_service.upper()} ({type_of_service.upper()}_X509_CERTIFICATE, {type_of_service.upper()}_X509_PRIVATE_KEY) : NO, TRYING TO FALLBACK ON SELF-SIGNED CERTIFICATE.")
         else:
-            ss_valid_directory = False
-
-        if not ss_valid_directory:
-            if not isinstance(_config[type_of_service.upper()], dict):
-                _config[type_of_service.upper()] = {}
-            _config[type_of_service.upper()][f'{type_of_service.upper()}_X509_SELFSIGNED_DIRECTORY'] = eval(f"DefaultValues.DEFAULT_{type_of_service.upper()}_X509_SELFSIGNED_DIRECTORY")
-
-            # If directory does not exist, create it. If an error like permission denied, return False to terminate SYNTRAF
-            if not is_dir_create_on_fail(_config[type_of_service.upper()][f'{type_of_service.upper()}_X509_SELFSIGNED_DIRECTORY'], f"{type_of_service.upper()}_X509_SELFSIGNED_DIRECTORY"):
-                return False
-            else:
-                ss_valid_directory = True
-
-        if ss_valid_directory:
-            gen_cert(server_log, _config[type_of_service.upper()][f'{type_of_service.upper()}_X509_SELFSIGNED_DIRECTORY'], type_of_service.lower(), parameters, _config, type_of_service)
-        else:
-            log.error(
-                f"IS '{type_of_service.upper()}_X509_SELFSIGNED_DIRECTORY' VALUE {_config[type_of_service.upper()]['{type.upper()}_X509_SELFSIGNED_DIRECTORY']} VALID : NO")
-            return False
+            return True
     else:
-        log.debug(f"IS THERE VALID X509 CERTIFICATE INFO GIVEN FOR '{type_of_service.upper()}' : YES")
-        _config[type_of_service.upper()][f'{type_of_service.upper()}_X509_SELFSIGNED_DIRECTORY'] = "NO"
+        log.debug(f"IS THERE VALID X509 CERTIFICATE INFO GIVEN FOR {type_of_service.upper()} ({type_of_service.upper()}_X509_CERTIFICATE, {type_of_service.upper()}_X509_PRIVATE_KEY) : NO, TRYING TO FALLBACK ON SELF-SIGNED CERTIFICATE.")
+
+    # Self Signed
+    _config[type_of_service.upper()] = {}
+    _config[type_of_service.upper()]['SERVER_X509_SELFSIGNED'] = "YES"
+
+    ss_valid_directory = False
+
+    # If directory does not exist, create it. If an error like permission denied, return False to terminate SYNTRAF
+    pl_path = pathlib.Path(cert_path)
+    if not pl_path.is_dir():
+        if is_dir_create_on_fail(cert_path, f"{type_of_service.upper()}_X509_SELFSIGNED_DIRECTORY"):
+            ss_valid_directory = True
+        else:
+            log.error(f"UNABLE TO CREATE {type_of_service.upper()}_X509_SELFSIGNED_DIRECTORY")
+            return False
+
+    # We should have a directory by now, check if we already have the files in it
+    if file_exist("private_key_" + type_of_service.lower() + ".pem") and file_exist("certificate_" + type_of_service.lower() + ".pem"):
+        return True
+    else:
+        gen_cert(server_log, cert_path, type_of_service.lower(), parameters, _config, type_of_service)
+
+
+    #if not ss_valid_directory:
+    #    if not isinstance(_config[type_of_service.upper()], dict):
+    #        _config[type_of_service.upper()] = {}
+    #    _config[type_of_service.upper()][f'{type_of_service.upper()}_X509_SELFSIGNED_DIRECTORY'] = eval(f"DefaultValues.DEFAULT_{type_of_service.upper()}_X509_SELFSIGNED_DIRECTORY")
+
+
+   #     if not is_dir_create_on_fail(_config[type_of_service.upper()][f'{type_of_service.upper()}_X509_SELFSIGNED_DIRECTORY'], f"{type_of_service.upper()}_X509_SELFSIGNED_DIRECTORY"):
+   #         return False
+   #     else:
+    #        ss_valid_directory = True
+
+
     return True
 
 

@@ -26,7 +26,7 @@ log = logging.getLogger("syntraf." + __name__)
 #################################################################################
 ### DO THE INITIAL LAUNCH AND WATCHDOG OF (LISTENERS, CONNECTORS, CLIENT AND SERVER)
 #################################################################################
-def launch_and_respawn_workers(config, threads_n_processes,  obj_stats, dict_of_clients, dict_data_to_send_to_server, dict_of_commands_for_network_clients, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_of_client_pending_acceptance, config_file_path, conn_db, subprocess_iperf_dict=dict()):
+def launch_and_respawn_workers(config, parameters, threads_n_processes,  obj_stats, dict_of_clients, dict_data_to_send_to_server, dict_of_commands_for_network_clients, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_of_client_pending_acceptance, config_file_path, conn_db, subprocess_iperf_dict=dict()):
     try:
         # STATS
         list = [thr for thr in threads_n_processes if getattr(thr, 'syntraf_instance_type') == "STATS"]
@@ -53,7 +53,7 @@ def launch_and_respawn_workers(config, threads_n_processes,  obj_stats, dict_of_
             list = [thr for thr in threads_n_processes if getattr(thr, 'syntraf_instance_type') == "WEBUI"]
             if not list:
                 thr_webui = threading.Thread(target=launch_webui,
-                                              args=(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server, config, config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients),
+                                              args=(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server, config, parameters, config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients),
                                               daemon=True)
                 thr_webui.name = "WEBUI"
                 thr_webui.start()
@@ -80,7 +80,8 @@ def launch_and_respawn_workers(config, threads_n_processes,  obj_stats, dict_of_
     return threads_n_processes, subprocess_iperf_dict
 
 
-def launch_webui(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server, config, config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients):
+def launch_webui(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server, config, parameters, config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients):
+
     # start webui
     app = flask_wrapper(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server, config, config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients)
     app.inject()
