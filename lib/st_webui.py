@@ -1,21 +1,24 @@
 # SYNTRAF GLOBAL IMPORT
 from lib.st_global import CompilationOptions, DefaultValues
 
-
 # SYNTRAF SERVER IMPORT
 if not CompilationOptions.client_only:
     from lib.st_crypto import *
     from lib.st_read_toml import *
 
-    from flask import Flask, Response, render_template, request, send_from_directory, current_app, safe_join, jsonify, make_response
+    from flask import Flask, Response, render_template, request, send_from_directory, current_app, safe_join, jsonify, \
+        make_response, flash, redirect, session, abort, url_for, g
+    from functools import wraps
+    # from http.server import BaseHTTPRequestHandler, HTTPServer
+    # import time
+
     from gevent.pywsgi import WSGIServer
     from gevent.pool import Pool
     from PIL import Image
-    #from flask_sqlalchemy import SQLAlchemy
+    # from flask_sqlalchemy import SQLAlchemy
 
     # If python-dotenv is installed, running the flask command will set environment variables defined in the files .env and .flaskenv
-    import os
-    #from dotenv import load_dotenv
+    from dotenv import load_dotenv
     import uuid  # for public id
     from werkzeug.security import generate_password_hash, check_password_hash
     # IMPORTS  FOR JWT
@@ -28,6 +31,7 @@ if not CompilationOptions.client_only:
     import time
     import ssl
     import logging
+    import sys
 
     # PACKAGE IMPORT
     import toml
@@ -36,26 +40,36 @@ if not CompilationOptions.client_only:
 
     # Disable werkzeug console output
     import flask.cli
+
     flask.cli.show_server_banner = lambda *args: None
     logging.getLogger('werkzeug').disabled = True
 
     app = Flask(__name__, template_folder=os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, "lib", "web_ui", "templates"))
-    app.logger.disabled = True
-    log_w = logging.getLogger('werkzeug')
-    log_w.disabled = True
-
-
-
     app.config['EXPLAIN_TEMPLATE_LOADING'] = False
     app.debug = False
-    #load_dotenv()
+    load_dotenv()
     SECRET_KEY = os.getenv("SECRET_KEY")
-    API_KEY = os.getenv("API_KEY")
+    app.secret_key = SECRET_KEY
 
 log = logging.getLogger("syntraf." + __name__)
 
-class flask_wrapper (object):
-    def __init__(self, threads_n_processes_param, subprocess_iperf_dict, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server, config, config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients):
+
+## Monkeypatch to catch gevent webserver events directed at stderr
+class writer(object):
+    def write(self, data):
+        log.error(data)
+
+    def flush(self): pass
+
+
+logger = writer()
+sys.stderr = logger
+
+
+class flask_wrapper(object):
+    def __init__(self, threads_n_processes_param, subprocess_iperf_dict, _dict_by_node_generated_config,
+                 _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server, config, config_file_path,
+                 conn_db, dict_of_commands_for_network_clients, dict_of_clients):
         self.conn_db = conn_db
         self.threads_n_processes = threads_n_processes_param
         self.subprocess_iperf_dict = subprocess_iperf_dict
@@ -77,76 +91,126 @@ class flask_wrapper (object):
         self.dict_of_arrays_generated_tuples_for_map = dict_of_arrays_generated_tuples_for_map
 
     def run(self):
-        pool = Pool(1000)
-        http_server = WSGIServer(('0.0.0.0', DefaultValues.DEFAULT_WEBUI_PORT), app)
-
+        cert_path = os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, "crypto", "WEBUI_X509_SELFSIGNED_DIRECTORY")
+        pool = Pool(100)
         try:
-            #http_server = WSGIServer(('0.0.0.0', 5000), app, certfile=os.path.join(DefaultValues.DEFAULT_WEBUI_X509_SELFSIGNED_DIRECTORY,'certificate_webui.pem'), keyfile=os.path.join(DefaultValues.DEFAULT_WEBUI_X509_SELFSIGNED_DIRECTORY, 'private_key_webui.pem'), server_side=True, cert_reqs=ssl.CERT_NONE, do_handshake_on_connect=True, spawn=pool)
+            http_server = WSGIServer(('0.0.0.0', DefaultValues.DEFAULT_WEBUI_PORT), app,
+                                     certfile=os.path.join(cert_path, 'certificate_webui.pem'),
+                                     keyfile=os.path.join(cert_path, 'private_key_webui.pem'), server_side=True,
+                                     cert_reqs=ssl.CERT_NONE, do_handshake_on_connect=True, spawn=pool)
             http_server.serve_forever()
         except Exception as exc:
             print(exc)
-            pass
 
     def inject(self):
         @app.route('/')
         @app.route('/home.html')
+        #@authorize
         def index():
-            gen_config = toml.dumps(self._dict_by_node_generated_config).replace("\n", "<br/>")
-            return render_template('home.html', title='SYNTRAF WEBUI', config=self.config, gen_config=gen_config, conn_db=self.conn_db, syntraf_version=DefaultValues.SYNTRAF_VERSION)
+            try:
+                if not session.get('logged_in'):
+                    return render_template('login.html')
+                else:
+                    gen_config = toml.dumps(self._dict_by_node_generated_config).replace("\n", "<br/>")
+                    return render_template('home.html', title='SYNTRAF WEBUI', config=self.config, gen_config=gen_config,
+                                           conn_db=self.conn_db, syntraf_version=DefaultValues.SYNTRAF_VERSION)
+            except Exception as msg:
+                log.error(msg)
+        # def authorize():
+        #         @wraps(f)
+        #         def decorated_function(*args, **kwargs):
+        #             if session['logged_in'] is True:
+        #                 return redirect(url_for('login', next=request.url))
+        #             return f(*args, **kwargs)
+        #         return decorated_function
+
+        @app.route('/login', methods=['POST'])
+        def user_login():
+            try:
+                if request.form['password'] == 'password' and request.form['username'] == 'admin':
+                    session['logged_in'] = True
+                else:
+                    flash("Invalid username or password")
+                return index()
+            except Exception as msg:
+                log.error(msg)
+
+        @app.route("/logout")
+        def logout():
+            session['logged_in'] = False
+            flash("You have been logged out!")
+            return index()
 
         @app.route('/generated_client_config.html')
         def generated_config():
-            #gen_config = toml.dumps(self._dict_by_node_generated_config)#.replace("\n", "</p><p>")
-            return render_template('generated_client_config.html', title='SYNTRAF WEBUI', _dict_by_node_generated_config=self._dict_by_node_generated_config, syntraf_version=DefaultValues.SYNTRAF_VERSION)
+            # gen_config = toml.dumps(self._dict_by_node_generated_config)#.replace("\n", "</p><p>")
+            return render_template('generated_client_config.html', title='SYNTRAF WEBUI',
+                                   _dict_by_node_generated_config=self._dict_by_node_generated_config,
+                                   syntraf_version=DefaultValues.SYNTRAF_VERSION)
 
         @app.route('/proc.html')
         def proc():
-            return render_template('proc.html', title='SYNTRAF WEBUI', thr=self.threads_n_processes, process=self.subprocess_iperf_dict, syntraf_version=DefaultValues.SYNTRAF_VERSION)
+            return render_template('proc.html', title='SYNTRAF WEBUI', thr=self.threads_n_processes,
+                                   process=self.subprocess_iperf_dict, syntraf_version=DefaultValues.SYNTRAF_VERSION)
 
         @app.route('/token.html')
         def token():
-            return render_template('token.html', title='SYNTRAF - TOKEN CONFIGURATION', syntraf_version=DefaultValues.SYNTRAF_VERSION)
+            return render_template('token.html', title='SYNTRAF - TOKEN CONFIGURATION',
+                                   syntraf_version=DefaultValues.SYNTRAF_VERSION)
 
         @app.route('/config.html')
         def config():
-            #config = toml.dumps(self.config).replace("\n", "<br/>")
-            return render_template('config.html', title='SYNTRAF WEBUI', config=self.config, syntraf_version=DefaultValues.SYNTRAF_VERSION)
+            # config = toml.dumps(self.config).replace("\n", "<br/>")
+            return render_template('config.html', title='SYNTRAF WEBUI', config=self.config,
+                                   syntraf_version=DefaultValues.SYNTRAF_VERSION)
 
         @app.route('/queue.html')
         def queue():
-            return render_template('queue.html', title='SYNTRAF WEBUI', dict_data_to_send_to_server=self.dict_data_to_send_to_server, syntraf_version=DefaultValues.SYNTRAF_VERSION)
+            return render_template('queue.html', title='SYNTRAF WEBUI',
+                                   dict_data_to_send_to_server=self.dict_data_to_send_to_server,
+                                   syntraf_version=DefaultValues.SYNTRAF_VERSION)
 
         @app.route('/map.html')
         def map():
-            return render_template('map.html', title='SYNTRAF WEBUI', config=self.config, syntraf_version=DefaultValues.SYNTRAF_VERSION)
+            return render_template('map.html', title='SYNTRAF WEBUI', config=self.config,
+                                   syntraf_version=DefaultValues.SYNTRAF_VERSION)
 
         @app.route('/database_config.html')
         def database_config():
-            return render_template('database_config.html', title='SYNTRAF WEBUI', config=self.config, syntraf_version=DefaultValues.SYNTRAF_VERSION)
+            return render_template('database_config.html', title='SYNTRAF WEBUI', config=self.config,
+                                   syntraf_version=DefaultValues.SYNTRAF_VERSION)
 
         @app.route('/global_config.html')
         def global_config():
-            return render_template('global_config.html', title='SYNTRAF WEBUI', config=self.config, syntraf_version=DefaultValues.SYNTRAF_VERSION)
+            return render_template('global_config.html', title='SYNTRAF WEBUI', config=self.config,
+                                   syntraf_version=DefaultValues.SYNTRAF_VERSION)
 
         @app.route('/mesh_group_config.html')
         def mesh_group_config():
-            return render_template('mesh_group_config.html', title='SYNTRAF WEBUI', config=self.config, syntraf_version=DefaultValues.SYNTRAF_VERSION)
+            return render_template('mesh_group_config.html', title='SYNTRAF WEBUI', config=self.config,
+                                   syntraf_version=DefaultValues.SYNTRAF_VERSION)
 
         @app.route('/client_config.html')
         def client_config():
-            return render_template('client_config.html', title='SYNTRAF WEBUI', config=self.config, syntraf_version=DefaultValues.SYNTRAF_VERSION)
+            return render_template('client_config.html', title='SYNTRAF WEBUI', config=self.config,
+                                   syntraf_version=DefaultValues.SYNTRAF_VERSION)
 
         @app.route('/server.html')
         def server():
-            return render_template('server.html', title='SYNTRAF WEBUI', config=self.config, syntraf_version=DefaultValues.SYNTRAF_VERSION)
+            return render_template('server.html', title='SYNTRAF WEBUI', config=self.config,
+                                   syntraf_version=DefaultValues.SYNTRAF_VERSION)
 
         @app.route('/stats.html')
         def stats():
-            return render_template('stats.html', title='SYNTRAF WEBUI', config=self.config, _dict_by_node_generated_config=self._dict_by_node_generated_config, syntraf_version=DefaultValues.SYNTRAF_VERSION, dict_of_clients=self.dict_of_clients)
+            return render_template('stats.html', title='SYNTRAF WEBUI', config=self.config,
+                                   _dict_by_node_generated_config=self._dict_by_node_generated_config,
+                                   syntraf_version=DefaultValues.SYNTRAF_VERSION, dict_of_clients=self.dict_of_clients)
 
         @app.route('/clients_configuration.html')
         def clients_configurations():
-            return render_template('clients_configuration.html', title='SYNTRAF WEBUI', config=self.config, _dict_by_node_generated_config=self._dict_by_node_generated_config, syntraf_version=DefaultValues.SYNTRAF_VERSION)
+            return render_template('clients_configuration.html', title='SYNTRAF WEBUI', config=self.config,
+                                   _dict_by_node_generated_config=self._dict_by_node_generated_config,
+                                   syntraf_version=DefaultValues.SYNTRAF_VERSION)
 
         @app.route('/api', methods=['GET', 'POST'])
         def api():
@@ -163,10 +227,11 @@ class flask_wrapper (object):
                     if read_success:
                         for mg in config['MESH_GROUP']:
                             if request.values.get('MESH_GROUP', '') == mg['UID']:
-                                config['MESH_GROUP'][config['MESH_GROUP'].index(mg)]['WEBUI_JSON'] = request.values.get('CYTO_JSON', '')
+                                config['MESH_GROUP'][config['MESH_GROUP'].index(mg)]['WEBUI_JSON'] = request.values.get(
+                                    'CYTO_JSON', '')
                                 with open(self.config_file_path, "w") as toml_file:
-                                    #print("writing to disk")
-                                    #print(config, self.config_file_path)
+                                    # print("writing to disk")
+                                    # print(config, self.config_file_path)
                                     toml.dump(config, toml_file)
                                     log.debug(f"RECEIVED A REQUEST TO SAVE MAPS CONFIG OF GROUP '{mg['UID']}' TO DISK")
                 elif requested_action == "RECONNECT_CLIENT":
@@ -176,7 +241,8 @@ class flask_wrapper (object):
 
                     if self.dict_of_clients[client_uid].status == "CONNECTED":
                         # if the client_uid is not in the dict, add it with an empty array as value
-                        if not client_uid in self.dict_of_commands_for_network_clients: self.dict_of_commands_for_network_clients[client_uid] = []
+                        if not client_uid in self.dict_of_commands_for_network_clients:
+                            self.dict_of_commands_for_network_clients[client_uid] = []
 
                         # add the action
                         self.dict_of_commands_for_network_clients[client_uid].append({"ACTION": requested_action})
@@ -193,7 +259,8 @@ class flask_wrapper (object):
 
                     if self.dict_of_clients[client_uid].status == "CONNECTED":
                         # if the client_uid is not in the dict, add it with an empty array as value
-                        if not client_uid in self.dict_of_commands_for_network_clients: self.dict_of_commands_for_network_clients[client_uid] = []
+                        if not client_uid in self.dict_of_commands_for_network_clients:
+                            self.dict_of_commands_for_network_clients[client_uid] = []
 
                         # add the action
                         self.dict_of_commands_for_network_clients[client_uid].append({"ACTION": requested_action})
@@ -276,24 +343,23 @@ class flask_wrapper (object):
                     list_of_databases_infos = {}
                     for db in self.conn_db:
                         db.force_status_check()
-                        list_of_databases_infos[db.DB_UID] = {"STATUS": db.status, "STATUS_TIME": db.status_time, "BACKLOG": len(db.write_queue.queue)}
+                        list_of_databases_infos[db.DB_UID] = {"STATUS": db.status, "STATUS_TIME": db.status_time,
+                                                              "BACKLOG": len(db.write_queue.queue)}
                     return jsonify(list_of_databases_infos)
 
                 return "OK"
             else:
                 return "OK"
 
-
-
         def flask_logger(logfile):
             for i in range(10000):
                 yield str(i)
                 time.sleep(1)
-            #yield self.config['GLOBAL']['LOGDIR']
+            # yield self.config['GLOBAL']['LOGDIR']
 
         @app.route("/log_viewer.html", methods=["GET"])
         def log_viewer():
-            #return Response(flask_logger(request.args.get("logfile")), mimetype="text/plain", content_type="text/event-stream")
+            # return Response(flask_logger(request.args.get("logfile")), mimetype="text/plain", content_type="text/event-stream")
             return render_template("log_viewer.html")
 
         @app.route("/maps.html", methods=['GET', 'POST'])
@@ -314,11 +380,16 @@ class flask_wrapper (object):
                         background = mesh_group[0]["WEBUI_BACKGROUND"]
 
                         # We must get the width and height of the background
-                        bg_path = os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, "lib", "static", "maps", mesh_group[0]["WEBUI_BACKGROUND"])
+                        bg_path = os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, "lib", "static", "maps",
+                                               mesh_group[0]["WEBUI_BACKGROUND"])
                         im = Image.open(bg_path)
                         background_size = im.size
 
-            return render_template("maps.html", elem=elements, config=self.config, selected_map=request.args.get("mesh_group_map"), background=background, background_size=background_size, dict_of_arrays_generated_tuples_for_map=self.dict_of_arrays_generated_tuples_for_map, syntraf_version=DefaultValues.SYNTRAF_VERSION)
+            return render_template("maps.html", elem=elements, config=self.config,
+                                   selected_map=request.args.get("mesh_group_map"), background=background,
+                                   background_size=background_size,
+                                   dict_of_arrays_generated_tuples_for_map=self.dict_of_arrays_generated_tuples_for_map,
+                                   syntraf_version=DefaultValues.SYNTRAF_VERSION)
 
         @app.after_request
         def add_header(r):
@@ -326,4 +397,3 @@ class flask_wrapper (object):
             r.headers["Pragma"] = "no-cache"
             r.headers["Expires"] = "0"
             return r
-

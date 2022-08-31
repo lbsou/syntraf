@@ -11,6 +11,8 @@ from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
 
+from passlib.hash import sha256_crypt
+
 # BUILTIN IMPORT
 from datetime import datetime, timedelta
 import socket
@@ -21,6 +23,15 @@ import string
 import sys
 
 server_log = logging.getLogger("syntraf." + __name__)
+
+
+# Use by flask to save password to database
+def sha256_with_salt_create_hash(password):
+    return sha256_crypt.hash(password)
+
+
+def sha256_with_salt_verify_hash(password, hash):
+    return sha256_crypt.verify(password, hash)
 
 
 def gen_iperf3_password_hash(username, password):
@@ -133,21 +144,30 @@ def gen_cert(log, path, suffix_filename, parameters, config, type_of_service):
     except Exception as exc:
         log.error(f"gen_cert:{type(exc).__name__}:{exc}", exc_info=True)
 
-    if type_of_service == "CLIENT":
-        if not (write_public_key_to_config_file(config, str(public_key_pem), parameters, log, type_of_service)):
-            sys.exit()
-        if not (write_private_key_path_to_config_file(config, os.path.join(path, "private_key_" + suffix_filename + ".pem"), parameters, log, type_of_service)):
-            sys.exit()
-        if not (write_certificate_path_to_config_file(config, os.path.join(path, "certificate_" + suffix_filename + ".pem"), parameters, log, type_of_service)):
-            sys.exit()
+    #if type_of_service == "CLIENT":
+    if not (write_public_key_to_config_file(config, str(public_key_pem), parameters, log, type_of_service)):
+        sys.exit()
+    if not (write_private_key_path_to_config_file(config, os.path.join(path, "private_key_" + suffix_filename + ".pem"), parameters, log, type_of_service)):
+        sys.exit()
+    if not (write_certificate_path_to_config_file(config, os.path.join(path, "certificate_" + suffix_filename + ".pem"), parameters, log, type_of_service)):
+        sys.exit()
 
 
 def write_public_key_to_config_file(config, public_key_pem, parameters, log, type_of_service):
     try:
+        #if not isinstance(config[type_of_service.upper()], dict):
+
         config_temp = read_toml(parameters.config_file)
+        if not type_of_service.upper() in config_temp:
+            config_temp[type_of_service.upper()] = {}
         config_temp[type_of_service]['PUBLIC_KEY'] = public_key_pem
         write_toml(config_temp, parameters.config_file)
+
+        # Make sure we mirror the change in the running conf
+        if not type_of_service.upper() in config:
+            config[type_of_service.upper()] = {}
         config[type_of_service]['PUBLIC_KEY'] = public_key_pem
+
     except Exception as exc:
         log.error(f"gen_cert:{type(exc).__name__}:{exc}", exc_info=True)
         return False
@@ -156,22 +176,23 @@ def write_public_key_to_config_file(config, public_key_pem, parameters, log, typ
 
 def write_private_key_path_to_config_file(config, private_key_path, parameters, log, type_of_service):
     try:
+        if not isinstance(config[type_of_service.upper()], dict):
+            config[type_of_service.upper()] = {}
         config_temp = read_toml(parameters.config_file)
-        config_temp[type_of_service]['CLIENT_X509_PRIVATE_KEY'] = private_key_path
+        config_temp[type_of_service][f'{type_of_service.upper()}_X509_PRIVATE_KEY'] = private_key_path
         write_toml(config_temp, parameters.config_file)
-        config[type_of_service]['CLIENT_X509_PRIVATE_KEY'] = private_key_path
+        config[type_of_service][f'{type_of_service.upper()}_X509_PRIVATE_KEY'] = private_key_path
     except Exception as exc:
         log.error(f"gen_cert:{type(exc).__name__}:{exc}", exc_info=True)
         return False
     return True
 
-
 def write_certificate_path_to_config_file(config, certificate_path, parameters, log, type_of_service):
     try:
         config_temp = read_toml(parameters.config_file)
-        config_temp[type_of_service]['CLIENT_X509_CERTIFICATE'] = certificate_path
+        config_temp[type_of_service][f'{type_of_service.upper()}_X509_CERTIFICATE'] = certificate_path
         write_toml(config_temp, parameters.config_file)
-        config[type_of_service]['CLIENT_X509_CERTIFICATE'] = certificate_path
+        config[type_of_service][f'{type_of_service.upper()}_X509_CERTIFICATE'] = certificate_path
     except Exception as exc:
         log.error(f"gen_cert:{type(exc).__name__}:{exc}", exc_info=True)
         return False
