@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+
+{% block content %}
+
+  <div class="container">
+  <h1>Users</h1>
+    {% for user in users %}
+    <ul id="user.username">
+      <li>
+        <span class="field-name">User:</span>
+        <span class="field-value">{{ user.username }}</span>
+      </li>
+      <li>
+        <span class="field-name">Email:</span>
+        <span class="field-value">{{ user.email }}</span>
+      </li>
+      <li>
+        <span class="field-name">Created:</span>
+        <span class="field-value">{{ user.created }}</span>
+      </li>
+      <li>
+        <span class="field-name">Description:</span>
+        <span class="field-value">{{ user.description }}</span>
+      </li>
+      <li>
+        <span class="field-name">Admin:</span>
+        <span class="field-value">{{ user.admin }}</span>
+      </li>
+    </ul>
+    {% endfor %}
+  </div>
+
+{% endblock %}
