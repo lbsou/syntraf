@@ -39,17 +39,17 @@ if not CompilationOptions.client_only:
     from pprint import pp
 
     # Disable werkzeug console output
-    import flask.cli
+    # import flask.cli
+    #
+    # flask.cli.show_server_banner = lambda *args: None
+    # logging.getLogger('werkzeug').disabled = True
 
-    flask.cli.show_server_banner = lambda *args: None
-    logging.getLogger('werkzeug').disabled = True
-
-    app = Flask(__name__, template_folder=os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, "lib", "web_ui", "templates"))
-    app.config['EXPLAIN_TEMPLATE_LOADING'] = False
-    app.debug = False
-    load_dotenv()
-    SECRET_KEY = os.getenv("SECRET_KEY")
-    app.secret_key = SECRET_KEY
+    # app = Flask(__name__, template_folder=os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, "lib", "web_ui", "templates"))
+    # app.config['EXPLAIN_TEMPLATE_LOADING'] = False
+    # app.debug = False
+    # load_dotenv()
+    # SECRET_KEY = os.getenv("SECRET_KEY")
+    # app.secret_key = SECRET_KEY
 
 log = logging.getLogger("syntraf." + __name__)
 
@@ -380,7 +380,7 @@ class flask_wrapper(object):
                         background = mesh_group[0]["WEBUI_BACKGROUND"]
 
                         # We must get the width and height of the background
-                        bg_path = os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, "lib", "static", "maps",
+                        bg_path = os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, "lib", "web_ui/static", "maps",
                                                mesh_group[0]["WEBUI_BACKGROUND"])
                         im = Image.open(bg_path)
                         background_size = im.size

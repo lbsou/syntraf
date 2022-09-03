@@ -9,8 +9,10 @@ from lib.st_system_stats import *
 
 # SYNTRAF SERVER IMPORT
 if not CompilationOptions.client_only:
-    from lib.st_webui import *
-
+    #from lib.st_webui import *
+    from lib.web_ui import create_app
+    from gevent.pywsgi import WSGIServer
+    from gevent.pool import Pool
 # BUILTIN IMPORT
 import logging
 from datetime import datetime
@@ -21,6 +23,17 @@ import os
 # from lib.st_covariance import *
 
 log = logging.getLogger("syntraf." + __name__)
+
+## Monkeypatch to catch gevent webserver events directed at stderr
+class writer(object):
+    def write(self, data):
+        log.error("STDERR:" + data)
+
+    def flush(self): pass
+
+
+logger = writer()
+sys.stderr = logger
 
 
 #################################################################################
@@ -82,10 +95,22 @@ def launch_and_respawn_workers(config, parameters, threads_n_processes,  obj_sta
 
 def launch_webui(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server, config, parameters, config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients):
 
-    # start webui
-    app = flask_wrapper(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server, config, config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients)
-    app.inject()
-    app.run()
+    try:
+        app = create_app(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server, config, config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients)
+        cert_path = os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, "crypto", "WEBUI_X509_SELFSIGNED_DIRECTORY")
+        pool = Pool(20)
+        try:
+            http_server = WSGIServer(('0.0.0.0', DefaultValues.DEFAULT_WEBUI_PORT), app,
+                                     certfile=os.path.join(cert_path, 'certificate_webui.pem'),
+                                     keyfile=os.path.join(cert_path, 'private_key_webui.pem'), server_side=True,
+                                     cert_reqs=ssl.CERT_NONE, do_handshake_on_connect=True, spawn=pool)
+            http_server.serve_forever()
+        except Exception as exc:
+            print(exc)
+    except Exception as msg:
+        print(msg)
+
+
 
 
 def launch_stats(config, obj_stats):

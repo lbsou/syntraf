@@ -48,8 +48,7 @@ def gen_user_pass_iperf3(log, _config):
         username_char = string.ascii_letters + string.digits
         password_characters = string.ascii_letters + string.digits + string.punctuation
         username = ''.join(random.sample(username_char, 20))
-        #password = ''.join(random.sample(password_characters, 30))
-        password = ''.join(random.sample(username_char, 20))
+        password = ''.join(random.sample(password_characters, 20))
         _config['SERVER']['IPERF3_USERNAME'] = username
         _config['SERVER']['IPERF3_PASSWORD'] = password
     except Exception as exc:
