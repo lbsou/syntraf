@@ -19,8 +19,8 @@ class User(UserMixin, db.Model):
     )
     email = db.Column(
         db.String(80),
-        index=True,
-        unique=True,
+        index=False,
+        unique=False,
         nullable=False
     )
     created = db.Column(
