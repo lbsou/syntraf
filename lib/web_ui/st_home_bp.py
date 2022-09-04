@@ -43,6 +43,18 @@ st_home_bp = Blueprint(
     static_folder='static'
 )
 
+@st_home_bp.route('/users.html')
+def webui_users():
+    return render_template(
+        'users.html',
+        users=User.query.all(),
+        title="SYNTRAF Users",
+        syntraf_version=DefaultValues.SYNTRAF_VERSION
+    )
+
+@st_home_bp.route('/webui-delete-user', methods=['GET'])
+def del_user():
+    request.args.get('user')
 
 @st_home_bp.route('/create', methods=['GET'])
 def user_records():
@@ -62,7 +74,9 @@ def user_records():
             email=email,
             created=dt.now(),
             description="It's me, Mario!",
-            admin=False
+            admin=False,
+            last_login=None,
+            password="None"
         )  # Create an instance of the User class
         db.session.add(new_user)  # Adds new User record to database
         db.session.commit()  # Commits all changes
@@ -123,11 +137,6 @@ def user_login():
 def logout():
     logout_user()
     return redirect(index)
-
-
-@st_home_bp.route("/foo")
-def foo():
-    return app.config['foo']
 
 
 # @st_home_bp.route('/generated_client_config.html')
@@ -384,8 +393,7 @@ def maps():
     return render_template("maps.html", elem=elements, config=app.config['config'],
                            selected_map=request.args.get("mesh_group_map"), background=background,
                            background_size=background_size,
-                           dict_of_arrays_generated_tuples_for_map=app.config[
-                               'dict_of_arrays_generated_tuples_for_map'],
+                           dict_of_arrays_generated_tuples_for_map=app.config['dict_of_arrays_generated_tuples_for_map'],
                            syntraf_version=DefaultValues.SYNTRAF_VERSION)
 
 

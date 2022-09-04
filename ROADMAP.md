@@ -15,7 +15,7 @@ v0.3 - A step back aka MOONWALK
  - iperf3 libiperf integration
  - run as a service in Windows
  - restart compatibility (Windows and Linux)
- - fix high loss stability (db insertion not regular)
+ [X] fix high loss stability (db insertion not regular)
 
 
 v0.4 - The makeover aka CINDERELLA
