@@ -22,37 +22,32 @@
           <div class="collapse navbar-collapse" id="navbarColor01">
             <ul class="navbar-nav mr-auto">
 
-              <li class="nav-item">
-                <a class="nav-link" href="maps.html">Maps</a>
-              </li>
               <li class="nav-item dropdown">
-                <a class="nav-link dropdown-toggle" data-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">Clients</a>
+                <a class="nav-link dropdown-toggle" data-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">Status</a>
                 <div class="dropdown-menu">
-                  <a class="dropdown-item" href="stats.html">Status</a>
-                  <a class="dropdown-item" href="clients_configuration.html">Configuration</a>
+                  <a class="dropdown-item" href="stats.html">Clients</a>
+                  <a class="dropdown-item" href="">Databases</a>
                 </div>
               </li>
+
               <li class="nav-item dropdown">
                 <a class="nav-link dropdown-toggle" data-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">Configurations</a>
                 <div class="dropdown-menu">
-                  <a class="dropdown-item" href="global_config.html">Global</a>
-                  <a class="dropdown-item" href="database_config.html">Databases</a>
-                  <a class="dropdown-item" href="mesh_group_config.html">Mesh groups</a>
                   <a class="dropdown-item" href="client_config.html">Clients</a>
-                  <a class="dropdown-item" href="server.html">Server</a>
+                  <a class="dropdown-item" href="database_config.html">Databases</a>
+                  <a class="dropdown-item" href="mesh_group_config.html">Groups</a>
+                  <a class="dropdown-item" href="server_config.html">Server</a>
+                  <a class="dropdown-item" href="token_config.html">Tokens</a>
+                  <a class="dropdown-item" href="webui_users_config.html">Users</a>
                 </div>
               </li>
               <li class="nav-item dropdown">
-                <a class="nav-link dropdown-toggle" data-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">WEBUI</a>
-                <div class="dropdown-menu">
-                  <a class="dropdown-item" href="users.html">Users</a>
-                </div>
+                <a class="nav-link " href="/logout" role="button" >Logout</a>
               </li>
             </ul>
           </div>
             <div>
                 SYNTRAF v{{ syntraf_version }}<br>
-                <a href="/logout">Logout</a>
             </div>
         </nav>
         <script src="/static/js/jquery-3.6.0.min.js"></script>

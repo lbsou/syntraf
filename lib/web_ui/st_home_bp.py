@@ -43,10 +43,18 @@ st_home_bp = Blueprint(
     static_folder='static'
 )
 
-@st_home_bp.route('/users.html')
+@st_home_bp.route('/home.html')
+def home():
+    return render_template(
+        'home.html',
+        title="SYNTRAF",
+        syntraf_version=DefaultValues.SYNTRAF_VERSION
+    )
+
+@st_home_bp.route('/users_config.html')
 def webui_users():
     return render_template(
-        'users.html',
+        'users_config.html',
         users=User.query.all(),
         title="SYNTRAF Users",
         syntraf_version=DefaultValues.SYNTRAF_VERSION
@@ -151,10 +159,9 @@ def logout():
 #     return render_template('proc.html', title='SYNTRAF WEBUI', thr=self.threads_n_processes,
 #                            process=self.subprocess_iperf_dict, syntraf_version=DefaultValues.SYNTRAF_VERSION)
 
-@st_home_bp.route('/token.html')
-def token():
-    return render_template('token.html', title='SYNTRAF - TOKEN CONFIGURATION',
-                           syntraf_version=DefaultValues.SYNTRAF_VERSION)
+@st_home_bp.route('/token_config.html')
+def token_config():
+    return render_template('token_config.html', syntraf_version=DefaultValues.SYNTRAF_VERSION)
 
 
 @st_home_bp.route('/config.html')
@@ -189,9 +196,9 @@ def global_config():
                            syntraf_version=DefaultValues.SYNTRAF_VERSION)
 
 
-@st_home_bp.route('/mesh_group_config.html')
+@st_home_bp.route('/group_config.html')
 def mesh_group_config():
-    return render_template('mesh_group_config.html', title='SYNTRAF WEBUI', config=app.config['config'],
+    return render_template('group_config.html', title='SYNTRAF WEBUI', config=app.config['config'],
                            syntraf_version=DefaultValues.SYNTRAF_VERSION)
 
 

@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Groups{% endblock %}
+{% block content %}
+
+  <div class="container"><br>
+    <div class="table-responsive">
+      <h2>Groups</h2>
+      <button type="button" class="btn btn-primary">New group</button><br><br>
+      <table class="table table-dark table-striped thead-dark table-hover table-sm vertical-align">
+        <thead>
+          <tr>
+            <th scope="col">Name</th>
+            <th scope="col">Bandwidth</th>
+            <th scope="col">DSCP</th>
+            <th scope="col">Packet size</th>
+            <th scope="col">Interval</th>
+            <th scope="col"></th>
+            <th scope="col"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for mesh_group in config['MESH_GROUP'] %}
+            <tr>
+              <td class="align-middle col-sm-3" scope="row">{{ mesh_group['UID'] }}</td>
+              <td class="align-middle col-sm-3" scope="row">{{ mesh_group['BANDWIDTH'] }}</td>
+              <td class="align-middle col-sm-3" scope="row">{{ mesh_group['DSCP'] }}</td>
+              <td class="align-middle col-sm-3" scope="row">{{ mesh_group['PACKET_SIZE'] }}</td>
+              <td class="align-middle col-sm-3" scope="row">{{ mesh_group['INTERVAL'] }}</td>
+              <td class="align-middle col-xs-0.2 offset-md-3" scope="row"><button type="button" id="btn_edit_group_open_modal_{{ mesh_group['UID'] }}" class="btn btn-default btn-lg btn-block roster-button active d-inline p-0 m-0" data-toggle="modal" data-rowid="{{ mesh_group['UID'] }}" data-target="#editgroup" data-placement="top" title="Edit group"> <i class="fas fa-edit p-0 m-0"></i></button></td>
+              <td class="align-middle col-xs-0.2" scope="row"><button type="button" id="btn_remove_group_open_modal_{{ mesh_group['UID'] }}" class="btn btn-default btn-lg btn-block roster-button active d-inline p-0 m-0" data-toggle="modal" data-rowid="{{ mesh_group['UID'] }}" data-target="#removegroup" data-placement="top" title="Remove group"> <i class="far fa-trash-alt p-0 m-0"></i></button></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div aria-labelledby="confirmationModal" class="modal fade" id="removegroup"
+  role="dialog" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered" role="document">
+          <div class="modal-content">
+              <input type="hidden" id="groupID" value="">
+              <div class="modal-header">
+                  <h4 class="modal-title">Remove group</h4>
+              </div>
+              <div class="modal-body">
+                  <p>Are you sure you wish to remove this group?</p>
+              </div>
+              <div class="modal-footer">
+                  <button class="btn btn-default" data-dismiss="modal" type="button">Cancel</button>
+                  <button class="btn btn-danger" id="btn_yes_remove_group" type="button">Delete</button>
+              </div>
+          </div><!-- end modal-content -->
+      </div><!-- end modal-dialog -->
+  </div><!-- end modal -->
+
+<script>
+    $(document).ready(function(){
+
+        // Show confirmation modal
+        $("#btn_remove_group_open_modal").click(function(){
+            $("#removegroup").modal();
+        });
+
+        // Take the 'data.rowid' value of the delete button and put it in the hidden value 'groupID' inside the modal
+        $('#removegroup').on('show.bs.modal', function (e) {
+            var rowid = $(e.relatedTarget).data('rowid');
+            $('#groupID').val(rowid);
+         });
+
+        // If group click 'delete' call the API to delete the group
+        $("#btn_yes_remove_group").click(function(){
+            var delid = $('#groupID').val();
+            alert(delid);
+            $("#removegroup").modal('hide');
+            window.location.reload();
+        });
+    });
+
+
+</script>
+
+{% endblock %}
+
+
