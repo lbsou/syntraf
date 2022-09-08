@@ -11,7 +11,13 @@ from lib.st_system_stats import *
 if not CompilationOptions.client_only:
     #from lib.st_webui import *
     from lib.web_ui import create_app
+
+    from gevent import monkey
+    monkey.patch_all()
     from gevent.pywsgi import WSGIServer
+
+    from werkzeug.serving import run_simple
+    from werkzeug.middleware.profiler import ProfilerMiddleware
     from gevent.pool import Pool
 # BUILTIN IMPORT
 import logging
@@ -23,6 +29,9 @@ import os
 # from lib.st_covariance import *
 
 log = logging.getLogger("syntraf." + __name__)
+
+
+
 
 ## Monkeypatch to catch gevent webserver events directed at stderr
 class writer(object):
@@ -94,23 +103,25 @@ def launch_and_respawn_workers(config, parameters, threads_n_processes,  obj_sta
 
 
 def launch_webui(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server, config, parameters, config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients):
-
     try:
         app = create_app(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server, config, config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients)
+        #app = ProfilerMiddleware(app)
         cert_path = os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, "crypto", "WEBUI_X509_SELFSIGNED_DIRECTORY")
-        pool = Pool(20)
+        pool = Pool(100)
+
         try:
-            http_server = WSGIServer(('0.0.0.0', DefaultValues.DEFAULT_WEBUI_PORT), app,
-                                     certfile=os.path.join(cert_path, 'certificate_webui.pem'),
-                                     keyfile=os.path.join(cert_path, 'private_key_webui.pem'), server_side=True,
-                                     cert_reqs=ssl.CERT_NONE, do_handshake_on_connect=True, spawn=pool)
+            http_server = WSGIServer(('0.0.0.0', DefaultValues.DEFAULT_WEBUI_PORT), app)
+
+        #try:
+        #    http_server = WSGIServer(('0.0.0.0', DefaultValues.DEFAULT_WEBUI_PORT), app,
+        #                             certfile=os.path.join(cert_path, 'certificate_webui.pem'),
+        #                             keyfile=os.path.join(cert_path, 'private_key_webui.pem'), server_side=True,
+        #                             cert_reqs=ssl.CERT_NONE, do_handshake_on_connect=True, spawn=pool, environ={'wsgi.multithread': True, 'wsgi.multiprocess': True,})
             http_server.serve_forever()
         except Exception as exc:
             print(exc)
     except Exception as msg:
         print(msg)
-
-
 
 
 def launch_stats(config, obj_stats):
@@ -177,8 +188,7 @@ def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, dict_of_clien
                 if mesh_type == "CLIENT":
                     log.info(f"{mesh_type} RE-INITIATED : {config[mesh_type]['SERVER']}:{config[mesh_type]['SERVER_PORT']}")
                 elif mesh_type == "SERVER":
-                    log.info(
-                        f"{mesh_type} RE-INITIATED : {config[mesh_type]['BIND_ADDRESS']}:{config[mesh_type]['SERVER_PORT']}")
+                    log.info(f"{mesh_type} RE-INITIATED : {config[mesh_type]['BIND_ADDRESS']}:{config[mesh_type]['SERVER_PORT']}")
             # Validate MESH config and start the thread
             elif thr_temp is None:
                 log.info(f"VALIDATION OF {mesh_type} CONFIG SUCCESSFUL!")

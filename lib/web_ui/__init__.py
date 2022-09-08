@@ -34,6 +34,7 @@ def create_app(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generat
 
         # Register Blueprints
         app.register_blueprint(st_home_bp)
+        #app.register_blueprint(st_auth_bp)
 
         """ Converting a dict of tuple to a dict of arrays for javascript """
         dict_of_arrays_generated_tuples_for_map = {}

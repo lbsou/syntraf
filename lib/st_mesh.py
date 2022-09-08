@@ -7,6 +7,7 @@ if not CompilationOptions.client_only:
     from gevent import monkey
     monkey.patch_all()
     from gevent import socket
+    from gevent import sleep
     import socket
     from gevent.server import StreamServer
     from gevent.pool import Pool
@@ -587,7 +588,8 @@ def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processe
                     client_command_diffconfig(_config, received_data, threads_n_processes)
 
                 client_log.debug(f"SLEEPING FOR {DefaultValues.CONTROL_CHANNEL_HEARTBEAT} SECOND(S)")
-                time.sleep(DefaultValues.CONTROL_CHANNEL_HEARTBEAT)
+                sleep(0)
+                #DefaultValues.CONTROL_CHANNEL_HEARTBEAT
                 client_log.debug(f"SLEEP IS OVER")
 
             else:
@@ -655,6 +657,7 @@ def authenticate_server_client(_config, data, obj_client, sckt):
     valid_token = False
     valid_server_client = False
     ip_addr = sckt.getpeername()[0]
+    rejection_explanation = ""
 
     for description, token in _config['SERVER']['TOKEN'].items():
         if data['PAYLOAD']['TOKEN'] == token:
@@ -670,20 +673,22 @@ def authenticate_server_client(_config, data, obj_client, sckt):
         obj_client.status = "CONNECTED"
         obj_client.status_since = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
-        return True
+        return True, ""
 
     elif valid_token and not valid_server_client:
         # Temporary, testing dynamic IP
         server_log.error(f"AUTHENTICATION FAILED FROM IP '{ip_addr}' WITH CLIENT UID '{obj_client.client_uid}. CLIENT UID INVALID.")
-        return False
+        rejection_explanation = "UNKNOWN CLIENT"
 
     elif not valid_token and valid_server_client:
         server_log.error(f"AUTHENTICATION FAILED FROM IP '{ip_addr}' WITH CLIENT UID '{obj_client.client_uid}. TOKEN INVALID.")
+        rejection_explanation = "INVALID TOKEN"
 
     elif not valid_token and not valid_server_client:
         server_log.error(f"AUTHENTICATION FAILED FROM IP '{ip_addr}' WITH CLIENT UID '{obj_client.client_uid}. CLIENT UID AND TOKEN INVALID.")
+        rejection_explanation = "UNKNOWN CLIENT AND INVALID TOKEN"
 
-    return False
+    return False, rejection_explanation
 
 
 def send_config(dict_by_node_generated_config, client_uid, sckt, _config):
@@ -767,15 +772,19 @@ def server_auth(received_data, obj_client, _config, address, dict_of_commands_fo
         #add this public key and other interesting informations to a dictionnary that will be use to keep pending acceptation
         dict_of_client_pending_acceptance[obj_client.client_uid] = public_key
 
+
     # Authentication, if token is wrong, disconnect
-    if authenticate_server_client(_config, received_data, obj_client, sckt):
-        obj_client.set_status = "CONNECTED"
+    is_authenticated, rejection_explanation = authenticate_server_client(_config, received_data, obj_client, sckt)
+
+    if is_authenticated:
+        obj_client.status = "CONNECTED"
         obj_client.status_explanation = "AUTHENTICATION SUCCESSFUL"
         obj_client.status_since = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     else:
-        obj_client.set_status = "DISCONNECTED"
+        obj_client.status = rejection_explanation
         obj_client.status_explanation = "AUTHENTICATION FAILED"
         obj_client.status_since = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
         return False
 
     for server_client in _config['SERVER_CLIENT']:
@@ -828,7 +837,7 @@ def server_auth(received_data, obj_client, _config, address, dict_of_commands_fo
         sock_send(sckt, None, "NEWCONFIG")
         server_log.info(f"CONTEXT: {obj_client.client_uid} - NO CONFIG FOR THIS CLIENT'")
 
-        obj_client.set_status = "CONNECTED (PASSIVE)"
+        obj_client.status = "CONNECTED (PASSIVE)"
         obj_client.status_explanation = "NO CONFIG FOR THIS CLIENT"
         obj_client.status_since = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
@@ -979,6 +988,7 @@ def handler(_config, _dict_by_node_generated_config, conn_db, dict_of_commands_f
 
                     # TODO sort by occurence
                     if received_data['COMMAND'] == "AUTH":
+
                         if not server_auth(received_data, dict_of_clients[uid], _config, dict_of_clients[uid].ip_address, dict_of_commands_for_network_clients, sckt, _dict_by_node_generated_config, dict_of_client_pending_acceptance): return
 
                         # Now that we know the identity of the client connecting, we can update the dictionary of client objects
@@ -1015,6 +1025,7 @@ def handler(_config, _dict_by_node_generated_config, conn_db, dict_of_commands_f
 
                     else:
                         print("UNKNOWN COMMAND:", received_data['COMMAND'])
+
 
         except socket.timeout as exc:
             server_log.error(f"SOCKET TIMEOUT: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
@@ -1063,8 +1074,10 @@ def handler(_config, _dict_by_node_generated_config, conn_db, dict_of_commands_f
                 server_forget_dynamic_client_ip(dict_of_clients[uid], _config, dict_of_commands_for_network_clients)
 
                 # Updating the status
-                dict_of_clients[uid].status = "DISCONNECTED"
-                dict_of_clients[uid].status_since = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                # We don't want to overwrite a reason for failed authentication, so we overwrite only when the client was connected
+                if "CONNECTED" in dict_of_clients[uid].status:
+                    dict_of_clients[uid].status = "DISCONNECTED"
+                    dict_of_clients[uid].status_since = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
                 # Reinitializing stats array so that the sparklines graphes does not appear in the webui
                 dict_of_clients[uid].system_stats['if_pct_usage_rx'] = []

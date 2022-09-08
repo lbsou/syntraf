@@ -122,19 +122,7 @@ def validate_config(parameters, reload=False):
         log.error(f"NO CLAUSE [GLOBAL] FOUND")
         return False, None, None, None
 
-
-    # Database validation
-    bool_server_write_to_database = False
-    bool_client_write_to_database = False
-
-    if 'CLIENT' in config:
-        if not not config['CLIENT']['FORWARD_METRICS_TO_SERVER']:
-            bool_client_write_to_database = True
-
     if 'SERVER' in config:
-        bool_server_write_to_database = True
-
-    if bool_client_write_to_database or bool_server_write_to_database:
         bool_database_config_valid = test_database_connection(config)
         if not bool_database_config_valid:
             return False, None, None, None

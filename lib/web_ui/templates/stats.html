@@ -231,7 +231,7 @@ async function update_system_stats() {
                 document.getElementById(client_uid + '_clock_skew').className = "text-danger text-muted";
                 document.getElementById(client_uid + '_ip_address').className = "text-danger text-muted";
             }
-            else if (data['status'] == "CONNECTED"){
+            else if (data['status'].includes("CONNECTED")){
                 document.getElementById(client_uid + '_status').className = "text-success";
                 document.getElementById(client_uid + '_status_since').className = "";
                 document.getElementById(client_uid + '_syntraf_version').className = "";
