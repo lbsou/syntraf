@@ -15,24 +15,23 @@ if not CompilationOptions.client_only:
         make_response, flash, redirect, session, abort, url_for, g, Blueprint
 
     from PIL import Image
-    # from flask_sqlalchemy import SQLAlchemy
 
-    import uuid  # for public id
-    from werkzeug.security import generate_password_hash, check_password_hash
-    from functools import wraps
+    #import uuid  # for public id
+    #from werkzeug.security import generate_password_hash, check_password_hash
+    #from functools import wraps
 
     # BUILTIN IMPORT
     import os
     import time
-    import ssl
+    #import ssl
     import logging
-    import sys
+    #import sys
     from datetime import datetime as dt
 
     # PACKAGE IMPORT
     import toml
-    import json
-    from pprint import pp
+    #import json
+    #from pprint import pp
 
 log = logging.getLogger("syntraf." + __name__)
 
@@ -42,6 +41,12 @@ st_home_bp = Blueprint(
     template_folder='templates',
     static_folder='static'
 )
+
+
+@st_home_bp.route('/test.html')
+def test():
+    print(dt.now())
+    return render_template('test.html')
 
 @st_home_bp.route('/home.html')
 def home():
@@ -96,24 +101,24 @@ def user_records():
     )
 
 
-@st_home_bp.errorhandler(404)
-def not_found():
-    """Page not found."""
-    return "404"
-    # return make_response(render_template("home.html"), 404)
-    # return make_response(404)
-
-
-@app.errorhandler(400)
-def bad_request():
-    """Bad request."""
-    return make_response(render_template("400.html"), 400)
-
-
-@app.errorhandler(500)
-def server_error():
-    """Internal server error."""
-    return make_response(render_template("500.html"), 500)
+# @st_home_bp.errorhandler(404)
+# def not_found():
+#     """Page not found."""
+#     return "404"
+#     # return make_response(render_template("home.html"), 404)
+#     # return make_response(404)
+#
+#
+# @app.errorhandler(400)
+# def bad_request():
+#     """Bad request."""
+#     return make_response(render_template("400.html"), 400)
+#
+#
+# @app.errorhandler(500)
+# def server_error():
+#     """Internal server error."""
+#     return make_response(render_template("500.html"), 500)
 
 
 @st_home_bp.route('/')
@@ -213,6 +218,7 @@ def server():
                            syntraf_version=DefaultValues.SYNTRAF_VERSION)
 
 
+
 @st_home_bp.route('/stats.html')
 def stats():
     return render_template('stats.html', title='SYNTRAF WEBUI', config=app.config['config'],
@@ -243,6 +249,40 @@ def api():
                             # print(config, self.config_file_path)
                             toml.dump(config, toml_file)
                             log.debug(f"RECEIVED A REQUEST TO SAVE MAPS CONFIG OF GROUP '{mg['UID']}' TO DISK")
+
+        elif requested_action == "DELETE_MESH_GROUP":
+            mesh_group_uid = request.values.get('MESH_GROUP_UID', '')
+
+            read_success, config = read_conf(app.config['config_file_path'])
+            if read_success:
+
+                # Does this group have members?
+                cpt_members = 0
+                for client in config['SERVER_CLIENT']:
+                    if mesh_group_uid in client['MESH_GROUP_UID_LIST']:
+                        cpt_members += 1
+
+                if cpt_members >= 1:
+                    # Cannot delete, this mesh group is in use.
+                    return "E1005"
+
+                for mesh_group in config['MESH_GROUP']:
+                    if mesh_group['UID'] == mesh_group_uid:
+                        config['MESH_GROUP'].remove(mesh_group)
+                        app.config['config']['MESH_GROUP'].remove(mesh_group)
+            else:
+                log.debug(f"UNABLE TO READ CONFIG FILE WHILE TRYING TO DELETE MESH_GROUP '{mesh_group_uid}'")
+                # Unable to open config file
+                return "E1004"
+            try:
+                with open(app.config['config_file_path'], "w") as toml_file:
+                    toml.dump(config, toml_file)
+                    log.debug(f"MESH_GROUP '{mesh_group_uid}' DELETED")
+                    return "OK"
+            except Exception as exc:
+                print(exc)
+
+
         elif requested_action == "RECONNECT_CLIENT":
 
             client_uid = request.values.get('CLIENT', '')
@@ -404,12 +444,12 @@ def maps():
                            syntraf_version=DefaultValues.SYNTRAF_VERSION)
 
 
-@st_home_bp.after_request
-def add_header(r):
-    r.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, public, max-age=0"
-    r.headers["Pragma"] = "no-cache"
-    r.headers["Expires"] = "0"
-    return r
+# @st_home_bp.after_request
+# def add_header(r):
+#     r.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, public, max-age=0"
+#     r.headers["Pragma"] = "no-cache"
+#     r.headers["Expires"] = "0"
+#     return r
 
 
 # # Login with user/pass
