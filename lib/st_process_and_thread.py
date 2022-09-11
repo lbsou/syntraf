@@ -110,7 +110,7 @@ def launch_webui(threads_n_processes, subprocess_iperf_dict, _dict_by_node_gener
         pool = Pool(100)
 
         try:
-            http_server = WSGIServer(('0.0.0.0', DefaultValues.DEFAULT_WEBUI_PORT), app)
+            http_server = WSGIServer(('0.0.0.0', DefaultValues.DEFAULT_WEBUI_PORT), app, error_log=log, log=log)
 
         #try:
         #    http_server = WSGIServer(('0.0.0.0', DefaultValues.DEFAULT_WEBUI_PORT), app,
