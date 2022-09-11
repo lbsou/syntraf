@@ -7,7 +7,6 @@ if not CompilationOptions.client_only:
     from gevent import monkey
     monkey.patch_all()
     from gevent import socket
-    from gevent import sleep
     import socket
     from gevent.server import StreamServer
     from gevent.pool import Pool
@@ -348,7 +347,6 @@ def client_receive_configuration(_config, ssl_conn, threads_n_processes):
             # If no config for this client
             if received_data['PAYLOAD'] is None:
                 client_log.warning(f"THE SERVER DOES NOT HAVE CONFIG FOR THIS NODE FOR NOW")
-               # time.sleep(60)
             else:
                 client_log.info(f"NEW CONFIG RECEIVED FROM SERVER")
                 # got new config, close all listeners and connectors because if the server has restarted, all the credentials has been re-initialized
@@ -588,9 +586,8 @@ def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processe
                     client_command_diffconfig(_config, received_data, threads_n_processes)
 
                 client_log.debug(f"SLEEPING FOR {DefaultValues.CONTROL_CHANNEL_HEARTBEAT} SECOND(S)")
-                sleep(0)
-                #DefaultValues.CONTROL_CHANNEL_HEARTBEAT
-                client_log.debug(f"SLEEP IS OVER")
+                time.sleep(DefaultValues.CONTROL_CHANNEL_HEARTBEAT)
+                #client_log.debug(f"SLEEP IS OVER")
 
             else:
                 client_log.info(f"RECEIVED DATA IS NONE")
@@ -628,7 +625,7 @@ def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processe
         try:
             ssl_conn.close()
         except Exception as e:
-            pass
+            print(exc)
 
 
 def validate_clock_skew(_config, received_data, obj_client):
