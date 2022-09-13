@@ -133,7 +133,19 @@
   </div>
 </div>
 
-<table id="status" class="table table-striped table-hover table-bordered table-sm" style="width:100%">
+<table id="status" class="table table-striped table-hover table-bordered table-sm" style="width:100%"
+          data-toolbar="#toolbar"
+          data-search="true"
+          data-show-toggle="true"
+          data-show-columns="true"
+          data-show-export="true"
+          data-click-to-select="true"
+          data-minimum-count-columns="2"
+
+          data-pagination="true"
+          data-id-field="UID"
+          data-page-list="[10, 25, 50, 100, all]"
+          data-show-footer="true">
     <thead>
         <tr>
             <th class="text-center" style="width: 10%">CLIENT</th>
@@ -153,7 +165,7 @@
             <tr>
                 <td class="text-center align-middle">
                     <div class="btn-group dropright">
-                      <button type="button" id="button_menu_client" class="btn btn-primary-outline dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                      <button type="button" id="button_menu_client" class="btn btn-primary-outline dropdown-toggle" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                         {{ key }}
                       </button>
                       <div class="dropdown-menu">
@@ -165,7 +177,7 @@
                       </div>
                     </div>
                 </td>
-                <td class="text-center align-middle"><div id="{{ key }}_status" data-toggle="tooltip" data-placement="top" title=""></div></td>
+                <td class="text-center align-middle"><div id="{{ key }}_status" data-bs-toggle="tooltip" data-placement="top" title=""></div></td>
                 <td class="text-center align-middle"><div id="{{ key }}_status_since"></div></td>
                 <td class="text-center align-middle"><div id="{{ key }}_syntraf_version"></div></td>
                 <td class="text-center align-middle"><div id="{{ key }}_clock_skew"></div></td>
@@ -183,11 +195,11 @@
 * Represent the logical CPU with the maximum usage at the time of reading.
 <script>
 
-setInterval(update_system_stats, 1000)
+
 
 $(document).ready(function() {
-    $('#status').dataTable({stateSave: true});
-    $('#table_thread_status').dataTable({stateSave: true});
+    setInterval(update_system_stats, 1000)
+    $('#status').bootstrapTable()
 } );
 
 
@@ -389,11 +401,11 @@ async function reconnect_client(client) {
 }
 
 $(document).ready(function() {
-    $("body").tooltip({ selector: '[data-toggle=tooltip]' });
+    $("body").tooltip({ selector: '[data-bs-toggle=tooltip]' });
 });
 
 $(function () {
-  $('[data-toggle="tooltip"]').tooltip()
+  $('[data-bs-toggle="tooltip"]').tooltip()
 })
 
 async function get_sys_infos(source)

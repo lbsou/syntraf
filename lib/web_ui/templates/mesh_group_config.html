@@ -1,25 +1,227 @@
 {% extends "base.html" %}
-{% block title %}Client config{% endblock %}
+{% block title %}Groups{% endblock %}
 {% block content %}
-<h2>Mesh group configurations</h2>
-<br/>
-    {% for mesh_group in config['MESH_GROUP'] %}
-        <h4><p class="text-info">{{ mesh_group['UID'] }}</p></h4>
-        <table class="table table-striped table-hover table-sm">
-            <thead>
-                <th style="width: 50%">PARAMETER</th>
-                <th style="width: 50%">VALUE</th>
-            </thead>
-            <tbody>
-                {% for item in mesh_group %}
-                    <tr>
-                        <td>{{ item }}</td>
-                        <td>{{ mesh_group[item] }}</td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        <br/>
-    {% endfor %}
+  <div class="container"><br>
+    <div class="table-responsive">
+      <h2>Mesh groups</h2>
+
+    <div id="toolbar">
+      <button id="btn_new" type="button" class="btn btn-primary">
+          <i class="fas fa-plus"></i> New
+      </button>
+      <button id="remove" class="btn btn-danger" disabled>
+        <i class="fa fa-trash"></i> Delete
+      </button>
+      <button id="btn_duplicate" class="btn btn-primary" disabled>
+        <i class="far fa-clone"></i> Duplicate
+      </button>
+      <button id="btn_disable" class="btn btn-primary" disabled>
+        <i class="fas fa-slash"></i> Disable
+      </button>
+
+    </div>
+      <table id="table" class="table-dark table-striped thead-dark table-hover table-sm vertical-align" style="width:100%"
+          data-toolbar="#toolbar"
+          data-search="true"
+          data-show-toggle="true"
+          data-show-columns="true"
+          data-show-export="true"
+          data-click-to-select="true"
+          data-minimum-count-columns="2"
+          data-show-search-clear-button="true"
+          data-pagination="true"
+          data-id-field="UID"
+          data-page-list="[10, 25, 50, 100, all]"
+          data-show-footer="true">
+      </table>
+    </div>
+  </div>
+  <div aria-labelledby="confirmationModal" class="modal fade" id="removegroup"
+  role="dialog" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered" role="document">
+          <div class="modal-content">
+              <input type="hidden" id="groupID" value="">
+              <div class="modal-header">
+                  <h4 class="modal-title">Remove group</h4>
+              </div>
+              <div class="modal-body">
+                  <p>Are you sure you wish to remove this group?</p>
+              </div>
+              <div class="modal-footer">
+                  <button class="btn btn-default" data-dismiss="modal" type="button">Cancel</button>
+                  <button class="btn btn-danger" id="btn_yes_remove_group" type="button">Delete</button>
+              </div>
+          </div><!-- end modal-content -->
+      </div><!-- end modal-dialog -->
+  </div><!-- end modal -->
+
+<div class="modal fade" id="modal_error" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div  class="modal-content text-center">
+            </br>
+            <i class="fa fa-exclamation-triangle fa-2x" style="color:yellow" aria-hidden="true"></i>
+            </br>
+            <div id="error_modal_text"></div>
+            </br>
+            <div><button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button></div>
+            </br>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modal_success" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div  class="modal-content text-center">
+            </br>
+            <i class="fa fa-check-square-o fa-2x" style="color:green" aria-hidden="true"></i>
+            </br>
+            <div id="success_modal_text"></div>
+            </br>
+            <div><button type="button" class="btn btn-light" id="btn_close_modal_success" data-bs-dismiss="modal">Close</button></div>
+            </br>
+        </div>
+    </div>
+</div>
+
+<script>
+    var $table = $("#table");
+    var $remove = $("#remove");
+    var selections = [];
+
+    get_mesh_groups();
+
+    function getUidSelections() {
+        return $.map($table.bootstrapTable("getSelections"), function (row) {
+            return row.UID;
+        });
+    }
+
+    function responseHandler(res) {
+        $.each(res.rows, function (i, row) {
+            row.state = $.inArray(row.id, selections) !== -1;
+        });
+        return res;
+    }
+
+    window.operateEvents = {
+        "click .remove": function (e, value, row, index) {
+            $table.bootstrapTable("remove", {
+                field: "id",
+                values: [row.id],
+            });
+        },
+    };
+
+    // Show confirmation modal
+    $("#btn_remove_group_open_modal").click(function () {
+        $("#removegroup").modal();
+    });
+
+    // Take the 'data.rowid' value of the delete button and put it in the hidden value 'groupID' inside the modal
+    $("#removegroup").on("show.bs.modal", function (e) {
+        var rowid = $(e.relatedTarget).data("rowid");
+        $("#groupID").val(rowid);
+    });
+
+    // If group click 'delete' call the API to delete the group
+    $("#btn_yes_remove_group").click(function () {
+        var delid = $("#groupID").val();
+        delete_mesh_group(delid);
+    });
+
+    // If group click 'delete' call the API to delete the group
+    $("#btn_close_modal_success").click(refresh_table);
+
+    //Clear table and re-populate it
+    function refresh_table() {
+        get_mesh_groups();
+    }
+
+    async function delete_mesh_group(mesh_group_uid) {
+            const API_URL = "/api";
+            const xhr = new XMLHttpRequest();
+            const fd = new FormData();
+            fd.append("ACTION", "DELETE_MESH_GROUP");
+            fd.append("MESH_GROUP_UID", mesh_group_uid);
+
+            const response = await fetch('/api', {
+                method: 'POST',
+                body: fd
+            })
+            answer = await response.text();
+
+            if ("E1004" == answer) {
+                document.getElementById("error_modal_text").innerHTML = "Unable to open config file.";
+                $("#removegroup").modal('hide');
+                $('#modal_error').modal('show');
+            }
+            else if ("E1005" == answer) {
+                document.getElementById("error_modal_text").innerHTML = "Cannot delete, this mesh group is currently in use.";
+                $("#removegroup").modal('hide');
+                $('#modal_error').modal('show');
+            }
+            else
+            {
+                document.getElementById("success_modal_text").innerHTML = "Mesh group " + mesh_group_uid + " deleted successfully";
+                $('#modal_success').modal('show');
+                $("#removegroup").modal('hide');
+            }
+    }
+
+    async function get_mesh_groups() {
+        console.log("get_mesh_groups");
+        const API_URL = "/api";
+        const xhr = new XMLHttpRequest();
+        const fd = new FormData();
+        fd.append("ACTION", "GET_MESH_GROUPS");
+
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        })
+        mesh_groups = await response.text();
+
+        if ("E1001" == mesh_groups) {
+            $('#modal_system_stats_empty').modal('show');
+        }
+        else {
+
+            // Get mesh_groups back as list
+            var mesh_groups = JSON.parse(mesh_groups);
+            $table.bootstrapTable('destroy');
+            $table.bootstrapTable({
+              pagination: true,
+              search: true,
+              columns: [
+                        { field: 'state', checkbox: true, align: 'center', valign: 'middle'},
+                        { field: 'UID', title: 'Name', sortable: true},
+                        { field: 'BANDWIDTH', title: 'Bandwidth', sortable: false},
+                        { field: 'PACKET_SIZE', title: 'Packet size', sortable: true},
+                        { field: 'DSCP', title: 'DSCP', sortable: false},
+                        { field: 'INTERVAL', title: 'Interval', sortable: true}
+                       ],
+              data: mesh_groups
+            })
+
+            $table.on('check.bs.table uncheck.bs.table ' + 'check-all.bs.table uncheck-all.bs.table',
+                function () {
+                  $remove.prop('disabled', !$table.bootstrapTable('getSelections').length)
+                })
+                $table.on('all.bs.table', function (e, name, args) {
+                  console.log(name, args)
+                })
+                $remove.click(function () {
+                  var uids = getUidSelections()
+                  for(var i = 0; i < uids.length; i++) {
+                      delete_mesh_group(uids[i]);
+                  }
+                  $remove.prop('disabled', true)
+                })
+        }
+    }
+
+</script>
 
 {% endblock %}
+
+

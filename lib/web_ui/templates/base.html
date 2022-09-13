@@ -3,9 +3,10 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-        <link rel="stylesheet" href="https://cdn.datatables.net/1.10.24/css/dataTables.bootstrap4.min.css">
-        <link rel="stylesheet" href="/static/theme/darkly/bootstrap.min.css">
+
+        <link rel="stylesheet" href="/static/bootstrap5/bootswatch_darkly_5.min.css">
         <link rel='stylesheet' href="{{ url_for('static', filename='fontawesome-free-5.15.3-web/css/all.css')}}">
+        <link rel="stylesheet" href="/static/bootstrap-table/bootstrap-table.min.css">
 
         <title>SYNTRAF</title>
         <style>body { padding-top: 70px; }</style>
@@ -15,7 +16,7 @@
     <body class="px-3">
         <nav class="navbar navbar-expand-lg fixed-top navbar-dark bg-primary">
           <a class="navbar-brand" href="home.html">Home</a>
-          <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarColor01" aria-controls="navbarColor01" aria-expanded="false" aria-label="Toggle navigation">
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarColor01" aria-controls="navbarColor01" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
           </button>
 
@@ -23,19 +24,19 @@
             <ul class="navbar-nav mr-auto">
 
               <li class="nav-item dropdown">
-                <a class="nav-link dropdown-toggle" data-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">Status</a>
-                <div class="dropdown-menu">
+                <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" id="dropMenuStatus" role="button" aria-expanded="false">Status</a>
+                <div class="dropdown-menu" aria-labelledby="dropMenuStatus">
                   <a class="dropdown-item" href="stats.html">Clients</a>
                   <a class="dropdown-item" href="">Databases</a>
                 </div>
               </li>
 
               <li class="nav-item dropdown">
-                <a class="nav-link dropdown-toggle" data-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">Configurations</a>
+                <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">Configurations</a>
                 <div class="dropdown-menu">
                   <a class="dropdown-item" href="client_config.html">Clients</a>
                   <a class="dropdown-item" href="database_config.html">Databases</a>
-                  <a class="dropdown-item" href="group_config.html">Groups</a>
+                  <a class="dropdown-item" href="mesh_group_config.html">Groups</a>
                   <a class="dropdown-item" href="server_config.html">Server</a>
                   <a class="dropdown-item" href="token_config.html">Tokens</a>
                   <a class="dropdown-item" href="users_config.html">Users</a>
@@ -50,13 +51,13 @@
                 SYNTRAF v{{ syntraf_version }}<br>
             </div>
         </nav>
-        <script src="/static/js/jquery-3.6.0.min.js"></script>
-        <script src="/static/js/popper.min.js"></script>
-        <script src="/static/js/bootstrap.min.js"></script>
-        <script src="https://cdn.datatables.net/1.10.24/js/jquery.dataTables.min.js"></script>
-        <script src="https://cdn.datatables.net/1.10.24/js/dataTables.bootstrap4.min.js"></script>
+        <script src="/static/bootstrap5/bootstrap.bundle.min.js"></script>
+        <script src="/static/jquery/jquery-3.6.1.min.js">
         <script src="/static/fontawesome-free-5.15.3-web/js/fontawesome.min.js"></script>
-        <!-- Your page content -->
+        <script src="/static/bootstrap-table/bootstrap-table.min.js"></script>
+        <script src="https://unpkg.com/tableexport.jquery.plugin/tableExport.min.js"></script>
+        <script src="/static/bootstrap-table/extensions/export/bootstrap-table-export.min.js"></script>
+
         {% block content %}{% endblock %}
     </body>
 </html>
