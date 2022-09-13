@@ -26,11 +26,12 @@ if not CompilationOptions.client_only:
     #import ssl
     import logging
     #import sys
+    import copy
     from datetime import datetime as dt
 
     # PACKAGE IMPORT
     import toml
-    #import json
+    import json
     #from pprint import pp
 
 log = logging.getLogger("syntraf." + __name__)
@@ -201,9 +202,9 @@ def global_config():
                            syntraf_version=DefaultValues.SYNTRAF_VERSION)
 
 
-@st_home_bp.route('/group_config.html')
+@st_home_bp.route('/mesh_group_config.html')
 def mesh_group_config():
-    return render_template('group_config.html', title='SYNTRAF WEBUI', config=app.config['config'],
+    return render_template('mesh_group_config.html', title='SYNTRAF WEBUI', config=app.config['config'],
                            syntraf_version=DefaultValues.SYNTRAF_VERSION)
 
 
@@ -282,7 +283,21 @@ def api():
             except Exception as exc:
                 print(exc)
 
+        elif requested_action == "GET_MESH_GROUPS":
+            read_success, config = read_conf(app.config['config_file_path'])
+            if read_success:
+                # deepcopy for eventually add packet per seconds
+                mesh_groups = copy.deepcopy(config['MESH_GROUP'])
+                return jsonify(mesh_groups)
+            else:
+                log.debug(f"UNABLE TO READ CONFIG FILE WHILE TRYING TO GET MESH GROUPS")
+                # Unable to open config file
+                return "E1004"
 
+        elif requested_action == "DUPLICATE_MESH_GROUP":
+            pass
+        elif requested_action == "UPDATE_MESH_GROUP":
+            pass
         elif requested_action == "RECONNECT_CLIENT":
 
             client_uid = request.values.get('CLIENT', '')
