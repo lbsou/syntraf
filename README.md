@@ -134,8 +134,7 @@ This clause is a server config that define a specific node and the related attri
 |SERVER|IPv4 address of the server|NONE|
 |SERVER_PORT|The TCP port of the server (Integer between 1-65534)|6531|
 |TOKEN|Authentication mechanism with the server. It must be 5-255 characters long.|NONE|
-|FORWARD_METRICS_TO_SERVER|Boolean that allow to save metric to server. If FALSE, metric will be saved directly to database. In that case, make sure that you supplied all database configuration in the GLOBAL section.|TRUE|
-    
+
 ## Setup
 
 ### Download the latest version of SYNTRAF

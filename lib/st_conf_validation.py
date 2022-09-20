@@ -791,15 +791,15 @@ def config_validation_client(_config, parameters):
             f"APPLYING MESH_LOCAL_IP DEFAULT '0.0.0.0' ; LISTENING ON ALL INTERFACES.")
         _config['CLIENT']['MESH_LOCAL_IP'] = "0.0.0.0"
 
-    # Do we need to forward metrics to server?
-    if 'FORWARD_METRICS_TO_SERVER' in _config['CLIENT']:
-        if not isinstance(_config['CLIENT']['FORWARD_METRICS_TO_SERVER'], bool):
-            log.warning(
-                f"IS 'FORWARD_METRICS_TO_SERVER' VALUE VALID : NO, APPLYING DEFAULT '{DefaultValues.DEFAULT_FORWARD_METRIC_TO_SERVER}'")
-            _config['CLIENT']['FORWARD_METRICS_TO_SERVER'] = DefaultValues.DEFAULT_FORWARD_METRIC_TO_SERVER
-    else:
-
-        _config['CLIENT']['FORWARD_METRICS_TO_SERVER'] = DefaultValues.DEFAULT_FORWARD_METRIC_TO_SERVER
+    # # Do we need to forward metrics to server?
+    # if 'FORWARD_METRICS_TO_SERVER' in _config['CLIENT']:
+    #     if not isinstance(_config['CLIENT']['FORWARD_METRICS_TO_SERVER'], bool):
+    #         log.warning(
+    #             f"IS 'FORWARD_METRICS_TO_SERVER' VALUE VALID : NO, APPLYING DEFAULT '{DefaultValues.DEFAULT_FORWARD_METRIC_TO_SERVER}'")
+    #         _config['CLIENT']['FORWARD_METRICS_TO_SERVER'] = DefaultValues.DEFAULT_FORWARD_METRIC_TO_SERVER
+    # else:
+    #
+    #     _config['CLIENT']['FORWARD_METRICS_TO_SERVER'] = DefaultValues.DEFAULT_FORWARD_METRIC_TO_SERVER
 
     if not config_validation_certificate(_config, "CLIENT", parameters):
         return False

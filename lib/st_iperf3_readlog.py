@@ -143,14 +143,13 @@ def parse_line_to_array(line, _config, listener_dict_key, conn_db, dict_data_to_
             if bitrate == "0.00" and loss == "0" and packet_loss == "0" and packet_total == "0":
                 loss = "100"
 
-            if _config['CLIENT']['FORWARD_METRICS_TO_SERVER']:
-                save_to_server(
-                    [_config['LISTENERS'][listener_dict_key]['UID_CLIENT'],
-                     _config['LISTENERS'][listener_dict_key]['UID_SERVER'], timestamp, utime, bitrate, jitter,
-                     loss], _config, listener_dict_key, packet_loss, packet_total, dict_data_to_send_to_server)
+            save_to_server(
+                [_config['LISTENERS'][listener_dict_key]['UID_CLIENT'],
+                 _config['LISTENERS'][listener_dict_key]['UID_SERVER'], timestamp, utime, bitrate, jitter,
+                 loss], _config, listener_dict_key, packet_loss, packet_total, dict_data_to_send_to_server)
 
-                log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - listener:{listener_dict_key}")
-                log.debug(f"timestamp:{timestamp.strftime('%d/%m/%Y %H:%M:%S')}, bitrate: {bitrate}, jitter: {jitter}, loss: {loss}, packet_loss: {packet_loss}, packet_total: {packet_total}")
+            log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - listener:{listener_dict_key}")
+            log.debug(f"timestamp:{timestamp.strftime('%d/%m/%Y %H:%M:%S')}, bitrate: {bitrate}, jitter: {jitter}, loss: {loss}, packet_loss: {packet_loss}, packet_total: {packet_total}")
     except Exception as exc:
         log.error(f"parse_line_to_array:{type(exc).__name__}:{exc}", exc_info=True)
         return False
