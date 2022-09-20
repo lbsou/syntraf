@@ -6,17 +6,17 @@
       <h2>Mesh groups</h2>
 
     <div id="toolbar">
-      <button id="btn_new" type="button" class="btn btn-primary">
-          <i class="fas fa-plus"></i> New
+      <button id="btn_new" type="button" class="btn btn-primary" style="width:120px;">
+          <i class="fas fa-plus"></i>&nbsp;&nbsp;&nbsp;New
       </button>
-      <button id="remove" class="btn btn-danger" disabled>
-        <i class="fa fa-trash"></i> Delete
+      <button id="btn_delete" class="btn btn-danger" style="width:120px;" disabled>
+        <i class="fa fa-trash"></i>&nbsp;&nbsp;&nbsp;Delete
       </button>
-      <button id="btn_duplicate" class="btn btn-primary" disabled>
-        <i class="far fa-clone"></i> Duplicate
+      <button id="btn_duplicate" class="btn btn-primary" style="width:120px;" disabled>
+        <i class="far fa-clone"></i>&nbsp;&nbsp;&nbsp;Duplicate
       </button>
-      <button id="btn_disable" class="btn btn-primary" disabled>
-        <i class="fas fa-slash"></i> Disable
+      <button id="btn_disable" class="btn btn-primary" style="width:120px;" disabled>
+        <i class="fas fa-slash"></i>&nbsp;&nbsp;&nbsp;Disable
       </button>
 
     </div>
@@ -36,26 +36,25 @@
       </table>
     </div>
   </div>
-  <div aria-labelledby="confirmationModal" class="modal fade" id="removegroup"
-  role="dialog" tabindex="-1">
+  <div aria-labelledby="modal_confirmation" class="modal fade" id="modal_confirmation" role="dialog" tabindex="-1">
       <div class="modal-dialog modal-dialog-centered" role="document">
           <div class="modal-content">
               <input type="hidden" id="groupID" value="">
               <div class="modal-header">
-                  <h4 class="modal-title">Remove group</h4>
+                  <h4 class="modal-title" id="modal_confirmation_title_text">Delete group</h4>
               </div>
-              <div class="modal-body">
-                  <p>Are you sure you wish to remove this group?</p>
+              <div class="modal-body" >
+                  <p id="modal_confirmationText">Are you sure you wish to delete this group?</p>
               </div>
               <div class="modal-footer">
-                  <button class="btn btn-default" data-dismiss="modal" type="button">Cancel</button>
-                  <button class="btn btn-danger" id="btn_yes_remove_group" type="button">Delete</button>
+                  <button class="btn btn-default" data-bs-dismiss="modal" type="button">No</button>
+                  <button class="btn btn-danger" id="btn_yes_modal_confirmation" type="button">Yes</button>
               </div>
           </div><!-- end modal-content -->
       </div><!-- end modal-dialog -->
   </div><!-- end modal -->
 
-<div class="modal fade" id="modal_error" tabindex="-1" role="dialog">
+<div class="modal fade" id="modal_delete_error" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-dialog-centered" role="document">
         <div  class="modal-content text-center">
             </br>
@@ -69,13 +68,15 @@
     </div>
 </div>
 
-<div class="modal fade" id="modal_success" tabindex="-1" role="dialog">
+<div class="modal fade" id="modal_success" tabindex="-1" role="dialog" data-keyboard="false" data-backdrop="static">
     <div class="modal-dialog modal-dialog-centered" role="document">
         <div  class="modal-content text-center">
-            </br>
-            <i class="fa fa-check-square-o fa-2x" style="color:green" aria-hidden="true"></i>
-            </br>
-            <div id="success_modal_text"></div>
+          <div class="modal-header">
+            <h5 class="modal-title" id="modal_success_group_label">Deletion result(s)</h5>
+          </div>
+            <div id="success_modal_text" style="margin-right:15px; margin-left:15px">
+
+            </div>
             </br>
             <div><button type="button" class="btn btn-light" id="btn_close_modal_success" data-bs-dismiss="modal">Close</button></div>
             </br>
@@ -83,12 +84,76 @@
     </div>
 </div>
 
+<div class="modal fade" id="modal_new_mesh_group" tabindex="-1" role="dialog" aria-labelledby="Modal-vert-center-demo-label" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modal_new_mesh_group_label">Create mesh group</h5>
+      </div>
+      <div class="modal-body">
+            <div class="table-responsive">
+                <div class="form-group">
+                  <fieldset>
+                    <label class="form-label mt-4">Name (A-Za-z0-9_-)</label>
+                    <input class="form-control" id="mg_name" type="text" placeholder="">
+                  </fieldset>
+                  <fieldset>
+                    <div style="display: inline-block;">
+                        <label class="form-label mt-4">Bandwidth</label>
+                        <input class="form-control" id="mg_bandwidth" type="text" placeholder="">
+                    </div>
+                    <div style="display: inline-block;">
+                      <select class="form-select" id="select_bw">
+                        <option>bps</option>
+                        <option>Kbps</option>
+                        <option>Mbps</option>
+                      </select>
+                    </div>
+                </fieldset>
+                  <fieldset>
+                    <label class="form-label mt-4">DSCP</label>
+                    <input class="form-control" id="mg_dscp" type="text" placeholder="">
+                  </fieldset>
+                  <fieldset>
+                    <label class="form-label mt-4">Packet size (bytes)</label>
+                    <input class="form-control" id="mg_packet_size" type="text" placeholder="">
+                  </fieldset>
+                  <fieldset>
+                    <label class="form-label mt-4">Metric interval (seconds)</label>
+                    <input class="form-control" id="mg_interval" type="text" placeholder="">
+                  </fieldset>
+                </div>
+            </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
     var $table = $("#table");
-    var $remove = $("#remove");
+    var $table_modal_success = $("#table_modal_success");
+    var $modal_confirmation = $("#modal_confirmation");
+    var $modal_confirmationText = $("#modal_confirmationText");
+    var $modal_new_mesh_group = $("#modal_new_mesh_group");
+    var $success_modal_text = $("#success_modal_text");
+    var $btn_delete = $("#btn_delete");
+    var $btn_new = $("#btn_new");
+    var $btn_duplicate = $("#btn_duplicate");
+    var $btn_disable = $("#btn_disable");
     var selections = [];
 
     get_mesh_groups();
+
+    $(document).ready(function(){
+        // Prevent dismiss when user click outside of modal
+        $("#modal_confirmation").modal({backdrop: 'static', keyboard: false});
+        $("#modal_new_mesh_group").modal({backdrop: 'static', keyboard: false});
+        $("#modal_delete_error").modal({backdrop: 'static', keyboard: false});
+        $("#modal_success").modal({backdrop: 'static', keyboard: false});
+    });
 
     function getUidSelections() {
         return $.map($table.bootstrapTable("getSelections"), function (row) {
@@ -103,31 +168,61 @@
         return res;
     }
 
-    window.operateEvents = {
-        "click .remove": function (e, value, row, index) {
-            $table.bootstrapTable("remove", {
-                field: "id",
-                values: [row.id],
-            });
-        },
-    };
+    $('#modal_success').on('hidden.bs.modal', function (e) {
+        $table_modal_success.bootstrapTable('destroy');
+    })
 
-    // Show confirmation modal
-    $("#btn_remove_group_open_modal").click(function () {
-        $("#removegroup").modal();
+    $("#btn_new").click(function() {
+        $modal_new_mesh_group.modal('show');
     });
 
-    // Take the 'data.rowid' value of the delete button and put it in the hidden value 'groupID' inside the modal
-    $("#removegroup").on("show.bs.modal", function (e) {
-        var rowid = $(e.relatedTarget).data("rowid");
-        $("#groupID").val(rowid);
-    });
 
-    // If group click 'delete' call the API to delete the group
-    $("#btn_yes_remove_group").click(function () {
-        var delid = $("#groupID").val();
-        delete_mesh_group(delid);
-    });
+
+    $table.on('check.bs.table uncheck.bs.table ' + 'check-all.bs.table uncheck-all.bs.table',
+    function () {
+      $btn_delete.prop('disabled', !$table.bootstrapTable('getSelections').length)
+      $btn_duplicate.prop('disabled', !$table.bootstrapTable('getSelections').length)
+      $btn_disable.prop('disabled', !$table.bootstrapTable('getSelections').length)
+    })
+
+    $table.on('all.bs.table', function (e, name, args) {
+      console.log(name, args)
+    })
+
+    $btn_duplicate.click(function () {
+        // Change the onclick of the confirmation modal
+        $("#btn_yes_modal_confirmation").unbind('click');
+        $("#btn_yes_modal_confirmation").click(function() {
+            duplicate_mesh_groups(mesh_group_uid);
+            $modal_confirmation.modal('hide');
+        });
+
+        var mesh_group_uid = getUidSelections();
+        $modal_confirmationText.text(`Are you sure you wish to clone the mesh group '${mesh_group_uid}'?`);
+        $btn_duplicate.prop('disabled', true);
+        $modal_confirmation.modal('show');
+    })
+
+    $btn_delete.click(function () {
+      // Change the onclick of the confirmation modal
+      $('#btn_yes_modal_confirmation').unbind('click');
+      $("#btn_yes_modal_confirmation").click(function() {
+          delete_mesh_groups(getUidSelections());
+          $btn_delete.prop('disabled', true);
+          $modal_confirmation.modal('hide');
+      });
+
+      var uids_to_delete = getUidSelections();
+
+      if (uids_to_delete.length == 1){
+        $modal_confirmationText.text(`Are you sure you wish to delete the mesh group '${uids_to_delete}'?`);
+      }
+      else{
+        $modal_confirmationText.text(`Are you sure you wish to delete these ${uids_to_delete.length} mesh groups?`);
+      }
+
+      $modal_confirmation.modal('show');
+    })
 
     // If group click 'delete' call the API to delete the group
     $("#btn_close_modal_success").click(refresh_table);
@@ -137,35 +232,72 @@
         get_mesh_groups();
     }
 
-    async function delete_mesh_group(mesh_group_uid) {
+    async function duplicate_mesh_groups(mesh_group_uid) {
             const API_URL = "/api";
             const xhr = new XMLHttpRequest();
             const fd = new FormData();
-            fd.append("ACTION", "DELETE_MESH_GROUP");
+
+            fd.append("ACTION", "DUPLICATE_MESH_GROUP");
             fd.append("MESH_GROUP_UID", mesh_group_uid);
 
             const response = await fetch('/api', {
                 method: 'POST',
                 body: fd
             })
-            answer = await response.text();
+            answer_json = await response.text();
+            var answer = JSON.parse(answer_json);
 
-            if ("E1004" == answer) {
-                document.getElementById("error_modal_text").innerHTML = "Unable to open config file.";
-                $("#removegroup").modal('hide');
-                $('#modal_error').modal('show');
+            //Do we have a fatal_error?
+            for(var i = 0; i < answer.length; i++) {
+                if (answer[i]['ID'] == "FATAL_ERROR"){
+                    document.getElementById("error_modal_text").innerHTML = answer[i]['ID'] + " - " + answer[i]['MSG'];
+                    $("#modal_confirmation").modal('hide');
+                    $('#modal_delete_error').modal('show');
+                    $btn_duplicate.prop('disabled', false);
+                    return;
+                }
             }
-            else if ("E1005" == answer) {
-                document.getElementById("error_modal_text").innerHTML = "Cannot delete, this mesh group is currently in use.";
-                $("#removegroup").modal('hide');
-                $('#modal_error').modal('show');
+            document.getElementById("success_modal_text").innerHTML = mesh_group_uid + " successfully duplicated!";
+            $('#modal_success').modal('show');
+            $("#removegroup").modal('hide');
+    }
+
+    async function delete_mesh_groups(mesh_group_uids) {
+            const API_URL = "/api";
+            const xhr = new XMLHttpRequest();
+            const fd = new FormData();
+
+            fd.append("ACTION", "DELETE_MESH_GROUPS");
+            fd.append("MESH_GROUP_UIDS", mesh_group_uids);
+
+            const response = await fetch('/api', {
+                method: 'POST',
+                body: fd
+            })
+            answer_json = await response.text();
+            var answer = JSON.parse(answer_json);
+
+            //Do we have a fatal_error?
+            for(var i = 0; i < answer.length; i++) {
+                if (answer[i]['ID'] == "FATAL_ERROR"){
+                    document.getElementById("error_modal_text").innerHTML = answer[i]['ID'] + " - " + answer[i]['MSG'];
+                    $("#removegroup").modal('hide');
+                    $('#modal_delete_error').modal('show');
+                    $btn_delete.prop('disabled', false);
+                    return;
+                }
             }
-            else
-            {
-                document.getElementById("success_modal_text").innerHTML = "Mesh group " + mesh_group_uid + " deleted successfully";
-                $('#modal_success').modal('show');
-                $("#removegroup").modal('hide');
-            }
+
+            $("#success_modal_text").html("<table id='table_modal_success' data-search='true' data-pagination='true' data-page-size='5'></table>");
+
+            $("#table_modal_success").bootstrapTable({
+              columns: [{ field: 'ID', title: 'Mesh group', sortable: false},
+                        { field: 'MSG', title: 'Message', sortable: true}],
+              data: answer
+            })
+
+            $('#modal_success').modal('show');
+            $("#removegroup").modal('hide');
     }
 
     async function get_mesh_groups() {
@@ -194,29 +326,16 @@
               search: true,
               columns: [
                         { field: 'state', checkbox: true, align: 'center', valign: 'middle'},
-                        { field: 'UID', title: 'Name', sortable: true},
-                        { field: 'BANDWIDTH', title: 'Bandwidth', sortable: false},
-                        { field: 'PACKET_SIZE', title: 'Packet size', sortable: true},
-                        { field: 'DSCP', title: 'DSCP', sortable: false},
-                        { field: 'INTERVAL', title: 'Interval', sortable: true}
+                        { field: 'UID', title: 'Name', align: 'center', sortable: true},
+                        { field: 'BANDWIDTH', title: 'Bandwidth', align: 'center', sortable: false},
+                        { field: 'PACKET_SIZE', title: 'Packet size', align: 'center', sortable: true},
+                        { field: 'DSCP', title: 'DSCP', align: 'center', sortable: false},
+                        { field: 'INTERVAL', title: 'Interval', align: 'center', sortable: true},
+                        { field: 'MEMBERS', title: 'Members', align: 'center', sortable: true},
+                        { field: 'BW_PER_NODE_KBPS', title: 'Bandwidth per node (Kbps)*', align: 'center', sortable: true}
                        ],
               data: mesh_groups
             })
-
-            $table.on('check.bs.table uncheck.bs.table ' + 'check-all.bs.table uncheck-all.bs.table',
-                function () {
-                  $remove.prop('disabled', !$table.bootstrapTable('getSelections').length)
-                })
-                $table.on('all.bs.table', function (e, name, args) {
-                  console.log(name, args)
-                })
-                $remove.click(function () {
-                  var uids = getUidSelections()
-                  for(var i = 0; i < uids.length; i++) {
-                      delete_mesh_group(uids[i]);
-                  }
-                  $remove.prop('disabled', true)
-                })
         }
     }
 

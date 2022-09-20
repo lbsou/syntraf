@@ -12,8 +12,8 @@ if not CompilationOptions.client_only:
     #from lib.st_webui import *
     from lib.web_ui import create_app
 
-    from gevent import monkey
-    monkey.patch_all()
+    #from gevent import monkey
+    #monkey.patch_all()
     from gevent.pywsgi import WSGIServer
 
     from werkzeug.serving import run_simple
@@ -34,15 +34,15 @@ log = logging.getLogger("syntraf." + __name__)
 
 
 ## Monkeypatch to catch gevent webserver events directed at stderr
-class writer(object):
-    def write(self, data):
-        log.error("STDERR:" + data)
-
-    def flush(self): pass
-
-
-logger = writer()
-sys.stderr = logger
+# class writer(object):
+#     def write(self, data):
+#         log.error("STDERR:" + data)
+#
+#     def flush(self): pass
+#
+#
+# logger = writer()
+# sys.stderr = logger
 
 
 #################################################################################
