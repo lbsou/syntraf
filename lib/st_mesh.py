@@ -395,38 +395,38 @@ def client_send_metrics(_config, ssl_conn, dict_data_to_send_to_server):
         # We send a dictionnary to the server in which the key is a hash of the payload, and the payload are the metrics
         # Ounce we receive a ack, the payload will contain a list of all the hashes that were correctly written to disk.
         # Then we delete those key/value pair in our local dictionnary and print a count of how much of the data sent was written.
-        if _config['CLIENT']['FORWARD_METRICS_TO_SERVER']:
-            client_log.debug(f"AMOUNT OF METRICS TO SEND TO SERVER: {len(dict_data_to_send_to_server)}")
-            if len(dict_data_to_send_to_server) >= 1:
-                # we need to extract hash and values as two different list.
-                # the server will write as bulk, so once he confirmed everything is written, we can use the list of hash to remove thoses elements from "dict_data_to_send_to_server"
-                # We extract the from dictionnary at the same time so that there is no insertion of metrics in between
-                dict_data_to_send_to_server_as_array = list(dict_data_to_send_to_server.items())
-                keys_of_metrics_to_send_to_server = [x[0] for x in dict_data_to_send_to_server_as_array]
-                values_of_metrics_to_send_to_server = [x[1] for x in dict_data_to_send_to_server_as_array]
 
-                sock_send(ssl_conn, values_of_metrics_to_send_to_server, "SAVE_METRIC")
-                client_log.debug(
-                    f"METRICS DICTIONARY SENT WITH {len(values_of_metrics_to_send_to_server)} METRIC(S), WAITING FOR CONFIRMATION")
-                received_data = sock_rcv(ssl_conn)
-                client_log.debug(
-                    f"JUST RECEIVED THE FOLLOWING ANSWER FROM THE SERVER : {received_data['COMMAND']}:{received_data['PAYLOAD']}")
-                if received_data:
-                    if received_data['PAYLOAD'] == "OK":
-                        client_log.debug((
-                            f"SERVER CONFIRMED THAT {len(values_of_metrics_to_send_to_server)} METRIC(S) HAS BEEN WRITEN TO DATABASE"))
-                        # removing metrics from local queue as the server has acknowledged having written them to disk
-                        for id in keys_of_metrics_to_send_to_server:
-                            # if the dict has attain max length define (DEFAULT_WRITE_QUEUE_BUFFER_DEPTH), it is possible the id is no longer there.
-                            if id in dict_data_to_send_to_server:
-                                dict_data_to_send_to_server.pop(id)
+        client_log.debug(f"AMOUNT OF METRICS TO SEND TO SERVER: {len(dict_data_to_send_to_server)}")
+        if len(dict_data_to_send_to_server) >= 1:
+            # we need to extract hash and values as two different list.
+            # the server will write as bulk, so once he confirmed everything is written, we can use the list of hash to remove thoses elements from "dict_data_to_send_to_server"
+            # We extract the from dictionnary at the same time so that there is no insertion of metrics in between
+            dict_data_to_send_to_server_as_array = list(dict_data_to_send_to_server.items())
+            keys_of_metrics_to_send_to_server = [x[0] for x in dict_data_to_send_to_server_as_array]
+            values_of_metrics_to_send_to_server = [x[1] for x in dict_data_to_send_to_server_as_array]
 
-                    elif received_data['PAYLOAD'] == "NOK":
-                        client_log.error(f"SERVER WAS UNABLE TO WRITE METRICS TO DATABASE")
-                else:
-                    client_log.error(
-                        f"CONNECTION TO {_config['CLIENT']['SERVER']}:{_config['CLIENT']['SERVER_PORT']} LOST")
-                    return False
+            sock_send(ssl_conn, values_of_metrics_to_send_to_server, "SAVE_METRIC")
+            client_log.debug(
+                f"METRICS DICTIONARY SENT WITH {len(values_of_metrics_to_send_to_server)} METRIC(S), WAITING FOR CONFIRMATION")
+            received_data = sock_rcv(ssl_conn)
+            client_log.debug(
+                f"JUST RECEIVED THE FOLLOWING ANSWER FROM THE SERVER : {received_data['COMMAND']}:{received_data['PAYLOAD']}")
+            if received_data:
+                if received_data['PAYLOAD'] == "OK":
+                    client_log.debug((
+                        f"SERVER CONFIRMED THAT {len(values_of_metrics_to_send_to_server)} METRIC(S) HAS BEEN WRITEN TO DATABASE"))
+                    # removing metrics from local queue as the server has acknowledged having written them to disk
+                    for id in keys_of_metrics_to_send_to_server:
+                        # if the dict has attain max length define (DEFAULT_WRITE_QUEUE_BUFFER_DEPTH), it is possible the id is no longer there.
+                        if id in dict_data_to_send_to_server:
+                            dict_data_to_send_to_server.pop(id)
+
+                elif received_data['PAYLOAD'] == "NOK":
+                    client_log.error(f"SERVER WAS UNABLE TO WRITE METRICS TO DATABASE")
+            else:
+                client_log.error(
+                    f"CONNECTION TO {_config['CLIENT']['SERVER']}:{_config['CLIENT']['SERVER_PORT']} LOST")
+                return False
         return True
     except Exception as exc:
         raise exc
