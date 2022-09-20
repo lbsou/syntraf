@@ -2,7 +2,7 @@
 from flask_login import *
 from . import db
 from .st_models import User
-
+from lib.st_conf_validation import validate_bandwidth
 from lib.st_global import CompilationOptions, DefaultValues
 
 # SYNTRAF SERVER IMPORT
@@ -238,6 +238,7 @@ def api():
     if request.method == 'POST':
         requested_action = request.values.get('ACTION', '')
         if requested_action == "SAVE_MAPS_JSON":
+            ''' =============================================================================================== '''
             # read json and write JSON with new value
             read_success, config = read_conf(app.config['config_file_path'])
             if read_success:
@@ -251,43 +252,88 @@ def api():
                             toml.dump(config, toml_file)
                             log.debug(f"RECEIVED A REQUEST TO SAVE MAPS CONFIG OF GROUP '{mg['UID']}' TO DISK")
 
-        elif requested_action == "DELETE_MESH_GROUP":
-            mesh_group_uid = request.values.get('MESH_GROUP_UID', '')
-
+        elif requested_action == "DELETE_MESH_GROUPS":
+            ''' =============================================================================================== '''
+            mesh_group_uids_list = request.values.get('MESH_GROUP_UIDS', '').split(",")
             read_success, config = read_conf(app.config['config_file_path'])
-            if read_success:
+            results_delete_list = []
 
-                # Does this group have members?
-                cpt_members = 0
-                for client in config['SERVER_CLIENT']:
-                    if mesh_group_uid in client['MESH_GROUP_UID_LIST']:
-                        cpt_members += 1
+            try:
+                if read_success:
+                    for mg_uid in mesh_group_uids_list:
+                        # Does this group have members?
+                        cpt_members = 0
+                        for client in config['SERVER_CLIENT']:
+                            if mg_uid in client['MESH_GROUP_UID_LIST']:
+                                cpt_members += 1
 
-                if cpt_members >= 1:
-                    # Cannot delete, this mesh group is in use.
-                    return "E1005"
+                        if cpt_members >= 1:
+                            # Cannot delete, this mesh group is in use.
+                            results_delete_list.append({"ID": mg_uid, "MSG": "not deleted (in use)"})
+                        else:
+                            # Delete the group from config (live and disk)
+                            for mesh_group in config['MESH_GROUP']:
+                                if mesh_group['UID'] == mg_uid:
+                                    app.config['config']['MESH_GROUP'].remove(mesh_group)
+                                    config['MESH_GROUP'].remove(mesh_group)
+                                    results_delete_list.append({"ID": mg_uid, "MSG": "deleted"})
+                else:
+                    # Unable to open config file
+                    log.debug(f"UNABLE TO READ CONFIG FILE WHILE TRYING TO DELETE MESH_GROUP '{mesh_group_uids_list}'")
+                    results_delete_list.append({"ID": "FATAL_ERROR", "MSG": f"UNABLE TO READ CONFIG FILE WHILE TRYING TO DELETE MESH_GROUP '{mesh_group_uids_list}'"})
+                    return jsonify(results_delete_list)
+            except Exception as exc:
+                log.debug(exc)
+                results_delete_list.append({"ID": "FATAL_ERROR", "MSG": exc})
+                return jsonify(results_delete_list)
 
-                for mesh_group in config['MESH_GROUP']:
-                    if mesh_group['UID'] == mesh_group_uid:
-                        config['MESH_GROUP'].remove(mesh_group)
-                        app.config['config']['MESH_GROUP'].remove(mesh_group)
-            else:
-                log.debug(f"UNABLE TO READ CONFIG FILE WHILE TRYING TO DELETE MESH_GROUP '{mesh_group_uid}'")
-                # Unable to open config file
-                return "E1004"
             try:
                 with open(app.config['config_file_path'], "w") as toml_file:
                     toml.dump(config, toml_file)
-                    log.debug(f"MESH_GROUP '{mesh_group_uid}' DELETED")
-                    return "OK"
+                    log.debug(f"CONFIG FILE SUCCESSFULLY OVERWRITTEN")
             except Exception as exc:
-                print(exc)
+                results_delete_list.append({"ID": "FATAL_ERROR", "MSG": f"AN ERROR OCCURRED WHILE TRYING TO SAVE CONFIG FILE"})
+                log.debug(f"AN ERROR OCCURRED WHILE TRYING TO SAVE CONFIG FILE", exc)
+                return jsonify(results_delete_list)
+
+            try:
+                for msg in results_delete_list:
+                    if "FATAL_ERROR" == msg['ID']:
+                        log.debug(f"MESH_GROUP {msg['ID']} : {msg['MSG']}")
+            except Exception as exc:
+                results_delete_list.append({"ID": "FATAL_ERROR", "MSG": f"AN ERROR OCCURRED WHILE"})
+                log.debug(f"AN ERROR OCCURRED WHILE ", exc)
+                return jsonify(results_delete_list)
+
+            return jsonify(results_delete_list)
 
         elif requested_action == "GET_MESH_GROUPS":
+            ''' =============================================================================================== '''
             read_success, config = read_conf(app.config['config_file_path'])
             if read_success:
                 # deepcopy for eventually add packet per seconds
                 mesh_groups = copy.deepcopy(config['MESH_GROUP'])
+
+                for mg in mesh_groups:
+                    mg['MEMBERS'] = 0
+                    for client in config['SERVER_CLIENT']:
+                        if mg['UID'] in client['MESH_GROUP_UID_LIST']:
+                            if mg['MEMBERS'] >= 1:
+                                mg['MEMBERS'] += 1
+                            else:
+                                mg['MEMBERS'] = 1
+
+                for mg in mesh_groups:
+                    if mg['MEMBERS'] >= 1:
+                        bw_mg = validate_bandwidth(mg['BANDWIDTH'])
+                        bw_total = mg['MEMBERS'] * (mg['MEMBERS']-1) * bw_mg
+                        bw_per_node = bw_total / mg['MEMBERS']
+                        bw_per_node_kbps = bw_per_node / 1000
+                        mg['BW_PER_NODE_KBPS'] = bw_per_node_kbps
+                    else:
+                        mg['BW_PER_NODE_KBPS'] = 0
+
+
                 return jsonify(mesh_groups)
             else:
                 log.debug(f"UNABLE TO READ CONFIG FILE WHILE TRYING TO GET MESH GROUPS")
@@ -295,10 +341,78 @@ def api():
                 return "E1004"
 
         elif requested_action == "DUPLICATE_MESH_GROUP":
-            pass
-        elif requested_action == "UPDATE_MESH_GROUP":
+            ''' =============================================================================================== '''
+            mesh_group_uid = request.values.get('MESH_GROUP_UID', '')
+            read_success, config = read_conf(app.config['config_file_path'])
+            result = []
+
+            try:
+                if read_success:
+                    for mg in config['MESH_GROUP']:
+
+                        if mg['UID'] == mesh_group_uid:
+                            # Copy mesh group
+                            mg_clone = copy.deepcopy(mg)
+
+                            # We have to make sure that the new name is unique
+                            no_valid_name = True
+                            suffix = "_COPY"
+                            suffix2 = 0
+                            try:
+                                while no_valid_name:
+                                    found = False
+                                    for mg2 in config['MESH_GROUP']:
+                                        if suffix2 != 0:
+                                            if mg2['UID'] == mg['UID'] + suffix + str(suffix2):
+                                                found = True
+                                                suffix2 += 1
+                                                break
+                                        else:
+                                            if mg2['UID'] == mg['UID'] + suffix or mg2['UID'] == mg['UID'] + suffix + str(suffix2):
+                                                found = True
+                                                suffix2 += 1
+                                                break
+                                    if not found:
+                                        no_valid_name = False
+                            except Exception as exc:
+                                log.error(exc)
+
+                            if suffix2 >= 1:
+                                mg_clone['UID'] = mg['UID'] + suffix + str(suffix2)
+                            else:
+                                mg_clone['UID'] = mg['UID'] + suffix
+
+                            # Put it in config file (live and disk)
+                            app.config['config']['MESH_GROUP'].append(mg_clone)
+                            config['MESH_GROUP'].append(mg_clone)
+                            result.append({"ID": mesh_group_uid, "MSG": "cloned"})
+
+                else:
+                    # Unable to open config file
+                    log.debug(f"UNABLE TO READ CONFIG FILE WHILE TRYING TO CLONE MESH_GROUP '{mesh_group_uid}'")
+                    result.append({"ID": "FATAL_ERROR", "MSG": f"UNABLE TO READ CONFIG FILE WHILE TRYING TO CLONE MESH_GROUP '{mesh_group_uid}'"})
+                    return jsonify(result)
+            except Exception as exc:
+                log.debug(exc)
+                result.append({"ID": "FATAL_ERROR", "MSG": exc})
+                return jsonify(result)
+
+            try:
+                with open(app.config['config_file_path'], "w") as toml_file:
+                    toml.dump(config, toml_file)
+                    log.debug(f"CONFIG FILE SUCCESSFULLY OVERWRITTEN")
+            except Exception as exc:
+                result.append({"ID": "FATAL_ERROR", "MSG": f"AN ERROR OCCURRED WHILE TRYING TO SAVE CONFIG FILE"})
+                log.debug(f"AN ERROR OCCURRED WHILE TRYING TO SAVE CONFIG FILE", exc)
+                return jsonify(result)
+
+            return jsonify(result)
+
+        elif requested_action == "EDIT_MESH_GROUP":
+            ''' =============================================================================================== '''
             pass
         elif requested_action == "RECONNECT_CLIENT":
+            ''' =============================================================================================== '''
 
             client_uid = request.values.get('CLIENT', '')
             log.debug(f"RECONNECT ASKED FOR CLIENT: '{client_uid}'")
@@ -317,7 +431,7 @@ def api():
                 return "E1003"
 
         elif requested_action == "RESTART_CLIENT":
-
+            ''' =============================================================================================== '''
             client_uid = request.values.get('CLIENT', '')
             log.debug(f"RESTART ASKED FOR CLIENT: '{client_uid}'")
 
@@ -335,6 +449,7 @@ def api():
                 return "E1003"
 
         elif requested_action == "SAVE_BACKGROUND":
+            ''' =============================================================================================== '''
             group = request.values.get('GROUP', '')
             image = request.values.get('BACKGROUND_IMAGE', '')
             log.debug(f"RECEIVED A REQUEST TO UPDATE BACKGROUND IMAGE OF GROUP '{group}'")
@@ -347,6 +462,7 @@ def api():
             # return "OK"
 
         elif requested_action == "GET_THREAD_STATUS":
+            ''' =============================================================================================== '''
             client_uid = request.values.get('CLIENT_UID', '')
 
             if client_uid in app.config['dict_of_clients']:
@@ -360,6 +476,7 @@ def api():
                 return "E1002"
 
         elif requested_action == "GET_SYSTEM_INFOS":
+            ''' =============================================================================================== '''
             client_uid = request.values.get('CLIENT_UID', '')
 
             if client_uid in app.config['dict_of_clients']:
@@ -373,12 +490,14 @@ def api():
                 return "E1002"
 
         elif requested_action == "GET_SYSTEM_STATS":
+            ''' =============================================================================================== '''
             dict_of_clients_as_json = {}
             for k, v in app.config['dict_of_clients'].items():
                 dict_of_clients_as_json[k] = v.asjson()
             return dict_of_clients_as_json
 
         elif requested_action == "GET_TOKENS":
+            ''' =============================================================================================== '''
             tokens = app.config['config']['SERVER']['TOKEN']
             print(type(tokens))
             for a, b in tokens.items():
@@ -387,6 +506,7 @@ def api():
             return app.config['config']['SERVER']['TOKEN']
 
         elif requested_action == "GET_NUMBER_OF_ONLINE_CLIENT":
+            ''' =============================================================================================== '''
             online_client = 0
             for client in app.config['dict_of_clients'].values():
                 if client.status == "CONNECTED":
@@ -394,6 +514,7 @@ def api():
             return str(online_client)
 
         elif requested_action == "GET_NUMBER_OF_OFFLINE_CLIENT":
+            ''' =============================================================================================== '''
             online_client = 0
             offline_client = len(app.config['config']['SERVER_CLIENT'])
 
@@ -404,6 +525,7 @@ def api():
             return str(offline_client - online_client)
 
         elif requested_action == "GET_LIST_OF_DATABASES_INFOS":
+            ''' =============================================================================================== '''
             list_of_databases_infos = {}
             for db in app.config['conn_db']:
                 db.force_status_check()

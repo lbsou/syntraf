@@ -4,13 +4,14 @@ from lib.st_struct import cl_ifreq
 
 # SYNTRAF SERVER IMPORT
 if not CompilationOptions.client_only:
-    from gevent import monkey
-    monkey.patch_all()
-    from gevent import socket
+    # from gevent import monkey
+    # monkey.patch_all()
+    # from gevent import socket
     import socket
-    from gevent.server import StreamServer
+    # from gevent.server import StreamServer
     from gevent.pool import Pool
-    from lib.st_influxdb import * #import ssl after monkey patch because of urllib3
+    from lib.st_influxdb import *  # import ssl after monkey patch because of urllib3
+    from socketserver import TCPServer, ThreadingMixIn, StreamRequestHandler
 
 from lib.st_conf_validation import generate_client_config_mesh
 
@@ -18,6 +19,7 @@ from lib.st_conf_validation import generate_client_config_mesh
 import logging
 import sys
 import time
+import threading
 import json
 from json import JSONEncoder
 import select
@@ -67,7 +69,8 @@ class cc_client:
     _syntraf_version = ""
     _thread_status = {}
 
-    def __init__(self, status, status_since, status_explanation, bool_dynamic_client, client_uid, tcp_port=0, ip_address=""):
+    def __init__(self, status, status_since, status_explanation, bool_dynamic_client, client_uid, tcp_port=0,
+                 ip_address=""):
         self._status = status
         self._status_since = status_since
         self._status_explanation = status_explanation
@@ -104,7 +107,9 @@ class cc_client:
         return json.dumps(j_dump)
 
     def asdict(self):
-        return {"STATUS": self.status, "STATUS_SINCE": self.status_since, "STATUS_EXPLANATION": self.status_explanation, "CLIENT_UID": self.client_uid, "IP_ADDRESS": self.ip_address, "TCP_PORT": self.tcp_port, "CLOCK_SKEW": self.clock_skew_in_seconds, "SYNTRAF_VERSION": self.syntraf_version}
+        return {"STATUS": self.status, "STATUS_SINCE": self.status_since, "STATUS_EXPLANATION": self.status_explanation,
+                "CLIENT_UID": self.client_uid, "IP_ADDRESS": self.ip_address, "TCP_PORT": self.tcp_port,
+                "CLOCK_SKEW": self.clock_skew_in_seconds, "SYNTRAF_VERSION": self.syntraf_version}
 
     def get_thread_status(self):
         return self._thread_status
@@ -195,7 +200,6 @@ class cc_client:
 ###  SOCKET RCV
 #################################################################################
 def sock_rcv(sckt):
-
     try:
         # Waiting for a size in binary (long addressed on 4bytes)
         size = sckt.recv(4)
@@ -223,7 +227,8 @@ def sock_rcv(sckt):
 #################################################################################
 def sock_send(sckt, payload, command):
     try:
-        encoded_payload = json.dumps({'COMMAND': command, 'PAYLOAD': payload}, ensure_ascii=False, default=str).encode("utf-8")
+        encoded_payload = json.dumps({'COMMAND': command, 'PAYLOAD': payload}, ensure_ascii=False, default=str).encode(
+            "utf-8")
         data_size = struct.pack(">l", len(encoded_payload))
 
         sckt.sendall(data_size)
@@ -244,7 +249,10 @@ def get_system_infos():
     cpu_count_physical = psutil.cpu_count(logical=False)
     memory_mb_physical = round(psutil.virtual_memory().total / 1024 / 1024)
     boot_time = datetime.fromtimestamp(psutil.boot_time()).strftime("%Y-%m-%d %H:%M:%S")
-    system_infos = {'SYSTEM': uname.system, 'NODE_NAME': uname.node, 'RELEASE': uname.release, 'VERSION': uname.version, 'PROCESSOR': uname.processor, 'PYTHON_VERSION': python_version, 'CPU_LOGICAL': cpu_count_logical, 'CPU_PHYSICAL': cpu_count_physical, 'MEMORY_MB': memory_mb_physical, 'BOOT_TIME': boot_time, 'CPU_FREQUENCY': cpu_frequency, 'CPU_MODEL': cpu_brand, 'TIMEZONE': DefaultValues.TIMEZONE}
+    system_infos = {'SYSTEM': uname.system, 'NODE_NAME': uname.node, 'RELEASE': uname.release, 'VERSION': uname.version,
+                    'PROCESSOR': uname.processor, 'PYTHON_VERSION': python_version, 'CPU_LOGICAL': cpu_count_logical,
+                    'CPU_PHYSICAL': cpu_count_physical, 'MEMORY_MB': memory_mb_physical, 'BOOT_TIME': boot_time,
+                    'CPU_FREQUENCY': cpu_frequency, 'CPU_MODEL': cpu_brand, 'TIMEZONE': DefaultValues.TIMEZONE}
     return system_infos
 
 
@@ -272,12 +280,14 @@ def client_sck_init(_config):
         client_log.info(f"CONNECTED TO : {_config['CLIENT']['SERVER']}:{_config['CLIENT']['SERVER_PORT']}")
 
     except (ConnectionRefusedError, ConnectionResetError) as exc:
-        client_log.error(f"ERROR CONNECTING TO {_config['CLIENT']['SERVER']}:{_config['CLIENT']['SERVER_PORT']} : CONNECTION REFUSED")
+        client_log.error(
+            f"ERROR CONNECTING TO {_config['CLIENT']['SERVER']}:{_config['CLIENT']['SERVER_PORT']} : CONNECTION REFUSED")
         sys.exit()
     except OSError as exc:
         # Network is unreachable
         if exc.errno == 101:
-            client_log.error(f"ERROR CONNECTING TO {_config['CLIENT']['SERVER']}:{_config['CLIENT']['SERVER_PORT']} : NETWORK UNREACHABLE")
+            client_log.error(
+                f"ERROR CONNECTING TO {_config['CLIENT']['SERVER']}:{_config['CLIENT']['SERVER_PORT']} : NETWORK UNREACHABLE")
             sys.exit()
     except Exception as exc:
         client_log.error(f"client:{type(exc).__name__}:{exc}", exc_info=True)
@@ -329,7 +339,8 @@ def client_send_auth(_config, client_utime, ssl_conn):
         # Sending TOKEN and UID for authentication, timestamp and version
         client_log.debug(f"SENDING GREETING PAYLOAD TO SERVER")
         payload_greetings = {'TOKEN': _config['CLIENT']['TOKEN'], 'CLIENT_UID': _config['CLIENT']['CLIENT_UID'],
-                             'TIMESTAMP': client_utime, 'SYNTRAF_CLIENT_VERSION': DefaultValues.SYNTRAF_VERSION, 'PUBLIC_KEY': _config['CLIENT']['PUBLIC_KEY']}
+                             'TIMESTAMP': client_utime, 'SYNTRAF_CLIENT_VERSION': DefaultValues.SYNTRAF_VERSION,
+                             'PUBLIC_KEY': _config['CLIENT']['PUBLIC_KEY']}
 
         sock_send(ssl_conn, payload_greetings, "AUTH")
     except Exception as exc:
@@ -361,7 +372,8 @@ def client_receive_configuration(_config, ssl_conn, threads_n_processes):
                 client_log.debug(f"SAVING IPERF3 RSA KEYPAIR")
                 save_credentials(received_data, _config)
 
-                client_log.info(f"CONFIG WILL LOAD IN LESS THAN {_config['GLOBAL']['WATCHDOG_CHECK_RATE']} seconds (see : WATCHDOG_CHECK_RATE)")
+                client_log.info(
+                    f"CONFIG WILL LOAD IN LESS THAN {_config['GLOBAL']['WATCHDOG_CHECK_RATE']} seconds (see : WATCHDOG_CHECK_RATE)")
         else:
             client_log.info(f"RECEIVED DATA IS NONE")
     except Exception as exc:
@@ -402,7 +414,7 @@ def client_send_metrics(_config, ssl_conn, dict_data_to_send_to_server):
                 if received_data:
                     if received_data['PAYLOAD'] == "OK":
                         client_log.debug((
-                                             f"SERVER CONFIRMED THAT {len(values_of_metrics_to_send_to_server)} METRIC(S) HAS BEEN WRITEN TO DATABASE"))
+                            f"SERVER CONFIRMED THAT {len(values_of_metrics_to_send_to_server)} METRIC(S) HAS BEEN WRITEN TO DATABASE"))
                         # removing metrics from local queue as the server has acknowledged having written them to disk
                         for id in keys_of_metrics_to_send_to_server:
                             # if the dict has attain max length define (DEFAULT_WRITE_QUEUE_BUFFER_DEPTH), it is possible the id is no longer there.
@@ -412,7 +424,8 @@ def client_send_metrics(_config, ssl_conn, dict_data_to_send_to_server):
                     elif received_data['PAYLOAD'] == "NOK":
                         client_log.error(f"SERVER WAS UNABLE TO WRITE METRICS TO DATABASE")
                 else:
-                    client_log.error(f"CONNECTION TO {_config['CLIENT']['SERVER']}:{_config['CLIENT']['SERVER_PORT']} LOST")
+                    client_log.error(
+                        f"CONNECTION TO {_config['CLIENT']['SERVER']}:{_config['CLIENT']['SERVER_PORT']} LOST")
                     return False
         return True
     except Exception as exc:
@@ -496,7 +509,7 @@ def client_command_restart(ssl_conn):
         # if we are inside a pyinstaller bundle
         if getattr(sys, 'frozen', False):
             os.execv(sys.executable, sys.argv)
-        #Windows only for now
+        # Windows only for now
         else:
             os.execl(sys.executable, 'python', *sys.argv)
     except Exception as exc:
@@ -531,7 +544,9 @@ def client_command_diffconfig(_config, received_data, threads_n_processes):
                     # If a CONNECTOR config match the client_uid, change the destination_address for the one we just received.
                     # If we receive a valid IP we do not need to restart the connector, the next loop will launch the process for the first time
                     # But if we are setting it to the default IP for dynamic client "0.0.0.0", process_and_thread will not start a CONNECTOR when there is that IP assigned. We will take care to terminate the actual CONNECTOR.
-                    if re.match(r"^.{40}_MEMBER_OF_GROUP_.+_CONNECTING_TO_" + received_data['PAYLOAD']['CLIENT_UID'] + "$", key):
+                    if re.match(
+                            r"^.{40}_MEMBER_OF_GROUP_.+_CONNECTING_TO_" + received_data['PAYLOAD']['CLIENT_UID'] + "$",
+                            key):
                         _config['CONNECTORS'][key]['DESTINATION_ADDRESS'] = received_data['PAYLOAD']['IP_ADDRESS']
                         client_log.info(
                             f"CONNECTOR: '{key}' DESTINATION IP ADDRESS UPDATED WITH '{received_data['PAYLOAD']['IP_ADDRESS']}'")
@@ -587,7 +602,7 @@ def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processe
 
                 client_log.debug(f"SLEEPING FOR {DefaultValues.CONTROL_CHANNEL_HEARTBEAT} SECOND(S)")
                 time.sleep(DefaultValues.CONTROL_CHANNEL_HEARTBEAT)
-                #client_log.debug(f"SLEEP IS OVER")
+                # client_log.debug(f"SLEEP IS OVER")
 
             else:
                 client_log.info(f"RECEIVED DATA IS NONE")
@@ -647,7 +662,8 @@ def validate_clock_skew(_config, received_data, obj_client):
     clock_skew = server_utime - client_utime
     obj_client.clock_skew_in_seconds = clock_skew
     if abs(clock_skew) > int(_config['GLOBAL']['IPERF3_TIME_SKEW_THRESHOLD']):
-        server_log.warning(f"CONTEXT: {obj_client.client_uid} - CLOCK SKEW BETWEEN CLIENT AND SERVER IS TOO GREAT '{clock_skew} SECONDS'. WARNING : IF THE SAME SKEW HAPPEN BETWEEN NODES, THE IPERF3 CONTROL CHANNEL WILL FAIL. IF YOU CANNOT TIME SYNC THE NODES, YOU CAN ADJUST THE CLOCK OF THE NODES OR CHANGE THE VAR 'SERVER_IPERF3_TIME_SKEW_THRESHOLD'")
+        server_log.warning(
+            f"CONTEXT: {obj_client.client_uid} - CLOCK SKEW BETWEEN CLIENT AND SERVER IS TOO GREAT '{clock_skew} SECONDS'. WARNING : IF THE SAME SKEW HAPPEN BETWEEN NODES, THE IPERF3 CONTROL CHANNEL WILL FAIL. IF YOU CANNOT TIME SYNC THE NODES, YOU CAN ADJUST THE CLOCK OF THE NODES OR CHANGE THE VAR 'SERVER_IPERF3_TIME_SKEW_THRESHOLD'")
 
 
 def authenticate_server_client(_config, data, obj_client, sckt):
@@ -664,7 +680,8 @@ def authenticate_server_client(_config, data, obj_client, sckt):
         valid_server_client = True
 
     if valid_token and valid_server_client:
-        server_log.info(f"AUTHENTICATION SUCCESSFUL FROM IP '{ip_addr}' WITH CLIENT_UID '{data['PAYLOAD']['CLIENT_UID']}'")
+        server_log.info(
+            f"AUTHENTICATION SUCCESSFUL FROM IP '{ip_addr}' WITH CLIENT_UID '{data['PAYLOAD']['CLIENT_UID']}'")
 
         # NEW STATUS TRACKING
         obj_client.status = "CONNECTED"
@@ -674,15 +691,18 @@ def authenticate_server_client(_config, data, obj_client, sckt):
 
     elif valid_token and not valid_server_client:
         # Temporary, testing dynamic IP
-        server_log.error(f"AUTHENTICATION FAILED FROM IP '{ip_addr}' WITH CLIENT UID '{obj_client.client_uid}. CLIENT UID INVALID.")
+        server_log.error(
+            f"AUTHENTICATION FAILED FROM IP '{ip_addr}' WITH CLIENT UID '{obj_client.client_uid}. CLIENT UID INVALID.")
         rejection_explanation = "UNKNOWN CLIENT"
 
     elif not valid_token and valid_server_client:
-        server_log.error(f"AUTHENTICATION FAILED FROM IP '{ip_addr}' WITH CLIENT UID '{obj_client.client_uid}. TOKEN INVALID.")
+        server_log.error(
+            f"AUTHENTICATION FAILED FROM IP '{ip_addr}' WITH CLIENT UID '{obj_client.client_uid}. TOKEN INVALID.")
         rejection_explanation = "INVALID TOKEN"
 
     elif not valid_token and not valid_server_client:
-        server_log.error(f"AUTHENTICATION FAILED FROM IP '{ip_addr}' WITH CLIENT UID '{obj_client.client_uid}. CLIENT UID AND TOKEN INVALID.")
+        server_log.error(
+            f"AUTHENTICATION FAILED FROM IP '{ip_addr}' WITH CLIENT UID '{obj_client.client_uid}. CLIENT UID AND TOKEN INVALID.")
         rejection_explanation = "UNKNOWN CLIENT AND INVALID TOKEN"
 
     return False, rejection_explanation
@@ -720,7 +740,8 @@ def server_save_metric(obj_client, conn_db, received_data, address, sckt):
         results_of_write_operation_on_multiple_db = []
         for conn in conn_db:
             # TODO, print what is the database we are actually writing to and the result
-            server_log.debug(f"CONTEXT: {obj_client.client_uid} - SAVING METRICS TO DATABASE '{conn.get_Database_UID()}'")
+            server_log.debug(
+                f"CONTEXT: {obj_client.client_uid} - SAVING METRICS TO DATABASE '{conn.get_Database_UID()}'")
             results_of_write_operation_on_multiple_db.append(
                 conn.save_metrics_to_database_with_buffer(received_data['PAYLOAD'], address, obj_client.client_uid))
 
@@ -749,7 +770,8 @@ def server_save_metric(obj_client, conn_db, received_data, address, sckt):
         sock_send(sckt, "NOK", "ACK")
 
 
-def server_auth(received_data, obj_client, _config, address, dict_of_commands_for_network_clients, sckt, _dict_by_node_generated_config, dict_of_client_pending_acceptance):
+def server_auth(received_data, obj_client, _config, address, dict_of_commands_for_network_clients, sckt,
+                _dict_by_node_generated_config, dict_of_client_pending_acceptance):
     obj_client.client_uid = received_data['PAYLOAD']['CLIENT_UID']
     public_key = received_data['PAYLOAD']['PUBLIC_KEY']
 
@@ -766,9 +788,8 @@ def server_auth(received_data, obj_client, _config, address, dict_of_commands_fo
                 pass
 
     if not auth_ok:
-        #add this public key and other interesting informations to a dictionnary that will be use to keep pending acceptation
+        # add this public key and other interesting informations to a dictionnary that will be use to keep pending acceptation
         dict_of_client_pending_acceptance[obj_client.client_uid] = public_key
-
 
     # Authentication, if token is wrong, disconnect
     is_authenticated, rejection_explanation = authenticate_server_client(_config, received_data, obj_client, sckt)
@@ -789,7 +810,8 @@ def server_auth(received_data, obj_client, _config, address, dict_of_commands_fo
 
             # If this is a dynamic IP client
             if server_client['IP_ADDRESS'] == "0.0.0.0":
-                server_log.debug(f"CONTEXT: {obj_client.client_uid} - THIS CLIENT HAS DYNAMIC IP, UPDATING LOCAL CONFIG AND PUSHING TO OTHER CLIENTS")
+                server_log.debug(
+                    f"CONTEXT: {obj_client.client_uid} - THIS CLIENT HAS DYNAMIC IP, UPDATING LOCAL CONFIG AND PUSHING TO OTHER CLIENTS")
 
                 # So that we can track that this is a dynamic client and rollback the ip when disconnection occur.
                 obj_client.bool_dynamic_client = True
@@ -816,7 +838,9 @@ def server_auth(received_data, obj_client, _config, address, dict_of_commands_fo
                         # Do not update the client itself
                         if not server_client['UID'] == obj_client.client_uid:
                             dict_of_commands_for_network_clients[server_client['UID']] = []
-                            dict_of_commands_for_network_clients[server_client['UID']].append({"ACTION": "UPDATED_CONFIG", "ELEMENT": "CLIENT_IP", "CLIENT_UID": obj_client.client_uid, "IP_ADDRESS": obj_client.ip_address})
+                            dict_of_commands_for_network_clients[server_client['UID']].append(
+                                {"ACTION": "UPDATED_CONFIG", "ELEMENT": "CLIENT_IP",
+                                 "CLIENT_UID": obj_client.client_uid, "IP_ADDRESS": obj_client.ip_address})
 
     # Show an alert in the log when the clock skew is too great
     server_log.debug(f"CONTEXT: {obj_client.client_uid} - STARTING VALIDATION OF CLOCK SKEW")
@@ -825,7 +849,8 @@ def server_auth(received_data, obj_client, _config, address, dict_of_commands_fo
 
     # Send the config to the client
     server_log.debug(f"CONTEXT: {obj_client.client_uid} - SENDING CONFIG TO THE CLIENT")
-    bool_we_have_config_for_this_client = send_config(_dict_by_node_generated_config, obj_client.client_uid, sckt, _config)
+    bool_we_have_config_for_this_client = send_config(_dict_by_node_generated_config, obj_client.client_uid, sckt,
+                                                      _config)
 
     obj_client.syntraf_version = received_data['PAYLOAD']['SYNTRAF_CLIENT_VERSION']
 
@@ -850,15 +875,23 @@ def server_save_stats_metric(obj_client, received_data):
     :param received_data: The payload we just received from the client containing the systems stats metric
     """
     # Make sure that the client system stats history does not get too big
-    if len(obj_client.system_stats.setdefault('if_pct_usage_rx', [])) >= 100: obj_client.system_stats['if_pct_usage_rx'].pop(0)
-    if len(obj_client.system_stats.setdefault('if_pct_usage_tx', [])) >= 100: obj_client.system_stats['if_pct_usage_tx'].pop(0)
-    if len(obj_client.system_stats.setdefault('mem_pct_free', [])) >= 100: obj_client.system_stats['mem_pct_free'].pop(0)
-    if len(obj_client.system_stats.setdefault('cpu_pct_usage', [])) >= 100: obj_client.system_stats['cpu_pct_usage'].pop(0)
+    if len(obj_client.system_stats.setdefault('if_pct_usage_rx', [])) >= 100: obj_client.system_stats[
+        'if_pct_usage_rx'].pop(0)
+    if len(obj_client.system_stats.setdefault('if_pct_usage_tx', [])) >= 100: obj_client.system_stats[
+        'if_pct_usage_tx'].pop(0)
+    if len(obj_client.system_stats.setdefault('mem_pct_free', [])) >= 100: obj_client.system_stats['mem_pct_free'].pop(
+        0)
+    if len(obj_client.system_stats.setdefault('cpu_pct_usage', [])) >= 100: obj_client.system_stats[
+        'cpu_pct_usage'].pop(0)
 
-    obj_client.system_stats['if_pct_usage_rx'].append((received_data['PAYLOAD']['timestamp'], received_data['PAYLOAD']['if_pct_usage_rx']))
-    obj_client.system_stats['if_pct_usage_tx'].append((received_data['PAYLOAD']['timestamp'], received_data['PAYLOAD']['if_pct_usage_tx']))
-    obj_client.system_stats['mem_pct_free'].append((received_data['PAYLOAD']['timestamp'], received_data['PAYLOAD']['mem_pct_free']))
-    obj_client.system_stats['cpu_pct_usage'].append((received_data['PAYLOAD']['timestamp'], received_data['PAYLOAD']['cpu_pct_usage']))
+    obj_client.system_stats['if_pct_usage_rx'].append(
+        (received_data['PAYLOAD']['timestamp'], received_data['PAYLOAD']['if_pct_usage_rx']))
+    obj_client.system_stats['if_pct_usage_tx'].append(
+        (received_data['PAYLOAD']['timestamp'], received_data['PAYLOAD']['if_pct_usage_tx']))
+    obj_client.system_stats['mem_pct_free'].append(
+        (received_data['PAYLOAD']['timestamp'], received_data['PAYLOAD']['mem_pct_free']))
+    obj_client.system_stats['cpu_pct_usage'].append(
+        (received_data['PAYLOAD']['timestamp'], received_data['PAYLOAD']['cpu_pct_usage']))
 
 
 def server_awaiting_commands(client_uid, dict_of_commands_for_network_clients, sckt):
@@ -948,7 +981,9 @@ def server_forget_dynamic_client_ip(obj_client, _config, dict_of_commands_for_ne
                 if not obj_client.client_uid == server_client['UID']:
                     if not server_client['UID'] in dict_of_commands_for_network_clients:
                         dict_of_commands_for_network_clients[server_client['UID']] = []
-                    dict_of_commands_for_network_clients[server_client['UID']].append({"ACTION": "UPDATED_CONFIG", "ELEMENT": "CLIENT_IP", "CLIENT_UID": obj_client.client_uid, "IP_ADDRESS": "0.0.0.0"})
+                    dict_of_commands_for_network_clients[server_client['UID']].append(
+                        {"ACTION": "UPDATED_CONFIG", "ELEMENT": "CLIENT_IP", "CLIENT_UID": obj_client.client_uid,
+                         "IP_ADDRESS": "0.0.0.0"})
 
 
 def server_save_thread_status(obj_client, received_data):
@@ -956,7 +991,8 @@ def server_save_thread_status(obj_client, received_data):
     obj_client.thread_status = received_data['PAYLOAD']
 
 
-def handler(_config, _dict_by_node_generated_config, conn_db, dict_of_commands_for_network_clients, dict_of_clients, dict_of_client_pending_acceptance):
+def handler(_config, _dict_by_node_generated_config, conn_db, dict_of_commands_for_network_clients, dict_of_clients,
+             dict_of_client_pending_acceptance):
     def handle(sckt, address):
 
         nonlocal _dict_by_node_generated_config
@@ -964,7 +1000,9 @@ def handler(_config, _dict_by_node_generated_config, conn_db, dict_of_commands_f
         nonlocal dict_of_client_pending_acceptance
 
         uid = address[0]
-        dict_of_clients[uid] = cc_client(status="CONNECTING", status_since=datetime.now().strftime("%d/%m/%Y %H:%M:%S"), status_explanation="NOT YET AUTHENTICATED", client_uid="UNKNOWN", bool_dynamic_client=False, tcp_port=address[1], ip_address=address[0])
+        dict_of_clients[uid] = cc_client(status="CONNECTING", status_since=datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                                         status_explanation="NOT YET AUTHENTICATED", client_uid="UNKNOWN",
+                                         bool_dynamic_client=False, tcp_port=address[1], ip_address=address[0])
 
         try:
             while True:
@@ -981,12 +1019,15 @@ def handler(_config, _dict_by_node_generated_config, conn_db, dict_of_commands_f
                     break
                 else:
                     # Log the command that was received
-                    server_log.debug(f"CONTEXT: {dict_of_clients[uid].client_uid} - RECEIVED {received_data['COMMAND']}")
+                    server_log.debug(
+                        f"CONTEXT: {dict_of_clients[uid].client_uid} - RECEIVED {received_data['COMMAND']}")
 
                     # TODO sort by occurence
                     if received_data['COMMAND'] == "AUTH":
 
-                        if not server_auth(received_data, dict_of_clients[uid], _config, dict_of_clients[uid].ip_address, dict_of_commands_for_network_clients, sckt, _dict_by_node_generated_config, dict_of_client_pending_acceptance): return
+                        if not server_auth(received_data, dict_of_clients[uid], _config,
+                                           dict_of_clients[uid].ip_address, dict_of_commands_for_network_clients, sckt,
+                                           _dict_by_node_generated_config, dict_of_client_pending_acceptance): return
 
                         # Now that we know the identity of the client connecting, we can update the dictionary of client objects
                         new_uid = dict_of_clients[uid].client_uid
@@ -1003,7 +1044,8 @@ def handler(_config, _dict_by_node_generated_config, conn_db, dict_of_commands_f
                         uid = new_uid
 
                     elif received_data['COMMAND'] == "SAVE_METRIC":
-                        server_save_metric(dict_of_clients[uid], conn_db, received_data, dict_of_clients[uid].ip_address, sckt)
+                        server_save_metric(dict_of_clients[uid], conn_db, received_data,
+                                           dict_of_clients[uid].ip_address, sckt)
 
                     elif received_data['COMMAND'] == "SAVE_STATS_METRIC":
                         server_save_stats_metric(dict_of_clients[uid], received_data)
@@ -1015,7 +1057,8 @@ def handler(_config, _dict_by_node_generated_config, conn_db, dict_of_commands_f
                         server_save_system_infos(dict_of_clients[uid], received_data)
 
                     elif received_data['COMMAND'] == "AWAITING_COMMAND":
-                        server_awaiting_commands(dict_of_clients[uid].client_uid, dict_of_commands_for_network_clients, sckt)
+                        server_awaiting_commands(dict_of_clients[uid].client_uid, dict_of_commands_for_network_clients,
+                                                 sckt)
 
                     elif received_data['COMMAND'] == "HEARTBEAT":
                         pass
@@ -1054,10 +1097,12 @@ def handler(_config, _dict_by_node_generated_config, conn_db, dict_of_commands_f
                 server_log.error(f"CONNECTION RESET BY PEER: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
             elif exc.errno == 10057:  # FOR WINDOWS [WinError 10057]
                 dict_of_clients[uid].status_explanation = "SOCKET IS NOT CONNECTED"
-                server_log.error(f"{type(exc).__name__.upper()}:{exc.errno}: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+                server_log.error(
+                    f"{type(exc).__name__.upper()}:{exc.errno}: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
             else:
                 dict_of_clients[uid].status_explanation = "UNKNOWN OSError"
-                server_log.error(f"UNHANDLE OSError (st_mesh:sock_rcv): {dict_of_clients[uid].ip_address}:", exc, exc.errno, exc.strerror)
+                server_log.error(f"UNHANDLE OSError (st_mesh:sock_rcv): {dict_of_clients[uid].ip_address}:", exc,
+                                 exc.errno, exc.strerror)
         except Exception as exc:
             dict_of_clients[uid].status_explanation = "UNKNOWN"
             server_log.error(f"Handler:handle:{type(exc).__name__}:{exc}", exc_info=True)
@@ -1085,9 +1130,205 @@ def handler(_config, _dict_by_node_generated_config, conn_db, dict_of_commands_f
                 sckt.close()
 
             except Exception as e:
-                server_log.error(f"AN ERROR OCCURRED WHILE FREEING RESOURCE FOR THE CLIENT: {dict_of_clients[uid].client_uid}/{dict_of_clients[uid].ip_address}")
+                server_log.error(
+                    f"AN ERROR OCCURRED WHILE FREEING RESOURCE FOR THE CLIENT: {dict_of_clients[uid].client_uid}/{dict_of_clients[uid].ip_address}")
 
     return handle
+
+
+class Handler(StreamRequestHandler):
+    def handle(self):
+        address = self.client_address
+        sckt = self.connection
+        _config = self.server._config
+        dict_of_commands_for_network_clients = self.server._dict_of_commands_for_network_clients
+        dict_of_clients = self.server._dict_of_clients
+        conn_db = self.server._conn_db
+        _dict_by_node_generated_config = self.server._dict_by_node_generated_config
+        dict_of_client_pending_acceptance = self.server._dict_of_client_pending_acceptance
+
+        cur_thread = threading.current_thread()
+        print(cur_thread, address)
+
+        print(_config['SERVER']['IPERF3_PASSWORD_HASH'], _config['SERVER']['IPERF3_USERNAME'], _config['SERVER']['IPERF3_PASSWORD'])
+
+        uid = address[0]
+        dict_of_clients[uid] = cc_client(status="CONNECTING", status_since=datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                                         status_explanation="NOT YET AUTHENTICATED", client_uid="UNKNOWN",
+                                         bool_dynamic_client=False, tcp_port=address[1], ip_address=address[0])
+
+        try:
+            while True:
+                received_data = ""
+                received_data = sock_rcv(sckt)
+
+                if received_data is None:
+                    received_data = sock_rcv(sckt)
+
+                if received_data is None:
+                    server_log.debug(f"CONTEXT: {dict_of_clients[uid].client_uid} - INVALID DATA RECEIVED")
+                    dict_of_clients[uid].status_explanation = "CONNECTION RESET BY PEER"
+                    server_log.error(f"CONNECTION RESET BY PEER: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+                    break
+                else:
+                    # Log the command that was received
+                    server_log.debug(
+                        f"CONTEXT: {dict_of_clients[uid].client_uid} - RECEIVED {received_data['COMMAND']}")
+
+                    # TODO sort by occurence
+                    if received_data['COMMAND'] == "AUTH":
+
+                        if not server_auth(received_data, dict_of_clients[uid], _config,
+                                           dict_of_clients[uid].ip_address, dict_of_commands_for_network_clients, sckt,
+                                           _dict_by_node_generated_config, dict_of_client_pending_acceptance): return
+
+                        # Now that we know the identity of the client connecting, we can update the dictionary of client objects
+                        new_uid = dict_of_clients[uid].client_uid
+                        dict_of_clients[new_uid].client_uid = new_uid
+                        dict_of_clients[new_uid].status = dict_of_clients[uid].status
+                        dict_of_clients[new_uid].bool_dynamic_client = dict_of_clients[uid].bool_dynamic_client
+                        dict_of_clients[new_uid].status_since = dict_of_clients[uid].status_since
+                        dict_of_clients[new_uid].status_explanation = dict_of_clients[uid].status_explanation
+                        dict_of_clients[new_uid].clock_skew_in_seconds = dict_of_clients[uid].clock_skew_in_seconds
+                        dict_of_clients[new_uid].syntraf_version = dict_of_clients[uid].syntraf_version
+                        dict_of_clients[new_uid].ip_address = address[0]
+                        dict_of_clients[new_uid].tcp_port = address[1]
+                        dict_of_clients.pop(uid)
+                        uid = new_uid
+
+                    elif received_data['COMMAND'] == "SAVE_METRIC":
+                        server_save_metric(dict_of_clients[uid], conn_db, received_data,
+                                           dict_of_clients[uid].ip_address, sckt)
+
+                    elif received_data['COMMAND'] == "SAVE_STATS_METRIC":
+                        server_save_stats_metric(dict_of_clients[uid], received_data)
+
+                    elif received_data['COMMAND'] == "SAVE_THREAD_STATUS":
+                        server_save_thread_status(dict_of_clients[uid], received_data)
+
+                    elif received_data['COMMAND'] == "SYSTEM_INFOS":
+                        server_save_system_infos(dict_of_clients[uid], received_data)
+
+                    elif received_data['COMMAND'] == "AWAITING_COMMAND":
+                        server_awaiting_commands(dict_of_clients[uid].client_uid, dict_of_commands_for_network_clients,
+                                                 sckt)
+
+                    elif received_data['COMMAND'] == "HEARTBEAT":
+                        pass
+
+                    else:
+                        print("UNKNOWN COMMAND:", received_data['COMMAND'])
+
+
+        except socket.timeout as exc:
+            server_log.error(f"SOCKET TIMEOUT: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+            dict_of_clients[uid].status_explanation = "SOCKET TIMEOUT"
+        except json.JSONDecodeError as exc:
+            server_log.error(f"JSON DECODING FAILED FOR STRING")
+        except OSError as exc:
+            if exc.errno == 32:  # BROKEN PIPE, THE OTHER END HAS GONE AWAY
+                dict_of_clients[uid].status_explanation = "BROKEN PIPE"
+                server_log.error(f"BROKEN PIPE: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+            # CONNECTION RESET BY PEER
+            elif exc.errno == 104:
+                dict_of_clients[uid].status_explanation = "CONNECTION RESET BY PEER"
+                server_log.error(f"CONNECTION RESET BY PEER: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+            elif exc.errno == 113:
+                dict_of_clients[uid].status_explanation = "NO ROUTE TO HOST"
+                server_log.error(f"NO ROUTE TO HOST: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+            # CONNECTION TIMEOUT
+            elif exc.errno == 110:
+                dict_of_clients[uid].status_explanation = "CONNECTION TIMEOUT"
+                server_log.error(f"CONNECTION TIMEOUT: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+            # FOR WINDOWS [WinError 10053] #An established connection was aborted by the software in your host machine
+            elif exc.errno == 10053:
+                dict_of_clients[uid].status_explanation = "CONNECTION ABORTED"
+                server_log.error(f"CONNECTION ABORTED: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+            # FOR WINDOWS [WinError 10054]
+            elif exc.errno == 10054:
+                dict_of_clients[uid].status_explanation = "CONNECTION RESET BY PEER"
+                server_log.error(f"CONNECTION RESET BY PEER: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+            elif exc.errno == 10057:  # FOR WINDOWS [WinError 10057]
+                dict_of_clients[uid].status_explanation = "SOCKET IS NOT CONNECTED"
+                server_log.error(
+                    f"{type(exc).__name__.upper()}:{exc.errno}: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+            else:
+                dict_of_clients[uid].status_explanation = "UNKNOWN OSError"
+                server_log.error(f"UNHANDLE OSError (st_mesh:sock_rcv): {dict_of_clients[uid].ip_address}:", exc,
+                                 exc.errno, exc.strerror)
+        except Exception as exc:
+            dict_of_clients[uid].status_explanation = "UNKNOWN"
+            server_log.error(f"Handler:handle:{type(exc).__name__}:{exc}", exc_info=True)
+
+        finally:
+            # The socket on the other end is probably closed
+            server_log.error(f"CLIENT: {dict_of_clients[uid].ip_address} DISCONNECTED")
+
+            try:
+                # If this is a dynamic client, once disconnected, we should forget about the ip address
+                server_forget_dynamic_client_ip(dict_of_clients[uid], _config, dict_of_commands_for_network_clients)
+
+                # Updating the status
+                # We don't want to overwrite a reason for failed authentication, so we overwrite only when the client was connected
+                if "CONNECTED" in dict_of_clients[uid].status:
+                    dict_of_clients[uid].status = "DISCONNECTED"
+                    dict_of_clients[uid].status_since = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
+                # Reinitializing stats array so that the sparklines graphes does not appear in the webui
+                dict_of_clients[uid].system_stats['if_pct_usage_rx'] = []
+                dict_of_clients[uid].system_stats['if_pct_usage_tx'] = []
+                dict_of_clients[uid].system_stats['mem_pct_free'] = []
+                dict_of_clients[uid].system_stats['cpu_pct_usage'] = []
+
+                sckt.close()
+
+            except Exception as e:
+                server_log.error(
+                    f"AN ERROR OCCURRED WHILE FREEING RESOURCE FOR THE CLIENT: {dict_of_clients[uid].client_uid}/{dict_of_clients[uid].ip_address}")
+
+
+class SSL_TCPServer(TCPServer):
+    def __init__(self,
+                 server_address,
+                 RequestHandlerClass,
+                 certfile,
+                 keyfile,
+                 _config,
+                 dict_by_node_generated_config,
+                 conn_db,
+                 dict_of_commands_for_network_clients,
+                 dict_of_clients,
+                 dict_of_client_pending_acceptance,
+                 bind_and_activate=True,
+                 ssl_version=ssl.PROTOCOL_TLSv1):
+        TCPServer.__init__(self, server_address, RequestHandlerClass, bind_and_activate)
+        self.certfile = certfile
+        self.keyfile = keyfile
+        self.ssl_version = ssl_version
+        self._config = _config
+        self._dict_by_node_generated_config = dict_by_node_generated_config
+        self._conn_db = conn_db
+        self._dict_of_commands_for_network_clients = dict_of_commands_for_network_clients
+        self._dict_of_clients = dict_of_clients
+        self._dict_of_client_pending_acceptance = dict_of_client_pending_acceptance
+
+    def get_request(self):
+        newsocket, fromaddr = self.socket.accept()
+        connstream = ssl.wrap_socket(newsocket,
+                                     server_side=True,
+                                     certfile=self.certfile,
+                                     keyfile=self.keyfile,
+                                     #ssl_version=self.ssl_version,
+                                     cert_reqs=ssl.CERT_NONE,
+                                     do_handshake_on_connect=True)
+        return connstream, fromaddr
+
+    def get_config(self):
+        return self._config
+
+class SSLnThreadingTCPServer(ThreadingMixIn, SSL_TCPServer):
+    # Make sure all the client are close when server is closed
+    daemon_threads = True
 
 
 #################################################################################
@@ -1098,82 +1339,62 @@ def handler(_config, _dict_by_node_generated_config, conn_db, dict_of_commands_f
 ###  https://dadruid5.com/2018/07/30/running-a-gevent-streamserver-in-a-thread-for-maximum-control/#:~:text=StreamServer%20Gevent%20maintains%20a%20server%20through%20gevent.server.StreamServer.%20This,pool%20for%20controlling%20the%20number%20of%20connections%20created%3A
 ###  https://stackoverflow.com/questions/21631799/how-can-i-pass-parameters-to-a-requesthandler
 #################################################################################
-def server(_config, threads_n_processes, stop_thread, dict_by_node_generated_config, obj_stats, conn_db, dict_of_commands_for_network_clients, dict_of_clients, dict_of_client_pending_acceptance):
-    pool = Pool(DefaultValues.DEFAULT_SERVER_POOL_SIZE)
-
-    try:
-        # creating socket
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server_address = (_config['SERVER']['BIND_ADDRESS'], int(_config['SERVER']['SERVER_PORT']))
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-        s.settimeout(60)
-
-        # Set tcp socket parameters for timeout
-        #set_tcp_ka(s, server_log)
-
-        # binding the socket to a port on an address
-        s.bind(server_address)
-        s.listen()
-
-    except OSError as exc:
-        if exc.errno == 98:  # Address already in use
-            server_log.error(f"ERROR BINDING SOCKET TO '{_config['SERVER']['BIND_ADDRESS']}:{_config['SERVER']['SERVER_PORT']}': 'ADDRESS ALREADY IN USE'")
-            sys.exit()
-        elif exc.errno == 22:  # Invalid argument
-            server_log.error(f"ERROR BINDING SOCKET TO '{_config['SERVER']['BIND_ADDRESS']}:{_config['SERVER']['SERVER_PORT']}': 'INVALID ARGUMENT'")
-            sys.exit()
-        else:
-            server_log.error(f"UNHANDLED EXCEPTION WHILE BINDING SOCKET TO '{_config['SERVER']['BIND_ADDRESS']}:{_config['SERVER']['SERVER_PORT']}'")
-            sys.exit()
-
-    except Exception as exc:
-        server_log.error(f"ERROR BINDING SOCKET TO '{_config['SERVER']['BIND_ADDRESS']}:{_config['SERVER']['SERVER_PORT']}' : {str(exc[0])} : {str(exc[1])}")
-        sys.exit()
-
+def server(_config, threads_n_processes, stop_thread, dict_by_node_generated_config, obj_stats, conn_db,
+           dict_of_commands_for_network_clients, dict_of_clients, dict_of_client_pending_acceptance):
     # Generating the rsa keypair for iperf3 authentication
     gen_rsa_iperf3(log, _config)
     gen_user_pass_iperf3(log, _config)
-    _config['SERVER']['IPERF3_PASSWORD_HASH'] = gen_iperf3_password_hash(_config['SERVER']['IPERF3_USERNAME'], _config['SERVER']['IPERF3_PASSWORD'])
+    _config['SERVER']['IPERF3_PASSWORD_HASH'] = gen_iperf3_password_hash(_config['SERVER']['IPERF3_USERNAME'],
+                                                                         _config['SERVER']['IPERF3_PASSWORD'])
+    server_address = (_config['SERVER']['BIND_ADDRESS'], int(_config['SERVER']['SERVER_PORT']))
 
     try:
-        server_log.debug(f"CONTROL CHANNEL SERVER SOCKET CREATED")
-
-        # Creating GEvent SSL StreamServer
+        # Validating if we need to wrap the socket with legit cert or self-signed
         self_signed_flag = True
         if 'SERVER_X509_SELFSIGNED' in _config['SERVER']:
             if _config['SERVER']['SERVER_X509_SELFSIGNED'] == "NO":
                 self_signed_flag = False
-
         if not self_signed_flag:
-            try:
-                server = StreamServer(s, handler(_config, dict_by_node_generated_config, conn_db, dict_of_commands_for_network_clients, dict_of_clients, dict_of_client_pending_acceptance), keyfile=_config['SERVER']['SERVER_X509_PRIVATE_KEY'], certfile=_config['SERVER']['SERVER_X509_CERTIFICATE'], server_side=True, cert_reqs=ssl.CERT_NONE, do_handshake_on_connect=True, spawn=pool)
-                server_log.debug(f"BINDING CONTROL CHANNEL SERVER SSL SOCKET TO '{_config['SERVER']['BIND_ADDRESS']}:{_config['SERVER']['SERVER_PORT']}' SUCCESSFUL")
-                server_log.debug(f"CONTROL CHANNEL SERVER SSL SOCKET LISTENING")
+                server_log.debug(f"CONTROL CHANNEL SERVER SOCKET CREATED")
+                tcp_server = SSLnThreadingTCPServer(server_address, Handler, _config=_config,
+                                                    dict_by_node_generated_config=dict_by_node_generated_config,
+                                                    conn_db=conn_db,
+                                                    dict_of_commands_for_network_clients=dict_of_commands_for_network_clients,
+                                                    dict_of_clients=dict_of_clients,
+                                                    dict_of_client_pending_acceptance=dict_of_client_pending_acceptance,
+                                                    keyfile=_config['SERVER']['SERVER_X509_PRIVATE_KEY'],
+                                                    certfile=_config['SERVER']['SERVER_X509_CERTIFICATE'],
+                                                    bind_and_activate=True)
 
-            except Exception as msg:
-                server_log.error(f"ERROR BINDING SOCKET TO '{_config['SERVER']['BIND_ADDRESS']}:{_config['SERVER']['SERVER_PORT']}' : {str(msg[0])} : {str(msg[1])}")
-                sys.exit()
+                server_log.debug(
+                    f"BINDING CONTROL CHANNEL SERVER SSL SOCKET TO '{_config['SERVER']['BIND_ADDRESS']}:{_config['SERVER']['SERVER_PORT']}' SUCCESSFUL")
+                server_log.debug(f"CONTROL CHANNEL SERVER SSL SOCKET LISTENING")
         else:
-            try:
-                server = StreamServer(s, handler(_config, dict_by_node_generated_config, conn_db, dict_of_commands_for_network_clients, dict_of_clients, dict_of_client_pending_acceptance), keyfile=os.path.join(DefaultValues.DEFAULT_SERVER_X509_SELFSIGNED_DIRECTORY, "private_key_server.pem"), certfile=os.path.join(DefaultValues.DEFAULT_SERVER_X509_SELFSIGNED_DIRECTORY, "certificate_server.pem"), server_side=True, cert_reqs=ssl.CERT_NONE, do_handshake_on_connect=True, spawn=pool)
-                server_log.debug(f"BINDING CONTROL CHANNEL SERVER SSL SOCKET TO '{_config['SERVER']['BIND_ADDRESS']}:{_config['SERVER']['SERVER_PORT']}' SUCCESSFUL")
+
+                server_log.debug(f"CONTROL CHANNEL SERVER SOCKET CREATED")
+                tcp_server = SSLnThreadingTCPServer(server_address, Handler, _config=_config,
+                                                    dict_by_node_generated_config=dict_by_node_generated_config,
+                                                    conn_db=conn_db,
+                                                    dict_of_commands_for_network_clients=dict_of_commands_for_network_clients,
+                                                    dict_of_clients=dict_of_clients,
+                                                    dict_of_client_pending_acceptance=dict_of_client_pending_acceptance,
+                                                    keyfile=os.path.join(
+                                                        DefaultValues.DEFAULT_SERVER_X509_SELFSIGNED_DIRECTORY,
+                                                        "private_key_server.pem"),
+                                                    certfile=os.path.join(
+                                                        DefaultValues.DEFAULT_SERVER_X509_SELFSIGNED_DIRECTORY,
+                                                        "certificate_server.pem"), bind_and_activate=True)
+
+                server_log.debug(
+                    f"BINDING CONTROL CHANNEL SERVER SSL SOCKET TO '{_config['SERVER']['BIND_ADDRESS']}:{_config['SERVER']['SERVER_PORT']}' SUCCESSFUL")
                 server_log.debug(f"CONTROL CHANNEL SERVER SSL SOCKET LISTENING")
-            except Exception as msg:
-                server_log.error(
-                    f"ERROR BINDING CONTROL CHANNEL SERVER SSL SOCKET TO '{_config['SERVER']['BIND_ADDRESS']}:{_config['SERVER']['SERVER_PORT']}' : {str(msg)}")
-                sys.exit()
 
-        try:
-            server.serve_forever()
-        except OSError as msg:
-            server_log.error(f"UNABLE TO START SERVER ON '{_config['SERVER']['BIND_ADDRESS']}:{_config['SERVER']['SERVER_PORT']}' : {msg}")
-            sys.exit()
+        tcp_server.serve_forever()
 
-        except Exception as exc:
-            server_log.error(f"server:{type(exc).__name__}:{exc}", exc_info=True)
-            print(traceback.format_exc())
-            sys.exit()
+    except OSError as msg:
+        server_log.error(
+            f"UNABLE TO START SERVER ON '{_config['SERVER']['BIND_ADDRESS']}:{_config['SERVER']['SERVER_PORT']}' : {msg}")
+        sys.exit()
 
     except Exception as exc:
         server_log.error(f"server:{type(exc).__name__}:{exc}", exc_info=True)
@@ -1182,7 +1403,6 @@ def server(_config, threads_n_processes, stop_thread, dict_by_node_generated_con
 
 
 def set_tcp_ka(sckt, log):
-
     sckt.settimeout(60)
     """
     Setting socket parameters
@@ -1205,8 +1425,7 @@ def set_tcp_ka(sckt, log):
 
     """
 
-
-    #SO_TIMEOUT
+    # SO_TIMEOUT
 
     # Platform independent SO_KEEPALIVE
     keepalive_before = sckt.getsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE)
@@ -1253,7 +1472,8 @@ def set_tcp_ka(sckt, log):
         tcp_buffer_after = sckt.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF)
 
         log.debug(f"MODIFYING SO_SNDBUF ON SOCKET FROM '{tcp_buffer_before}' to '{tcp_buffer_after}'")
-        log.debug(f"MODIFYING TCP_USER_TIMEOUT ON SOCKET FROM '{tcp_user_timeout_before}' to '{tcp_user_timeout_after}'")
+        log.debug(
+            f"MODIFYING TCP_USER_TIMEOUT ON SOCKET FROM '{tcp_user_timeout_before}' to '{tcp_user_timeout_after}'")
         log.debug(f"MODIFYING TCP_KEEPIDLE ON SOCKET FROM '{ka_after_idle_sec_before}' to '{ka_after_idle_sec_after}'")
         log.debug(f"MODIFYING TCP_KEEPINTVL ON SOCKET FROM '{ka_interval_sec_before}' to '{ka_interval_sec_after}'")
         log.debug(f"MODIFYING TCP_KEEPCNT ON SOCKET FROM '{ka_max_fails_before}' to '{ka_max_fails_after}'")
@@ -1273,9 +1493,11 @@ def set_tcp_ka(sckt, log):
     elif platform == "win32":
         # Enable TCP socket keepalive with (on/off, keep alive time, keep alive interval)
         log.debug(f"MODIFYING TCP SOCKET PARAMETERS FOR WIN32.")
-        log.debug(f"BEFORE: TCP_KEEPIDLE --> {sckt.getsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE)}, TCP_KEEPINTVL --> {sckt.getsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL)}, TCP_KEEPCNT --> {sckt.getsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT)}")
+        log.debug(
+            f"BEFORE: TCP_KEEPIDLE --> {sckt.getsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE)}, TCP_KEEPINTVL --> {sckt.getsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL)}, TCP_KEEPCNT --> {sckt.getsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT)}")
         sckt.ioctl(socket.SIO_KEEPALIVE_VALS, (1, ka_after_idle_sec * 1000, ka_interval_sec * 1000))
-        log.debug(f"AFTER: TCP_KEEPIDLE --> {sckt.getsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE)}, TCP_KEEPINTVL --> {sckt.getsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL)}, TCP_KEEPCNT --> {sckt.getsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT)}")
+        log.debug(
+            f"AFTER: TCP_KEEPIDLE --> {sckt.getsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE)}, TCP_KEEPINTVL --> {sckt.getsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL)}, TCP_KEEPCNT --> {sckt.getsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT)}")
 
 
 def close_listeners_and_connectors(threads_n_processes):
@@ -1289,7 +1511,7 @@ def update_config(data, _config):
     # Updating config (LISTENERS AND CONNECTORS)
     new_config = {'LISTENERS': data['PAYLOAD']['LISTENERS'], 'CONNECTORS': data['PAYLOAD']['CONNECTORS']}
 
-    #Updating CLIENT and GLOBAL config (must be careful, there is already config in this clause)
+    # Updating CLIENT and GLOBAL config (must be careful, there is already config in this clause)
     _config['CLIENT']['IPERF3_USERNAME'] = data['PAYLOAD']['CLIENT']['IPERF3_USERNAME']
     _config['CLIENT']['IPERF3_PASSWORD'] = data['PAYLOAD']['CLIENT']['IPERF3_PASSWORD']
     _config['CLIENT']['IPERF3_HASH'] = data['PAYLOAD']['CLIENT']['IPERF3_PASSWORD_HASH']
