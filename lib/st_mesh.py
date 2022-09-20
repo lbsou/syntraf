@@ -11,11 +11,11 @@ if not CompilationOptions.client_only:
     # from gevent.server import StreamServer
     from gevent.pool import Pool
     from lib.st_influxdb import *  # import ssl after monkey patch because of urllib3
-    from socketserver import TCPServer, ThreadingMixIn, StreamRequestHandler
 
 from lib.st_conf_validation import generate_client_config_mesh
 
 # BUILTIN IMPORT
+from socketserver import TCPServer, ThreadingMixIn, StreamRequestHandler
 import logging
 import sys
 import time
