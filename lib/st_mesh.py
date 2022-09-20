@@ -640,7 +640,7 @@ def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processe
         try:
             ssl_conn.close()
         except Exception as e:
-            print(exc)
+            print(e)
 
 
 def validate_clock_skew(_config, received_data, obj_client):
