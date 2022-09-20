@@ -11,7 +11,7 @@ from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
 
-from passlib.hash import sha256_crypt
+#from passlib.hash import sha256_crypt
 
 # BUILTIN IMPORT
 from datetime import datetime, timedelta
