@@ -30,7 +30,7 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
                 if (len(values) >= 20 and ("omitted" not in line) and ("terminated" not in line) and (
                         "Interval" not in line) and ("receiver" not in line) and ("------------" not in line) and (
                         "- - - - - - - - -" not in line)):
-                    log.error("tail():YIELDING LINE")
+                    #log.error("tail():YIELDING LINE")
                     utime_last_event = time.time()
                     file.seek(0)
                     file.truncate()
@@ -62,7 +62,7 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
                 For that, we need to already have received a log in the past (utime_last_event != 0) and the current log file of iperf3 must not yield line (not line)
                 '''
                 #log.debug(f"OUTAGE_MECHANISM DEBUG utime_last_event:{utime_last_event}")
-                log.debug(f"{utime_last_event}{line}{listener_just_started_or_absent}")
+                #log.debug(f"{utime_last_event}{line}{listener_just_started_or_absent}")
 
                 if utime_last_event != 0 and not line:
                     #log.debug(f"OUTAGE_MECHANISM DEBUG utime_now:{utime_now} utime_last_event:{utime_last_event} utime_now - utime_last_event: {(utime_now - utime_last_event)}")
@@ -168,7 +168,7 @@ def read_log(listener_dict_key, _config, stop_thread, dict_data_to_send_to_serve
     log.info(f"READING LOGS FOR LISTENER {listener_dict_key} FROM {file.name} ")
     try:
         for line in lines:
-            log.debug(f"TEMP DEBUG {line}")
+            #log.debug(f"TEMP DEBUG {line}")
             if stop_thread[0] or not parse_line_to_array(line, _config, listener_dict_key, conn_db, dict_data_to_send_to_server):
                 break
 
