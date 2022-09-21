@@ -655,6 +655,7 @@ def config_validation_global(_config):
 
     return True
 
+
 def valid_dir_logs(_config):
     # validating directory for iperf3 logs
     if 'IPERF3_TEMP_DIRECTORY' in _config['GLOBAL']:

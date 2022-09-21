@@ -349,7 +349,7 @@ def client_send_auth(_config, client_utime, ssl_conn):
         raise exc
 
 
-def client_receive_configuration(_config, ssl_conn, threads_n_processes, config_file_path):
+def client_receive_configuration(_config, ssl_conn, threads_n_processes, config_file_path, cli_parameters):
     try:
         # If successful, receiving configuration!
         client_log.debug(f"WAITING FOR CONFIGURATION")
@@ -366,13 +366,11 @@ def client_receive_configuration(_config, ssl_conn, threads_n_processes, config_
                 # PROJ-A
                 # If there is no changes, don't restart!
                 read_success, disk_config = read_conf(config_file_path)
-                client_log.debug(
-                    "=========================================================================================================================")
                 if read_success:
-                    client_log.debug("=========================================================================================================================")
                     update_config(received_data, disk_config)
                     valid_dir_rsa_keypair(disk_config)
                     valid_dir_logs(disk_config)
+                    disk_config['GLOBAL']['LOGDIR'] = cli_parameters.log_dir
 
                     client_log.debug(_config)
                     client_log.debug(disk_config)
@@ -589,14 +587,14 @@ def client_command_diffconfig(_config, received_data, threads_n_processes):
 #################################################################################
 ###  MESH CLIENT SOCKET
 #################################################################################
-def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processes, obj_stats, config_file_path):
+def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processes, obj_stats, config_file_path, cli_parameters):
     address = "0.0.0.0"
 
     try:
         ssl_conn = client_sck_init(_config)
         client_utime = client_connect_utime(_config)
         client_send_auth(_config, client_utime, ssl_conn)
-        client_receive_configuration(_config, ssl_conn, threads_n_processes, config_file_path)
+        client_receive_configuration(_config, ssl_conn, threads_n_processes, config_file_path, cli_parameters)
         client_send_system_infos(ssl_conn)
 
         while True:
