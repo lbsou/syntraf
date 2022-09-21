@@ -786,18 +786,18 @@ def config_validation_client(_config, parameters):
             f"IS TOKEN SPECIFIED IN CLIENT CONFIGURATION : NO")
         return False
 
-    # LOCAL IP
-    apply_default = False
-    if 'MESH_LOCAL_IP' in _config['CLIENT']:
-        if not is_ip_or_hostname_valid(_config['CLIENT']['MESH_LOCAL_IP'], "MESH_LOCAL_IP"):
-            apply_default = True
-    else:
-        apply_default = True
-
-    if apply_default:
-        log.warning(
-            f"APPLYING MESH_LOCAL_IP DEFAULT '0.0.0.0' ; LISTENING ON ALL INTERFACES.")
-        _config['CLIENT']['MESH_LOCAL_IP'] = "0.0.0.0"
+    # # LOCAL IP
+    # apply_default = False
+    # if 'MESH_LOCAL_IP' in _config['CLIENT']:
+    #     if not is_ip_or_hostname_valid(_config['CLIENT']['MESH_LOCAL_IP'], "MESH_LOCAL_IP"):
+    #         apply_default = True
+    # else:
+    #     apply_default = True
+    #
+    # if apply_default:
+    #     log.warning(
+    #         f"APPLYING MESH_LOCAL_IP DEFAULT '0.0.0.0' ; LISTENING ON ALL INTERFACES.")
+    #     _config['CLIENT']['MESH_LOCAL_IP'] = "0.0.0.0"
 
     # # Do we need to forward metrics to server?
     # if 'FORWARD_METRICS_TO_SERVER' in _config['CLIENT']:
