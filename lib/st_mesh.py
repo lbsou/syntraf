@@ -2,7 +2,7 @@
 from lib.st_crypto import *
 from lib.st_struct import cl_ifreq
 from lib.st_read_toml import read_conf
-from lib.st_conf_validation import valid_dir_rsa_keypair
+from lib.st_conf_validation import valid_dir_rsa_keypair, valid_dir_logs
 
 # SYNTRAF SERVER IMPORT
 if not CompilationOptions.client_only:
@@ -372,6 +372,7 @@ def client_receive_configuration(_config, ssl_conn, threads_n_processes, config_
                     client_log.debug("=========================================================================================================================")
                     update_config(received_data, disk_config)
                     valid_dir_rsa_keypair(disk_config)
+                    valid_dir_logs(disk_config)
 
                     client_log.debug(_config)
                     client_log.debug(disk_config)
