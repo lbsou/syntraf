@@ -272,7 +272,7 @@ def client_sck_init(_config):
 
         # Wrapping the socket
         ssl_conn = context.wrap_socket(s, server_side=False, do_handshake_on_connect=True)
-        client_log.debug(_config['CLIENT'])
+
         client_log.info(f"TRYING TO CONNECT TO : {_config['CLIENT']['SERVER']}:{_config['CLIENT']['SERVER_PORT']}")
 
         # CONNECT
