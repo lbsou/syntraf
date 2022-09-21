@@ -366,7 +366,8 @@ def client_receive_configuration(_config, ssl_conn, threads_n_processes, config_
                 # PROJ-A
                 # If there is no changes, don't restart!
                 read_success, disk_config = read_conf(config_file_path)
-
+                print(
+                    "=========================================================================================================================")
                 if read_success:
                     print("=========================================================================================================================")
                     update_config(received_data, disk_config)
