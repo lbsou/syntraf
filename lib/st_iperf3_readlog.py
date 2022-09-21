@@ -61,12 +61,11 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
                 Iperf3 stop generating events when the connection is lost for too long [how much exactly?], but we still want to report the losses
                 For that, we need to already have received a log in the past (utime_last_event != 0) and the current log file of iperf3 must not yield line (not line)
                 '''
-                log.debug(f"OUTAGE_MECHANISM DEBUG utime_last_event:{utime_last_event}")
+                #log.debug(f"OUTAGE_MECHANISM DEBUG utime_last_event:{utime_last_event}")
                 log.debug(f"{utime_last_event}{line}{listener_just_started_or_absent}")
 
                 if utime_last_event != 0 and not line:
-                    log.debug(
-                        f"OUTAGE_MECHANISM DEBUG utime_now:{utime_now} utime_last_event:{utime_last_event} utime_now - utime_last_event: {(utime_now - utime_last_event)}")
+                    #log.debug(f"OUTAGE_MECHANISM DEBUG utime_now:{utime_now} utime_last_event:{utime_last_event} utime_now - utime_last_event: {(utime_now - utime_last_event)}")
 
                     # If iperf3 did not write any events for the double of the interval he's supposed to
                     if (utime_now - utime_last_event) >= (2 * interval):
