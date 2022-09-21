@@ -52,13 +52,13 @@ def run():
     # parser.add_argument('-r', "--reload", action='store_true',
     #                     help='Trigger a reload of configuration on already running SYNTRAF instance', required=False)
     parser.add_argument('-v', action='version', version=f'%(prog)s {DefaultValues.SYNTRAF_VERSION}')
-    results = parser.parse_args()
+    cli_parameters = parser.parse_args()
 
     # creating pid file var
     pid_file_path = DefaultValues.SYNTRAF_PID_FILE
     pid_file = pathlib.Path(pid_file_path)
 
-    is_dir_create_on_fail(results.log_dir, "LOG_DIR")
+    is_dir_create_on_fail(cli_parameters.log_dir, "LOG_DIR")
 
     print(f"SYNTRAF v{DefaultValues.SYNTRAF_VERSION}")
 
@@ -91,16 +91,16 @@ def run():
         sys.exit()
 
     # Initializing logs before config validation
-    bool_config_valid, config = read_conf(results.config_file)
+    bool_config_valid, config = read_conf(cli_parameters.config_file)
     if not bool_config_valid:
         log.error(f"CONFIGURATION VALIDATION FAILED")
         sys.exit()
-    log_init(results, config)
+    log_init(cli_parameters, config)
 
     # Validation of configuration
-    bool_config_valid, config, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map = validate_config(results)
+    bool_config_valid, config, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map = validate_config(cli_parameters)
 
-    if bool_config_valid: config['GLOBAL']['LOGDIR'] = results.log_dir
+    if bool_config_valid: config['GLOBAL']['LOGDIR'] = cli_parameters.log_dir
 
     if not bool_config_valid:
         log.error(f"CONFIGURATION VALIDATION FAILED")
@@ -165,7 +165,7 @@ def run():
         reload_flag = False
 
         # launch iperf_listeners, iperf_connectors read_log, client, server
-        threads_n_processes, subprocess_iperf_dict = launch_and_respawn_workers(config, results, threads_n_processes, obj_stats, dict_of_clients, dict_data_to_send_to_server, dict_of_commands_for_network_clients, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_of_client_pending_acceptance, results.config_file, conn_db, subprocess_iperf_dict)
+        threads_n_processes, subprocess_iperf_dict = launch_and_respawn_workers(config, cli_parameters, threads_n_processes, obj_stats, dict_of_clients, dict_data_to_send_to_server, dict_of_commands_for_network_clients, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_of_client_pending_acceptance, cli_parameters.config_file, conn_db, subprocess_iperf_dict)
 
         # # Validate if reload flag has been set by user with another instance of the script (-r)
         # try:
