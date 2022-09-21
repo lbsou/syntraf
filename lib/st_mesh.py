@@ -366,10 +366,10 @@ def client_receive_configuration(_config, ssl_conn, threads_n_processes, config_
                 # PROJ-A
                 # If there is no changes, don't restart!
                 read_success, disk_config = read_conf(config_file_path)
-                print(
+                client_log.debug(
                     "=========================================================================================================================")
                 if read_success:
-                    print("=========================================================================================================================")
+                    client_log("=========================================================================================================================")
                     update_config(received_data, disk_config)
                     valid_dir_rsa_keypair(disk_config)
 
