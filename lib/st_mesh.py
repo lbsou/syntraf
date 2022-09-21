@@ -362,11 +362,12 @@ def client_receive_configuration(_config, ssl_conn, threads_n_processes, config_
             else:
                 client_log.info(f"NEW CONFIG RECEIVED FROM SERVER")
 
+                # PROJ-A
                 # If there is no changes, don't restart!
-
                 read_success, disk_config = read_conf(config_file_path)
                 if read_success:
                     update_config(received_data, disk_config)
+                    save_credentials(received_data, disk_config)
                     if disk_config == _config:
                         client_log.debug("SAME SAME SAME SAME")
                     else:
@@ -784,7 +785,7 @@ def server_save_metric(obj_client, conn_db, received_data, address, sckt):
 
 
 def server_auth(received_data, obj_client, _config, address, dict_of_commands_for_network_clients, sckt,
-                _dict_by_node_generated_config, dict_of_client_pending_acceptance):
+                _dict_by_node_generated_config, dict_of_client_pending_acceptance, threads_n_processes):
     obj_client.client_uid = received_data['PAYLOAD']['CLIENT_UID']
     public_key = received_data['PAYLOAD']['PUBLIC_KEY']
 
@@ -862,8 +863,7 @@ def server_auth(received_data, obj_client, _config, address, dict_of_commands_fo
 
     # Send the config to the client
     server_log.debug(f"CONTEXT: {obj_client.client_uid} - SENDING CONFIG TO THE CLIENT")
-    bool_we_have_config_for_this_client = send_config(_dict_by_node_generated_config, obj_client.client_uid, sckt,
-                                                      _config)
+    bool_we_have_config_for_this_client = send_config(_dict_by_node_generated_config, obj_client.client_uid, sckt, _config)
 
     obj_client.syntraf_version = received_data['PAYLOAD']['SYNTRAF_CLIENT_VERSION']
 
@@ -1014,6 +1014,7 @@ class Handler(StreamRequestHandler):
         conn_db = self.server.conn_db
         _dict_by_node_generated_config = self.server.dict_by_node_generated_config
         dict_of_client_pending_acceptance = self.server.dict_of_client_pending_acceptance
+        threads_n_processes = self.server.threads_n_processes
 
         current_thread = threading.current_thread()
         log.debug(current_thread)
@@ -1046,7 +1047,7 @@ class Handler(StreamRequestHandler):
 
                         if not server_auth(received_data, dict_of_clients[uid], _config,
                                            dict_of_clients[uid].ip_address, dict_of_commands_for_network_clients, sckt,
-                                           _dict_by_node_generated_config, dict_of_client_pending_acceptance): return
+                                           _dict_by_node_generated_config, dict_of_client_pending_acceptance, threads_n_processes): return
 
                         # Now that we know the identity of the client connecting, we can update the dictionary of client objects
                         new_uid = dict_of_clients[uid].client_uid
@@ -1240,6 +1241,7 @@ def server(_config, threads_n_processes, stop_thread, dict_by_node_generated_con
         tcp_server.dict_of_clients = dict_of_clients
         tcp_server.dict_of_client_pending_acceptance = dict_of_client_pending_acceptance
         tcp_server._config = _config
+        tcp_server.threads_n_processes = threads_n_processes
         tcp_server.serve_forever()
 
     except OSError as msg:

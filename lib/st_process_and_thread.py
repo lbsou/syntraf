@@ -69,7 +69,7 @@ def launch_and_respawn_workers(config, parameters, threads_n_processes,  obj_sta
 
         # SERVER
         if "SERVER" in config:
-            manage_mesh(config, threads_n_processes, "SERVER", obj_stats, dict_of_client_pending_acceptance=dict_of_client_pending_acceptance, dict_of_clients=dict_of_clients, conn_db=conn_db, _dict_by_node_generated_config=_dict_by_node_generated_config, dict_of_commands_for_network_clients=dict_of_commands_for_network_clients)
+            manage_mesh(config, threads_n_processes, "SERVER", obj_stats, config_file_path, dict_of_client_pending_acceptance=dict_of_client_pending_acceptance, dict_of_clients=dict_of_clients, conn_db=conn_db, _dict_by_node_generated_config=_dict_by_node_generated_config, dict_of_commands_for_network_clients=dict_of_commands_for_network_clients)
 
             # WEBUI
             list = [thr for thr in threads_n_processes if getattr(thr, 'syntraf_instance_type') == "WEBUI"]
