@@ -157,6 +157,7 @@ def run():
     # dict_of_commands_for_network_clients = {"DATACENTER": ["RESTART","PAUSE"]}
     dict_of_commands_for_network_clients = {}
 
+    # Using a public key mechanism, we have a list of client that are waiting acceptance
     dict_of_client_pending_acceptance = {}
 
     # WATCHDOG

@@ -94,7 +94,7 @@ def launch_and_respawn_workers(config, parameters, threads_n_processes,  obj_sta
                 # threads_n_processes.append(thread_or_process)
 
         # CLIENT
-        manage_mesh(config, threads_n_processes, "CLIENT", obj_stats, dict_data_to_send_to_server=dict_data_to_send_to_server)
+        manage_mesh(config, threads_n_processes, "CLIENT", obj_stats, config_file_path, dict_data_to_send_to_server=dict_data_to_send_to_server)
 
 
     except Exception as exc:
@@ -151,7 +151,7 @@ def init_client_obj_dict(config, dict_of_clients):
                                                    'cpu_pct_usage': list_stats_cpu_pct_usage}
 
 
-def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, dict_of_client_pending_acceptance={}, dict_of_clients={}, dict_data_to_send_to_server=[], conn_db=None, _dict_by_node_generated_config=dict(), dict_of_commands_for_network_clients=dict()):
+def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, config_file_path, dict_of_client_pending_acceptance={}, dict_of_clients={}, dict_data_to_send_to_server=[], conn_db=None, _dict_by_node_generated_config=dict(), dict_of_commands_for_network_clients=dict()):
     # Variable to be able to stop thread. It is in a list to be mutable and will be assigned inside a st_obj_thread_n_process object
     stop_thread = [False]
     try:
@@ -173,7 +173,7 @@ def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, dict_of_clien
 
                 # RESTART MESH INSTANCE
                 if mesh_type == "CLIENT":
-                    thread_run = threading.Thread(target=eval(mesh_type.lower()), args=(config, stop_thread, dict_data_to_send_to_server, threads_n_processes, obj_stats),
+                    thread_run = threading.Thread(target=eval(mesh_type.lower()), args=(config, stop_thread, dict_data_to_send_to_server, threads_n_processes, obj_stats, config_file_path),
                                                   daemon=True)
                 elif mesh_type == "SERVER":
                     init_client_obj_dict(config, dict_of_clients)
@@ -195,7 +195,7 @@ def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, dict_of_clien
 
                 # START MESH INSTANCE
                 if mesh_type == "CLIENT":
-                    thread_run = threading.Thread(target=eval(mesh_type.lower()), args=(config, stop_thread, dict_data_to_send_to_server, threads_n_processes, obj_stats),
+                    thread_run = threading.Thread(target=eval(mesh_type.lower()), args=(config, stop_thread, dict_data_to_send_to_server, threads_n_processes, obj_stats, config_file_path),
                                                   daemon=True)
                 elif mesh_type == "SERVER":
                     init_client_obj_dict(config, dict_of_clients)
