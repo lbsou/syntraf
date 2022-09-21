@@ -367,6 +367,8 @@ def client_receive_configuration(_config, ssl_conn, threads_n_processes, config_
                 # If there is no changes, don't restart!
                 read_success, disk_config = read_conf(config_file_path)
                 valid_dir_rsa_keypair(disk_config)
+                print(_config)
+                print(disk_config)
 
                 if read_success:
                     update_config(received_data, disk_config)
