@@ -478,14 +478,14 @@ def client_send_system_stats(ssl_conn, obj_stats):
 def client_awaiting_command(ssl_conn):
     try:
         # We give the chance to the server to send us an action
-        client_log.debug(f"BEFORE ASKING FOR COMMAND TO THE SERVER")
+        #client_log.debug(f"BEFORE ASKING FOR COMMAND TO THE SERVER")
         sock_send(ssl_conn, "", "AWAITING_COMMAND")
-        client_log.debug(f"AFTER ASKING FOR COMMAND TO THE SERVER")
+        #client_log.debug(f"AFTER ASKING FOR COMMAND TO THE SERVER")
 
         # Receiving the answer
-        client_log.debug(f"BEFORE RECEIVING COMMAND OR NOP FROM THE SERVER")
+        #client_log.debug(f"BEFORE RECEIVING COMMAND OR NOP FROM THE SERVER")
         received_data = sock_rcv(ssl_conn)
-        client_log.debug(f"AFTER RECEIVING COMMAND OR NOP FROM THE SERVER")
+        #client_log.debug(f"AFTER RECEIVING COMMAND OR NOP FROM THE SERVER")
     except Exception as exc:
         raise exc
 
