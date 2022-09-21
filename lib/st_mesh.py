@@ -1,6 +1,7 @@
 # SYNTRAF GLOBAL IMPORT
 from lib.st_crypto import *
 from lib.st_struct import cl_ifreq
+from lib.st_read_toml import read_conf
 
 # SYNTRAF SERVER IMPORT
 if not CompilationOptions.client_only:
@@ -347,7 +348,7 @@ def client_send_auth(_config, client_utime, ssl_conn):
         raise exc
 
 
-def client_receive_configuration(_config, ssl_conn, threads_n_processes):
+def client_receive_configuration(_config, ssl_conn, threads_n_processes, config_file_path):
     try:
         # If successful, receiving configuration!
         client_log.debug(f"WAITING FOR CONFIGURATION")
@@ -360,6 +361,18 @@ def client_receive_configuration(_config, ssl_conn, threads_n_processes):
                 client_log.warning(f"THE SERVER DOES NOT HAVE CONFIG FOR THIS NODE FOR NOW")
             else:
                 client_log.info(f"NEW CONFIG RECEIVED FROM SERVER")
+
+                # If there is no changes, don't restart!
+
+                read_success, disk_config = read_conf(config_file_path)
+                if read_success:
+                    update_config(received_data, disk_config)
+                    if disk_config == _config:
+                        client_log.debug("SAME SAME SAME SAME")
+                    else:
+                        client_log.debug("DIFF DIFF DIFF DIFF")
+
+
                 # got new config, close all listeners and connectors because if the server has restarted, all the credentials has been re-initialized
                 client_log.debug(f"CLOSING LISTENERS AND CONNECTORS BEFORE APPLYING NEW CONFIG")
                 close_listeners_and_connectors(threads_n_processes)
@@ -566,14 +579,14 @@ def client_command_diffconfig(_config, received_data, threads_n_processes):
 #################################################################################
 ###  MESH CLIENT SOCKET
 #################################################################################
-def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processes, obj_stats):
+def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processes, obj_stats, config_file_path):
     address = "0.0.0.0"
 
     try:
         ssl_conn = client_sck_init(_config)
         client_utime = client_connect_utime(_config)
         client_send_auth(_config, client_utime, ssl_conn)
-        client_receive_configuration(_config, ssl_conn, threads_n_processes)
+        client_receive_configuration(_config, ssl_conn, threads_n_processes, config_file_path)
         client_send_system_infos(ssl_conn)
 
         while True:

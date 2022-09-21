@@ -9,6 +9,9 @@
       <button id="btn_new" type="button" class="btn btn-primary" style="width:120px;">
           <i class="fas fa-plus"></i>&nbsp;&nbsp;&nbsp;New
       </button>
+      <button id="btn_edit" type="button" class="btn btn-primary" style="width:120px;">
+          <i class="fa fa-edit"></i>&nbsp;&nbsp;&nbsp;Edit
+      </button>
       <button id="btn_delete" class="btn btn-danger" style="width:120px;" disabled>
         <i class="fa fa-trash"></i>&nbsp;&nbsp;&nbsp;Delete
       </button>
@@ -84,8 +87,8 @@
     </div>
 </div>
 
-<div class="modal fade" id="modal_new_mesh_group" tabindex="-1" role="dialog" aria-labelledby="Modal-vert-center-demo-label" aria-hidden="true">
-  <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
+<div class="modal fade" id="modal_new_mesh_group" tabindex="-1" role="dialog" aria-labelledby="modal_new_mesh_group" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="modal_new_mesh_group_label">Create mesh group</h5>
@@ -94,9 +97,10 @@
             <div class="table-responsive">
                 <div class="form-group">
                   <fieldset>
-                    <label class="form-label mt-4">Name (A-Za-z0-9_-)</label>
+                    <label class="form-label mt-4">Name</label>
                     <input class="form-control" id="mg_name" type="text" placeholder="">
                   </fieldset>
+                    <div id="mg_name-feedback"></div>
                   <fieldset>
                     <div style="display: inline-block;">
                         <label class="form-label mt-4">Bandwidth</label>
@@ -126,7 +130,8 @@
             </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+        <button type="button" class="btn btn-primary" data-bs-dismiss="modal" style="width:100px;">Cancel</button>
+        <button type="button" class="btn btn-primary" style="width:100px;">Save</button>
       </div>
     </div>
   </div>
@@ -176,7 +181,32 @@
         $modal_new_mesh_group.modal('show');
     });
 
+    $('#mg_name').blur(function() {
+        let mg_uid = $('#mg_name').val()
+        const re = new RegExp('^[A-Za-z0-9_-]{5,100}$');
+        alert("asdasd");
+        if(re.test(mg_uid)){
+            alert("valid");
+            $('#mg_uid').removeClass('is-invalid');
+            $('#mg_uid').addClass('is-valid');
+            $('#mg_name-feedback').removeClass('invalid-feedback');
+            $('#mg_name-feedback').addClass('valid-feedback');
+            $('#mg_name-feedback').text("OK");
+        }
+        else {
+            alert("invalid");
+            $('#mg_uid').removeClass('is-valid');
+            $('#mg_uid').addClass('is-valid');
+            $('#mg_name-feedback').removeClass('valid-feedback');
+            $('#mg_name-feedback').addClass('invalid-feedback');
+            $('#mg_name-feedback').text("BAD");
+        }
 
+        // Does it already exist?
+
+
+
+    });
 
     $table.on('check.bs.table uncheck.bs.table ' + 'check-all.bs.table uncheck-all.bs.table',
     function () {
