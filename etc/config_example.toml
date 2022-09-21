@@ -47045,6 +47045,9 @@ CLIENT_UID = "LAB1-VM"
 SERVER = "192.168.2.171"
 SERVER_PORT = "6531"
 TOKEN = "md0a9suva0p@dsfjnav^0w43"
+PUBLIC_KEY = "b'-----BEGIN PUBLIC KEY-----\\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsFxLD2HEm/sKBtWW5WcY\\nUTnZpmss/vgfKLNlDqwrC2Py0oKsc5oJtWAgHESzHQFlgttwQrqhevgcC6nDWsr6\\nbAoYvCLNoTaYVZUHU71DDE4wzMB+hqNo2I9xsIz+3kKsvGSVA64FjwuMTFLaFWXO\\noE/nHF2VmjdRjXGzNOEdRfc/kz2NLqfzbjFmx6HSp1DT3cPsGJchWjhIOmjCA0U9\\nShU++ZLC/3uPVxxxv8/Uq0MjEiavJIBhsMF/yLPd2EGvykzj+TpuWc7dioHglH/6\\nn9bz6k9iwBng0XfhLrlGWM3lDE1ulDxEDIBDnMjJoanMoP3ubgMEcWqD7Gjlg4vl\\nrwIDAQAB\\n-----END PUBLIC KEY-----\\n'"
+CLIENT_X509_PRIVATE_KEY = "C:\\Users\\shado\\Documents\\Projets_PYTHON\\syntraf\\crypto\\CLIENT_X509_SELFSIGNED_DIRECTORY\\private_key_client.pem"
+CLIENT_X509_CERTIFICATE = "C:\\Users\\shado\\Documents\\Projets_PYTHON\\syntraf\\crypto\\CLIENT_X509_SELFSIGNED_DIRECTORY\\certificate_client.pem"
 
 [GLOBAL]
 IPERF3_BINARY_PATH = "C:\\iperf3\\iperf3.exe"
@@ -47069,3 +47072,13 @@ WEBUI_X509_CERTIFICATE = "C:\\Users\\shado\\Documents\\Projets_PYTHON\\syntraf\\
 [SERVER.TOKEN]
 2018-01-01 = "md0a9suva0p@dsfjnav^0w43"
 2019-01-01 = "md0a9suva066w43"
+
+[[DATABASE]]
+DB_UID = "INFLUX_HOME"
+DB_SERVER = "192.168.2.80"
+DB_PORT = "8086"
+DB_TOKEN = "nZTbDzB3NTQr2OxraglcETePm9JZfDqW9Cx04O2zOkK1DUaADW43UGyNbLVLQNR53i-RcjN9X_TJpkyLUbixVw=="
+DB_ORG = "SYNTRAF"
+DB_BUCKET = "SYNTRAF"
+DB_ENGINE = "InfluxDB2"
+DB_SERVER_USE_SSL = false

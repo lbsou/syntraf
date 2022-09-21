@@ -991,166 +991,19 @@ def server_save_thread_status(obj_client, received_data):
     obj_client.thread_status = received_data['PAYLOAD']
 
 
-def handler(_config, _dict_by_node_generated_config, conn_db, dict_of_commands_for_network_clients, dict_of_clients,
-             dict_of_client_pending_acceptance):
-    def handle(sckt, address):
-
-        nonlocal _dict_by_node_generated_config
-        nonlocal dict_of_clients
-        nonlocal dict_of_client_pending_acceptance
-
-        uid = address[0]
-        dict_of_clients[uid] = cc_client(status="CONNECTING", status_since=datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
-                                         status_explanation="NOT YET AUTHENTICATED", client_uid="UNKNOWN",
-                                         bool_dynamic_client=False, tcp_port=address[1], ip_address=address[0])
-
-        try:
-            while True:
-                received_data = ""
-                received_data = sock_rcv(sckt)
-
-                if received_data is None:
-                    received_data = sock_rcv(sckt)
-
-                if received_data is None:
-                    server_log.debug(f"CONTEXT: {dict_of_clients[uid].client_uid} - INVALID DATA RECEIVED")
-                    dict_of_clients[uid].status_explanation = "CONNECTION RESET BY PEER"
-                    server_log.error(f"CONNECTION RESET BY PEER: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
-                    break
-                else:
-                    # Log the command that was received
-                    server_log.debug(
-                        f"CONTEXT: {dict_of_clients[uid].client_uid} - RECEIVED {received_data['COMMAND']}")
-
-                    # TODO sort by occurence
-                    if received_data['COMMAND'] == "AUTH":
-
-                        if not server_auth(received_data, dict_of_clients[uid], _config,
-                                           dict_of_clients[uid].ip_address, dict_of_commands_for_network_clients, sckt,
-                                           _dict_by_node_generated_config, dict_of_client_pending_acceptance): return
-
-                        # Now that we know the identity of the client connecting, we can update the dictionary of client objects
-                        new_uid = dict_of_clients[uid].client_uid
-                        dict_of_clients[new_uid].client_uid = new_uid
-                        dict_of_clients[new_uid].status = dict_of_clients[uid].status
-                        dict_of_clients[new_uid].bool_dynamic_client = dict_of_clients[uid].bool_dynamic_client
-                        dict_of_clients[new_uid].status_since = dict_of_clients[uid].status_since
-                        dict_of_clients[new_uid].status_explanation = dict_of_clients[uid].status_explanation
-                        dict_of_clients[new_uid].clock_skew_in_seconds = dict_of_clients[uid].clock_skew_in_seconds
-                        dict_of_clients[new_uid].syntraf_version = dict_of_clients[uid].syntraf_version
-                        dict_of_clients[new_uid].ip_address = address[0]
-                        dict_of_clients[new_uid].tcp_port = address[1]
-                        dict_of_clients.pop(uid)
-                        uid = new_uid
-
-                    elif received_data['COMMAND'] == "SAVE_METRIC":
-                        server_save_metric(dict_of_clients[uid], conn_db, received_data,
-                                           dict_of_clients[uid].ip_address, sckt)
-
-                    elif received_data['COMMAND'] == "SAVE_STATS_METRIC":
-                        server_save_stats_metric(dict_of_clients[uid], received_data)
-
-                    elif received_data['COMMAND'] == "SAVE_THREAD_STATUS":
-                        server_save_thread_status(dict_of_clients[uid], received_data)
-
-                    elif received_data['COMMAND'] == "SYSTEM_INFOS":
-                        server_save_system_infos(dict_of_clients[uid], received_data)
-
-                    elif received_data['COMMAND'] == "AWAITING_COMMAND":
-                        server_awaiting_commands(dict_of_clients[uid].client_uid, dict_of_commands_for_network_clients,
-                                                 sckt)
-
-                    elif received_data['COMMAND'] == "HEARTBEAT":
-                        pass
-
-                    else:
-                        print("UNKNOWN COMMAND:", received_data['COMMAND'])
-
-
-        except socket.timeout as exc:
-            server_log.error(f"SOCKET TIMEOUT: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
-            dict_of_clients[uid].status_explanation = "SOCKET TIMEOUT"
-        except json.JSONDecodeError as exc:
-            server_log.error(f"JSON DECODING FAILED FOR STRING")
-        except OSError as exc:
-            if exc.errno == 32:  # BROKEN PIPE, THE OTHER END HAS GONE AWAY
-                dict_of_clients[uid].status_explanation = "BROKEN PIPE"
-                server_log.error(f"BROKEN PIPE: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
-            # CONNECTION RESET BY PEER
-            elif exc.errno == 104:
-                dict_of_clients[uid].status_explanation = "CONNECTION RESET BY PEER"
-                server_log.error(f"CONNECTION RESET BY PEER: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
-            elif exc.errno == 113:
-                dict_of_clients[uid].status_explanation = "NO ROUTE TO HOST"
-                server_log.error(f"NO ROUTE TO HOST: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
-            # CONNECTION TIMEOUT
-            elif exc.errno == 110:
-                dict_of_clients[uid].status_explanation = "CONNECTION TIMEOUT"
-                server_log.error(f"CONNECTION TIMEOUT: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
-            # FOR WINDOWS [WinError 10053] #An established connection was aborted by the software in your host machine
-            elif exc.errno == 10053:
-                dict_of_clients[uid].status_explanation = "CONNECTION ABORTED"
-                server_log.error(f"CONNECTION ABORTED: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
-            # FOR WINDOWS [WinError 10054]
-            elif exc.errno == 10054:
-                dict_of_clients[uid].status_explanation = "CONNECTION RESET BY PEER"
-                server_log.error(f"CONNECTION RESET BY PEER: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
-            elif exc.errno == 10057:  # FOR WINDOWS [WinError 10057]
-                dict_of_clients[uid].status_explanation = "SOCKET IS NOT CONNECTED"
-                server_log.error(
-                    f"{type(exc).__name__.upper()}:{exc.errno}: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
-            else:
-                dict_of_clients[uid].status_explanation = "UNKNOWN OSError"
-                server_log.error(f"UNHANDLE OSError (st_mesh:sock_rcv): {dict_of_clients[uid].ip_address}:", exc,
-                                 exc.errno, exc.strerror)
-        except Exception as exc:
-            dict_of_clients[uid].status_explanation = "UNKNOWN"
-            server_log.error(f"Handler:handle:{type(exc).__name__}:{exc}", exc_info=True)
-
-        finally:
-            # The socket on the other end is probably closed
-            server_log.error(f"CLIENT: {dict_of_clients[uid].ip_address} DISCONNECTED")
-
-            try:
-                # If this is a dynamic client, once disconnected, we should forget about the ip address
-                server_forget_dynamic_client_ip(dict_of_clients[uid], _config, dict_of_commands_for_network_clients)
-
-                # Updating the status
-                # We don't want to overwrite a reason for failed authentication, so we overwrite only when the client was connected
-                if "CONNECTED" in dict_of_clients[uid].status:
-                    dict_of_clients[uid].status = "DISCONNECTED"
-                    dict_of_clients[uid].status_since = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-
-                # Reinitializing stats array so that the sparklines graphes does not appear in the webui
-                dict_of_clients[uid].system_stats['if_pct_usage_rx'] = []
-                dict_of_clients[uid].system_stats['if_pct_usage_tx'] = []
-                dict_of_clients[uid].system_stats['mem_pct_free'] = []
-                dict_of_clients[uid].system_stats['cpu_pct_usage'] = []
-
-                sckt.close()
-
-            except Exception as e:
-                server_log.error(
-                    f"AN ERROR OCCURRED WHILE FREEING RESOURCE FOR THE CLIENT: {dict_of_clients[uid].client_uid}/{dict_of_clients[uid].ip_address}")
-
-    return handle
-
-
 class Handler(StreamRequestHandler):
     def handle(self):
         address = self.client_address
         sckt = self.connection
         _config = self.server._config
-        dict_of_commands_for_network_clients = self.server._dict_of_commands_for_network_clients
-        dict_of_clients = self.server._dict_of_clients
-        conn_db = self.server._conn_db
-        _dict_by_node_generated_config = self.server._dict_by_node_generated_config
-        dict_of_client_pending_acceptance = self.server._dict_of_client_pending_acceptance
+        dict_of_commands_for_network_clients = self.server.dict_of_commands_for_network_clients
+        dict_of_clients = self.server.dict_of_clients
+        conn_db = self.server.conn_db
+        _dict_by_node_generated_config = self.server.dict_by_node_generated_config
+        dict_of_client_pending_acceptance = self.server.dict_of_client_pending_acceptance
 
-        cur_thread = threading.current_thread()
-        print(cur_thread, address)
-
-        print(_config['SERVER']['IPERF3_PASSWORD_HASH'], _config['SERVER']['IPERF3_USERNAME'], _config['SERVER']['IPERF3_PASSWORD'])
+        current_thread = threading.current_thread()
+        log.debug(current_thread)
 
         uid = address[0]
         dict_of_clients[uid] = cc_client(status="CONNECTING", status_since=datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
@@ -1293,24 +1146,13 @@ class SSL_TCPServer(TCPServer):
                  RequestHandlerClass,
                  certfile,
                  keyfile,
-                 _config,
-                 dict_by_node_generated_config,
-                 conn_db,
-                 dict_of_commands_for_network_clients,
-                 dict_of_clients,
-                 dict_of_client_pending_acceptance,
                  bind_and_activate=True,
                  ssl_version=ssl.PROTOCOL_TLSv1):
         TCPServer.__init__(self, server_address, RequestHandlerClass, bind_and_activate)
         self.certfile = certfile
         self.keyfile = keyfile
         self.ssl_version = ssl_version
-        self._config = _config
-        self._dict_by_node_generated_config = dict_by_node_generated_config
-        self._conn_db = conn_db
-        self._dict_of_commands_for_network_clients = dict_of_commands_for_network_clients
-        self._dict_of_clients = dict_of_clients
-        self._dict_of_client_pending_acceptance = dict_of_client_pending_acceptance
+
 
     def get_request(self):
         newsocket, fromaddr = self.socket.accept()
@@ -1356,12 +1198,7 @@ def server(_config, threads_n_processes, stop_thread, dict_by_node_generated_con
                 self_signed_flag = False
         if not self_signed_flag:
                 server_log.debug(f"CONTROL CHANNEL SERVER SOCKET CREATED")
-                tcp_server = SSLnThreadingTCPServer(server_address, Handler, _config=_config,
-                                                    dict_by_node_generated_config=dict_by_node_generated_config,
-                                                    conn_db=conn_db,
-                                                    dict_of_commands_for_network_clients=dict_of_commands_for_network_clients,
-                                                    dict_of_clients=dict_of_clients,
-                                                    dict_of_client_pending_acceptance=dict_of_client_pending_acceptance,
+                tcp_server = SSLnThreadingTCPServer(server_address, Handler,
                                                     keyfile=_config['SERVER']['SERVER_X509_PRIVATE_KEY'],
                                                     certfile=_config['SERVER']['SERVER_X509_CERTIFICATE'],
                                                     bind_and_activate=True)
@@ -1372,12 +1209,7 @@ def server(_config, threads_n_processes, stop_thread, dict_by_node_generated_con
         else:
 
                 server_log.debug(f"CONTROL CHANNEL SERVER SOCKET CREATED")
-                tcp_server = SSLnThreadingTCPServer(server_address, Handler, _config=_config,
-                                                    dict_by_node_generated_config=dict_by_node_generated_config,
-                                                    conn_db=conn_db,
-                                                    dict_of_commands_for_network_clients=dict_of_commands_for_network_clients,
-                                                    dict_of_clients=dict_of_clients,
-                                                    dict_of_client_pending_acceptance=dict_of_client_pending_acceptance,
+                tcp_server = SSLnThreadingTCPServer(server_address, Handler,
                                                     keyfile=os.path.join(
                                                         DefaultValues.DEFAULT_SERVER_X509_SELFSIGNED_DIRECTORY,
                                                         "private_key_server.pem"),
@@ -1389,6 +1221,12 @@ def server(_config, threads_n_processes, stop_thread, dict_by_node_generated_con
                     f"BINDING CONTROL CHANNEL SERVER SSL SOCKET TO '{_config['SERVER']['BIND_ADDRESS']}:{_config['SERVER']['SERVER_PORT']}' SUCCESSFUL")
                 server_log.debug(f"CONTROL CHANNEL SERVER SSL SOCKET LISTENING")
 
+        tcp_server.dict_by_node_generated_config = dict_by_node_generated_config
+        tcp_server.conn_db = conn_db
+        tcp_server.dict_of_commands_for_network_clients = dict_of_commands_for_network_clients
+        tcp_server.dict_of_clients = dict_of_clients
+        tcp_server.dict_of_client_pending_acceptance = dict_of_client_pending_acceptance
+        tcp_server._config = _config
         tcp_server.serve_forever()
 
     except OSError as msg:

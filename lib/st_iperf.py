@@ -52,7 +52,7 @@ def iperf3_client(connector_dict_key, _config):
 
             explanation = "UNKNOWN"
             if "unable to connect to server: No route to host" in last_breath:
-                explanation = "IPER3 CLIENT FIREWALL"
+                explanation = "CLIENT FIREWALL"
             iperf3_connectors_log.error(f"UNABLE TO START IPERF3 CLIENT FOR CONNECTOR '{connector_dict_key}' : IPERF3 LAST BREATH : {last_breath}")
             iperf3_connectors_log.error(f"PROBABLE EXPLANATION: {explanation}")
 
