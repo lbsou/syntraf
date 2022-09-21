@@ -373,8 +373,8 @@ def client_receive_configuration(_config, ssl_conn, threads_n_processes, config_
                     update_config(received_data, disk_config)
                     valid_dir_rsa_keypair(disk_config)
 
-                    print(_config)
-                    print(disk_config)
+                    client_log.debug(_config)
+                    client_log.debug(disk_config)
 
                     if disk_config == _config:
                         client_log.debug("SAME SAME SAME SAME")
