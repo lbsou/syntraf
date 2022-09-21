@@ -630,21 +630,7 @@ def config_validation_global(_config):
                 log.error(f"NO IPERF BINARY FOUND")
                 return False
 
-        # validating directory for RSA keypair
-        if 'IPERF3_RSA_KEY_DIRECTORY' in _config['GLOBAL']:
-            if len(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY']) <= 0:
-                _config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'] = DefaultValues.DEFAULT_IPERF3_RSA_KEY_DIRECTORY
-
-            # If directory does not exist, create it. If an error like permission denied, return False to terminate SYNTRAF
-            if not is_dir_create_on_fail(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], "IPERF3_RSA_KEY_DIRECTORY"):
-                return False
-        else:
-            log.warning(f"IS IPERF3_RSA_KEY_DIRECTORY DEFINED: NO, APPLYING DEFAULT: '{DefaultValues.DEFAULT_IPERF3_RSA_KEY_DIRECTORY}'")
-            _config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'] = DefaultValues.DEFAULT_IPERF3_RSA_KEY_DIRECTORY
-
-            # If directory does not exist, create it. If an error like permission denied, return False to terminate SYNTRAF
-            if not is_dir_create_on_fail(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], "IPERF3_RSA_KEY_DIRECTORY"):
-                return False
+        valid_dir_rsa_keypair(_config)
 
         # validating directory for iperf3 logs
         if 'IPERF3_TEMP_DIRECTORY' in _config['GLOBAL']:
@@ -685,6 +671,24 @@ def config_validation_global(_config):
 
     return True
 
+
+def valid_dir_rsa_keypair(_config):
+    # validating directory for RSA keypair
+    if 'IPERF3_RSA_KEY_DIRECTORY' in _config['GLOBAL']:
+        if len(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY']) <= 0:
+            _config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'] = DefaultValues.DEFAULT_IPERF3_RSA_KEY_DIRECTORY
+
+        # If directory does not exist, create it. If an error like permission denied, return False to terminate SYNTRAF
+        if not is_dir_create_on_fail(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], "IPERF3_RSA_KEY_DIRECTORY"):
+            return False
+    else:
+        log.warning(
+            f"IS IPERF3_RSA_KEY_DIRECTORY DEFINED: NO, APPLYING DEFAULT: '{DefaultValues.DEFAULT_IPERF3_RSA_KEY_DIRECTORY}'")
+        _config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'] = DefaultValues.DEFAULT_IPERF3_RSA_KEY_DIRECTORY
+
+        # If directory does not exist, create it. If an error like permission denied, return False to terminate SYNTRAF
+        if not is_dir_create_on_fail(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], "IPERF3_RSA_KEY_DIRECTORY"):
+            return False
 
 def is_dir_create_on_fail(str_path, str_key):
     pl_path = pathlib.Path(str_path)
