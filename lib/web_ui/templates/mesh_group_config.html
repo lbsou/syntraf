@@ -93,46 +93,70 @@
       <div class="modal-header">
         <h5 class="modal-title" id="modal_new_mesh_group_label">Create mesh group</h5>
       </div>
-      <div class="modal-body">
-            <div class="table-responsive">
-                <div class="form-group">
-                  <fieldset>
-                    <label class="form-label mt-4">Name</label>
-                    <input class="form-control" id="mg_name" type="text" placeholder="">
-                  </fieldset>
-                    <div id="mg_name-feedback"></div>
-                  <fieldset>
-                    <div style="display: inline-block;">
-                        <label class="form-label mt-4">Bandwidth</label>
-                        <input class="form-control" id="mg_bandwidth" type="text" placeholder="">
+      <form action="" id="new_mg_form" class="g-3" novalidate>
+          <div class="modal-body">
+                <div class="table-responsive">
+                    <div class="form-group">
+                        <label for="mg_name" class="form-label mt-4">Name</label>
+<!--                        pattern='^[A-Za-z0-9_-]{5,50}$'-->
+                        <input class="form-control" id="mg_name" type="text" oninput="check_validity_uid()" autofocus placeholder="Enter a unique mesh group name" name="mg_name" required>
+                        <div id="mg_name-feedback" class="invalid-feedback">
+                            Please specify a unique and valid name (A-Za-z0-9_-), 5-50 characters long.
+                        </div>
+
+                        <label for="mg_description" class="form-label mt-4">Description</label>
+<!--                        pattern='^[A-Za-z0-9_-]{0,100}$'-->
+                        <input class="form-control"  id="mg_description" type="text" placeholder="Enter a description" name="mg_description">
+                        <div id="mg_description-feedback" class="invalid-feedback">
+                            You can enter a description for this mesh group.
+                        </div>
+
+                        <div style="display: inline-block;">
+                            <label for="mg_bandwidth" class="form-label mt-4">Bandwidth</label>
+<!--                            data-rule-min="0.00000001" data-rule-max="1000000000" -->
+                            <input class="form-control"  id="mg_bandwidth" type="text" placeholder="200" name="mg_bandwidth" required>
+<!--                            pattern='^[1-9][0-9]*$'-->
+                        </div>
+                        <div id="mg_bandwidth-feedback" class="invalid-feedback">
+                            Please specify a positive number.
+                        </div>
+                        <div style="display: inline-block;">
+                          <select class="form-select" id="select_bw">
+                            <option>bps</option>
+                            <option selected>Kbps</option>
+                            <option>Mbps</option>
+                          </select>
+                        </div>
+                        <br>
+
+                        <label for="mg_dscp" class="form-label mt-4">DSCP</label>
+                        <input class="form-control" id="mg_dscp" type="text" placeholder="0" name="mg_dscp" required>
+                        <div class="invalid-feedback">
+                            Please specify a DSCP code between 0 and 63.
+                        </div>
+
+                        <label for="mg_packet_size" class="form-label mt-4">Packet size (bytes)</label>
+                        <input class="form-control" id="mg_packet_size" type="text" placeholder="32" name="mg_packet_size" required>
+                        <div class="invalid-feedback">
+                            Please specify a packet size between 16 and 65507.
+                        </div>
+
+                        <label for="mg_interval" class="form-label mt-4">Metric interval (seconds)</label>
+                        <input class="form-control" id="mg_interval" type="text" placeholder="1" name="mg_interval" required>
+                        <div class="invalid-feedback">
+                            Please specify an interval between 1 and 60.
+                        </div>
+
                     </div>
-                    <div style="display: inline-block;">
-                      <select class="form-select" id="select_bw">
-                        <option>bps</option>
-                        <option>Kbps</option>
-                        <option>Mbps</option>
-                      </select>
-                    </div>
-                </fieldset>
-                  <fieldset>
-                    <label class="form-label mt-4">DSCP</label>
-                    <input class="form-control" id="mg_dscp" type="text" placeholder="">
-                  </fieldset>
-                  <fieldset>
-                    <label class="form-label mt-4">Packet size (bytes)</label>
-                    <input class="form-control" id="mg_packet_size" type="text" placeholder="">
-                  </fieldset>
-                  <fieldset>
-                    <label class="form-label mt-4">Metric interval (seconds)</label>
-                    <input class="form-control" id="mg_interval" type="text" placeholder="">
-                  </fieldset>
                 </div>
-            </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-primary" data-bs-dismiss="modal" style="width:100px;">Cancel</button>
-        <button type="button" class="btn btn-primary" style="width:100px;">Save</button>
-      </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-primary" data-bs-dismiss="modal" style="width:100px;">Cancel</button>
+            <button class="btn btn-primary" id="btn_save_new_mesh_group"style="width:100px;" type="button">Save</button>
+          </div>
+      </form>
+
+
     </div>
   </div>
 </div>
@@ -149,6 +173,27 @@
     var $btn_duplicate = $("#btn_duplicate");
     var $btn_disable = $("#btn_disable");
     var selections = [];
+    let form = document.querySelector('.needs-validation')
+
+
+
+    function check_validity_uid(){
+        let mg_uid = $('#mg_name').val()
+        const re = new RegExp('^[A-Za-z0-9_-]{5,100}$');
+
+<!--        if(re.test(mg_uid) == true){-->
+<!--            $('#mg_name-feedback').text("");-->
+<!--            $('#mg_name').removeClass("is-invalid").addClass('is-valid');-->
+
+<!--        }-->
+<!--        else {-->
+<!--            $('#new_mg_form').prop('data-feedback', '{"success": "fa-times", "error":"fa-check"}');-->
+<!--            $('#mg_name-feedback').text("Please specify a unique and valid name (A-Za-z0-9_-), 5-50 characters long.");-->
+<!--            $('#mg_name').removeClass("is-valid").addClass('is-invalid');-->
+<!--        }-->
+        // Does it already exist?
+    }
+
 
     get_mesh_groups();
 
@@ -181,32 +226,52 @@
         $modal_new_mesh_group.modal('show');
     });
 
-    $('#mg_name').blur(function() {
-        let mg_uid = $('#mg_name').val()
-        const re = new RegExp('^[A-Za-z0-9_-]{5,100}$');
-        alert("asdasd");
-        if(re.test(mg_uid)){
-            alert("valid");
-            $('#mg_uid').removeClass('is-invalid');
-            $('#mg_uid').addClass('is-valid');
-            $('#mg_name-feedback').removeClass('invalid-feedback');
-            $('#mg_name-feedback').addClass('valid-feedback');
-            $('#mg_name-feedback').text("OK");
-        }
-        else {
-            alert("invalid");
-            $('#mg_uid').removeClass('is-valid');
-            $('#mg_uid').addClass('is-valid');
-            $('#mg_name-feedback').removeClass('valid-feedback');
-            $('#mg_name-feedback').addClass('invalid-feedback');
-            $('#mg_name-feedback').text("BAD");
+
+
+
+
+
+
+    // Read the bw and modify it according to the unit of measurement selected
+    $("#select_bw").change(function(e){
+        var previous = $(this).data('pre');//get the pre data
+
+        bw = $('#mg_bandwidth').val();
+        bw = parseFloat(bw);
+        bw.toFixed();
+
+        // We know our initial value is Kbps
+        if (previous === undefined){
+            previous = "Kbps";
         }
 
-        // Does it already exist?
+        if (bw !== null && bw !== "" && !isNaN(bw)){
+            if(previous == "Kbps" && this.value == "Mbps"){
+                $('#mg_bandwidth').val(bw/1000);
+            }
+            else if (previous == "Kbps" && this.value == "bps"){
+                $('#mg_bandwidth').val(bw*1000);
+            }
+            else if (previous == "Mbps" && this.value == "Kbps"){
+                $('#mg_bandwidth').val(bw*1000);
+            }
+            else if (previous == "Mbps" && this.value == "bps"){
+                $('#mg_bandwidth').val(bw*1000*1000);
+            }
+            else if (previous == "bps" && this.value == "Kbps"){
+                $('#mg_bandwidth').val(bw/1000);
+            }
+            else if (previous == "bps" && this.value == "Mbps"){
+                $('#mg_bandwidth').val(bw/1000/1000);
+            }
+        }
+
+        // Make sure the previous value is updated
+        previous = this.value;
+        $(this).data('pre', $(this).val());//update the pre data
+    })
 
 
-
-    });
 
     $table.on('check.bs.table uncheck.bs.table ' + 'check-all.bs.table uncheck-all.bs.table',
     function () {
@@ -255,12 +320,14 @@
     })
 
     // If group click 'delete' call the API to delete the group
-    $("#btn_close_modal_success").click(refresh_table);
+    $("#btn_close_modal_success").click(get_mesh_groups);
 
-    //Clear table and re-populate it
-    function refresh_table() {
-        get_mesh_groups();
-    }
+
+
+<!--    //Clear table and re-populate it-->
+<!--    function refresh_table() {-->
+<!--        get_mesh_groups();-->
+<!--    }-->
 
     async function duplicate_mesh_groups(mesh_group_uid) {
             const API_URL = "/api";
