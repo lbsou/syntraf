@@ -28,7 +28,9 @@ def create_app(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generat
 
         # Include blueprint
         from lib.web_ui.st_home_bp import st_home_bp
-        from lib.web_ui.st_auth_bp import st_auth_bp
+
+        # Warning, crashed wsgi on linux, no time to investigate further.
+        #from lib.web_ui.st_auth_bp import st_auth_bp
 
         db.create_all()  # Create sql tables for our data models
 

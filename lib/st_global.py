@@ -6,13 +6,13 @@ from tzlocal import get_localzone
 
 # Will impact the requirement of modules
 class CompilationOptions:
-    client_only = False
+    client_only = True
 
 
 
 class DefaultValues:
     # GLOBAL
-    SYNTRAF_VERSION = "0.4"
+    SYNTRAF_VERSION = "0.41"
     SYNTRAF_ROOT_DIR = pathlib.Path(__file__).parent.parent.absolute()
     SYNTRAF_PID_FILE = os.path.join(SYNTRAF_ROOT_DIR, 'syntraf.pid')
     TIMEZONE = str(get_localzone())
@@ -35,7 +35,6 @@ class DefaultValues:
     DEFAULT_CLIENT_METRICS_QUEUE_SIZE = 86_400
     DEFAULT_CLIENT_METRICS_UPDATE_FREQUENCY = 1
     CONTROL_CHANNEL_HEARTBEAT = 1
-    DEFAULT_SERVER_JUST_STARTED_GRACE_PERIOD = 60
 
     # WEBUI
     DEFAULT_WEBUI_UPLOAD_BG_FOLDER = "uploaded_background"

@@ -1136,9 +1136,8 @@ def validate_ipv4(ip):
 ### Validation of a UID
 #################################################################################
 def validate_uid(uid):
-    regex_allowed_char = re.compile(r'^[A-Za-z0-9_-]+$')
+    regex_allowed_char = re.compile(r'^[A-Za-z0-9_-]{5,50}$')
     return bool(regex_allowed_char.search(uid))
-
 
 #################################################################################
 ### Validation of MESH_GROUP
@@ -1216,6 +1215,7 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
     _dict_by_group_of_generated_tuple_for_map = {}
 
     # Populating the port_ref for each client
+    print(_config['SERVER']['MESH_LISTENERS_PORT_RANGE'])
     listeners_ports = list(map(int, _config['SERVER']['MESH_LISTENERS_PORT_RANGE'].split('-')))
     for client in _config['SERVER_CLIENT']:
         _dict_port_ref[client['UID']] = listeners_ports
