@@ -1205,8 +1205,8 @@ class SSLnThreadingTCPServer(ThreadingMixIn, SSL_TCPServer):
 def server(_config, threads_n_processes, stop_thread, dict_by_node_generated_config, obj_stats, conn_db,
            dict_of_commands_for_network_clients, dict_of_clients, dict_of_client_pending_acceptance):
     # Generating the rsa keypair for iperf3 authentication
-    gen_rsa_iperf3(log, _config)
-    gen_user_pass_iperf3(log, _config)
+    gen_rsa_iperf3(server_log, _config)
+    gen_user_pass_iperf3(server_log, _config)
     _config['SERVER']['IPERF3_PASSWORD_HASH'] = gen_iperf3_password_hash(_config['SERVER']['IPERF3_USERNAME'],
                                                                          _config['SERVER']['IPERF3_PASSWORD'])
     server_address = (_config['SERVER']['BIND_ADDRESS'], int(_config['SERVER']['SERVER_PORT']))
