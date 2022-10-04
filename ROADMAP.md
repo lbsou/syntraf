@@ -21,7 +21,7 @@ v0.3 - A step back aka MOONWALK
 v0.4 - The makeover aka CINDERELLA
  - Edit clients and groups from webui
  - description field for group and client  
- - Show in webui the potential and actual client bandwidth usage  
+ X Show in webui the potential and actual client bandwidth usage  
  - Integrate client and group editing with visual map
  - Remote action : pause
  X fix memory leak in client status webui [FIXED 2022-07-13 - LBS]
@@ -55,7 +55,6 @@ v0.91
  - Traduction framework
 
 v1.0
- - Write to iperf3 teams to ask them why 86400 limit
  - mtr extension
 
 - Documentation ++
