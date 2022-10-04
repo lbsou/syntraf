@@ -10,5 +10,5 @@ Flask==2.0.3
 flask-wtf
 Flask-Login
 Flask-SQLAlchemy
-dotenv
+python-dotenv
 pillow
