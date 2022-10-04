@@ -8,6 +8,7 @@ class Config(object):
     DEBUG = False
     TESTING = False
     SQLALCHEMY_DATABASE_URI = 'sqlite:///users.db'
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
     EXPLAIN_TEMPLATE_LOADING = False
     SECRET_KEY = os.getenv("SECRET_KEY")
 
@@ -19,6 +20,5 @@ class DevelopmentConfig(Config):
 
 class ProductionConfig(Config):
     DEBUG = False
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
     SESSION_PROTECTION = "strong"
     FLASK_ENV = "production"

@@ -260,6 +260,7 @@ def get_system_infos():
 
 def client_sck_init(_config):
     try:
+
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         set_tcp_ka(s, client_log)
@@ -345,6 +346,15 @@ def client_send_auth(_config, client_utime, ssl_conn):
                              'PUBLIC_KEY': _config['CLIENT']['PUBLIC_KEY']}
 
         sock_send(ssl_conn, payload_greetings, "AUTH")
+        received_data = sock_rcv(ssl_conn)
+        if not received_data is None:
+            if received_data['COMMAND'] == "AUTH_FAILED":
+                log.info(f"AUTHENTICATION FAILED, REASON GIVEN BY SERVER : {received_data['PAYLOAD']}")
+                return False
+            else:
+                log.info(f"AUTHENTICATION SUCCESSFULL")
+                return True
+
     except Exception as exc:
         raise exc
 
@@ -593,7 +603,11 @@ def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processe
     try:
         ssl_conn = client_sck_init(_config)
         client_utime = client_connect_utime(_config)
-        client_send_auth(_config, client_utime, ssl_conn)
+        successful_auth = client_send_auth(_config, client_utime, ssl_conn)
+        if not successful_auth:
+            ssl_conn.close()
+            return
+
         client_receive_configuration(_config, ssl_conn, threads_n_processes, config_file_path, cli_parameters)
         client_send_system_infos(ssl_conn)
 
@@ -824,6 +838,8 @@ def server_auth(received_data, obj_client, _config, address, dict_of_commands_fo
         obj_client.status_explanation = "AUTHENTICATION FAILED"
         obj_client.status_since = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
+        sock_send(sckt, rejection_explanation, "AUTH_FAILED")
+
         return False
 
     for server_client in _config['SERVER_CLIENT']:
@@ -1049,12 +1065,12 @@ class Handler(StreamRequestHandler):
                     server_log.debug(
                         f"CONTEXT: {dict_of_clients[uid].client_uid} - RECEIVED {received_data['COMMAND']}")
 
-                    # TODO sort by occurence
                     if received_data['COMMAND'] == "AUTH":
 
                         if not server_auth(received_data, dict_of_clients[uid], _config,
                                            dict_of_clients[uid].ip_address, dict_of_commands_for_network_clients, sckt,
-                                           _dict_by_node_generated_config, dict_of_client_pending_acceptance, threads_n_processes): return
+                                           _dict_by_node_generated_config, dict_of_client_pending_acceptance, threads_n_processes):
+                            return
 
                         # Now that we know the identity of the client connecting, we can update the dictionary of client objects
                         new_uid = dict_of_clients[uid].client_uid
