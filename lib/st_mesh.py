@@ -667,6 +667,8 @@ def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processe
             client_log.error(f"CONNECTION RESET BY PEER: {address}: CLOSING CONNECTION")
         elif exc.errno == 10057:  # FOR WINDOWS [WinError 10057]
             client_log.error(f"{type(exc).__name__.upper()}:{exc.errno}: {address}: CLOSING CONNECTION")
+        elif exc.errno == 8:
+            client_log.error(f"INVALID SSL CONNECTION. SERVER PROBABLY TERMINATED THE CONNECTION.")
         else:
             client_log.error(f"UNHANDLE OSError (st_mesh:sock_rcv): {address}:", exc, exc.errno, exc.strerror)
     except json.JSONDecodeError as exc:
