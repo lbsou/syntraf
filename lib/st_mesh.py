@@ -259,6 +259,7 @@ def get_system_infos():
 
 
 def client_sck_init(_config):
+    ssl_conn = None
     try:
 
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -296,7 +297,10 @@ def client_sck_init(_config):
         client_log.error(f"client:{type(exc).__name__}:{exc}", exc_info=True)
         sys.exit()
 
-    return ssl_conn
+    if ssl_conn is None:
+        sys.exit()
+    else:
+        return ssl_conn
 
 
 def client_connect_utime(_config):
@@ -599,7 +603,7 @@ def client_command_diffconfig(_config, received_data, threads_n_processes):
 #################################################################################
 def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processes, obj_stats, config_file_path, cli_parameters):
     address = "0.0.0.0"
-
+    ssl_conn = None
     try:
         ssl_conn = client_sck_init(_config)
         client_utime = client_connect_utime(_config)
@@ -675,7 +679,7 @@ def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processe
         try:
             ssl_conn.close()
         except Exception as e:
-            print(e)
+            pass
 
 
 def validate_clock_skew(_config, received_data, obj_client):
