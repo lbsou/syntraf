@@ -57,49 +57,49 @@ def home():
         syntraf_version=DefaultValues.SYNTRAF_VERSION
     )
 
-@st_home_bp.route('/users_config.html')
-def webui_users():
-    return render_template(
-        'users_config.html',
-        users=User.query.all(),
-        title="SYNTRAF Users",
-        syntraf_version=DefaultValues.SYNTRAF_VERSION
-    )
+# @st_home_bp.route('/users_config.html')
+# def webui_users():
+#     return render_template(
+#         'users_config.html',
+#         users=User.query.all(),
+#         title="SYNTRAF Users",
+#         syntraf_version=DefaultValues.SYNTRAF_VERSION
+#     )
 
-@st_home_bp.route('/webui-delete-user', methods=['GET'])
-def del_user():
-    request.args.get('user')
-
-@st_home_bp.route('/create', methods=['GET'])
-def user_records():
-    """Create a user via query string parameters."""
-    username = request.args.get('user')
-    email = request.args.get('email')
-    if username and email:
-        existing_user = User.query.filter(
-            User.username == username or User.email == email
-        ).first()
-        if existing_user:
-            return make_response(
-                f'{username} ({email}) already exist!'
-            )
-        new_user = User(
-            username=username,
-            email=email,
-            created=dt.now(),
-            description="It's me, Mario!",
-            admin=False,
-            last_login=None,
-            password="None"
-        )  # Create an instance of the User class
-        #db.session.add(new_user)  # Adds new User record to database
-        #db.session.commit()  # Commits all changes
-        redirect(url_for('st_home_bp.user_records'))
-    return render_template(
-       'users.html',
-       users=User.query.all(),
-       title="SYNRTAF Users"
-    )
+# @st_home_bp.route('/webui-delete-user', methods=['GET'])
+# def del_user():
+#     request.args.get('user')
+#
+# @st_home_bp.route('/create', methods=['GET'])
+# def user_records():
+#     """Create a user via query string parameters."""
+#     username = request.args.get('user')
+#     email = request.args.get('email')
+#     if username and email:
+#         existing_user = User.query.filter(
+#             User.username == username or User.email == email
+#         ).first()
+#         if existing_user:
+#             return make_response(
+#                 f'{username} ({email}) already exist!'
+#             )
+#         new_user = User(
+#             username=username,
+#             email=email,
+#             created=dt.now(),
+#             description="It's me, Mario!",
+#             admin=False,
+#             last_login=None,
+#             password="None"
+#         )  # Create an instance of the User class
+#         db.session.add(new_user)  # Adds new User record to database
+#         db.session.commit()  # Commits all changes
+#         redirect(url_for('st_home_bp.user_records'))
+#     return render_template(
+#        'users.html',
+#        users=User.query.all(),
+#        title="SYNRTAF Users"
+#     )
 
 
 # @st_home_bp.errorhandler(404)
