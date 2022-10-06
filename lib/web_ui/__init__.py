@@ -15,7 +15,7 @@ def create_app(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generat
                conn_db, dict_of_commands_for_network_clients, dict_of_clients):
     """Initialize the core application."""
     os.chdir(DefaultValues.SYNTRAF_ROOT_DIR)
-    print(os.path.abspath('lib/web_ui/static/'))
+
     app = Flask(__name__, instance_relative_config=False)
     app.config.from_object(st_config.DevelopmentConfig)
 
@@ -45,12 +45,12 @@ def create_app(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generat
         """ Converting a dict of tuple to a dict of arrays for javascript """
         dict_of_arrays_generated_tuples_for_map = {}
 
-        for key, value in _dict_by_group_of_generated_tuple_for_map.items():
-            if not key in dict_of_arrays_generated_tuples_for_map: dict_of_arrays_generated_tuples_for_map[key] = []
-            for tuple in value:
-                dict_of_arrays_generated_tuples_for_map[key].append([tuple[0], tuple[1]])
-
-        dict_of_arrays_generated_tuples_for_map = dict_of_arrays_generated_tuples_for_map
+        # for key, value in _dict_by_group_of_generated_tuple_for_map.items():
+        #     if not key in dict_of_arrays_generated_tuples_for_map: dict_of_arrays_generated_tuples_for_map[key] = []
+        #     for tuple in value:
+        #         dict_of_arrays_generated_tuples_for_map[key].append([tuple[0], tuple[1]])
+        #
+        # dict_of_arrays_generated_tuples_for_map = dict_of_arrays_generated_tuples_for_map
 
         app.config['threads_n_processes'] = threads_n_processes
         app.config['subprocess_iperf_dict'] = subprocess_iperf_dict
