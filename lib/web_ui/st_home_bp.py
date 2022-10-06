@@ -1,6 +1,6 @@
 # SYNTRAF GLOBAL IMPORT
 from flask_login import *
-from . import db
+#from . import db
 from .st_models import User
 from lib.st_conf_validation import validate_bandwidth
 from lib.st_global import CompilationOptions, DefaultValues
@@ -92,8 +92,8 @@ def user_records():
             last_login=None,
             password="None"
         )  # Create an instance of the User class
-        db.session.add(new_user)  # Adds new User record to database
-        db.session.commit()  # Commits all changes
+        #db.session.add(new_user)  # Adds new User record to database
+        #db.session.commit()  # Commits all changes
         redirect(url_for('st_home_bp.user_records'))
     return render_template(
        'users.html',
@@ -527,10 +527,10 @@ def api():
         elif requested_action == "GET_LIST_OF_DATABASES_INFOS":
             ''' =============================================================================================== '''
             list_of_databases_infos = {}
-            for db in app.config['conn_db']:
-                db.force_status_check()
-                list_of_databases_infos[db.DB_UID] = {"STATUS": db.status, "STATUS_TIME": db.status_time,
-                                                      "BACKLOG": len(db.write_queue.queue)}
+            for database in app.config['conn_db']:
+                database.force_status_check()
+                list_of_databases_infos[database.DB_UID] = {"STATUS": database.status, "STATUS_TIME": database.status_time,
+                                                      "BACKLOG": len(database.write_queue.queue)}
             return jsonify(list_of_databases_infos)
 
         return "OK"
