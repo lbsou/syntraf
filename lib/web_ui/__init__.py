@@ -26,7 +26,7 @@ def create_app(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generat
     login_manager.init_app(app)
 
     # Initialize SQLAlchemy Plugins
-    db.init_app(app)
+    #db.init_app(app)
 
     with app.app_context():
 
