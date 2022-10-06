@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Processes{% endblock %}
+{% block content %}
+<h2>Processes status</h2>
+    <table class="table table-striped table-hover ">
+        <thead>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Start time</th>
+            <th>Running</th>
+        </thead>
+        <tbody>
+            {% for my_item in thr %}
+                {% if my_item.getstatus() %}
+                    <tr>
+                {% else %}
+                    <tr class="danger">
+                {%- endif %}
+
+                        <td>{{ my_item.name }}</td>
+                        <td>{{ my_item.syntraf_instance_type }}</td>
+                        <td>{{ my_item.starttime }}</td>
+                        <td>{{ my_item.getstatus() }}</td>
+                    </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+{% endblock %}
+
+
+
+

@@ -1,0 +1,76 @@
+<html>
+    <head>
+        <title>{{ title }}</title>
+        {{ pure.css }}
+    </head>
+    <body>
+    <h2>QUEUE</h2>
+
+
+
+    <table class="pure-table pure-table-bordered pure-table-striped">
+        <thead>
+            <th>Measurement</th>
+            <th>Time</th>
+            <th>Tags</th>
+            <th>Fields</th>
+        </thead>
+        {% for result in dict_data_to_send_to_server %}
+            <tr>
+                <td>{{ result[0]['measurement'] }}</td>
+                <td>{{ result[0]['time'] }}</td>
+                <td>
+                    <table class="pure-table pure-table-bordered pure-table-striped">
+                        <tbody>
+                            <tr>
+                                <td><b>MESH_GROUP</b></td>
+                                <td>{{ result[0]['tags']['MESH_GROUP'] }}</td>
+                            </tr>
+                            <tr>
+                                <td><b>CLIENT</b></td>
+                                <td>{{ result[0]['tags']['CLIENT'] }}</td>
+                            </tr>
+                            <tr>
+                                <td><b>SERVER</b></td>
+                                <td>{{ result[0]['tags']['SERVER'] }}</td>
+                            </tr>
+                            <tr>
+                                <td><b>UID</b></td>
+                                <td>{{ result[0]['tags']['UID'] }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </td>
+                <td>
+                    <table class="pure-table pure-table-bordered pure-table-striped">
+                        <tbody>
+                            <tr>
+                                <td><b>RX_BITRATE</b></td>
+                                <td>{{ result[0]['fields']['RX_BITRATE'] }}</td>
+                            </tr>
+                            <tr>
+                                <td><b>RX_JITTER</b></td>
+                                <td>{{ result[0]['fields']['RX_JITTER'] }}</td>
+                            </tr>
+                            <tr>
+                                <td><b>RX_PCT_LOSS</b></td>
+                                <td>{{ result[0]['fields']['RX_PCT_LOSS'] }}</td>
+                            </tr>
+                            <tr>
+                                <td><b>RX_PACKET_TOTAL</b></td>
+                                <td>{{ result[0]['fields']['RX_PACKET_TOTAL'] }}</td>
+                            </tr>
+                            <tr>
+                                <td><b>RX_PACKET_LOSS</b></td>
+                                <td>{{ result[0]['fields']['RX_PACKET_LOSS'] }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </td>
+            </tr>
+        {% endfor %}
+    </table>
+
+
+    </body>
+</html>

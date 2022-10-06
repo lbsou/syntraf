@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Mesh maps{% endblock %}
+{% block content %}
+<h2>Mesh maps</h2>
+<br/>
+    {% for my_item in config['MESH_GROUP'] %}
+        <h4><p class="text-info">{{ my_item['UID'] }}</p></h4>
+        <img src="/static/maps/{{ my_item['UID'] }}.png" alt="Mesh Map 'LAB'">
+    {% endfor %}
+{% endblock %}
