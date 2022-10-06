@@ -1,7 +1,7 @@
 # SYNTRAF GLOBAL IMPORT
 from flask_login import *
 #from . import db
-from .st_models import User
+#from .st_models import User
 from lib.st_conf_validation import validate_bandwidth
 from lib.st_global import CompilationOptions, DefaultValues
 

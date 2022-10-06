@@ -1,12 +1,12 @@
 from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
+#from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from lib.web_ui import st_config
 import os
 from lib.st_global import DefaultValues
 
 # Globally accessible libraries
-db = SQLAlchemy()
+#db = SQLAlchemy()
 login_manager = LoginManager()
 
 
