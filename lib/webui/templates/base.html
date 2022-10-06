@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+        <link rel="stylesheet" href="{{ url_for('static', filename='bootstrap5/bootswatch_darkly_5.min.css')}}">
+        <link rel='stylesheet' href="{{ url_for('static', filename='fontawesome-free-5.15.3-web/css/all.css')}}">
+        <link rel="stylesheet" href="{{ url_for('static', filename='bootstrap-table/bootstrap-table.min.css')}}">
+
+        <title>SYNTRAF</title>
+        <style>body { padding-top: 70px; }</style>
+        {% block head %}{% endblock %}
+    </head>
+
+    <body class="px-3">
+        <nav class="navbar navbar-expand-lg fixed-top navbar-dark bg-primary">
+          <a class="navbar-brand" href="home.html">Home</a>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarColor01" aria-controls="navbarColor01" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+          </button>
+
+          <div class="collapse navbar-collapse" id="navbarColor01">
+            <ul class="navbar-nav mr-auto">
+
+              <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" id="dropMenuStatus" role="button" aria-expanded="false">Status</a>
+                <div class="dropdown-menu" aria-labelledby="dropMenuStatus">
+                  <a class="dropdown-item" href="stats.html">Clients</a>
+                  <a class="dropdown-item" href="">Databases</a>
+                </div>
+              </li>
+
+              <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">Configurations</a>
+                <div class="dropdown-menu">
+                  <a class="dropdown-item" href="client_config.html">Clients</a>
+                  <a class="dropdown-item" href="database_config.html">Databases</a>
+                  <a class="dropdown-item" href="mesh_group_config.html">Groups</a>
+                  <a class="dropdown-item" href="server_config.html">Server</a>
+                  <a class="dropdown-item" href="token_config.html">Tokens</a>
+                  <a class="dropdown-item" href="users_config.html">Users</a>
+                </div>
+              </li>
+              <li class="nav-item dropdown">
+                <a class="nav-link " href="/logout" role="button" >Logout</a>
+              </li>
+            </ul>
+          </div>
+            <div>
+                SYNTRAF v{{ syntraf_version }}<br>
+            </div>
+        </nav>
+        <script src="{{ url_for('static', filename='bootstrap5/bootstrap.bundle.min.js')}}"></script>
+        <script src="{{ url_for('static', filename='jquery/jquery-3.6.1.min.js')}}"></script>
+        <script src="{{ url_for('static', filename='jquery/jquery.validate.min.js')}}"></script>
+        <script src="{{ url_for('static', filename='bootstrap-table/bootstrap-table.min.js')}}"></script>
+        <script src="https://unpkg.com/tableexport.jquery.plugin/tableExport.min.js"></script>
+        <script src="{{ url_for('static', filename='bootstrap-table/extensions/export/bootstrap-table-export.min.js')}}"></script>
+        <script src="{{ url_for('static', filename='fontawesome-free-5.15.3-web/js/fontawesome.min.js')}}"></script>
+
+        {% block content %}{% endblock %}
+    </body>
+</html>

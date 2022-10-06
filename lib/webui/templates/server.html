@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Server{% endblock %}
+{% block content %}
+<h2>Server configurations</h2>
+<br/>
+    <table id="status" class="table table-striped table-hover table-bordered table-sm" style="width:100%">
+        <thead>
+            <th style="width: 50%">PARAMETER</th>
+            <th style="width: 50%">VALUE</th>
+        </thead>
+            <tbody>
+                {% for key, value in config['SERVER'].items() %}
+                    <tr>
+                        <td>{{ key }}</td>
+                        <td>{{ value }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+<br/>
+<h4><p class="text-info">Tokens</p></h4>
+    <table class="table table-striped table-hover table-sm">
+        <thead>
+            <th style="width: 50%">DESCRIPTION</th>
+            <th style="width: 50%">TOKEN</th>
+        </thead>
+        <tbody>
+            {% for key, token in config['SERVER']['TOKEN'].items() %}
+                <tr>
+                    <td>{{ key }}</td>
+                    <td>{{ token }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+
+{% endblock %}

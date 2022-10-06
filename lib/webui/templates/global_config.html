@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Configurations{% endblock %}
+{% block content %}
+<h2>Global configurations</h2>
+<br/>
+    <table class="table table-striped table-hover table-sm">
+        <thead>
+            <th>PARAMETER</th>
+            <th>VALUE</th>
+        </thead>
+        <tbody>
+            {% for item in config['GLOBAL'] %}
+                <tr>
+                    <td>{{ item }}</td>
+                    <td>{{ config['GLOBAL'][item] }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

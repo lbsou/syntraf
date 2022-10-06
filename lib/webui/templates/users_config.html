@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}WEBUI Users{% endblock %}
+{% block content %}
+<h2>Users</h2>
+  <div class="container"><br>
+    <div class="table-responsive">
+      <table class="table table-dark table-striped thead-dark table-hover table-sm">
+        <thead>
+          <tr>
+            <th scope="col">Username</th>
+            <th scope="col">Email</th>
+            <th scope="col">Created</th>
+            <th scope="col">Description</th>
+            <th scope="col">Admin</th>
+            <th scope="col">Last login</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for user in users %}
+            <tr>
+              <td scope="row">{{ user.username }}</td>
+              <td scope="row">{{ user.email }}</td>
+              <td scope="row">{{ user.created }}</td>
+              <td scope="row">{{ user.description }}</td>
+              <td scope="row">{{ user.admin }}</td>
+              <td scope="row">{{ user.last_login }}</td>
+              <td scope="row"><button type="button" id="btn_edit_user_open_modal_{{ user.id }}" class="btn btn-default btn-lg btn-block roster-button active d-inline" data-toggle="modal" data-rowid="{{ user.id }}" data-target="#editUser" data-placement="top" title="Edit user"> <i class="fas fa-edit"></i></button></td>
+              <td scope="row"><button type="button" id="btn_remove_user_open_modal_{{ user.id }}" class="btn btn-default btn-lg btn-block roster-button active d-inline" data-toggle="modal" data-rowid="{{ user.id }}" data-target="#removeUser" data-placement="top" title="Remove user"> <i class="far fa-trash-alt"></i></button></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div aria-labelledby="confirmationModal" class="modal fade" id="removeUser"
+  role="dialog" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered" role="document">
+          <div class="modal-content">
+              <input type="hidden" id="userID" value="">
+              <div class="modal-header">
+                  <h4 class="modal-title">Remove user</h4>
+              </div>
+              <div class="modal-body">
+                  <p>Are you sure you wish to remove this user?</p>
+              </div>
+              <div class="modal-footer">
+                  <button class="btn btn-default" data-dismiss="modal" type="button">Cancel</button>
+                  <button class="btn btn-danger" id="btn_yes_remove_user" type="button">Delete</button>
+              </div>
+          </div><!-- end modal-content -->
+      </div><!-- end modal-dialog -->
+  </div><!-- end modal -->
+
+<script>
+    $(document).ready(function(){
+
+        // Show confirmation modal
+        $("#btn_remove_user_open_modal").click(function(){
+            $("#removeUser").modal();
+        });
+
+        // Take the 'data.rowid' value of the delete button and put it in the hidden value 'userID' inside the modal
+        $('#removeUser').on('show.bs.modal', function (e) {
+            var rowid = $(e.relatedTarget).data('rowid');
+            $('#userID').val(rowid);
+         });
+
+        // If user click 'delete' call the API to delete the user
+        $("#btn_yes_remove_user").click(function(){
+            var delid = $('#userID').val();
+            alert(delid);
+            $("#removeUser").modal('hide');
+            window.location.reload();
+        });
+    });
+
+
+</script>
+
+{% endblock %}
+
+
