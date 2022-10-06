@@ -16,7 +16,7 @@ def create_app(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generat
     """Initialize the core application."""
     os.chdir(DefaultValues.SYNTRAF_ROOT_DIR)
     print(os.path.abspath('lib/web_ui/static/'))
-    app = Flask(__name__, instance_relative_config=False, static_folder=os.path.abspath('lib/web_ui/static/'), static_url_path="/static")
+    app = Flask(__name__, instance_relative_config=False)
     app.config.from_object(st_config.DevelopmentConfig)
 
     # Initialize flask-login plugin
