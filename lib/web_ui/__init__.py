@@ -7,7 +7,7 @@ from lib.st_global import DefaultValues
 
 # Globally accessible libraries
 #db = SQLAlchemy()
-login_manager = LoginManager()
+#login_manager = LoginManager()
 
 
 def create_app(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generated_config,
@@ -21,9 +21,9 @@ def create_app(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generat
 
     # Initialize flask-login plugin
     # login_manager.login_view = "users.login"
-    login_manager.login_message = u"Please log in to access this page."
-    login_manager.login_message_category = "info"
-    login_manager.init_app(app)
+    #login_manager.login_message = u"Please log in to access this page."
+    #login_manager.login_message_category = "info"
+    #login_manager.init_app(app)
 
     # Initialize SQLAlchemy Plugins
     #db.init_app(app)
