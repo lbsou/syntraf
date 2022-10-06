@@ -10,7 +10,7 @@ from lib.st_system_stats import *
 # SYNTRAF SERVER IMPORT
 if not CompilationOptions.client_only:
     #from lib.st_webui import *
-    from lib.web_ui import create_app
+    from lib.webui import create_app
 
     #from gevent import monkey
     #monkey.patch_all()
@@ -110,7 +110,7 @@ def launch_webui(threads_n_processes, subprocess_iperf_dict, _dict_by_node_gener
         pool = Pool(100)
 
         try:
-            http_server = WSGIServer(('0.0.0.0', DefaultValues.DEFAULT_WEBUI_PORT), app, error_log=log, log=log, threaded=True)
+            http_server = WSGIServer(('0.0.0.0', DefaultValues.DEFAULT_WEBUI_PORT), app, error_log=log, log=log)
 
         #try:
         #    http_server = WSGIServer(('0.0.0.0', DefaultValues.DEFAULT_WEBUI_PORT), app,
@@ -154,6 +154,7 @@ def init_client_obj_dict(config, dict_of_clients):
 def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, config_file_path, cli_parameters, dict_of_client_pending_acceptance={}, dict_of_clients={}, dict_data_to_send_to_server=[], conn_db=None, _dict_by_node_generated_config=dict(), dict_of_commands_for_network_clients=dict()):
     # Variable to be able to stop thread. It is in a list to be mutable and will be assigned inside a st_obj_thread_n_process object
     stop_thread = [False]
+
     try:
         # check if a thread exist with the mesh_type. Only one such thread is supposed to exist.
         if mesh_type in config:
@@ -171,6 +172,7 @@ def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, config_file_p
                 #sys.exit()
                 threads_n_processes.remove(thr_temp)
 
+                thread_run = None
                 # RESTART MESH INSTANCE
                 if mesh_type == "CLIENT":
                     thread_run = threading.Thread(target=eval(mesh_type.lower()), args=(config, stop_thread, dict_data_to_send_to_server, threads_n_processes, obj_stats, config_file_path, cli_parameters),
@@ -193,6 +195,7 @@ def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, config_file_p
             elif thr_temp is None:
                 log.info(f"VALIDATION OF {mesh_type} CONFIG SUCCESSFUL!")
 
+                thread_run = None
                 # START MESH INSTANCE
                 if mesh_type == "CLIENT":
                     thread_run = threading.Thread(target=eval(mesh_type.lower()), args=(config, stop_thread, dict_data_to_send_to_server, threads_n_processes, obj_stats, config_file_path, cli_parameters),
@@ -212,9 +215,7 @@ def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, config_file_p
                     log.info(
                         f"{mesh_type} INITIATED : {config[mesh_type]['SERVER']}:{config[mesh_type]['SERVER_PORT']}")
                 elif config[mesh_type] == "SERVER":
-                    print(mesh_type)
-                    log.info(
-                    f"{mesh_type} INITIATED : {config[mesh_type]['BIND_ADDRESS']}:{config[mesh_type]['SERVER_PORT']}")
+                    log.info(f"{mesh_type} INITIATED : {config[mesh_type]['BIND_ADDRESS']}:{config[mesh_type]['SERVER_PORT']}")
 
     except Exception as exc:
         log.error(f"manage_mesh:{type(exc).__name__}:{exc}", exc_info=True)
