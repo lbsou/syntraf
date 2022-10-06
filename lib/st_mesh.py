@@ -867,21 +867,21 @@ def server_auth(received_data, obj_client, _config, address, dict_of_commands_fo
                     _config, _dict_by_node_generated_config)
 
                 # Telling to every other client to update their config
-                for server_client in _config['SERVER_CLIENT']:
+                for server_client2 in _config['SERVER_CLIENT']:
 
                     # If there is an existing OVERRIDE_DST_NODE_IP, do not update the config
                     skip_flag = False
-                    if 'OVERRIDE_DST_NODE_IP' in server_client:
-                        if server_client['OVERRIDE_DST_NODE_IP']:
-                            for override_ip_client_uid in server_client['OVERRIDE_DST_NODE_IP']:
+                    if 'OVERRIDE_DST_NODE_IP' in server_client2:
+                        if server_client2['OVERRIDE_DST_NODE_IP']:
+                            for override_ip_client_uid in server_client2['OVERRIDE_DST_NODE_IP']:
                                 if override_ip_client_uid == obj_client.client_uid:
                                     skip_flag = True
 
                     if not skip_flag:
                         # Do not update the client itself
-                        if not server_client['UID'] == obj_client.client_uid:
-                            dict_of_commands_for_network_clients[server_client['UID']] = []
-                            dict_of_commands_for_network_clients[server_client['UID']].append(
+                        if not server_client2['UID'] == obj_client.client_uid:
+                            dict_of_commands_for_network_clients[server_client2['UID']] = []
+                            dict_of_commands_for_network_clients[server_client2['UID']].append(
                                 {"ACTION": "UPDATED_CONFIG", "ELEMENT": "CLIENT_IP",
                                  "CLIENT_UID": obj_client.client_uid, "IP_ADDRESS": obj_client.ip_address})
 
