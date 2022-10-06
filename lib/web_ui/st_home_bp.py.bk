@@ -1,5 +1,6 @@
 # SYNTRAF GLOBAL IMPORT
 from flask_login import *
+#from . import db
 #from .st_models import User
 from lib.st_conf_validation import validate_bandwidth
 from lib.st_global import CompilationOptions, DefaultValues
@@ -56,47 +57,49 @@ def home():
         syntraf_version=DefaultValues.SYNTRAF_VERSION
     )
 
-@st_home_bp.route('/users_config.html')
-def webui_users():
-    return render_template(
-        'users_config.html',
-        users=User.query.all(),
-        title="SYNTRAF Users",
-        syntraf_version=DefaultValues.SYNTRAF_VERSION
-    )
+# @st_home_bp.route('/users_config.html')
+# def webui_users():
+#     return render_template(
+#         'users_config.html',
+#         users=User.query.all(),
+#         title="SYNTRAF Users",
+#         syntraf_version=DefaultValues.SYNTRAF_VERSION
+#     )
 
-@st_home_bp.route('/webui-delete-user', methods=['GET'])
-def del_user():
-    request.args.get('user')
-
-@st_home_bp.route('/create', methods=['GET'])
-def user_records():
-    """Create a user via query string parameters."""
-    username = request.args.get('user')
-    email = request.args.get('email')
-    if username and email:
-        existing_user = User.query.filter(
-            User.username == username or User.email == email
-        ).first()
-        if existing_user:
-            return make_response(
-                f'{username} ({email}) already exist!'
-            )
-        new_user = User(
-            username=username,
-            email=email,
-            created=dt.now(),
-            description="It's me, Mario!",
-            admin=False,
-            last_login=None,
-            password="None"
-        )  # Create an instance of the User class
-        redirect(url_for('st_home_bp.user_records'))
-    return render_template(
-       'users.html',
-       users=User.query.all(),
-       title="SYNRTAF Users"
-    )
+# @st_home_bp.route('/webui-delete-user', methods=['GET'])
+# def del_user():
+#     request.args.get('user')
+#
+# @st_home_bp.route('/create', methods=['GET'])
+# def user_records():
+#     """Create a user via query string parameters."""
+#     username = request.args.get('user')
+#     email = request.args.get('email')
+#     if username and email:
+#         existing_user = User.query.filter(
+#             User.username == username or User.email == email
+#         ).first()
+#         if existing_user:
+#             return make_response(
+#                 f'{username} ({email}) already exist!'
+#             )
+#         new_user = User(
+#             username=username,
+#             email=email,
+#             created=dt.now(),
+#             description="It's me, Mario!",
+#             admin=False,
+#             last_login=None,
+#             password="None"
+#         )  # Create an instance of the User class
+#         db.session.add(new_user)  # Adds new User record to database
+#         db.session.commit()  # Commits all changes
+#         redirect(url_for('st_home_bp.user_records'))
+#     return render_template(
+#        'users.html',
+#        users=User.query.all(),
+#        title="SYNRTAF Users"
+#     )
 
 
 # @st_home_bp.errorhandler(404)
@@ -132,22 +135,22 @@ def index():
 #             return f(*args, **kwargs)
 #         return decorated_function
 
-@st_home_bp.route('/login', methods=['POST'])
-def user_login():
-    try:
-        if request.form['password'] == 'password' and request.form['username'] == 'admin':
-            login_user("lbs", remember=True)
-        else:
-            flash("Invalid username or password")
-        return index()
-    except Exception as msg:
-        log.error(msg)
-
-
-@st_home_bp.route("/logout")
-def logout():
-    logout_user()
-    return redirect(index)
+# @st_home_bp.route('/login', methods=['POST'])
+# def user_login():
+#     try:
+#         if request.form['password'] == 'password' and request.form['username'] == 'admin':
+#             login_user("lbs", remember=True)
+#         else:
+#             flash("Invalid username or password")
+#         return index()
+#     except Exception as msg:
+#         log.error(msg)
+#
+#
+# @st_home_bp.route("/logout")
+# def logout():
+#     logout_user()
+#     return redirect(index)
 
 
 # @st_home_bp.route('/generated_client_config.html')
@@ -524,10 +527,10 @@ def api():
         elif requested_action == "GET_LIST_OF_DATABASES_INFOS":
             ''' =============================================================================================== '''
             list_of_databases_infos = {}
-            for db in app.config['conn_db']:
-                db.force_status_check()
-                list_of_databases_infos[db.DB_UID] = {"STATUS": db.status, "STATUS_TIME": db.status_time,
-                                                      "BACKLOG": len(db.write_queue.queue)}
+            for database in app.config['conn_db']:
+                database.force_status_check()
+                list_of_databases_infos[database.DB_UID] = {"STATUS": database.status, "STATUS_TIME": database.status_time,
+                                                      "BACKLOG": len(database.write_queue.queue)}
             return jsonify(list_of_databases_infos)
 
         return "OK"
@@ -576,3 +579,34 @@ def maps():
                            background_size=background_size,
                            dict_of_arrays_generated_tuples_for_map=app.config['dict_of_arrays_generated_tuples_for_map'],
                            syntraf_version=DefaultValues.SYNTRAF_VERSION)
+
+
+# @st_home_bp.after_request
+# def add_header(r):
+#     r.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, public, max-age=0"
+#     r.headers["Pragma"] = "no-cache"
+#     r.headers["Expires"] = "0"
+#     return r
+
+
+# # Login with user/pass
+# @current_app.login_manager.user_loader
+# def load_user(user_id):
+#     return User.get(user_id)
+
+
+# login with API
+# @current_app.login_manager.request_loader
+# def request_loader(request):
+#     email = request.form.get('email')
+#     if "email" not in "users":
+#         return
+#
+#     user = User()
+#     user.id = email
+#     return user
+#
+# @current_app.login_manager.user_loader
+# def load_user(user_id):
+#     return User.objects(id=user_id).first()
+
