@@ -135,22 +135,22 @@ def index():
 #             return f(*args, **kwargs)
 #         return decorated_function
 
-@st_home_bp.route('/login', methods=['POST'])
-def user_login():
-    try:
-        if request.form['password'] == 'password' and request.form['username'] == 'admin':
-            login_user("lbs", remember=True)
-        else:
-            flash("Invalid username or password")
-        return index()
-    except Exception as msg:
-        log.error(msg)
-
-
-@st_home_bp.route("/logout")
-def logout():
-    logout_user()
-    return redirect(index)
+# @st_home_bp.route('/login', methods=['POST'])
+# def user_login():
+#     try:
+#         if request.form['password'] == 'password' and request.form['username'] == 'admin':
+#             login_user("lbs", remember=True)
+#         else:
+#             flash("Invalid username or password")
+#         return index()
+#     except Exception as msg:
+#         log.error(msg)
+#
+#
+# @st_home_bp.route("/logout")
+# def logout():
+#     logout_user()
+#     return redirect(index)
 
 
 # @st_home_bp.route('/generated_client_config.html')
@@ -596,17 +596,17 @@ def maps():
 
 
 # login with API
-@current_app.login_manager.request_loader
-def request_loader(request):
-    email = request.form.get('email')
-    if "email" not in "users":
-        return
-
-    user = User()
-    user.id = email
-    return user
-
-@current_app.login_manager.user_loader
-def load_user(user_id):
-    return User.objects(id=user_id).first()
+# @current_app.login_manager.request_loader
+# def request_loader(request):
+#     email = request.form.get('email')
+#     if "email" not in "users":
+#         return
+#
+#     user = User()
+#     user.id = email
+#     return user
+#
+# @current_app.login_manager.user_loader
+# def load_user(user_id):
+#     return User.objects(id=user_id).first()
 
