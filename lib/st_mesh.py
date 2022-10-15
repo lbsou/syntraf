@@ -353,10 +353,10 @@ def client_send_auth(_config, client_utime, ssl_conn):
         received_data = sock_rcv(ssl_conn)
         if not received_data is None:
             if received_data['COMMAND'] == "AUTH_FAILED":
-                log.info(f"AUTHENTICATION FAILED, REASON GIVEN BY SERVER : {received_data['PAYLOAD']}")
+                client_log.info(f"AUTHENTICATION FAILED, REASON GIVEN BY SERVER : {received_data['PAYLOAD']}")
                 return False
             else:
-                log.info(f"AUTHENTICATION SUCCESSFULL")
+                client_log.info(f"AUTHENTICATION SUCCESSFULL")
                 return True
 
     except Exception as exc:
