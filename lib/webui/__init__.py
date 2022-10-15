@@ -1,5 +1,5 @@
 from flask import Flask
-from lib.webui import st_config
+from lib.web_ui import st_config
 import os
 from lib.st_global import DefaultValues
 
@@ -16,7 +16,7 @@ def create_app(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generat
     with app.app_context():
 
         # Include blueprint
-        from lib.webui.st_home_bp import st_home_bp
+        from lib.web_ui.st_home_bp import st_home_bp
 
         # Register Blueprints
         app.register_blueprint(st_home_bp)
