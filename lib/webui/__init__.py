@@ -1,5 +1,5 @@
 from flask import Flask
-from lib.web_ui import st_config
+from lib.webui import st_config
 import os
 from lib.st_global import DefaultValues
 
