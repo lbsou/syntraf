@@ -134,7 +134,7 @@ def launch_stats(config, obj_stats):
 
 
 def init_client_obj_dict(config, dict_of_clients):
-    if "SERVER" in config:
+    if "SERVER" in config and "SERVER_CLIENT" in config:
         # Initializing status dict
         for client in config['SERVER_CLIENT']:
 
