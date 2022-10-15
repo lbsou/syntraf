@@ -1055,66 +1055,69 @@ class Handler(StreamRequestHandler):
 
         try:
             while True:
-                received_data = ""
-                received_data = sock_rcv(sckt)
-
-                if received_data is None:
+                # no need to loop if no server_client
+                if "SERVER_CLIENT" in _config:
+                    received_data = ""
                     received_data = sock_rcv(sckt)
 
-                if received_data is None:
-                    server_log.debug(f"CONTEXT: {dict_of_clients[uid].client_uid} - INVALID DATA RECEIVED")
-                    dict_of_clients[uid].status_explanation = "CONNECTION RESET BY PEER"
-                    server_log.error(f"CONNECTION RESET BY PEER: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
-                    break
-                else:
-                    # Log the command that was received
-                    server_log.debug(
-                        f"CONTEXT: {dict_of_clients[uid].client_uid} - RECEIVED {received_data['COMMAND']}")
+                    if received_data is None:
+                        received_data = sock_rcv(sckt)
 
-                    if received_data['COMMAND'] == "AUTH":
-
-                        if not server_auth(received_data, dict_of_clients[uid], _config,
-                                           dict_of_clients[uid].ip_address, dict_of_commands_for_network_clients, sckt,
-                                           _dict_by_node_generated_config, dict_of_client_pending_acceptance, threads_n_processes):
-                            return
-
-                        # Now that we know the identity of the client connecting, we can update the dictionary of client objects
-                        new_uid = dict_of_clients[uid].client_uid
-                        dict_of_clients[new_uid].client_uid = new_uid
-                        dict_of_clients[new_uid].status = dict_of_clients[uid].status
-                        dict_of_clients[new_uid].bool_dynamic_client = dict_of_clients[uid].bool_dynamic_client
-                        dict_of_clients[new_uid].status_since = dict_of_clients[uid].status_since
-                        dict_of_clients[new_uid].status_explanation = dict_of_clients[uid].status_explanation
-                        dict_of_clients[new_uid].clock_skew_in_seconds = dict_of_clients[uid].clock_skew_in_seconds
-                        dict_of_clients[new_uid].syntraf_version = dict_of_clients[uid].syntraf_version
-                        dict_of_clients[new_uid].ip_address = address[0]
-                        dict_of_clients[new_uid].tcp_port = address[1]
-                        dict_of_clients.pop(uid)
-                        uid = new_uid
-
-                    elif received_data['COMMAND'] == "SAVE_METRIC":
-                        server_save_metric(dict_of_clients[uid], conn_db, received_data,
-                                           dict_of_clients[uid].ip_address, sckt)
-
-                    elif received_data['COMMAND'] == "SAVE_STATS_METRIC":
-                        server_save_stats_metric(dict_of_clients[uid], received_data)
-
-                    elif received_data['COMMAND'] == "SAVE_THREAD_STATUS":
-                        server_save_thread_status(dict_of_clients[uid], received_data)
-
-                    elif received_data['COMMAND'] == "SYSTEM_INFOS":
-                        server_save_system_infos(dict_of_clients[uid], received_data)
-
-                    elif received_data['COMMAND'] == "AWAITING_COMMAND":
-                        server_awaiting_commands(dict_of_clients[uid].client_uid, dict_of_commands_for_network_clients,
-                                                 sckt)
-
-                    elif received_data['COMMAND'] == "HEARTBEAT":
-                        pass
-
+                    if received_data is None:
+                        server_log.debug(f"CONTEXT: {dict_of_clients[uid].client_uid} - INVALID DATA RECEIVED")
+                        dict_of_clients[uid].status_explanation = "CONNECTION RESET BY PEER"
+                        server_log.error(f"CONNECTION RESET BY PEER: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+                        break
                     else:
-                        print("UNKNOWN COMMAND:", received_data['COMMAND'])
+                        # Log the command that was received
+                        server_log.debug(
+                            f"CONTEXT: {dict_of_clients[uid].client_uid} - RECEIVED {received_data['COMMAND']}")
 
+                        if received_data['COMMAND'] == "AUTH":
+
+                            if not server_auth(received_data, dict_of_clients[uid], _config,
+                                               dict_of_clients[uid].ip_address, dict_of_commands_for_network_clients, sckt,
+                                               _dict_by_node_generated_config, dict_of_client_pending_acceptance, threads_n_processes):
+                                return
+
+                            # Now that we know the identity of the client connecting, we can update the dictionary of client objects
+                            new_uid = dict_of_clients[uid].client_uid
+                            dict_of_clients[new_uid].client_uid = new_uid
+                            dict_of_clients[new_uid].status = dict_of_clients[uid].status
+                            dict_of_clients[new_uid].bool_dynamic_client = dict_of_clients[uid].bool_dynamic_client
+                            dict_of_clients[new_uid].status_since = dict_of_clients[uid].status_since
+                            dict_of_clients[new_uid].status_explanation = dict_of_clients[uid].status_explanation
+                            dict_of_clients[new_uid].clock_skew_in_seconds = dict_of_clients[uid].clock_skew_in_seconds
+                            dict_of_clients[new_uid].syntraf_version = dict_of_clients[uid].syntraf_version
+                            dict_of_clients[new_uid].ip_address = address[0]
+                            dict_of_clients[new_uid].tcp_port = address[1]
+                            dict_of_clients.pop(uid)
+                            uid = new_uid
+
+                        elif received_data['COMMAND'] == "SAVE_METRIC":
+                            server_save_metric(dict_of_clients[uid], conn_db, received_data,
+                                               dict_of_clients[uid].ip_address, sckt)
+
+                        elif received_data['COMMAND'] == "SAVE_STATS_METRIC":
+                            server_save_stats_metric(dict_of_clients[uid], received_data)
+
+                        elif received_data['COMMAND'] == "SAVE_THREAD_STATUS":
+                            server_save_thread_status(dict_of_clients[uid], received_data)
+
+                        elif received_data['COMMAND'] == "SYSTEM_INFOS":
+                            server_save_system_infos(dict_of_clients[uid], received_data)
+
+                        elif received_data['COMMAND'] == "AWAITING_COMMAND":
+                            server_awaiting_commands(dict_of_clients[uid].client_uid, dict_of_commands_for_network_clients,
+                                                     sckt)
+
+                        elif received_data['COMMAND'] == "HEARTBEAT":
+                            pass
+
+                        else:
+                            print("UNKNOWN COMMAND:", received_data['COMMAND'])
+                else:
+                    time.sleep(2)
 
         except socket.timeout as exc:
             server_log.error(f"SOCKET TIMEOUT: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
