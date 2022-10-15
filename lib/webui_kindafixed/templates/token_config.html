@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Token{% endblock %}
+{% block content %}
+<h2>Token configuration</h2>
+<br/>
+    <table id="table_tokens" class="table table-striped table-hover table-sm">
+        <thead>
+            <th style="width: 50%">DESCRIPTION</th>
+            <th style="width: 50%">TOKEN</th>
+        </thead>
+        <tbody>
+            <tr>
+                <td></td>
+                <td></td>
+            </tr>
+        </tbody>
+    </table>
+
+<script>
+
+window.onload = function() {
+    $('#table_tokens').dataTable({stateSave: true});
+    get_tokens();
+};
+
+async function get_tokens()
+{
+    const fd = new FormData();
+    fd.append('ACTION', "GET_TOKENS");
+
+    // send `POST` request
+    const response = await fetch('/api', {
+        method: 'POST',
+        body: fd
+    })
+
+    tokens = await response.text();
+
+    if ("ER" == tokens) {
+        document.getElementById("error_modal_text").innerHTML = "This information is not available until this client connect to the server.";
+        $('#modal_system_stats_empty').modal('show');
+    }
+    else {
+            console.log(tokens);
+            tokens = JSON.parse(tokens);
+            console.log(tokens);
+
+            var datatable = $('#table_tokens').DataTable();
+            datatable.clear().draw();
+            for (let [id, data] of Object.entries(tokens)){
+                datatable.row.add(id, data).draw(false);
+            }
+
+
+
+<!--            system_infos = JSON.parse(system_infos);-->
+<!--            document.getElementById('modal_system_stats_label').innerHTML= 'System informations of ' + client_uid;-->
+<!--            document.getElementById('modal_system_infos_system').innerHTML= system_infos["SYSTEM"];-->
+<!--            document.getElementById('modal_system_infos_node_name').innerHTML=system_infos["NODE_NAME"];-->
+<!--            document.getElementById('modal_system_infos_release').innerHTML=system_infos["RELEASE"];-->
+<!--            document.getElementById('modal_system_infos_version').innerHTML=system_infos["VERSION"];-->
+<!--            document.getElementById('modal_system_infos_processor').innerHTML=system_infos["PROCESSOR"];-->
+<!--            document.getElementById('modal_system_infos_python_version').innerHTML=system_infos["PYTHON_VERSION"];-->
+<!--            document.getElementById('modal_system_infos_cpu_model').innerHTML=system_infos["CPU_MODEL"];-->
+<!--            document.getElementById('modal_system_infos_cpu_count_logical').innerHTML=system_infos["CPU_LOGICAL"];-->
+<!--            document.getElementById('modal_system_infos_cpu_count_physical').innerHTML=system_infos["CPU_PHYSICAL"];-->
+<!--            document.getElementById('modal_system_infos_cpu_frequency').innerHTML=system_infos["CPU_FREQUENCY"];-->
+<!--            document.getElementById('modal_system_infos_memory_mb_physical').innerHTML=system_infos["MEMORY_MB"] + " MB";-->
+<!--            document.getElementById('modal_system_infos_boot_time').innerHTML=system_infos["BOOT_TIME"];-->
+<!--            document.getElementById('modal_system_infos_timezone').innerHTML=system_infos["TIMEZONE"];-->
+<!--            $('#modal_system_stats').modal('show');-->
+    }
+}
+
+</script>
+
+{% endblock %}

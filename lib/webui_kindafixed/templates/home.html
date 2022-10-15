@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}Home Page{% endblock %}
+{% block content %}
+<h1>SYNTRAF</h1>
+<p class="text-info">Welcome, have a nice troubleshooting...</p>
+
+<div class="container">
+  <div class="row">
+    {% for database in conn_db %}
+        <div class="col-sm-3">
+          {% if database.status == "ONLINE" %}
+            <div class="card text-white bg-success mb-3" style="max-width: 30rem;" id="{{ database.DB_UID }}_status_color">
+          {%- else -%}
+            <div class="card text-white bg-danger mb-3" style="max-width: 30rem;" id="{{ database.DB_UID }}_status_color">
+          {%- endif %}
+              <div class="card-header">Status of database: '{{ database.DB_UID }}'</div>
+              <div class="card-body">
+                <h4 class="card-title" id="{{ database.DB_UID }}_status">{{ database.status }}</h4>
+                <p class="card-text">
+                    <p class="card-text" id="{{ database.DB_UID }}_status_since">Since: {{ database.status_time }}</p>
+                    <p class="card-text" id="{{ database.DB_UID }}_backlog">Data backlog: {{ database.write_queue.queue | length }}</p>
+                </p>
+              </div>
+         </div>
+        </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+        <div class="col-sm-3">
+            <div class="card text-white bg-success mb-3" style="max-width: 30rem;">
+              <div class="card-header"><a href="/stats.html">Online clients</a></div>
+              <div class="card-body">
+                <h4 class="card-title" id="ONLINE_CLIENTS"></h4>
+                <p class="card-text"></p>
+              </div>
+            </div>
+        </div>
+        <div class="col-sm-3">
+            <div class="card text-white bg-danger mb-3" style="max-width: 30rem;">
+              <div class="card-header"><a href="/stats.html">Offline clients</a></div>
+              <div class="card-body">
+                <h4 class="card-title" id="OFFLINE_CLIENTS"></h4>
+                <p class="card-text"></p>
+              </div>
+            </div>
+        </div>
+  </div>
+</div>
+
+<script>
+get_online_clients()
+get_offline_clients()
+get_list_of_databases_infos()
+
+setInterval(get_online_clients, 5000)
+setInterval(get_offline_clients, 5000)
+setInterval(get_list_of_databases_infos, 5000)
+
+
+async function get_online_clients()
+{
+    const fd = new FormData();
+    fd.append('ACTION', "GET_NUMBER_OF_ONLINE_CLIENT");
+
+    // send `POST` request
+    const response = await fetch('/api', {
+        method: 'POST',
+        body: fd
+    })
+
+    retval = await response.text();
+    retval = JSON.parse(retval);
+
+    //console.log(retval);
+    //alert(retval);
+
+    document.getElementById('ONLINE_CLIENTS').innerHTML = retval
+}
+
+async function get_offline_clients()
+{
+    const fd = new FormData();
+    fd.append('ACTION', "GET_NUMBER_OF_OFFLINE_CLIENT");
+
+    // send `POST` request
+    const response = await fetch('/api', {
+        method: 'POST',
+        body: fd
+    })
+
+    retval = await response.text();
+    retval = JSON.parse(retval);
+
+    //console.log(retval);
+    //alert(retval);
+
+    document.getElementById('OFFLINE_CLIENTS').innerHTML = retval
+}
+
+async function get_list_of_databases_infos()
+{
+    const fd = new FormData();
+    fd.append('ACTION', "GET_LIST_OF_DATABASES_INFOS");
+
+    // send `POST` request
+    const response = await fetch('/api', {
+        method: 'POST',
+        body: fd
+    })
+
+    retval = await response.text();
+    retval = JSON.parse(retval);
+
+    //console.log(retval);
+    //alert(retval);
+
+    for (const [key, value] of Object.entries(retval)) {
+
+        document.getElementById(key + '_status').innerHTML = value['STATUS'];
+        if (value['STATUS'] == "ONLINE"){
+            document.getElementById(key + '_status_color').className = "card text-white bg-success mb-3";
+        } else{
+            document.getElementById(key + '_status_color').className = "card text-white bg-danger mb-3";
+        }
+
+        document.getElementById(key + '_status_since').innerHTML = value['STATUS_TIME'];
+        document.getElementById(key + '_backlog').innerHTML = value['BACKLOG'];
+    }
+
+
+}
+
+
+
+</script>
+
+{% endblock %}

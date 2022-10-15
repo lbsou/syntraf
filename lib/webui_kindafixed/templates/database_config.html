@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Client config{% endblock %}
+{% block content %}
+<h2>Databases configurations</h2>
+<br/>
+    {% for database in config['DATABASE'] %}
+        <h4><p class="text-info">{{ database['DB_UID'] }}</p></h4>
+        <table class="table table-striped table-hover table-sm">
+            <thead>
+                <th style="width: 50%">PARAMETER</th>
+                <th style="width: 50%">VALUE</th>
+            </thead>
+            <tbody>
+                {% for item in database %}
+                    <tr>
+                        <td>{{ item }}</td>
+                        <td>{{ database[item] }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <br/>
+    {% endfor %}
+{% endblock %}

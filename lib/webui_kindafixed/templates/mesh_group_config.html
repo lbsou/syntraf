@@ -1,0 +1,443 @@
+{% extends "base.html" %}
+{% block title %}Groups{% endblock %}
+{% block content %}
+  <div class="container"><br>
+    <div class="table-responsive">
+      <h2>Mesh groups</h2>
+
+    <div id="toolbar">
+      <button id="btn_new" type="button" class="btn btn-primary" style="width:120px;">
+          <i class="fas fa-plus"></i>&nbsp;&nbsp;&nbsp;New
+      </button>
+      <button id="btn_edit" type="button" class="btn btn-primary" style="width:120px;">
+          <i class="fa fa-edit"></i>&nbsp;&nbsp;&nbsp;Edit
+      </button>
+      <button id="btn_delete" class="btn btn-danger" style="width:120px;" disabled>
+        <i class="fa fa-trash"></i>&nbsp;&nbsp;&nbsp;Delete
+      </button>
+      <button id="btn_duplicate" class="btn btn-primary" style="width:120px;" disabled>
+        <i class="far fa-clone"></i>&nbsp;&nbsp;&nbsp;Duplicate
+      </button>
+      <button id="btn_disable" class="btn btn-primary" style="width:120px;" disabled>
+        <i class="fas fa-slash"></i>&nbsp;&nbsp;&nbsp;Disable
+      </button>
+
+    </div>
+      <table id="table" class="table-dark table-striped thead-dark table-hover table-sm vertical-align" style="width:100%"
+          data-toolbar="#toolbar"
+          data-search="true"
+          data-show-toggle="true"
+          data-show-columns="true"
+          data-show-export="true"
+          data-click-to-select="true"
+          data-minimum-count-columns="2"
+          data-show-search-clear-button="true"
+          data-pagination="true"
+          data-id-field="UID"
+          data-page-list="[10, 25, 50, 100, all]"
+          data-show-footer="true">
+      </table>
+    </div>
+  </div>
+  <div aria-labelledby="modal_confirmation" class="modal fade" id="modal_confirmation" role="dialog" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered" role="document">
+          <div class="modal-content">
+              <input type="hidden" id="groupID" value="">
+              <div class="modal-header">
+                  <h4 class="modal-title" id="modal_confirmation_title_text">Delete group</h4>
+              </div>
+              <div class="modal-body" >
+                  <p id="modal_confirmationText">Are you sure you wish to delete this group?</p>
+              </div>
+              <div class="modal-footer">
+                  <button class="btn btn-default" data-bs-dismiss="modal" type="button">No</button>
+                  <button class="btn btn-danger" id="btn_yes_modal_confirmation" type="button">Yes</button>
+              </div>
+          </div><!-- end modal-content -->
+      </div><!-- end modal-dialog -->
+  </div><!-- end modal -->
+
+<div class="modal fade" id="modal_delete_error" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div  class="modal-content text-center">
+            </br>
+            <i class="fa fa-exclamation-triangle fa-2x" style="color:yellow" aria-hidden="true"></i>
+            </br>
+            <div id="error_modal_text"></div>
+            </br>
+            <div><button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button></div>
+            </br>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modal_success" tabindex="-1" role="dialog" data-keyboard="false" data-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div  class="modal-content text-center">
+          <div class="modal-header">
+            <h5 class="modal-title" id="modal_success_group_label">Deletion result(s)</h5>
+          </div>
+            <div id="success_modal_text" style="margin-right:15px; margin-left:15px">
+
+            </div>
+            </br>
+            <div><button type="button" class="btn btn-light" id="btn_close_modal_success" data-bs-dismiss="modal">Close</button></div>
+            </br>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modal_new_mesh_group" tabindex="-1" role="dialog" aria-labelledby="modal_new_mesh_group" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modal_new_mesh_group_label">Create mesh group</h5>
+      </div>
+      <form action="" id="new_mg_form" class="g-3" novalidate>
+          <div class="modal-body">
+                <div class="table-responsive">
+                    <div class="form-group">
+                        <label for="mg_name" class="form-label mt-4">Name</label>
+<!--                        pattern='^[A-Za-z0-9_-]{5,50}$'-->
+                        <input class="form-control" id="mg_name" type="text" oninput="check_validity_uid()" autofocus placeholder="Enter a unique mesh group name" name="mg_name" required>
+                        <div id="mg_name-feedback" class="invalid-feedback">
+                            Please specify a unique and valid name (A-Za-z0-9_-), 5-50 characters long.
+                        </div>
+
+                        <label for="mg_description" class="form-label mt-4">Description</label>
+<!--                        pattern='^[A-Za-z0-9_-]{0,100}$'-->
+                        <input class="form-control"  id="mg_description" type="text" placeholder="Enter a description" name="mg_description">
+                        <div id="mg_description-feedback" class="invalid-feedback">
+                            You can enter a description for this mesh group.
+                        </div>
+
+                        <div style="display: inline-block;">
+                            <label for="mg_bandwidth" class="form-label mt-4">Bandwidth</label>
+<!--                            data-rule-min="0.00000001" data-rule-max="1000000000" -->
+                            <input class="form-control"  id="mg_bandwidth" type="text" placeholder="200" name="mg_bandwidth" required>
+<!--                            pattern='^[1-9][0-9]*$'-->
+                        </div>
+                        <div id="mg_bandwidth-feedback" class="invalid-feedback">
+                            Please specify a positive number.
+                        </div>
+                        <div style="display: inline-block;">
+                          <select class="form-select" id="select_bw">
+                            <option>bps</option>
+                            <option selected>Kbps</option>
+                            <option>Mbps</option>
+                          </select>
+                        </div>
+                        <br>
+
+                        <label for="mg_dscp" class="form-label mt-4">DSCP</label>
+                        <input class="form-control" id="mg_dscp" type="text" placeholder="0" name="mg_dscp" required>
+                        <div class="invalid-feedback">
+                            Please specify a DSCP code between 0 and 63.
+                        </div>
+
+                        <label for="mg_packet_size" class="form-label mt-4">Packet size (bytes)</label>
+                        <input class="form-control" id="mg_packet_size" type="text" placeholder="32" name="mg_packet_size" required>
+                        <div class="invalid-feedback">
+                            Please specify a packet size between 16 and 65507.
+                        </div>
+
+                        <label for="mg_interval" class="form-label mt-4">Metric interval (seconds)</label>
+                        <input class="form-control" id="mg_interval" type="text" placeholder="1" name="mg_interval" required>
+                        <div class="invalid-feedback">
+                            Please specify an interval between 1 and 60.
+                        </div>
+
+                    </div>
+                </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-primary" data-bs-dismiss="modal" style="width:100px;">Cancel</button>
+            <button class="btn btn-primary" id="btn_save_new_mesh_group"style="width:100px;" type="button">Save</button>
+          </div>
+      </form>
+
+
+    </div>
+  </div>
+</div>
+
+<script>
+    var $table = $("#table");
+    var $table_modal_success = $("#table_modal_success");
+    var $modal_confirmation = $("#modal_confirmation");
+    var $modal_confirmationText = $("#modal_confirmationText");
+    var $modal_new_mesh_group = $("#modal_new_mesh_group");
+    var $success_modal_text = $("#success_modal_text");
+    var $btn_delete = $("#btn_delete");
+    var $btn_new = $("#btn_new");
+    var $btn_duplicate = $("#btn_duplicate");
+    var $btn_disable = $("#btn_disable");
+    var selections = [];
+    let form = document.querySelector('.needs-validation')
+
+
+
+    function check_validity_uid(){
+        let mg_uid = $('#mg_name').val()
+        const re = new RegExp('^[A-Za-z0-9_-]{5,100}$');
+
+<!--        if(re.test(mg_uid) == true){-->
+<!--            $('#mg_name-feedback').text("");-->
+<!--            $('#mg_name').removeClass("is-invalid").addClass('is-valid');-->
+
+<!--        }-->
+<!--        else {-->
+<!--            $('#new_mg_form').prop('data-feedback', '{"success": "fa-times", "error":"fa-check"}');-->
+<!--            $('#mg_name-feedback').text("Please specify a unique and valid name (A-Za-z0-9_-), 5-50 characters long.");-->
+<!--            $('#mg_name').removeClass("is-valid").addClass('is-invalid');-->
+<!--        }-->
+        // Does it already exist?
+    }
+
+
+    get_mesh_groups();
+
+    $(document).ready(function(){
+        // Prevent dismiss when user click outside of modal
+        $("#modal_confirmation").modal({backdrop: 'static', keyboard: false});
+        $("#modal_new_mesh_group").modal({backdrop: 'static', keyboard: false});
+        $("#modal_delete_error").modal({backdrop: 'static', keyboard: false});
+        $("#modal_success").modal({backdrop: 'static', keyboard: false});
+    });
+
+    function getUidSelections() {
+        return $.map($table.bootstrapTable("getSelections"), function (row) {
+            return row.UID;
+        });
+    }
+
+    function responseHandler(res) {
+        $.each(res.rows, function (i, row) {
+            row.state = $.inArray(row.id, selections) !== -1;
+        });
+        return res;
+    }
+
+    $('#modal_success').on('hidden.bs.modal', function (e) {
+        $table_modal_success.bootstrapTable('destroy');
+    })
+
+    $("#btn_new").click(function() {
+        $modal_new_mesh_group.modal('show');
+    });
+
+
+
+
+
+
+
+    // Read the bw and modify it according to the unit of measurement selected
+    $("#select_bw").change(function(e){
+        var previous = $(this).data('pre');//get the pre data
+
+        bw = $('#mg_bandwidth').val();
+        bw = parseFloat(bw);
+        bw.toFixed();
+
+        // We know our initial value is Kbps
+        if (previous === undefined){
+            previous = "Kbps";
+        }
+
+        if (bw !== null && bw !== "" && !isNaN(bw)){
+            if(previous == "Kbps" && this.value == "Mbps"){
+                $('#mg_bandwidth').val(bw/1000);
+            }
+            else if (previous == "Kbps" && this.value == "bps"){
+                $('#mg_bandwidth').val(bw*1000);
+            }
+            else if (previous == "Mbps" && this.value == "Kbps"){
+                $('#mg_bandwidth').val(bw*1000);
+            }
+            else if (previous == "Mbps" && this.value == "bps"){
+                $('#mg_bandwidth').val(bw*1000*1000);
+            }
+            else if (previous == "bps" && this.value == "Kbps"){
+                $('#mg_bandwidth').val(bw/1000);
+            }
+            else if (previous == "bps" && this.value == "Mbps"){
+                $('#mg_bandwidth').val(bw/1000/1000);
+            }
+        }
+
+        // Make sure the previous value is updated
+        previous = this.value;
+        $(this).data('pre', $(this).val());//update the pre data
+    })
+
+
+
+    $table.on('check.bs.table uncheck.bs.table ' + 'check-all.bs.table uncheck-all.bs.table',
+    function () {
+      $btn_delete.prop('disabled', !$table.bootstrapTable('getSelections').length)
+      $btn_duplicate.prop('disabled', !$table.bootstrapTable('getSelections').length)
+      $btn_disable.prop('disabled', !$table.bootstrapTable('getSelections').length)
+    })
+
+    $table.on('all.bs.table', function (e, name, args) {
+      console.log(name, args)
+    })
+
+    $btn_duplicate.click(function () {
+        // Change the onclick of the confirmation modal
+        $("#btn_yes_modal_confirmation").unbind('click');
+        $("#btn_yes_modal_confirmation").click(function() {
+            duplicate_mesh_groups(mesh_group_uid);
+            $modal_confirmation.modal('hide');
+        });
+
+        var mesh_group_uid = getUidSelections();
+        $modal_confirmationText.text(`Are you sure you wish to clone the mesh group '${mesh_group_uid}'?`);
+        $btn_duplicate.prop('disabled', true);
+        $modal_confirmation.modal('show');
+    })
+
+    $btn_delete.click(function () {
+      // Change the onclick of the confirmation modal
+      $('#btn_yes_modal_confirmation').unbind('click');
+      $("#btn_yes_modal_confirmation").click(function() {
+          delete_mesh_groups(getUidSelections());
+          $btn_delete.prop('disabled', true);
+          $modal_confirmation.modal('hide');
+      });
+
+      var uids_to_delete = getUidSelections();
+
+      if (uids_to_delete.length == 1){
+        $modal_confirmationText.text(`Are you sure you wish to delete the mesh group '${uids_to_delete}'?`);
+      }
+      else{
+        $modal_confirmationText.text(`Are you sure you wish to delete these ${uids_to_delete.length} mesh groups?`);
+      }
+
+      $modal_confirmation.modal('show');
+    })
+
+    // If group click 'delete' call the API to delete the group
+    $("#btn_close_modal_success").click(get_mesh_groups);
+
+
+
+<!--    //Clear table and re-populate it-->
+<!--    function refresh_table() {-->
+<!--        get_mesh_groups();-->
+<!--    }-->
+
+    async function duplicate_mesh_groups(mesh_group_uid) {
+            const API_URL = "/api";
+            const xhr = new XMLHttpRequest();
+            const fd = new FormData();
+
+            fd.append("ACTION", "DUPLICATE_MESH_GROUP");
+            fd.append("MESH_GROUP_UID", mesh_group_uid);
+
+            const response = await fetch('/api', {
+                method: 'POST',
+                body: fd
+            })
+            answer_json = await response.text();
+            var answer = JSON.parse(answer_json);
+
+            //Do we have a fatal_error?
+            for(var i = 0; i < answer.length; i++) {
+                if (answer[i]['ID'] == "FATAL_ERROR"){
+                    document.getElementById("error_modal_text").innerHTML = answer[i]['ID'] + " - " + answer[i]['MSG'];
+                    $("#modal_confirmation").modal('hide');
+                    $('#modal_delete_error').modal('show');
+                    $btn_duplicate.prop('disabled', false);
+                    return;
+                }
+            }
+            document.getElementById("success_modal_text").innerHTML = mesh_group_uid + " successfully duplicated!";
+            $('#modal_success').modal('show');
+            $("#removegroup").modal('hide');
+    }
+
+    async function delete_mesh_groups(mesh_group_uids) {
+            const API_URL = "/api";
+            const xhr = new XMLHttpRequest();
+            const fd = new FormData();
+
+            fd.append("ACTION", "DELETE_MESH_GROUPS");
+            fd.append("MESH_GROUP_UIDS", mesh_group_uids);
+
+            const response = await fetch('/api', {
+                method: 'POST',
+                body: fd
+            })
+            answer_json = await response.text();
+            var answer = JSON.parse(answer_json);
+
+            //Do we have a fatal_error?
+            for(var i = 0; i < answer.length; i++) {
+                if (answer[i]['ID'] == "FATAL_ERROR"){
+                    document.getElementById("error_modal_text").innerHTML = answer[i]['ID'] + " - " + answer[i]['MSG'];
+                    $("#removegroup").modal('hide');
+                    $('#modal_delete_error').modal('show');
+                    $btn_delete.prop('disabled', false);
+                    return;
+                }
+            }
+
+            $("#success_modal_text").html("<table id='table_modal_success' data-search='true' data-pagination='true' data-page-size='5'></table>");
+
+            $("#table_modal_success").bootstrapTable({
+              columns: [{ field: 'ID', title: 'Mesh group', sortable: false},
+                        { field: 'MSG', title: 'Message', sortable: true}],
+              data: answer
+            })
+
+            $('#modal_success').modal('show');
+            $("#removegroup").modal('hide');
+    }
+
+    async function get_mesh_groups() {
+        console.log("get_mesh_groups");
+        const API_URL = "/api";
+        const xhr = new XMLHttpRequest();
+        const fd = new FormData();
+        fd.append("ACTION", "GET_MESH_GROUPS");
+
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        })
+        mesh_groups = await response.text();
+
+        if ("E1001" == mesh_groups) {
+            $('#modal_system_stats_empty').modal('show');
+        }
+        else {
+
+            // Get mesh_groups back as list
+            var mesh_groups = JSON.parse(mesh_groups);
+            $table.bootstrapTable('destroy');
+            $table.bootstrapTable({
+              pagination: true,
+              search: true,
+              columns: [
+                        { field: 'state', checkbox: true, align: 'center', valign: 'middle'},
+                        { field: 'UID', title: 'Name', align: 'center', sortable: true},
+                        { field: 'BANDWIDTH', title: 'Bandwidth', align: 'center', sortable: false},
+                        { field: 'PACKET_SIZE', title: 'Packet size', align: 'center', sortable: true},
+                        { field: 'DSCP', title: 'DSCP', align: 'center', sortable: false},
+                        { field: 'INTERVAL', title: 'Interval', align: 'center', sortable: true},
+                        { field: 'MEMBERS', title: 'Members', align: 'center', sortable: true},
+                        { field: 'BW_PER_NODE_KBPS', title: 'Bandwidth per node (Kbps)*', align: 'center', sortable: true}
+                       ],
+              data: mesh_groups
+            })
+        }
+    }
+
+</script>
+
+{% endblock %}
+
+

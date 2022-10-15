@@ -9,7 +9,7 @@ from lib.st_system_stats import *
 
 # SYNTRAF SERVER IMPORT
 if not CompilationOptions.client_only:
-    from lib.webui import create_app
+    from lib.webui_kindafixed2 import create_app
 
     #from gevent import monkey
     #monkey.patch_all()

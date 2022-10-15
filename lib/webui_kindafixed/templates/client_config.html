@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Client config{% endblock %}
+{% block content %}
+<h2>Clients configurations</h2>
+<br/>
+    {% for clients in config['SERVER_CLIENT'] %}
+        <h4><p class="text-info">{{ clients['UID'] }}</p></h4>
+        <table class="table table-striped table-hover table-bordered table-sm">
+            <thead>
+                <th style="width: 50%">PARAMETER</th>
+                <th style="width: 50%">VALUE</th>
+            </thead>
+            <tbody>
+                {% for item in clients %}
+                    <tr>
+                        <td>{{ item }}</td>
+                        <td>{{ clients[item] }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <br/>
+    {% endfor %}
+
+{% endblock %}
