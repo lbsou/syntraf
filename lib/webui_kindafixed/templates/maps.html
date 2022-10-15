@@ -1,0 +1,727 @@
+{% extends "base.html" %}
+{% block title %}Mesh maps or{% endblock %}
+{% block head %}
+    <meta name="description" content="[Cytoscape]" />
+    <meta charset=utf-8 />
+    <meta name="viewport" content="user-scalable=no, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, minimal-ui">
+    <title>Cytoscape result</title>
+    <script src="/static/cytoscape-js/cytoscape.min.js"></script>
+    <style>
+        :root {
+            --map-width:1000px;
+            --map-height:1000px;
+        }
+
+        html,
+        body {
+            height: 100vh;
+        }
+
+        #background_div {
+            padding-left: 20px;
+            padding-right: 20px;
+        }
+
+        #layout_div {
+            padding-left: 20px;
+            padding-right: 20px;
+        }
+
+        #style_div {
+            padding-left: 20px;
+            padding-right: 20px;
+        }
+
+        #main {
+          transition: margin-left .1s;
+          padding: 20px;
+          margin-left: 0px;
+        }
+
+        /* The sidebar menu */
+        .sidenav {
+          height: 100%;
+          width: 0px;
+          position: fixed; /* Stay in place */
+          z-index: 1; /* Stay on top */
+          top: 0;
+          left: 0;
+          background-color: #111; /* Black*/
+          overflow-x: hidden; /* Disable horizontal scroll */
+          padding-top: 100px; /* Place content 60px from the top */
+          transition: 0.2s; /* 0.5 second transition effect to slide in the sidebar */
+        }
+
+        .cy_container_button {
+        text-align: center;
+        }
+
+        .cy_button {
+          background-color: #375A7F;
+          border: none;
+          color: white;
+          text-align: center;
+          text-decoration: none;
+          display: inline-block;
+          border-radius: 50% 20% / 10% 40%;
+          border: 5px solid rgba(255, 255, 255, 0);
+        }
+
+        .cy_gear {
+        position: absolute;
+        width: 55px; !important
+        height: 55px; !important
+        float: right;
+        top: 20px;
+        right: 20px;
+        z-index: 1000;
+        }
+
+        .cy_unlock {
+        position: absolute;
+        width: 55px; !important
+        height: 55px; !important
+        float: right;
+        top: 75px;
+        right: 20px;
+        z-index: 1000;
+        }
+
+        .cy_add {
+        position: absolute;
+        width: 55px; !important
+        height: 55px; !important
+        float: right;
+        top: 130px;
+        right: 20px;
+        z-index: 1000;
+        }
+
+        .cy_remove {
+        position: absolute;
+        width: 55px; !important
+        height: 55px; !important
+        float: right;
+        top: 185px;
+        right: 20px;
+        z-index: 1000;
+        }
+
+        #cy {
+            display: block;
+            position: relative;
+            {% if background | length >= 1 %}
+                height: {{ background_size[1] }}px;
+                width: {{ background_size[0] }}px;
+                background-image: url("/static/maps/{{ background }}");
+                background-size: cover;
+                //background-size:100% 100%;
+            {%- else -%}
+              /* Default background */
+              width: var(--map-width);
+              height: var(--map-height);
+            background:
+                linear-gradient(-90deg, rgba(0, 0, 0, .2) 1px, transparent 1px),
+                linear-gradient(rgba(0, 0, 0, .2) 1px, transparent 1px),
+                linear-gradient(-90deg, rgba(0, 0, 0, .03) 1px, transparent 1px),
+                linear-gradient(rgba(0, 0, 0, .2) 1px, transparent 1px),
+                linear-gradient(transparent 3px, transparent 3px, transparent 78px, transparent 78px),
+                linear-gradient(-90deg, transparent 1px, transparent 1px),
+                linear-gradient(-90deg, transparent 3px, transparent 3px, transparent 78px, transparent 78px),
+                linear-gradient(transparent 1px, transparent 1px), transparent;
+            background-size:
+                10px 10px,
+                10px 10px,
+                10px 10px,
+                10px 10px,
+                10px 10px,
+                10px 10px,
+                10px 10px,
+                10px 10px;
+
+            {%- endif %}
+            }
+
+            /* START FILE UPLOAD https://codepen.io/aaronvanston/details/yNYOXR */
+            .file-upload {
+              background-color: #111;
+              width: 100%;
+              margin: 0 auto;
+              padding: 20px;
+            }
+
+            .file-upload-btn {
+              width: 100%;
+              margin: 0;
+              color: #fff;
+              background: #1FB264;
+              border: none;
+              padding: 10px;
+              border-radius: 4px;
+              border-bottom: 4px solid #15824B;
+              transition: all .2s ease;
+              outline: none;
+              text-transform: uppercase;
+              font-weight: 700;
+            }
+
+            .file-upload-btn:hover {
+              background: grey;
+              color: #ffffff;
+              transition: all .2s ease;
+              cursor: pointer;
+            }
+
+            .file-upload-btn:active {
+              border: 0;
+              transition: all .2s ease;
+            }
+
+            .file-upload-content {
+              display: none;
+              text-align: center;
+            }
+
+            .file-upload-input {
+              position: absolute;
+              margin: 0;
+              padding: 0;
+              width: 100%;
+              height: 100%;
+              outline: none;
+              opacity: 0;
+              cursor: pointer;
+            }
+
+            .image-upload-wrap {
+              margin-top: 20px;
+              border: 2px dashed #1FB264;
+              position: relative;
+            }
+
+            .image-dropping,
+            .image-upload-wrap:hover {
+              background-color: #1FB264;
+              border: 2px dashed #ffffff;
+            }
+
+            .image-title-wrap {
+              padding: 0 15px 15px 15px;
+              color: #222;
+            }
+
+            .drag-text {
+              text-align: center;
+            }
+
+            .drag-text h3 {
+              font-weight: 100;
+              text-transform: uppercase;
+              color: #15824B;
+              padding: 60px 0;
+            }
+
+            .file-upload-image {
+              max-height: 200px;
+              max-width: 200px;
+              margin: auto;
+              padding: 20px;
+            }
+
+            .remove-image {
+              width: 200px;
+              margin: 0;
+              color: #fff;
+              background: #cd4535;
+              border: none;
+              padding: 10px;
+              border-radius: 4px;
+              border-bottom: 4px solid #b02818;
+              transition: all .2s ease;
+              outline: none;
+              text-transform: uppercase;
+              font-weight: 700;
+            }
+
+            .remove-image:hover {
+              background: #c13b2a;
+              color: #ffffff;
+              transition: all .2s ease;
+              cursor: pointer;
+            }
+
+            .remove-image:active {
+              border: 0;
+              transition: all .2s ease;
+            }
+
+            /* END FILE UPLOAD https://codepen.io/aaronvanston/details/yNYOXR */
+</style>
+{% endblock %}
+{% block content %}
+    <div class="page-container">
+        <nav id="sidenav" class="sidenav">
+            <p>
+              <span type="button" data-toggle="collapse" data-target="#background_div" aria-expanded="false" aria-controls="background_div">
+                  <b>Background</b>
+              </span>
+            </p>
+            <div class="collapse" id="background_div">
+              <div class="card card-body">
+                 <div class="form-group w-50">
+                    <a type="button" class="dropdown-item btn btn-info" data-toggle="modal" data-target="#modal-upload-bg">Choose a background</a>
+                 </div>
+              </div>
+            </div>
+            <p>
+              <span type="button" data-toggle="collapse" data-target="#layout_div" aria-expanded="false" aria-controls="layout_div">
+                  <b>Layout</b>
+              </span>
+            </p>
+            <div class="collapse" id="layout_div">
+              <div class="card card-body">
+                Choose a layout :
+                   <div class="form-group w-50">
+                        <select class="custom-select" name="layout" id="layout" onchange="load_run_layout()">
+                            <option value="random"  selected>Random</option>
+                            <option value="preset" selected>Preset</option>
+                            <option value="grid" selected>Grid</option>
+                            <option value="circle" selected>Circle</option>
+                            <option value="concentric" selected>Concentric</option>
+                            <option value="breadthfirst" selected>Breadthfirst</option>
+                            <option value="cose" selected>Cose</option>
+                        </select>
+                    </div>
+                    <div><input type="submit" class="btn btn-primary" id="reset_positions_btn" value="Reset"></div>
+                    <div><form><input class="btn btn-primary" id="save_btn" value="Save positions"></form></div>
+              </div>
+            </div>
+
+           <p>
+              <span  type="button" data-toggle="collapse" data-target="#style_div" aria-expanded="false" aria-controls="style_div">
+                  <b>Style</b>
+              </span>
+            </p>
+            <div class="collapse" id="style_div">
+              <div class="card card-body">
+                Choose a style :
+                  <div>Node size :</div>
+                  <div>Node color :</div>
+                  <div>Node label size :</div>
+                  <div>Node label color :</div>
+                  <div>Edge ok :</div>
+                  <div>Edge warning :</div>
+                  <div>Edge critical :</div>
+              </div>
+            </div>
+        </nav>
+
+        <div id="main">
+            <h2>Mesh maps</h2>
+            <br/>
+
+            <div class="content-wrapper">
+                 <div class="form-group w-50 ">
+                    <form>
+                        <div class="d-inline-flex">
+                         <select class="custom-select" name="mesh_group_map" id="mesh_group_map" onchange="this.form.submit()">
+                             {% if config['MESH_GROUP'] | length >= 1 %}
+                                {% for mesh_group in config['MESH_GROUP'] %}
+                                    <option value="{{ mesh_group['UID'] }}" selected>{{ mesh_group['UID'] }}</option>
+                                {% endfor %}
+                                <option value="Null" selected>-- Please choose a mesh group to display the associated map --</option>
+                             {%- else -%}
+                                <option value = "NO MESH GROUP DEFINED" selected>"NO MESH GROUP DEFINED"</option>
+                             {%- endif %}
+                         </select>
+                        </div>
+                        <div class="d-inline-flex">
+                         <button type="button" id="btn_group_list_add" class="cy_button d-inline" onclick="openNav()" data-toggle="tooltip" data-placement="top" title="Remove nodes"><i class="fas fa-plus"></i></button>
+                        </div>
+                        <div class="d-inline-flex">
+                         <button type="button" id="btn_group_list_edit" class="cy_button d-inline" onclick="openNav()" data-toggle="tooltip" data-placement="top" title="Remove nodes"> <i class="fas fa-edit"></i></button>
+                        </div>
+                        <div class="d-inline-flex">
+                         <button type="button" id="btn_group_list_delete" class="cy_button d-inline" onclick="openNav()" data-toggle="tooltip" data-placement="top" title="Remove nodes"> <i class="far fa-trash-alt"></i></i></button>
+                        </div>
+                    </form>
+                 </div>
+
+                {% if selected_map != "Null" %}
+                    <h4><p class="text-info">{{ selected_map }}</p></h4>
+                {%- endif %}
+
+
+                <div id="cy">
+                    <div class="cy_container_button">
+                        <div id="cy_gear">
+                            <button type="button" id="sidebarCollapse" class="cy_gear cy_button" onclick="openNav()" data-toggle="tooltip" data-placement="top" title="Configure background and nodes "> <i class="fas fa-cog fa-2x"></i></button>
+                        </div>
+                        <div id="cy_unlock">
+                            <button type="button" id="asd13" class="cy_button cy_unlock" onclick="openNav()" data-toggle="tooltip" data-placement="top" title="Unlock to make modifications"> <i class="fa fa-unlock-alt fa-2x"></i></button>
+                        </div>
+                        <div id="cy_add">
+                            <button type="button" id="asd" class="cy_button cy_add" onclick="openNav()" data-toggle="tooltip" data-placement="top" title="Add nodes"> <i class="fa fa-plus fa-2x"></i></button>
+                        </div>
+                        <div id="cy_remove">
+                            <button type="button" id="asd1" class="cy_button cy_remove" onclick="openNav()" data-toggle="tooltip" data-placement="top" title="Remove nodes"> <i class="fa fa-eraser fa-2x"></i></button>
+                        </div>
+                     <div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+    <div class="modal" tabindex="-1" role="dialog" id="modal-upload-bg">
+      <div class="modal-dialog" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Upload a background</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="file-upload">
+              <button class="file-upload-btn" type="button" onclick="$('.file-upload-input').trigger( 'click' )">Choose an image</button>
+              <div class="image-upload-wrap">
+                <input class="file-upload-input" type='file' id='uploaded_background_file' onchange="readURL(this);" accept="image/png, image/jpeg" />
+                <div class="drag-text">
+                    <p>Drag and drop a file in this box</p>
+                    <p>or</p>
+                    <p>click on the "Choose an image" button</p>
+                </div>
+              </div>
+              <div class="file-upload-content">
+                <img class="file-upload-image" src="#" alt="Image that will be uploaded" />
+                <div class="image-title-wrap">
+                  <button type="button" onclick="removeUpload()" class="remove-image">Remove <span class="image-title">Uploaded Image</span></button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-primary" onclick="save_background()">Save changes</button>
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <script type="text/javascript">
+
+    async function save_background()
+    {
+        var file = document.getElementById("uploaded_background_file").files[0];
+
+        if(file.files.length == 0 ){
+            alert("No files selected");
+        } else {
+            alert("Some file is selected");
+        }
+        alert(file.files[0]);
+
+        // add file to FormData object
+        const fd = new FormData();
+        fd.append('BACKGROUND_IMAGE', file);
+        fd.append('ACTION', "SAVE_BACKGROUND");
+        fd.append('GROUP', "{{ selected_map }}");
+
+        // send `POST` request
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        })
+
+        const return_code = await response.text();
+
+        if (return_code == "OK"){
+            //close modal
+            $('#modal-upload-bg').modal('toggle');
+        }
+        else{
+            alert("upload failed");
+        }
+    }
+
+
+    //alert(JSON.stringify(elements));
+
+    load_cy();
+
+    // Event Listener to save the positions and reset it
+    document.getElementById("save_btn").addEventListener("click", save_json, false);
+    document.getElementById("reset_positions_btn").addEventListener("click", reset_maps, false);
+
+    //URL of the API
+    const API_URL = "/api";
+
+    function load_cy(){
+        {% if elem | length >= 1 %}
+            try {
+                var elements = JSON.parse({{ elem | tojson | safe}});
+            } catch (ex) {
+            alert(ex);
+            }
+
+            cy = cytoscape({
+                container: document.getElementById("cy"),
+                elements: elements.elements,
+                layout: {name: "preset", fit: true, padding: 0},
+                //elements: {"nodes":[{"data":{"id":"j","name":"PUVIRNITUQ", "width":10, "height":10},"position":{"x":0,"y":0}}]},
+              style: cytoscape.stylesheet()
+                .selector("edge")
+                    .css({
+                        "curve-style": "bezier",
+                        "target-arrow-shape": "triangle",
+                        "target-arrow-color": "black",
+                        "line-color": "black",
+                        width: 1,
+                    })
+                .selector('node')
+                    .css({
+                        'content': 'data(name)',
+                        'font-size': 14,
+                        'text-valign': 'center',
+                        'color': 'white',
+                        'text-outline-width': 2,
+                        "background-color": "black",
+                        "text-outline-color": "black",
+                        'shape': 'round',
+                        'width': "data(width)",
+                        'height': "data(height)"
+                  }),
+               zoom: 1,
+               pan: {x: 0, y: 0}
+            });
+
+            cy.reset();
+
+            cy.on("tap", "node", function (e) {
+                var node = e.cyTarget;
+                var neighborhood = node.neighborhood().add(node);
+
+                cy.elements().addClass("faded");
+                neighborhood.removeClass("faded");
+            });
+
+            cy.on("tap", function (e) {
+                if (e.cyTarget === cy) {
+                    cy.elements().removeClass("faded");
+                }
+            });
+            //cy.panningEnabled(false);
+            cy.zoomingEnabled(false);
+
+        {%- else -%}
+              cy = cytoscape({
+                container: document.getElementById("cy"),
+                layout: {name: "grid", fit: true, padding: 0},
+              style: cytoscape.stylesheet()
+                .selector("edge")
+                    .css({
+                        "curve-style": "bezier",
+                        "target-arrow-shape": "triangle",
+                        "target-arrow-color": "black",
+                        "line-color": "black",
+                        width: 1,
+                    })
+                .selector('node')
+                    .css({
+                        'content': 'data(name)',
+                        'font-size': 14,
+                        'text-valign': 'center',
+                        'color': 'white',
+                        'text-outline-width': 2,
+                        "background-color": "black",
+                        "text-outline-color": "black",
+                        'shape': 'round',
+                        'width': "data(width)",
+                        'height': "data(height)"
+                  }),
+               zoom: 1,
+               pan: {x: 0, y: 0}
+            });
+
+            first_time_initialization();
+
+            cy.reset();
+
+            cy.on("tap", "node", function (e) {
+                var node = e.cyTarget;
+                var neighborhood = node.neighborhood().add(node);
+
+                cy.elements().addClass("faded");
+                neighborhood.removeClass("faded");
+            });
+
+            cy.on("tap", function (e) {
+                if (e.cyTarget === cy) {
+                    cy.elements().removeClass("faded");
+                }
+            });
+            //cy.panningEnabled(false);
+            cy.zoomingEnabled(false);
+
+
+        {%- endif %}
+    }
+
+
+    function first_time_initialization() {
+
+        var unique_nodes = [];
+        var dict_of_arrays_generated_tuples_for_map = {{ dict_of_arrays_generated_tuples_for_map  | safe}};
+        //alert(JSON.stringify(dict_of_arrays_generated_tuples_for_map["{{ selected_map }}"]));
+
+        // Add all nodes from tuples to an array, then convert to a set to obtain a unique list of nodes
+        for (var index in dict_of_arrays_generated_tuples_for_map["{{ selected_map }}"])
+        {
+            unique_nodes.push(dict_of_arrays_generated_tuples_for_map["{{ selected_map }}"][index][0]);
+            unique_nodes.push(dict_of_arrays_generated_tuples_for_map["{{ selected_map }}"][index][1]);
+        }
+        var unique_nodes = [...new Set(unique_nodes)]
+        //alert(unique_nodes);
+
+        //add gear config
+        //cy.add([
+        //{group: 'nodes', data:{ id: "GEAR"}},
+        //]);
+        //cy.nodes()[0].css("background-color", "transparent")
+        //cy.nodes()[0].css("background-image", "/static/maps/gear.png")
+        //cy.nodes()[0].css("background-size", "contain")
+        //cy.nodes()[0].css("height", "60px")
+        //cy.nodes()[0].css("width", "60px")
+        //cy.nodes()[0].css("background-height", "100%")
+        //cy.nodes()[0].css("background-width", "100%")
+        //cy.nodes()[0].addClass('fa')
+        //cy.nodes()[0].addClass('fa-5x')
+        //cy.nodes()[0].addClass('fa-car')
+        //cy.nodes()[0].lock()
+
+        //add nodes
+        for (index = 0; index < unique_nodes.length; index++) {
+            cy.add([
+            {group: 'nodes', data:{ id: unique_nodes[index], name: unique_nodes[index]}},
+            ]);
+        }
+
+        //add edges
+        for (index = 0; index < dict_of_arrays_generated_tuples_for_map["{{ selected_map }}"].length; index++) {
+            cy.add([
+            {group: 'edges', data:{ id: dict_of_arrays_generated_tuples_for_map["{{ selected_map }}"][index][0] + dict_of_arrays_generated_tuples_for_map["{{ selected_map }}"][index][1] , source: dict_of_arrays_generated_tuples_for_map["{{ selected_map }}"][index][0], target: dict_of_arrays_generated_tuples_for_map["{{ selected_map }}"][index][1]}},
+            ]);
+        }
+
+
+        var layout = cy.layout({
+            name: "grid", fit: true, padding: 0
+        });
+
+        layout.run();
+
+        cy.reset();
+    }
+
+    // Reload the Cytoscape map, like a page refresh
+    function reset_maps(){
+        load_cy();
+    }
+
+    // Running layout after a change in the dropdown list
+    function load_run_layout() {
+        const element = document.getElementById("layout");
+        const layout_name = element.options[element.selectedIndex].value;
+        var layout = cy.layout({
+          name: layout_name
+        });
+
+        layout.run();
+        cy.reset();
+    }
+
+    function debug_cy() {
+        //console.log(cy.zoom());
+        //console.log(JSON.stringify(cy.pan()));
+                console.log(JSON.stringify(cy.json()))
+    }
+
+    function save_json() {
+        const xhr = new XMLHttpRequest();
+        const data = new FormData();
+        //console.log(JSON.stringify(cy.json()))
+        data.append("ACTION", "SAVE_MAPS_JSON");
+        data.append("CYTO_JSON", JSON.stringify(cy.json()));
+        data.append("MESH_GROUP", "{{ selected_map }}");
+        xhr.open("POST", API_URL);
+        xhr.send(data);
+    }
+
+    /* Set the width of the sidebar to 250px and the left margin of the page content to 250px */
+    function openNav() {
+      document.getElementById("sidenav").style.width = "500px";
+      document.getElementById("main").style.marginLeft = "500px";
+      document.getElementById("sidebarCollapse").onclick = closeNav;
+    }
+
+    /* Set the width of the sidebar to 0 and the left margin of the page content to 0 */
+    function closeNav() {
+      document.getElementById("sidenav").style.width = "0";
+      document.getElementById("main").style.marginLeft = "0";
+      document.getElementById("sidebarCollapse").onclick = openNav;
+    }
+
+
+    /* For the file upload */
+    function readURL(input) {
+      if (input.files && input.files[0]) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          $('.image-upload-wrap').hide();
+          $('.file-upload-image').attr('src', e.target.result);
+          $('.file-upload-content').show();
+          $('.image-title').html(input.files[0].name);
+        };
+        reader.readAsDataURL(input.files[0]);
+      } else {
+        removeUpload();
+      }
+    }
+
+    /* For the file upload */
+    function removeUpload() {
+      $('.file-upload-input').replaceWith($('.file-upload-input').clone());
+      $('.file-upload-content').hide();
+      $('.image-upload-wrap').show();
+    }
+    $('.image-upload-wrap').bind('dragover', function () {
+        $('.image-upload-wrap').addClass('image-dropping');
+      });
+      $('.image-upload-wrap').bind('dragleave', function () {
+        $('.image-upload-wrap').removeClass('image-dropping');
+    });
+
+
+
+    // Reselect the previously selected map (before POST)
+    var dropdownlistbox = document.getElementById("mesh_group_map")
+    for(var x=0;x < dropdownlistbox.length -1 ; x++)
+    {
+       if("{{ selected_map }}" == dropdownlistbox.options[x].text)
+          dropdownlistbox.selectedIndex = x;
+    }
+
+
+
+    </script>
+
+
+
+
+
+
+
+{% endblock %}

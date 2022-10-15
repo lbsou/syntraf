@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Log viewer{% endblock %}
+{% block head %}
+<style>
+    .logging_window{
+        display: block;
+        padding: 9.5px;
+        font-size: 13px;
+        line-height: 1.42857143;
+        color: #333;
+        word-break: break-all;
+        word-wrap: break-word;
+        background-color: #f5f5f5;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        width: 50%;
+        margin: auto;
+    }
+</style>
+
+{% endblock %}
+
+{% block content %}
+<body onload="get_log_filename()">
+<h2>Log viewer</h2>
+
+<div class="content-wrapper">
+   <div class="form-group w-50">
+      <form>
+           <select class="custom-select" name="log_filename" id="log_filename" onchange="read_log()"></select>
+      </form>
+   </div>
+</div>
+
+<body id="main">
+    <div class="row">
+        <div class="logging_window">
+            <pre id="output"></pre>
+        </div>
+    </div>
+</body>
+
+<script type="text/javascript">
+
+    /*
+    Use onload to populate the list of logs filename
+    it use the api to get that list
+    */
+    async function get_log_filename()
+    {
+      fetch('/api?getlogfilename')
+        .then(function (response) {
+            return response.json();
+        }).then(function (array_of_filename) {
+            //console.log(array_of_filename);
+
+            var x = document.getElementById("log_filename");
+
+            for (const filename of array_of_filename) {
+                var option = document.createElement('option');
+                option.text = filename;
+                x.add(option, x[0]);
+            }
+        });
+    }
+
+    async function read_log()
+    {
+
+        fetch('/api?readlog')
+        .then(function (response) {
+            return response.json();
+        }).then(function (array_of_filename) {
+            //console.log(array_of_filename);
+
+            var output = document.getElementById('logging_window');
+
+
+
+            for (const filename of array_of_filename) {
+                var option = document.createElement('option');
+                option.text = filename;
+                x.add(option, x[0]);
+            }
+        });
+
+
+     }
+</script>
+
+{% endblock %}
