@@ -198,6 +198,7 @@ cd iperf-3.11
 ./configure 
 make
 make install  
+ldconfig  
 ```
 
 Then you can validate the directory where iperf3 was installed
