@@ -351,6 +351,7 @@ def client_send_auth(_config, client_utime, ssl_conn):
 
         sock_send(ssl_conn, payload_greetings, "AUTH")
         received_data = sock_rcv(ssl_conn)
+
         if not received_data is None:
             if received_data['COMMAND'] == "AUTH_FAILED":
                 client_log.info(f"AUTHENTICATION FAILED, REASON GIVEN BY SERVER : {received_data['PAYLOAD']}")
@@ -608,6 +609,7 @@ def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processe
         ssl_conn = client_sck_init(_config)
         client_utime = client_connect_utime(_config)
         successful_auth = client_send_auth(_config, client_utime, ssl_conn)
+
         if not successful_auth:
             ssl_conn.close()
             return
@@ -839,6 +841,9 @@ def server_auth(received_data, obj_client, _config, address, dict_of_commands_fo
         obj_client.status = "CONNECTED"
         obj_client.status_explanation = "AUTHENTICATION SUCCESSFUL"
         obj_client.status_since = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
+        sock_send(sckt, None, obj_client.status_explanation)
+
     else:
         obj_client.status = rejection_explanation
         obj_client.status_explanation = "AUTHENTICATION FAILED"
