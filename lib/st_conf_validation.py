@@ -869,7 +869,7 @@ def config_validation_server(_config, parameters):
 
         if port[1] <= port[0]:
             log.error(
-                f"IS MESH_LISTENERS_PORT_RANGE BEGINNING SMALLER THAN THE END : NO")
+                f"IS MESH_LISTENERS_PORT_RANGE BEGINNING SMALLER THAN THE END : YES")
             return False, None, None
     else:
         log.info(
@@ -971,6 +971,24 @@ def config_validation_server(_config, parameters):
                     log.debug(
                         f"IS 'SERVER_CLIENT' MAX_BANDWIDTH VALUE '{server_client['MAX_BANDWIDTH']}' VALID FOR SERVER_CLIENT '{server_client['UID']}' : YES")
 
+            # Validation MESH_LISTENERS_PORT_RANGE
+            if 'MESH_LISTENERS_PORT_RANGE' in server_client:
+                # Does it look like a range?
+                x = re.findall(r"^(\d*-\d*)$", server_client['MESH_LISTENERS_PORT_RANGE'])
+                if not x:
+                    log.error(f"IS '{server_client['UID']}' SERVER_CLIENT MESH_LISTENERS_PORT_RANGE A VALID PORT RANGE FORMAT: NO")
+                    return False, None, None
+
+                port = server_client['MESH_LISTENERS_PORT_RANGE'].split("-")
+                if not (is_port_valid(port[0], f"SERVER_CLIENT '{server_client['UID']}' MESH_LISTENERS_PORT_RANGE") and is_port_valid(port[1], f"SERVER_CLIENT '{server_client['UID']}' MESH_LISTENERS_PORT_RANGE")):
+                    return False, None, None
+
+                if port[1] <= port[0]:
+                    log.error(
+                        f"IS '{server_client['UID']}' SERVER_CLIENT MESH_LISTENERS_PORT_RANGE BEGINNING SMALLER THAN THE END : YES")
+                    return False, None, None
+
+
         # Validate EXCLUDED_CLIENT_DICT (optional parameter)
         # Validating after all server_client configuration because it need all the UID, and if a server_client config is wrong, it would crash.
         for server_client in _config['SERVER_CLIENT']:
@@ -996,19 +1014,6 @@ def config_validation_server(_config, parameters):
             return False, None, None
     else:
         log.error(f"NO 'MESH_GROUP' FOUND!")
-        #return False, None, None
-
-    # Validating P2P AND GENERATING CONFIG
-    if 'P2P_GROUP' in _config:
-        if validate_group(_config, "P2P_GROUP"):
-            pass
-            # As a mesh server, this SYNTRAF must generate the client configuration for each nodes
-            generate_client_config_p2p(_config)
-        else:
-            log.error(f"ARE ALL 'P2P_GROUP' VALID : NO")
-            return False, None, None
-    else:
-        log.info(f"NO 'P2P_GROUP' FOUND!")
         #return False, None, None
 
     return True, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map
@@ -1195,14 +1200,6 @@ def validate_group(_config, group_type):
     return True
 
 
-
-#################################################################################
-### Generate the client configs (p2p part)
-#################################################################################
-def generate_client_config_p2p(_config):
-    pass
-
-
 #################################################################################
 ### Generate the client configs (mesh part)
 #################################################################################
@@ -1214,10 +1211,17 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
     _list_tuple_for_map_gen = []
     _dict_by_group_of_generated_tuple_for_map = {}
 
-    # Populating the port_ref for each client
+    #MESH_LISTENERS_PORT_RANGE per client
+    # Affect port range per node, affect global, then overwrite with specific if config exist.
     listeners_ports = list(map(int, _config['SERVER']['MESH_LISTENERS_PORT_RANGE'].split('-')))
     for client in _config['SERVER_CLIENT']:
         _dict_port_ref[client['UID']] = listeners_ports
+
+    # Populating the port_ref for each client when there is a specific config that override the default
+    for client in _config['SERVER_CLIENT']:
+        if 'MESH_LISTENERS_PORT_RANGE' in client:
+            listeners_ports = list(map(int, client['MESH_LISTENERS_PORT_RANGE'].split('-')))
+            _dict_port_ref[client['UID']] = listeners_ports
 
     # iterate over all mesh_group and generate config for every client
     for mesh_group in _config['MESH_GROUP']:
@@ -1286,7 +1290,6 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
                                     for k, v in client2['OVERRIDE_DST_NODE_IP'].items():
                                         if k == client['UID']:
                                             client_ip = v
-
 
                                 # add the listeners and connectors of the current pair
                                 obj_listener_client_listener = st_obj_mesh(syntraf_instance_type="LISTENER",

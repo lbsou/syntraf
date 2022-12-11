@@ -174,6 +174,17 @@ def run():
         # launch iperf_listeners, iperf_connectors read_log, client, server
         threads_n_processes, subprocess_iperf_dict = launch_and_respawn_workers(config, cli_parameters, threads_n_processes, obj_stats, dict_of_clients, dict_data_to_send_to_server, dict_of_commands_for_network_clients, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_of_client_pending_acceptance, cli_parameters.config_file, conn_db, subprocess_iperf_dict)
 
+        # WHILE WEBUI DOWN, DUMP CLIENT STATUS TO FILE
+        lst_client = []
+        lst_client.append(
+            ["CLIENT", "STATUS", "STATUS_SINCE", "STATUS_EXPLANATION", "CLIENT_UID", "CLIENT_DYNAMIC_IP", "CLIENT_PORT",
+             "CLIENT_IP"])
+        for k, v in dict_of_clients.items():
+            lst_client.append(
+                [k, v.status, v.status_since, v.status_explanation, v.client_uid, v.bool_dynamic_client, v.tcp_port,
+                 v.ip_address])
+        print(tabulate(lst_client))
+
         # # Validate if reload flag has been set by user with another instance of the script (-r)
         # try:
         #     shared_mem = shared_memory.SharedMemory("syntraf_reload_signal")
