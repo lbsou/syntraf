@@ -24,6 +24,7 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
 
         while True:
             line = file.readline()
+            print(line)
             values = line.split(" ")
 
             if line:
