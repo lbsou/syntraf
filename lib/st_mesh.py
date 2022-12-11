@@ -3,7 +3,7 @@ from lib.st_crypto import *
 from lib.st_struct import cl_ifreq
 from lib.st_read_toml import read_conf
 from lib.st_conf_validation import valid_dir_rsa_keypair, valid_dir_logs
-
+from tabulate import tabulate
 # SYNTRAF SERVER IMPORT
 if not CompilationOptions.client_only:
     # from gevent import monkey
@@ -1055,6 +1055,17 @@ class Handler(StreamRequestHandler):
 
         try:
             while True:
+                #WHILE WEBUI DOWN, DUMP CLIENT STATUS TO FILE
+
+                lst_client = []
+                lst_client.append(
+                    ["CLIENT", "STATUS", "STATUS_SINCE", "STATUS_EXPLANATION", "CLIENT_UID", "CLIENT_DYNAMIC_IP", "CLIENT_PORT",
+                     "CLIENT_IP"])
+                for k, v in dict_of_clients.items():
+                    lst_client.append([k, v.status, v.status_since, v.status_explanation, v.client_uid, v.bool_dynamic_client, v.tcp_port, v.ip_address])
+                print(tabulate(lst_client))
+                print("asdasdasdasdasdasd")
+
                 # no need to loop if no server_client
                 if "SERVER_CLIENT" in _config:
                     received_data = ""

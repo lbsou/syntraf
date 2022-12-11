@@ -1,8 +1,12 @@
 # BUILTIN IMPORT
 import os
 import pathlib
-from tzlocal import get_localzone
 
+try:
+    from tzlocal import get_localzone
+except Exception as ex:
+    print("MISSING MODULE: no module named 'tzlocal'")
+    exit()
 
 # Will impact the requirement of modules
 class CompilationOptions:
