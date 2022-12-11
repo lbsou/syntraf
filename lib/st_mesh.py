@@ -853,6 +853,7 @@ def server_auth(received_data, obj_client, _config, address, dict_of_commands_fo
 
             # If this is a dynamic IP client
             if server_client['IP_ADDRESS'] == "0.0.0.0":
+
                 server_log.debug(
                     f"CONTEXT: {obj_client.client_uid} - THIS CLIENT HAS DYNAMIC IP, UPDATING LOCAL CONFIG AND PUSHING TO OTHER CLIENTS")
 
