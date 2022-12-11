@@ -97,6 +97,13 @@ def run():
         sys.exit()
     log_init(cli_parameters, config)
 
+    # HANDLER TO OUTPUT ERROR ONLY TO STDOUT
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.ERROR)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    ch.setFormatter(formatter)
+    log.addHandler(ch)
+
     # Validation of configuration
     bool_config_valid, config, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map = validate_config(cli_parameters)
 
