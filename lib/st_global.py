@@ -16,7 +16,7 @@ class CompilationOptions:
 
 class DefaultValues:
     # GLOBAL
-    SYNTRAF_VERSION = "0.41"
+    SYNTRAF_VERSION = "0.42"
     SYNTRAF_ROOT_DIR = pathlib.Path(__file__).parent.parent.absolute()
     SYNTRAF_PID_FILE = os.path.join(SYNTRAF_ROOT_DIR, 'syntraf.pid')
     TIMEZONE = str(get_localzone())

@@ -1291,48 +1291,74 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
                                         if k == client['UID']:
                                             client_ip = v
 
-                                # add the listeners and connectors of the current pair
-                                obj_listener_client_listener = st_obj_mesh(syntraf_instance_type="LISTENER",
-                                                                                UID_CLIENT=client2['UID'],
-                                                                                UID_SERVER=client['UID'],
-                                                                                PORT=listener_client1_port,
-                                                                                INTERVAL=mesh_group['INTERVAL'],
-                                                                                BIND_ADDRESS=client['IP_ADDRESS'],
-                                                                                CLIENT_PARAM_DSCP=mesh_group['DSCP'],
-                                                                                MESH_GROUP=mesh_group['UID'],
-                                                                                CLIENT_PARAM_PACKET_SIZE=mesh_group[
-                                                                                    'PACKET_SIZE'])
+                                # Manage bidirectionnal connection in case there is a node behind a firewall/NAT
+                                if 'BEHIND_NAT' in client:
+                                        client_behind_nat = client['BEHIND_NAT']
+                                else:
+                                    client_behind_nat = False
 
-                                obj_connector_client_connector = st_obj_mesh(syntraf_instance_type="CONNECTOR",
-                                                                                UID_CLIENT=client['UID'],
-                                                                                UID_SERVER=client2['UID'],
-                                                                                DESTINATION_ADDRESS=client2_ip,
-                                                                                PORT=listener_client2_port,
-                                                                                BANDWIDTH=mesh_group['BANDWIDTH'],
-                                                                                DSCP=mesh_group['DSCP'],
-                                                                                MESH_GROUP=mesh_group['UID'],
-                                                                                PACKET_SIZE=mesh_group['PACKET_SIZE'])
+                                # Manage bidirectionnal connection in case there is a node behind a firewall/NAT
+                                if 'BEHIND_NAT' in client2:
+                                        client2_behind_nat = client2['BEHIND_NAT']
+                                else:
+                                    client2_behind_nat = False
 
-                                obj_listener_client2_listener = st_obj_mesh(syntraf_instance_type="LISTENER",
-                                                                                UID_CLIENT=client['UID'],
-                                                                                UID_SERVER=client2['UID'],
-                                                                                PORT=listener_client2_port,
-                                                                                INTERVAL=mesh_group['INTERVAL'],
-                                                                                BIND_ADDRESS=client2['IP_ADDRESS'],
-                                                                                CLIENT_PARAM_DSCP=mesh_group['DSCP'],
-                                                                                MESH_GROUP=mesh_group['UID'],
-                                                                                CLIENT_PARAM_PACKET_SIZE=mesh_group[
-                                                                                 'PACKET_SIZE'])
+                                # Two client behind NAT, do not create connector/listener
+                                if client_behind_nat and client2_behind_nat:
+                                    log.error(f"CLIENT {client['UID']} AND {client2['UID']} ARE BEHIND A NAT, NOT COMMUNICATION POSSIBLE BETWEEN THOSE TWO CLIENT")
+                                    continue
 
-                                obj_connector_client2_connector = st_obj_mesh(syntraf_instance_type="CONNECTOR",
-                                                                                UID_CLIENT=client2['UID'],
-                                                                                UID_SERVER=client['UID'],
-                                                                                DESTINATION_ADDRESS=client_ip,
-                                                                                PORT=listener_client1_port,
-                                                                                BANDWIDTH=mesh_group['BANDWIDTH'],
-                                                                                DSCP=mesh_group['DSCP'],
-                                                                                MESH_GROUP=mesh_group['UID'],
-                                                                                PACKET_SIZE=mesh_group['PACKET_SIZE'])
+                                # if this client can receive a connection, open a listener
+                                if not client_behind_nat:
+                                    # add the listeners and connectors of the current pair
+                                    obj_listener_client_listener = st_obj_mesh(syntraf_instance_type="LISTENER",
+                                                                                    UID_CLIENT=client2['UID'],
+                                                                                    UID_SERVER=client['UID'],
+                                                                                    PORT=listener_client1_port,
+                                                                                    INTERVAL=mesh_group['INTERVAL'],
+                                                                                    BIND_ADDRESS=client['IP_ADDRESS'],
+                                                                                    CLIENT_PARAM_DSCP=mesh_group['DSCP'],
+                                                                                    MESH_GROUP=mesh_group['UID'],
+                                                                                    CLIENT_PARAM_PACKET_SIZE=mesh_group['PACKET_SIZE'])
+
+                                # if the other client can receive a connection, create a connector
+                                if not client2_behind_nat:
+                                    obj_connector_client_connector = st_obj_mesh(syntraf_instance_type="CONNECTOR",
+                                                                                    UID_CLIENT=client['UID'],
+                                                                                    UID_SERVER=client2['UID'],
+                                                                                    DESTINATION_ADDRESS=client2_ip,
+                                                                                    PORT=listener_client2_port,
+                                                                                    BANDWIDTH=mesh_group['BANDWIDTH'],
+                                                                                    DSCP=mesh_group['DSCP'],
+                                                                                    MESH_GROUP=mesh_group['UID'],
+                                                                                    PACKET_SIZE=mesh_group['PACKET_SIZE'],
+                                                                                    BIDIR=client_behind_nat)
+
+                                # if this client can receive a connection, open a listener
+                                if not client2_behind_nat:
+                                    obj_listener_client2_listener = st_obj_mesh(syntraf_instance_type="LISTENER",
+                                                                                    UID_CLIENT=client['UID'],
+                                                                                    UID_SERVER=client2['UID'],
+                                                                                    PORT=listener_client2_port,
+                                                                                    INTERVAL=mesh_group['INTERVAL'],
+                                                                                    BIND_ADDRESS=client2['IP_ADDRESS'],
+                                                                                    CLIENT_PARAM_DSCP=mesh_group['DSCP'],
+                                                                                    MESH_GROUP=mesh_group['UID'],
+                                                                                    CLIENT_PARAM_PACKET_SIZE=mesh_group[
+                                                                                     'PACKET_SIZE'])
+
+                                # if the other client can receive a connection, create a connector
+                                if not client_behind_nat:
+                                    obj_connector_client2_connector = st_obj_mesh(syntraf_instance_type="CONNECTOR",
+                                                                                    UID_CLIENT=client2['UID'],
+                                                                                    UID_SERVER=client['UID'],
+                                                                                    DESTINATION_ADDRESS=client_ip,
+                                                                                    PORT=listener_client1_port,
+                                                                                    BANDWIDTH=mesh_group['BANDWIDTH'],
+                                                                                    DSCP=mesh_group['DSCP'],
+                                                                                    MESH_GROUP=mesh_group['UID'],
+                                                                                    PACKET_SIZE=mesh_group['PACKET_SIZE'],
+                                                                                    BIDIR=client2_behind_nat)
 
                                 # Creating array inside dictionary before appending the objects
                                 if not client['UID'] in dict_obj_listeners:

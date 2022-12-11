@@ -1,5 +1,6 @@
 import hashlib
 
+
 class st_obj_mesh:
     def __init__(self, **kwargs):
         if kwargs['syntraf_instance_type'] == "LISTENER":
@@ -24,7 +25,7 @@ class st_obj_mesh:
             self.dscp = kwargs['DSCP']
             self.packet_size = kwargs['PACKET_SIZE']
             self.mesh_group = kwargs['MESH_GROUP']
-            self.bidir = kwargs['bidir']
+            self.bidir = kwargs['BIDIR']
             self.hash = hashlib.sha1(f"{self.syntraf_instance_type}{self.uid_client}{self.uid_server}{self.port}{self.destination_address}{self.dscp}{self.packet_size}{self.mesh_group}{self.bandwidth}".encode('utf-8')).hexdigest()
 
     def __str__(self):
