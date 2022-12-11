@@ -23,6 +23,13 @@ def iperf3_client(connector_dict_key, _config):
         # DEBUG
         # subprocess.call(shlex.split("echo %IPERF3_PASSWORD%"), shell=True, env=env_var)
 
+        print()
+
+        if _config['CONNECTORS'][connector_dict_key]['BIDIR']:
+            bidir_arg = "--bidir"
+        else:
+            bidir_arg = ""
+
         args = (
             _config['GLOBAL']['IPERF3_BINARY_PATH'], "-u", "-l",
             _config['CONNECTORS'][connector_dict_key]['PACKET_SIZE'], "-c",
@@ -33,7 +40,8 @@ def iperf3_client(connector_dict_key, _config):
             "--username", _config['CLIENT']['IPERF3_USERNAME'],
             "--rsa-public-key-path", os.path.join(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'public_key_iperf_client.pem'),
             "--connect-timeout", DefaultValues.DEFAULT_IPERF3_CLIENT_CONNECT_TIMEOUT,
-            "-f", "k", "-p", str(_config['CONNECTORS'][connector_dict_key]['PORT']))
+            "-f", "k", "-p", str(_config['CONNECTORS'][connector_dict_key]['PORT']),
+            bidir_arg)
 
         arguments = ""
         for i in args:
