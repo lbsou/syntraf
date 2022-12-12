@@ -64,7 +64,7 @@ def launch_and_respawn_workers(config, cli_parameters, threads_n_processes,  obj
         manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_server, conn_db)
 
         # CONNECTORS
-        manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_server, conn_db, _dict_by_node_generated_config)
+        manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_server, conn_db)
 
         # SERVER
         if "SERVER" in config:
@@ -273,7 +273,7 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                                     threads_n_processes.remove(thr2)
 
                                     stop_thread = [False]
-                                    thread_run = threading.Thread(target=read_log,
+                                    thread_run = threading.Thread(target=read_log_listener,
                                                                   args=(
                                                                   listener, config, stop_thread, dict_data_to_send_to_server, conn_db, threads_n_processes),
                                                                   daemon=True)
@@ -291,7 +291,7 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
 
                         if not got_a_readlog_instance:
                             # Was never launch, starting the new READLOG thread
-                            thread_run = threading.Thread(target=read_log,
+                            thread_run = threading.Thread(target=read_log_listener,
                                                           args=(listener, config, stop_thread, dict_data_to_send_to_server, conn_db, threads_n_processes),
                                                           daemon=True)
                             thread_run.daemon = True
@@ -310,19 +310,13 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
         log.error(f"manage_listeners_process:{type(exc).__name__}:{exc}", exc_info=True)
 
 
-def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_server, conn_db, _dict_by_node_generated_config):
-
-    #print(_dict_by_node_generated_config)
-    #print(config)
-
-
+def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_server, conn_db):
     stop_thread = [False]
     try:
         # For each connector, validate config and run the iperf_client
         if 'CONNECTORS' in config:
             for connector, connector_v in config['CONNECTORS'].items():
-                #DEBUG
-                log.error(f"{connector}{connector_v}")
+
                 # If this is a dynamic IP client, do not start a connector until we have his IP address
                 if config['CONNECTORS'][connector]['DESTINATION_ADDRESS'] == "0.0.0.0":
                     continue
@@ -357,10 +351,7 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
                         last_breath = last_breath.replace("\r", "")
                         last_breath = last_breath.replace("\n", "")
                         log.warning(f"IPERF3 CLIENT OF CONNECTOR '{connector}' DIED OR NEVER START. LAST BREATH : '{last_breath.upper()}'")
-                        #if "unable to send control message: Bad file descriptor" in last_breath:
-                        #    log.warning(
-                        #        f"{TextColors.WARNING}HINT: THE OTHER END SERVER IS PROBABLY DOWN OR A FIREWALL PREVENT "
-                        #        f"THE CONNECTION, ")
+
                         # Removing previous subprocess
                         threads_n_processes.remove(thr_temp)
 
@@ -370,6 +361,58 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
 
                         # It is possible that the process failed on start, in that case, do not add the object to the dict
                         if thread_or_process.subproc:
+                            threads_n_processes.append(thread_or_process)
+
+                # MAKE SURE WE HAVE A READLOG FOR EACH BIDIR CONNECTOR
+                for thr in threads_n_processes:
+                    if thr.syntraf_instance_type == "LISTENER" and config['CONNECTORS'][connector]['BIDIR']:
+                        got_a_readlog_instance = False
+                        for thr2 in threads_n_processes:
+                            # There is already a thread, but is it running?
+                            if thr2.syntraf_instance_type == "READ_LOG" and thr2.name == connector:
+                                # Is the subproc running? If no, restart it
+                                if not thr2.thread_obj.is_alive():
+                                    threads_n_processes.remove(thr2)
+
+                                    stop_thread = [False]
+                                    thread_run = threading.Thread(target=read_log_connector,
+                                                                  args=(
+                                                                      connector, config, stop_thread,
+                                                                      dict_data_to_send_to_server, conn_db,
+                                                                      threads_n_processes),
+                                                                  daemon=True)
+                                    thread_run.daemon = True
+                                    thread_run.name = str(connector)
+                                    thread_run.start()
+                                    thread_or_process = st_obj_process_n_thread(thread_obj=thread_run, name=connector,
+                                                                                syntraf_instance_type="READ_LOG",
+                                                                                exit_boolean=stop_thread,
+                                                                                starttime=datetime.now().strftime(
+                                                                                    "%d/%m/%Y %H:%M:%S"),
+                                                                                opposite_side=connector_v['UID_CLIENT'],
+                                                                                group=connector_v['MESH_GROUP'], port="")
+                                    threads_n_processes.append(thread_or_process)
+                                    got_a_readlog_instance = True
+                                else:
+                                    got_a_readlog_instance = True
+
+                        if not got_a_readlog_instance:
+                            # Was never launch, starting the new READLOG thread
+                            thread_run = threading.Thread(target=read_log_connector,
+                                                          args=(
+                                                          connector, config, stop_thread, dict_data_to_send_to_server, conn_db,
+                                                          threads_n_processes),
+                                                          daemon=True)
+                            thread_run.daemon = True
+                            thread_run.name = str(connector)
+                            thread_run.start()
+                            thread_or_process = st_obj_process_n_thread(thread_obj=thread_run, name=connector,
+                                                                        syntraf_instance_type="READ_LOG",
+                                                                        exit_boolean=stop_thread,
+                                                                        starttime=datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                                                                        opposite_side=connector_v['UID_CLIENT'],
+                                                                        group=connector_v['MESH_GROUP'], port="")
+
                             threads_n_processes.append(thread_or_process)
 
     except Exception as exc:

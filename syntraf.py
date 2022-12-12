@@ -188,6 +188,17 @@ def run():
         f.write(tabulate(lst_client))
         f.close()
 
+
+        # WHILE WEBUI DOWN, DUMP THREAD STATUS TO FILE
+        f = open("thread_status.txt", "w")
+
+        thr_str = ""
+        for thr in threads_n_processes:
+            thr_str = f"{thr_str}{str(thr)}\r\n"
+
+        f.write(thr_str)
+        f.close()
+
         # # Validate if reload flag has been set by user with another instance of the script (-r)
         # try:
         #     shared_mem = shared_memory.SharedMemory("syntraf_reload_signal")

@@ -21,6 +21,7 @@ class st_obj_mesh:
             self.syntraf_instance_type = kwargs['syntraf_instance_type']
             self.destination_address = kwargs['DESTINATION_ADDRESS']
             self.port = kwargs['PORT']
+            self.interval = kwargs['INTERVAL']
             self.bandwidth = kwargs['BANDWIDTH']
             self.dscp = kwargs['DSCP']
             self.packet_size = kwargs['PACKET_SIZE']
@@ -38,7 +39,7 @@ class st_obj_mesh:
         if self.syntraf_instance_type == "LISTENER":
             return {'UID_CLIENT': self.uid_client, 'UID_SERVER': self.uid_server, 'PORT': self.port, 'INTERVAL': self.interval, 'BIND_ADDRESS': self.bind_address, 'DSCP': self.dscp, 'PACKET_SIZE': self.packet_size, 'MESH_GROUP': self.mesh_group}
         elif self.syntraf_instance_type == "CONNECTOR":
-            return {'UID_CLIENT': self.uid_client, 'UID_SERVER': self.uid_server, 'DESTINATION_ADDRESS': self.destination_address, 'PORT': self.port, 'BANDWIDTH': self.bandwidth, 'DSCP': self.dscp, 'PACKET_SIZE': self.packet_size, 'MESH_GROUP': self.mesh_group, 'BIDIR': self.bidir}
+            return {'UID_CLIENT': self.uid_client, 'UID_SERVER': self.uid_server, 'DESTINATION_ADDRESS': self.destination_address, 'PORT': self.port, 'BANDWIDTH': self.bandwidth, 'DSCP': self.dscp, 'PACKET_SIZE': self.packet_size, 'MESH_GROUP': self.mesh_group, 'BIDIR': self.bidir, 'INTERVAL': self.interval}
 
     def theindexname(self):
         if self.syntraf_instance_type == "LISTENER":

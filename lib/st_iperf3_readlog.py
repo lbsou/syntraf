@@ -100,7 +100,7 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
 #################################################################################
 ###
 #################################################################################
-def parse_line_to_array(line, _config, listener_dict_key, conn_db, dict_data_to_send_to_server):
+def parse_line_to_array(line, _config, edge_dict_key, edge_type, conn_db, dict_data_to_send_to_server):
     values = line.split(" ")
 
     try:
@@ -144,34 +144,37 @@ def parse_line_to_array(line, _config, listener_dict_key, conn_db, dict_data_to_
             if bitrate == "0.00" and loss == "0" and packet_loss == "0" and packet_total == "0":
                 loss = "100"
 
+            print(line)
+
             # When we have bidir activated, the server will transmit
-            if '[TX-S]' in line:
+            if edge_type == "CONNECTOR":
                 log.debug("=======================================TX===================================")
                 save_to_server(
-                    [_config['LISTENERS'][listener_dict_key]['UID_SERVER'],
-                     _config['LISTENERS'][listener_dict_key]['UID_CLIENT'],
+                    [_config['CONNECTORS'][edge_dict_key]['UID_SERVER'],
+                     _config['CONNECTORS'][edge_dict_key]['UID_CLIENT'],
                      timestamp, utime, bitrate, jitter,
-                     loss], _config, listener_dict_key, packet_loss, packet_total, dict_data_to_send_to_server)
+                     loss], _config, edge_dict_key, packet_loss, packet_total, dict_data_to_send_to_server)
+                log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - connector:{edge_dict_key}")
             else:
                 save_to_server(
-                    [_config['LISTENERS'][listener_dict_key]['UID_CLIENT'],
-                     _config['LISTENERS'][listener_dict_key]['UID_SERVER'], timestamp, utime, bitrate, jitter,
-                     loss], _config, listener_dict_key, packet_loss, packet_total, dict_data_to_send_to_server)
+                    [_config['LISTENERS'][edge_dict_key]['UID_CLIENT'],
+                     _config['LISTENERS'][edge_dict_key]['UID_SERVER'], timestamp, utime, bitrate, jitter,
+                     loss], _config, edge_dict_key, packet_loss, packet_total, dict_data_to_send_to_server)
+                log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - listener:{edge_dict_key}")
 
-
-
-            log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - listener:{listener_dict_key}")
             log.debug(f"timestamp:{timestamp.strftime('%d/%m/%Y %H:%M:%S')}, bitrate: {bitrate}, jitter: {jitter}, loss: {loss}, packet_loss: {packet_loss}, packet_total: {packet_total}")
+
     except Exception as exc:
         log.error(f"parse_line_to_array:{type(exc).__name__}:{exc}", exc_info=True)
         return False
 
     return True
 
+
 #################################################################################
 ### FUNCTION USE WITH THREAD TO READ LOGS
 #################################################################################
-def read_log(listener_dict_key, _config, stop_thread, dict_data_to_send_to_server, conn_db, threads_n_processes):
+def read_log_listener(listener_dict_key, _config, stop_thread, dict_data_to_send_to_server, conn_db, threads_n_processes):
     # Opening file and using generator
     pathlib.Path(os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['LISTENERS'][listener_dict_key]['PORT']) + ".log")).touch()
     file = open(
@@ -182,7 +185,28 @@ def read_log(listener_dict_key, _config, stop_thread, dict_data_to_send_to_serve
     try:
         for line in lines:
             #log.debug(f"TEMP DEBUG {line}")
-            if stop_thread[0] or not parse_line_to_array(line, _config, listener_dict_key, conn_db, dict_data_to_send_to_server):
+            if stop_thread[0] or not parse_line_to_array(line, _config, listener_dict_key, "LISTENER", conn_db, dict_data_to_send_to_server):
+                break
+    except Exception as exc:
+        log.error(f"read_log:{type(exc).__name__}:{exc}", exc_info=True)
+    finally:
+        file.close()
+
+
+#################################################################################
+### FUNCTION USE WITH THREAD TO READ LOGS
+#################################################################################
+def read_log_connector(connector_dict_key, _config, stop_thread, dict_data_to_send_to_server, conn_db, threads_n_processes):
+    # Opening file and using generator
+    pathlib.Path(os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['CONNECTORS'][connector_dict_key]['PORT']) + ".log")).touch()
+    file = open(
+        os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['CONNECTORS'][connector_dict_key]['PORT']) + ".log"), "r+")
+
+    lines = tail(file, int(_config['CONNECTORS'][connector_dict_key]['INTERVAL']), _config['CONNECTORS'][connector_dict_key]['UID_CLIENT'], _config['CONNECTORS'][connector_dict_key]['UID_SERVER'], _config, connector_dict_key, dict_data_to_send_to_server, threads_n_processes)
+    log.info(f"READING LOGS FOR CONNECTOR {connector_dict_key} FROM {file.name} ")
+    try:
+        for line in lines:
+            if stop_thread[0] or not parse_line_to_array(line, _config, connector_dict_key, "CONNECTOR", conn_db, dict_data_to_send_to_server):
                 break
 
     except Exception as exc:
