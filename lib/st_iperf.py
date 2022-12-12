@@ -42,12 +42,15 @@ def iperf3_client(connector_dict_key, _config):
             "--logfile",
             os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'],
                          "syntraf_" + str(_config['CONNECTORS'][connector_dict_key]['PORT']) + "_connector.log"),
-            "-f", "k", "-p", str(_config['CONNECTORS'][connector_dict_key]['PORT']),
+            "-f", "k", "-p", str(_config['CONNECTORS'][connector_dict_key]['PORT']), "--timestamps='%F %T '",
             bidir_arg)
 
         arguments = ""
         for i in args:
             arguments += " " + i
+
+        #print(args)
+        #print(_config['CLIENT']['IPERF3_PASSWORD'])
 
         p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.DEVNULL, env=env_var)
 
@@ -100,8 +103,6 @@ def iperf3_server(listener_dict_key, _config):
             arguments = ""
             for i in args:
                 arguments += " " + i
-
-            #print(arguments)
 
             p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.DEVNULL)
             if p.poll() is None:
