@@ -321,7 +321,8 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
         # For each connector, validate config and run the iperf_client
         if 'CONNECTORS' in config:
             for connector, connector_v in config['CONNECTORS'].items():
-                log.error(connector, connector_v,"========================================================================")
+                #DEBUG
+                log.error(f"{connector}{connector_v}")
                 # If this is a dynamic IP client, do not start a connector until we have his IP address
                 if config['CONNECTORS'][connector]['DESTINATION_ADDRESS'] == "0.0.0.0":
                     continue
