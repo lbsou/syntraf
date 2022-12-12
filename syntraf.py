@@ -175,7 +175,7 @@ def run():
         threads_n_processes, subprocess_iperf_dict = launch_and_respawn_workers(config, cli_parameters, threads_n_processes, obj_stats, dict_of_clients, dict_data_to_send_to_server, dict_of_commands_for_network_clients, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_of_client_pending_acceptance, cli_parameters.config_file, conn_db, subprocess_iperf_dict)
 
         # WHILE WEBUI DOWN, DUMP CLIENT STATUS TO FILE
-        f = open("client_status.txt", "w")
+        f = open(os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, "client_status.txt"), "w")
 
         lst_client = []
         lst_client.append(
@@ -190,7 +190,7 @@ def run():
 
 
         # WHILE WEBUI DOWN, DUMP THREAD STATUS TO FILE
-        f = open("thread_status.txt", "w")
+        f = open(os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, "thread_status.txt"), "w")
 
         thr_str = ""
         for thr in threads_n_processes:
