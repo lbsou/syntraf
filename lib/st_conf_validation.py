@@ -947,19 +947,6 @@ def config_validation_server(_config, parameters):
                 log.debug(
                     f"IS 'SERVER_CLIENT' OVERRIDE_DST_NODE_IP VALUE VALID FOR SERVER_CLIENT '{server_client['UID']}' : PARAMETER NOT FOUND")
 
-            # Validate MESH_GROUP UID LIST
-            if 'P2P_GROUP_UID_LIST' in server_client:
-                if not validate_p2p_group_uid_list(server_client, _config):
-                    log.error(
-                        f"IS 'SERVER_CLIENT' P2P_GROUP_UID_LIST VALUE VALID FOR SERVER_CLIENT '{server_client['UID']}' : NO")
-                    return False, None, None
-                else:
-                    log.debug(
-                        f"IS 'SERVER_CLIENT' P2P_GROUP_UID_LIST VALUE '{server_client['MESH_GROUP_UID_LIST']}' VALID FOR SERVER_CLIENT '{server_client['UID']}' : YES")
-            else:
-                log.debug(
-                    f"IS 'SERVER_CLIENT' P2P_GROUP_UID_LIST VALUE VALID FOR SERVER_CLIENT '{server_client['UID']}' : PARAMETER NOT FOUND")
-
 
             # Validate MAX_BANDWIDTH (optional parameter)
             if 'MAX_BANDWIDTH' in server_client:
