@@ -39,6 +39,9 @@ def iperf3_client(connector_dict_key, _config):
             "--username", _config['CLIENT']['IPERF3_USERNAME'],
             "--rsa-public-key-path", os.path.join(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'public_key_iperf_client.pem'),
             "--connect-timeout", DefaultValues.DEFAULT_IPERF3_CLIENT_CONNECT_TIMEOUT,
+            "--logfile",
+            os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'],
+                         "syntraf_" + str(_config['CONNECTORS'][connector_dict_key]['PORT']) + "_connector.log"),
             "-f", "k", "-p", str(_config['CONNECTORS'][connector_dict_key]['PORT']),
             bidir_arg)
 
@@ -85,7 +88,7 @@ def iperf3_server(listener_dict_key, _config):
             args = (_config['GLOBAL']['IPERF3_BINARY_PATH'], "-s", "-i", _config['LISTENERS'][listener_dict_key]['INTERVAL'],
                     #var_cfg_default_bind_arg[0], var_cfg_default_bind_arg[1],
                     "--logfile",
-                    os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['LISTENERS'][listener_dict_key]['PORT']) + ".log"), "-f", "k",
+                    os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['LISTENERS'][listener_dict_key]['PORT']) + "_listener.log"), "-f", "k",
                     "--rsa-private-key-path", os.path.join(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'private_key_iperf_client.pem'),
                     "--authorized-users-path", os.path.join(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'credentials.csv'),
                     "--time-skew-threshold", _config['GLOBAL']['IPERF3_TIME_SKEW_THRESHOLD'],
