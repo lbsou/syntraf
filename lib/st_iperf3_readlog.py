@@ -27,6 +27,7 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
             values = line.split(" ")
 
             if line:
+                log.debug(line)
                 #log.error(line)
                 if (len(values) >= 20 and ("omitted" not in line) and ("terminated" not in line) and (
                         "Interval" not in line) and ("receiver" not in line) and ("------------" not in line) and (
@@ -142,8 +143,6 @@ def parse_line_to_array(line, _config, listener_dict_key, conn_db, dict_data_to_
             # ie: [  5]   4.00-5.00   sec  0.00 Bytes  0.00 bits/sec  0.024 ms  0/0 (0%)
             if bitrate == "0.00" and loss == "0" and packet_loss == "0" and packet_total == "0":
                 loss = "100"
-
-            log.debug(line)
 
             # When we have bidir activated, the server will transmit
             if '[TX-S]' in line:
