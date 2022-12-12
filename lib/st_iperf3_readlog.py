@@ -27,8 +27,7 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
             values = line.split(" ")
 
             if line:
-                log.debug(line)
-                #log.error(line)
+                log.error(line)
                 if (len(values) >= 20 and ("omitted" not in line) and ("terminated" not in line) and (
                         "Interval" not in line) and ("receiver" not in line) and ("------------" not in line) and (
                         "- - - - - - - - -" not in line)):
@@ -106,7 +105,7 @@ def parse_line_to_array(line, _config, edge_dict_key, edge_type, conn_db, dict_d
     try:
         if (len(values) >= 20 and ("omitted" not in line) and ("terminated" not in line) and (
                 "Interval" not in line) and ("receiver" not in line) and ("------------" not in line) and (
-                "- - - - - - - - -" not in line)):
+                "- - - - - - - - -" not in line) and "TX-C" not in line):
             # When connection is dropped without the management channel being aware of it, iperf3 start to log 0 values
             # NOT OK : ["'2021-04-06", '15:10:12', "'[", '', '6]', '', '10.00-10.44', '', 'sec', '', '0.00', 'Bytes', '', '0.00','Kbits/sec', '', '0.017', 'ms', '', '0/0', '(0%)', '', '\n']
             # OK : ["'2021-04-06", '15:10:04', "'[", '', '6]', '', '', '1.00-2.00', '', '', 'sec', '', '10.6', 'KBytes', '','87.2', 'Kbits/sec', '', '0.011', 'ms', '', '0/50', '(0%)', '', '\n']
@@ -144,8 +143,6 @@ def parse_line_to_array(line, _config, edge_dict_key, edge_type, conn_db, dict_d
             if bitrate == "0.00" and loss == "0" and packet_loss == "0" and packet_total == "0":
                 loss = "100"
 
-            print(line)
-
             # When we have bidir activated, the server will transmit
             if edge_type == "CONNECTOR":
                 log.debug("=======================================TX===================================")
@@ -176,9 +173,9 @@ def parse_line_to_array(line, _config, edge_dict_key, edge_type, conn_db, dict_d
 #################################################################################
 def read_log_listener(listener_dict_key, _config, stop_thread, dict_data_to_send_to_server, conn_db, threads_n_processes):
     # Opening file and using generator
-    pathlib.Path(os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['LISTENERS'][listener_dict_key]['PORT']) + ".log")).touch()
+    pathlib.Path(os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['LISTENERS'][listener_dict_key]['PORT']) + "_listener.log")).touch()
     file = open(
-        os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['LISTENERS'][listener_dict_key]['PORT']) + ".log"), "r+")
+        os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['LISTENERS'][listener_dict_key]['PORT']) + "_listener.log"), "r+")
 
     lines = tail(file, int(_config['LISTENERS'][listener_dict_key]['INTERVAL']), _config['LISTENERS'][listener_dict_key]['UID_CLIENT'], _config['LISTENERS'][listener_dict_key]['UID_SERVER'], _config, listener_dict_key, dict_data_to_send_to_server, threads_n_processes)
     log.info(f"READING LOGS FOR LISTENER {listener_dict_key} FROM {file.name} ")
@@ -198,9 +195,9 @@ def read_log_listener(listener_dict_key, _config, stop_thread, dict_data_to_send
 #################################################################################
 def read_log_connector(connector_dict_key, _config, stop_thread, dict_data_to_send_to_server, conn_db, threads_n_processes):
     # Opening file and using generator
-    pathlib.Path(os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['CONNECTORS'][connector_dict_key]['PORT']) + ".log")).touch()
+    pathlib.Path(os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['CONNECTORS'][connector_dict_key]['PORT']) + "_connector.log")).touch()
     file = open(
-        os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['CONNECTORS'][connector_dict_key]['PORT']) + ".log"), "r+")
+        os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['CONNECTORS'][connector_dict_key]['PORT']) + "_connector.log"), "r+")
 
     lines = tail(file, int(_config['CONNECTORS'][connector_dict_key]['INTERVAL']), _config['CONNECTORS'][connector_dict_key]['UID_CLIENT'], _config['CONNECTORS'][connector_dict_key]['UID_SERVER'], _config, connector_dict_key, dict_data_to_send_to_server, threads_n_processes)
     log.info(f"READING LOGS FOR CONNECTOR {connector_dict_key} FROM {file.name} ")
