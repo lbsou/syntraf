@@ -84,6 +84,7 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
 
                             # When we have bidir activated, the server will transmit
                             if '[TX-S]' in line:
+                                log.debug("=======================================TX===================================")
                                 save_to_server(
                                     [uid_server, uid_client, timestamp_generated, utime_generated_utc, "0", "0", "100"],
                                     _config,
