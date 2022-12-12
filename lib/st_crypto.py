@@ -26,12 +26,12 @@ server_log = logging.getLogger("syntraf." + __name__)
 
 
 # Use by flask to save password to database
-def sha256_with_salt_create_hash(password):
-    return sha256_crypt.hash(password)
-
-
-def sha256_with_salt_verify_hash(password, hash):
-    return sha256_crypt.verify(password, hash)
+# def sha256_with_salt_create_hash(password):
+#     return sha256_crypt.hash(password)
+#
+#
+# def sha256_with_salt_verify_hash(password, hash):
+#     return sha256_crypt.verify(password, hash)
 
 
 def gen_iperf3_password_hash(username, password):
