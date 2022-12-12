@@ -179,7 +179,7 @@ def read_log_listener(listener_dict_key, _config, stop_thread, dict_data_to_send
     pathlib.Path(os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['LISTENERS'][listener_dict_key]['PORT']) + "_listener.log")).touch()
     file = open(
         os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['LISTENERS'][listener_dict_key]['PORT']) + "_listener.log"), "r+")
-
+    log.error(os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['LISTENERS'][listener_dict_key]['PORT']) + "_listener.log"))
     lines = tail(file, int(_config['LISTENERS'][listener_dict_key]['INTERVAL']), _config['LISTENERS'][listener_dict_key]['UID_CLIENT'], _config['LISTENERS'][listener_dict_key]['UID_SERVER'], _config, "LISTENERS", listener_dict_key, dict_data_to_send_to_server, threads_n_processes)
     log.info(f"READING LOGS FOR LISTENER {listener_dict_key} FROM {file.name} ")
     try:
