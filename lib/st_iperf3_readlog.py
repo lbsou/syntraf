@@ -143,6 +143,8 @@ def parse_line_to_array(line, _config, listener_dict_key, conn_db, dict_data_to_
             if bitrate == "0.00" and loss == "0" and packet_loss == "0" and packet_total == "0":
                 loss = "100"
 
+            log.debug(line)
+
             # When we have bidir activated, the server will transmit
             if '[TX-S]' in line:
                 log.debug("=======================================TX===================================")
