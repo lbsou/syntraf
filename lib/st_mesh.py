@@ -1201,6 +1201,7 @@ class SSL_TCPServer(TCPServer):
                  bind_and_activate=True,
                  ssl_version=ssl.PROTOCOL_TLSv1):
         TCPServer.__init__(self, server_address, RequestHandlerClass, bind_and_activate)
+        TCPServer.allow_reuse_address = True
         self.certfile = certfile
         self.keyfile = keyfile
         self.ssl_version = ssl_version
@@ -1208,7 +1209,6 @@ class SSL_TCPServer(TCPServer):
 
     def get_request(self):
         newsocket, fromaddr = self.socket.accept()
-        newsocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         connstream = ssl.wrap_socket(newsocket,
                                      server_side=True,
                                      certfile=self.certfile,
