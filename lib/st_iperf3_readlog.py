@@ -14,7 +14,7 @@ log = logging.getLogger("syntraf." + __name__)
 #################################################################################
 ### YIELD LINE FROM IPERF3 OUTPUT FILE
 #################################################################################
-def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dict_data_to_send_to_server, threads_n_processes):
+def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_key, dict_data_to_send_to_server, threads_n_processes):
     utime_last_event = 0
 
     try:
@@ -23,75 +23,77 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
         # reading last line
 
         while True:
-            line = file.readline()
-            values = line.split(" ")
+            lines = file.readlines()
+            for line in lines:
+                values = line.split(" ")
 
-            if line:
-                log.error(line)
-                if (len(values) >= 20 and ("omitted" not in line) and ("terminated" not in line) and (
-                        "Interval" not in line) and ("receiver" not in line) and ("------------" not in line) and (
-                        "- - - - - - - - -" not in line)):
-                    #log.error("tail():YIELDING LINE")
-                    utime_last_event = time.time()
-                    file.seek(0)
-                    file.truncate()
-                    yield line
+                if line:
+                    if (len(values) >= 20 and ("omitted" not in line) and ("terminated" not in line) and (
+                            "Interval" not in line) and ("receiver" not in line) and ("------------" not in line) and (
+                            "- - - - - - - - -" not in line)):
+                        #log.error("tail():YIELDING LINE")
+                        utime_last_event = time.time()
+                        yield line
+
+                        file.seek(0)
+                        file.truncate()
+
+                    else:
+                        log.debug(f"tail():LINE DOES NOT CONTAIN METRICS:{line}")
+                        time.sleep(interval / 2)
+                        continue
                 else:
-                    log.debug(f"tail():LINE DOES NOT CONTAIN METRICS:{line}")
+                    #NO LINE
+
+                    utime_now = time.time()
+                    listener_just_started_or_absent = False
+
+                    # Get the infos of the starttime of the current listener, if it has just started or does not exist, do no log an outage, it's just iperf that is not running.
+                    flag_no_thread_found = True
+                    for obj_thread_n_process in threads_n_processes:
+                        if obj_thread_n_process.name == edge_dict_key and (obj_thread_n_process.syntraf_instance_type == "LISTENER" or obj_thread_n_process.syntraf_instance_type == "CONNECTOR"):
+                            flag_no_thread_found = False
+                            dt_delta = datetime.datetime.now() - datetime.datetime.strptime(obj_thread_n_process.starttime,
+                                                                                            "%d/%m/%Y %H:%M:%S")
+                            if dt_delta.total_seconds() <= 60:
+                                listener_just_started_or_absent = True
+
+                    if flag_no_thread_found: listener_just_started_or_absent = True
+
+                    '''
+                    Iperf3 stop generating events when the connection is lost for too long [how much exactly?], but we still want to report the losses
+                    For that, we need to already have received a log in the past (utime_last_event != 0) and the current log file of iperf3 must not yield line (not line)
+                    '''
+                    #log.debug(f"OUTAGE_MECHANISM DEBUG utime_last_event:{utime_last_event}")
+                    #log.debug(f"{utime_last_event}{line}{listener_just_started_or_absent}")
+
+                    if utime_last_event != 0 and not line:
+                        #log.debug(f"OUTAGE_MECHANISM DEBUG utime_now:{utime_now} utime_last_event:{utime_last_event} utime_now - utime_last_event: {(utime_now - utime_last_event)}")
+
+                        # If iperf3 did not write any events for the double of the interval he's supposed to
+                        if (utime_now - utime_last_event) >= (2 * interval):
+                            # Save new event to database with 100% loss for every time interval
+                            qty_of_event_to_report = (utime_now - utime_last_event) / interval
+                            log.warning(
+                                f"{edge_dict_key} - SYNTRAF HAS DETECTED AN OUTAGE, {qty_of_event_to_report} EVENTS WHERE LOST. GENERATING 100% LOSSES VALUES.")
+
+                            for utime_generated in range(int(utime_last_event) + interval, int(utime_now), interval):
+                                dt_generated = datetime.datetime.fromtimestamp(utime_generated)
+                                timezone = pytz.timezone(DefaultValues.TIMEZONE)
+                                dt_tz_generated = timezone.localize(dt_generated)
+                                timestamp_generated = dt_tz_generated.astimezone(pytz.timezone("UTC"))
+                                utime_generated_utc = dt_tz_generated.astimezone(pytz.timezone("UTC")).timestamp()
+
+                                # we could just yield a line, but that would required building a line with the same format as iperf3, it's a hack IMHO, prefer to save directly here.
+                                save_to_server([uid_client, uid_server, timestamp_generated, utime_generated_utc, "0", "0", "100"], _config,
+                                               edge_type, edge_dict_key, "0", "0", dict_data_to_send_to_server)
+
+                                log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - {edge_dict_key}")
+                                log.debug(f"timestamp:{timestamp_generated}, bitrate: 0, jitter: 0, loss: 100, packet_loss: 0, packet_total: 0")
+
+                            utime_last_event = utime_now
                     time.sleep(interval / 2)
                     continue
-            else:
-                #NO LINE
-
-                utime_now = time.time()
-                listener_just_started_or_absent = False
-
-                # Get the infos of the starttime of the current listener, if it has just started or does not exist, do no log an outage, it's just iperf that is not running.
-                flag_no_thread_found = True
-                for obj_thread_n_process in threads_n_processes:
-                    if obj_thread_n_process.name == listener_dict_key and obj_thread_n_process.syntraf_instance_type == "LISTENER":
-                        flag_no_thread_found = False
-                        dt_delta = datetime.datetime.now() - datetime.datetime.strptime(obj_thread_n_process.starttime,
-                                                                                        "%d/%m/%Y %H:%M:%S")
-                        if dt_delta.total_seconds() <= 60:
-                            listener_just_started_or_absent = True
-
-                if flag_no_thread_found: listener_just_started_or_absent = True
-
-                '''
-                Iperf3 stop generating events when the connection is lost for too long [how much exactly?], but we still want to report the losses
-                For that, we need to already have received a log in the past (utime_last_event != 0) and the current log file of iperf3 must not yield line (not line)
-                '''
-                #log.debug(f"OUTAGE_MECHANISM DEBUG utime_last_event:{utime_last_event}")
-                #log.debug(f"{utime_last_event}{line}{listener_just_started_or_absent}")
-
-                if utime_last_event != 0 and not line:
-                    #log.debug(f"OUTAGE_MECHANISM DEBUG utime_now:{utime_now} utime_last_event:{utime_last_event} utime_now - utime_last_event: {(utime_now - utime_last_event)}")
-
-                    # If iperf3 did not write any events for the double of the interval he's supposed to
-                    if (utime_now - utime_last_event) >= (2 * interval):
-                        # Save new event to database with 100% loss for every time interval
-                        qty_of_event_to_report = (utime_now - utime_last_event) / interval
-                        log.warning(
-                            f"listener:{listener_dict_key} - SYNTRAF HAS DETECTED AN OUTAGE, {qty_of_event_to_report} EVENTS WHERE LOST. GENERATING 100% LOSSES VALUES.")
-
-                        for utime_generated in range(int(utime_last_event) + interval, int(utime_now), interval):
-                            dt_generated = datetime.datetime.fromtimestamp(utime_generated)
-                            timezone = pytz.timezone(DefaultValues.TIMEZONE)
-                            dt_tz_generated = timezone.localize(dt_generated)
-                            timestamp_generated = dt_tz_generated.astimezone(pytz.timezone("UTC"))
-                            utime_generated_utc = dt_tz_generated.astimezone(pytz.timezone("UTC")).timestamp()
-
-                            # we could just yield a line, but that would required building a line with the same format as iperf3, it's a hack IMHO, prefer to save directly here.
-                            save_to_server([uid_client, uid_server, timestamp_generated, utime_generated_utc, "0", "0", "100"], _config,
-                                           listener_dict_key, "0", "0", dict_data_to_send_to_server)
-
-                            log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - listener:{listener_dict_key}")
-                            log.debug(f"timestamp:{timestamp_generated}, bitrate: 0, jitter: 0, loss: 100, packet_loss: 0, packet_total: 0")
-
-                        utime_last_event = utime_now
-                time.sleep(interval / 2)
-                continue
     except Exception as exc:
         log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
 
@@ -109,6 +111,10 @@ def parse_line_to_array(line, _config, edge_dict_key, edge_type, conn_db, dict_d
             # When connection is dropped without the management channel being aware of it, iperf3 start to log 0 values
             # NOT OK : ["'2021-04-06", '15:10:12', "'[", '', '6]', '', '10.00-10.44', '', 'sec', '', '0.00', 'Bytes', '', '0.00','Kbits/sec', '', '0.017', 'ms', '', '0/0', '(0%)', '', '\n']
             # OK : ["'2021-04-06", '15:10:04', "'[", '', '6]', '', '', '1.00-2.00', '', '', 'sec', '', '10.6', 'KBytes', '','87.2', 'Kbits/sec', '', '0.011', 'ms', '', '0/50', '(0%)', '', '\n']
+
+            # When using bidir, we get RX and TX. We don't need the TX and the RX
+            if "[RX-C]" in line:
+                line = line.replace("[RX-C]", "")
 
             # timestamp
             x = re.findall(r"(\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d)", line)
@@ -144,19 +150,18 @@ def parse_line_to_array(line, _config, edge_dict_key, edge_type, conn_db, dict_d
                 loss = "100"
 
             # When we have bidir activated, the server will transmit
-            if edge_type == "CONNECTOR":
-                log.debug("=======================================TX===================================")
+            if edge_type == "CONNECTORS":
                 save_to_server(
                     [_config['CONNECTORS'][edge_dict_key]['UID_SERVER'],
                      _config['CONNECTORS'][edge_dict_key]['UID_CLIENT'],
                      timestamp, utime, bitrate, jitter,
-                     loss], _config, edge_dict_key, packet_loss, packet_total, dict_data_to_send_to_server)
+                     loss], _config, edge_type, edge_dict_key, packet_loss, packet_total, dict_data_to_send_to_server)
                 log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - connector:{edge_dict_key}")
             else:
                 save_to_server(
                     [_config['LISTENERS'][edge_dict_key]['UID_CLIENT'],
                      _config['LISTENERS'][edge_dict_key]['UID_SERVER'], timestamp, utime, bitrate, jitter,
-                     loss], _config, edge_dict_key, packet_loss, packet_total, dict_data_to_send_to_server)
+                     loss], _config, edge_type, edge_dict_key, packet_loss, packet_total, dict_data_to_send_to_server)
                 log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - listener:{edge_dict_key}")
 
             log.debug(f"timestamp:{timestamp.strftime('%d/%m/%Y %H:%M:%S')}, bitrate: {bitrate}, jitter: {jitter}, loss: {loss}, packet_loss: {packet_loss}, packet_total: {packet_total}")
@@ -177,12 +182,12 @@ def read_log_listener(listener_dict_key, _config, stop_thread, dict_data_to_send
     file = open(
         os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['LISTENERS'][listener_dict_key]['PORT']) + "_listener.log"), "r+")
 
-    lines = tail(file, int(_config['LISTENERS'][listener_dict_key]['INTERVAL']), _config['LISTENERS'][listener_dict_key]['UID_CLIENT'], _config['LISTENERS'][listener_dict_key]['UID_SERVER'], _config, listener_dict_key, dict_data_to_send_to_server, threads_n_processes)
+    lines = tail(file, int(_config['LISTENERS'][listener_dict_key]['INTERVAL']), _config['LISTENERS'][listener_dict_key]['UID_CLIENT'], _config['LISTENERS'][listener_dict_key]['UID_SERVER'], _config, "LISTENERS", listener_dict_key, dict_data_to_send_to_server, threads_n_processes)
     log.info(f"READING LOGS FOR LISTENER {listener_dict_key} FROM {file.name} ")
     try:
         for line in lines:
             #log.debug(f"TEMP DEBUG {line}")
-            if stop_thread[0] or not parse_line_to_array(line, _config, listener_dict_key, "LISTENER", conn_db, dict_data_to_send_to_server):
+            if stop_thread[0] or not parse_line_to_array(line, _config, listener_dict_key, "LISTENERS", conn_db, dict_data_to_send_to_server):
                 break
     except Exception as exc:
         log.error(f"read_log:{type(exc).__name__}:{exc}", exc_info=True)
@@ -199,11 +204,11 @@ def read_log_connector(connector_dict_key, _config, stop_thread, dict_data_to_se
     file = open(
         os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['CONNECTORS'][connector_dict_key]['PORT']) + "_connector.log"), "r+")
 
-    lines = tail(file, int(_config['CONNECTORS'][connector_dict_key]['INTERVAL']), _config['CONNECTORS'][connector_dict_key]['UID_CLIENT'], _config['CONNECTORS'][connector_dict_key]['UID_SERVER'], _config, connector_dict_key, dict_data_to_send_to_server, threads_n_processes)
+    lines = tail(file, int(_config['CONNECTORS'][connector_dict_key]['INTERVAL']), _config['CONNECTORS'][connector_dict_key]['UID_CLIENT'], _config['CONNECTORS'][connector_dict_key]['UID_SERVER'], _config, "CONNECTORS", connector_dict_key, dict_data_to_send_to_server, threads_n_processes)
     log.info(f"READING LOGS FOR CONNECTOR {connector_dict_key} FROM {file.name} ")
     try:
         for line in lines:
-            if stop_thread[0] or not parse_line_to_array(line, _config, connector_dict_key, "CONNECTOR", conn_db, dict_data_to_send_to_server):
+            if stop_thread[0] or not parse_line_to_array(line, _config, connector_dict_key, "CONNECTORS", conn_db, dict_data_to_send_to_server):
                 break
 
     except Exception as exc:

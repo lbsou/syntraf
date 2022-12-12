@@ -150,14 +150,15 @@ This function generate a json that we can pass to a influxdb write_api to write 
 """
 
 
-def generate_json(values, _config, listener_dict_key, packet_loss, packet_total):
+def generate_json(values, _config, edge_type, edge_dict_key, packet_loss, packet_total):
+
     json_body = {
         "measurement": "SYNTRAF",
         "tags": {
-            "MESH_GROUP": _config['LISTENERS'][listener_dict_key]['MESH_GROUP'],
-            "CLIENT": _config['LISTENERS'][listener_dict_key]['UID_CLIENT'],
-            "SERVER": _config['LISTENERS'][listener_dict_key]['UID_SERVER'],
-            "UID": f"{_config['LISTENERS'][listener_dict_key]['UID_CLIENT']}__TO__{_config['LISTENERS'][listener_dict_key]['UID_SERVER']}__ON__DSCP{_config['LISTENERS'][listener_dict_key]['DSCP']}"
+            "MESH_GROUP": _config[edge_type][edge_dict_key]['MESH_GROUP'],
+            "CLIENT": _config[edge_type][edge_dict_key]['UID_CLIENT'],
+            "SERVER": _config[edge_type][edge_dict_key]['UID_SERVER'],
+            "UID": f"{_config[edge_type][edge_dict_key]['UID_CLIENT']}__TO__{_config[edge_type][edge_dict_key]['UID_SERVER']}__ON__DSCP{_config[edge_type][edge_dict_key]['DSCP']}"
         },
         "time": values[2],
         "fields": {
@@ -194,8 +195,8 @@ def generate_json_covariance(pair_a, pair_b, mesh_group, timestamp, covar):
     return json_body
 
 
-def save_to_server(values, _config, listener_dict_key, packet_loss, packet_total, dict_data_to_send_to_server):
-    json_body = generate_json(values, _config, listener_dict_key, packet_loss, packet_total)
+def save_to_server(values, _config, edge_type, edge_dict_key, packet_loss, packet_total, dict_data_to_send_to_server):
+    json_body = generate_json(values, _config, edge_type, edge_dict_key, packet_loss, packet_total)
 
     try:
         # Make sure that the CLIENT_METRICS_QUEUE does not get too big
