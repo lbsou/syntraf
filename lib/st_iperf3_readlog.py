@@ -105,7 +105,7 @@ def parse_line_to_array(line, _config, edge_dict_key, edge_type, conn_db, dict_d
     try:
         if (len(values) >= 20 and ("omitted" not in line) and ("terminated" not in line) and (
                 "Interval" not in line) and ("receiver" not in line) and ("------------" not in line) and (
-                "- - - - - - - - -" not in line) and "TX-C" not in line):
+                "- - - - - - - - -" not in line) and "TX-C" not in line and "TX-S" not in line):
             # When connection is dropped without the management channel being aware of it, iperf3 start to log 0 values
             # NOT OK : ["'2021-04-06", '15:10:12', "'[", '', '6]', '', '10.00-10.44', '', 'sec', '', '0.00', 'Bytes', '', '0.00','Kbits/sec', '', '0.017', 'ms', '', '0/0', '(0%)', '', '\n']
             # OK : ["'2021-04-06", '15:10:04', "'[", '', '6]', '', '', '1.00-2.00', '', '', 'sec', '', '10.6', 'KBytes', '','87.2', 'Kbits/sec', '', '0.011', 'ms', '', '0/50', '(0%)', '', '\n']
