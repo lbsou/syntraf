@@ -23,9 +23,9 @@ def iperf3_client(connector_dict_key, _config):
         # DEBUG
         # subprocess.call(shlex.split("echo %IPERF3_PASSWORD%"), shell=True, env=env_var)
 
-        iperf3_connectors_log.debug("BIDIR ACTIVATED============================================")
         if _config['CONNECTORS'][connector_dict_key]['BIDIR']:
             bidir_arg = "--bidir"
+            iperf3_connectors_log.debug(f"{connector_dict_key} - BIDIRECTIONAL MODE ACTIVATED")
         else:
             bidir_arg = ""
 
