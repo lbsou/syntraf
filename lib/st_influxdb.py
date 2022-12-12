@@ -156,9 +156,12 @@ def generate_json(values, _config, edge_type, edge_dict_key, packet_loss, packet
         "measurement": "SYNTRAF",
         "tags": {
             "MESH_GROUP": _config[edge_type][edge_dict_key]['MESH_GROUP'],
-            "CLIENT": _config[edge_type][edge_dict_key]['UID_CLIENT'],
-            "SERVER": _config[edge_type][edge_dict_key]['UID_SERVER'],
-            "UID": f"{_config[edge_type][edge_dict_key]['UID_CLIENT']}__TO__{_config[edge_type][edge_dict_key]['UID_SERVER']}__ON__DSCP{_config[edge_type][edge_dict_key]['DSCP']}"
+#            "CLIENT": _config[edge_type][edge_dict_key]['UID_CLIENT'],
+            "CLIENT": values[0],
+#            "SERVER": _config[edge_type][edge_dict_key]['UID_SERVER'],
+            "SERVER": values[1],
+            "UID": f"{values[0]}__TO__{values[1]}__ON__DSCP{_config[edge_type][edge_dict_key]['DSCP']}"
+                   #"UID": f"{_config[edge_type][edge_dict_key]['UID_CLIENT']}__TO__{_config[edge_type][edge_dict_key]['UID_SERVER']}__ON__DSCP{_config[edge_type][edge_dict_key]['DSCP']}"
         },
         "time": values[2],
         "fields": {
