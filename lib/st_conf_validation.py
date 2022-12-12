@@ -1360,10 +1360,14 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
                                     dict_obj_connectors[client2['UID']] = []
 
                                 # Adding listeners and connectors
-                                dict_obj_listeners[client['UID']].append(obj_listener_client_listener)
-                                dict_obj_listeners[client2['UID']].append(obj_listener_client2_listener)
-                                dict_obj_connectors[client['UID']].append(obj_connector_client_connector)
-                                dict_obj_connectors[client2['UID']].append(obj_connector_client2_connector)
+                                if 'obj_listener_client_listener' in locals():
+                                    dict_obj_listeners[client['UID']].append(obj_listener_client_listener)
+                                if 'obj_listener_client2_listener' in locals():
+                                    dict_obj_listeners[client2['UID']].append(obj_listener_client2_listener)
+                                if 'obj_connector_client_connector' in locals():
+                                    dict_obj_connectors[client['UID']].append(obj_connector_client_connector)
+                                if 'obj_connector_client2_connector' in locals():
+                                    dict_obj_connectors[client2['UID']].append(obj_connector_client2_connector)
 
         _dict_by_group_of_generated_tuple_for_map[mesh_group['UID']] = _list_tuple_for_map_gen
 
