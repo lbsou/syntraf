@@ -44,7 +44,6 @@ def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_k
                         continue
                 else:
                     #NO LINE
-
                     utime_now = time.time()
                     listener_just_started_or_absent = False
 
