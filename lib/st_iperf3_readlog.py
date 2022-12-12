@@ -27,9 +27,7 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
             values = line.split(" ")
 
             if line:
-                #[RX-S]
-                #[TX-S]
-                log.error(line)
+                #log.error(line)
                 if (len(values) >= 20 and ("omitted" not in line) and ("terminated" not in line) and (
                         "Interval" not in line) and ("receiver" not in line) and ("------------" not in line) and (
                         "- - - - - - - - -" not in line)):
@@ -84,12 +82,19 @@ def tail(file, interval, uid_client, uid_server, _config, listener_dict_key, dic
                             timestamp_generated = dt_tz_generated.astimezone(pytz.timezone("UTC"))
                             utime_generated_utc = dt_tz_generated.astimezone(pytz.timezone("UTC")).timestamp()
 
-                            # we could just yield a line, but that would required building a line with the same format as iperf3, it's a hack IMHO, prefer to save directly here.
-                            save_to_server([uid_client, uid_server, timestamp_generated, utime_generated_utc, "0", "0", "100"], _config,
-                                           listener_dict_key, "0", "0", dict_data_to_send_to_server)
+                            # When we have bidir activated, the server will transmit
+                            if '[TX-S]' in line:
+                                save_to_server(
+                                    [uid_server, uid_client, timestamp_generated, utime_generated_utc, "0", "0", "100"],
+                                    _config,
+                                    listener_dict_key, "0", "0", dict_data_to_send_to_server)
+                            else:
+                                # we could just yield a line, but that would required building a line with the same format as iperf3, it's a hack IMHO, prefer to save directly here.
+                                save_to_server([uid_client, uid_server, timestamp_generated, utime_generated_utc, "0", "0", "100"], _config,
+                                               listener_dict_key, "0", "0", dict_data_to_send_to_server)
+
                             log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - listener:{listener_dict_key}")
-                            log.debug(
-                                f"timestamp:{timestamp_generated}, bitrate: 0, jitter: 0, loss: 100, packet_loss: 0, packet_total: 0")
+                            log.debug(f"timestamp:{timestamp_generated}, bitrate: 0, jitter: 0, loss: 100, packet_loss: 0, packet_total: 0")
 
                         utime_last_event = utime_now
                 time.sleep(interval / 2)
