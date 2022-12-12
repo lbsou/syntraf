@@ -1208,6 +1208,7 @@ class SSL_TCPServer(TCPServer):
 
     def get_request(self):
         newsocket, fromaddr = self.socket.accept()
+        newsocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         connstream = ssl.wrap_socket(newsocket,
                                      server_side=True,
                                      certfile=self.certfile,
