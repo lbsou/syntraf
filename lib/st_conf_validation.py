@@ -1141,7 +1141,7 @@ def validate_ipv4(ip):
 ### Validation of a UID
 #################################################################################
 def validate_uid(uid):
-    regex_allowed_char = re.compile(r'^[A-Za-z0-9_-]{5,50}$')
+    regex_allowed_char = re.compile(r'^[A-Za-z0-9_-]{4,50}$')
     return bool(regex_allowed_char.search(uid))
 
 #################################################################################
