@@ -368,7 +368,7 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
                 for thr in threads_n_processes:
                     log.error("BIDIR")
                     log.error(config['CONNECTORS'][connector]['BIDIR'])
-                    if thr.syntraf_instance_type == "LISTENER" and config['CONNECTORS'][connector]['BIDIR']:
+                    if thr.syntraf_instance_type == "CONNECTOR" and config['CONNECTORS'][connector]['BIDIR']:
                         got_a_readlog_instance = False
                         for thr2 in threads_n_processes:
                             # There is already a thread, but is it running?
