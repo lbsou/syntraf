@@ -7,6 +7,7 @@ from lib.st_conf_validation import *
 from lib.st_iperf3_readlog import *
 from lib.st_system_stats import *
 
+
 # SYNTRAF SERVER IMPORT
 if not CompilationOptions.client_only:
     from lib.web_ui_kindafixed2 import create_app
@@ -310,6 +311,17 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
         log.error(f"manage_listeners_process:{type(exc).__name__}:{exc}", exc_info=True)
 
 
+def start_thread_udp_hole(config, connector):
+    thread_run = threading.Thread(target=udp_hole_punch,
+                                  args=(
+                                      config['CONNECTORS'][connector]['DESTINATION_ADDRESS'],
+                                      config['CONNECTORS'][connector]['PORT']),
+                                  daemon=True)
+    thread_run.daemon = True
+    thread_run.name = str("UDP HOLE PUNCH")
+    thread_run.start()
+
+
 def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_server, conn_db):
     stop_thread = [False]
     try:
@@ -340,6 +352,10 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
                     # It is possible that the process failed on start, in that case, do not add the object to the dict
                     if thread_or_process.subproc:
                         threads_n_processes.append(thread_or_process)
+                        if config['CONNECTORS'][connector]['BIDIR']:
+                            start_thread_udp_hole(config, connector)
+
+
 
                 # Was launch, but is it running?
                 else:
@@ -362,9 +378,10 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
                         # It is possible that the process failed on start, in that case, do not add the object to the dict
                         if thread_or_process.subproc:
                             threads_n_processes.append(thread_or_process)
+                        if config['CONNECTORS'][connector]['BIDIR']:
+                            start_thread_udp_hole(config, connector)
 
                 # MAKE SURE WE HAVE A READLOG FOR EACH BIDIR CONNECTOR
-
                 for thr in threads_n_processes:
                     if thr.syntraf_instance_type == "CONNECTOR" and config['CONNECTORS'][connector]['BIDIR']:
                         got_a_readlog_instance = False
