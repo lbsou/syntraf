@@ -84,7 +84,6 @@ def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_k
                                 utime_generated_utc = dt_tz_generated.astimezone(pytz.timezone("UTC")).timestamp()
 
                                 # we could just yield a line, but that would required building a line with the same format as iperf3, it's a hack IMHO, prefer to save directly here.
-                                log.error("OUTAGE DETECTED")
                                 save_to_server([uid_client, uid_server, timestamp_generated, utime_generated_utc, "0", "0", "100"], _config,
                                                edge_type, edge_dict_key, "0", "0", dict_data_to_send_to_server)
 
@@ -206,9 +205,11 @@ def read_log_connector(connector_dict_key, _config, stop_thread, dict_data_to_se
         os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['CONNECTORS'][connector_dict_key]['PORT']) + "_connector.log"), "r+")
 
     lines = tail(file, int(_config['CONNECTORS'][connector_dict_key]['INTERVAL']), _config['CONNECTORS'][connector_dict_key]['UID_CLIENT'], _config['CONNECTORS'][connector_dict_key]['UID_SERVER'], _config, "CONNECTORS", connector_dict_key, dict_data_to_send_to_server, threads_n_processes)
+
     log.info(f"READING LOGS FOR CONNECTOR {connector_dict_key} FROM {file.name} ")
     try:
         for line in lines:
+            log.error(line)
             if stop_thread[0] or not parse_line_to_array(line, _config, connector_dict_key, "CONNECTORS", conn_db, dict_data_to_send_to_server):
                 break
 
