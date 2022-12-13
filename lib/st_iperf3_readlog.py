@@ -84,6 +84,7 @@ def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_k
                                 utime_generated_utc = dt_tz_generated.astimezone(pytz.timezone("UTC")).timestamp()
 
                                 # we could just yield a line, but that would required building a line with the same format as iperf3, it's a hack IMHO, prefer to save directly here.
+                                log.error("OUTAGE DETECTED")
                                 save_to_server([uid_client, uid_server, timestamp_generated, utime_generated_utc, "0", "0", "100"], _config,
                                                edge_type, edge_dict_key, "0", "0", dict_data_to_send_to_server)
 
