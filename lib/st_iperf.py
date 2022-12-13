@@ -7,9 +7,15 @@ import sys
 import logging
 import os
 import time
+import threading
+from scapy import all as scapy
 
 iperf3_connectors_log = logging.getLogger("syntraf." + "lib.st_iperf3_connectors")
 iperf3_listeners_log = logging.getLogger("syntraf." + "lib.st_iperf3_listeners")
+
+
+def udp_hole_punch(dst_ip, dst_port):
+    scapy.send(scapy.IP(dst=dst_ip) / scapy.UDP(sport=scapy.RandShort(), dport=dst_port) / scapy.Raw(load="abc"), loop=1, inter=10)
 
 
 #################################################################################
@@ -26,6 +32,16 @@ def iperf3_client(connector_dict_key, _config):
         if _config['CONNECTORS'][connector_dict_key]['BIDIR']:
             bidir_arg = "--bidir"
             iperf3_connectors_log.debug(f"{connector_dict_key} - BIDIRECTIONAL MODE ACTIVATED")
+
+            thread_run = threading.Thread(target=udp_hole_punch,
+                                          args=(
+                                              _config['CONNECTORS'][connector_dict_key]['DESTINATION_ADDRESS'], _config['CONNECTORS'][connector_dict_key]['PORT']),
+                                          daemon=True)
+            thread_run.daemon = True
+            thread_run.name = str("UDP HOLE PUNCH")
+            thread_run.start()
+
+
         else:
             bidir_arg = ""
 
