@@ -221,6 +221,27 @@ def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, config_file_p
         log.error(f"manage_mesh:{type(exc).__name__}:{exc}", exc_info=True)
 
 
+def thread_udp_hole(config, connector, connector_v, iperf3_pid, threads_n_processes):
+    stop_thread = [False]
+
+    thread_run = threading.Thread(target=udp_hole_punch,
+                                  args=(
+                                      config['CONNECTORS'][connector]['DESTINATION_ADDRESS'],
+                                      config['CONNECTORS'][connector]['PORT'], iperf3_pid),
+                                  daemon=True)
+    thread_run.daemon = True
+    thread_run.name = str("UDP HOLE PUNCH")
+    thread_run.start()
+    thread_or_process = st_obj_process_n_thread(thread_obj=thread_run, name=connector,
+                                                syntraf_instance_type="UDP_HOLE",
+                                                exit_boolean=stop_thread,
+                                                starttime=datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                                                opposite_side=connector_v['UID_CLIENT'], group=connector_v['MESH_GROUP'],
+                                                port="")
+
+    threads_n_processes.append(thread_or_process)
+
+
 def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_server, conn_db):
     stop_thread = [False]
     try:
@@ -311,19 +332,9 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
         log.error(f"manage_listeners_process:{type(exc).__name__}:{exc}", exc_info=True)
 
 
-def start_thread_udp_hole(config, connector):
-    thread_run = threading.Thread(target=udp_hole_punch,
-                                  args=(
-                                      config['CONNECTORS'][connector]['DESTINATION_ADDRESS'],
-                                      config['CONNECTORS'][connector]['PORT']),
-                                  daemon=True)
-    thread_run.daemon = True
-    thread_run.name = str("UDP HOLE PUNCH")
-    thread_run.start()
-
-
 def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_server, conn_db):
     stop_thread = [False]
+    thr_temp = None
     try:
         # For each connector, validate config and run the iperf_client
         if 'CONNECTORS' in config:
@@ -352,10 +363,11 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
                     # It is possible that the process failed on start, in that case, do not add the object to the dict
                     if thread_or_process.subproc:
                         threads_n_processes.append(thread_or_process)
+
+                        # Make sure we have a udp_hole punching thread for each bidir connector
                         if config['CONNECTORS'][connector]['BIDIR']:
-                            start_thread_udp_hole(config, connector)
-
-
+                            iperf3_pid = thread_or_process.subproc.pid
+                            thread_udp_hole(config, connector, connector_v, iperf3_pid, threads_n_processes)
 
                 # Was launch, but is it running?
                 else:
@@ -378,8 +390,11 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
                         # It is possible that the process failed on start, in that case, do not add the object to the dict
                         if thread_or_process.subproc:
                             threads_n_processes.append(thread_or_process)
-                        if config['CONNECTORS'][connector]['BIDIR']:
-                            start_thread_udp_hole(config, connector)
+
+                            # Make sure we have a udp_hole punching thread for each bidir connector
+                            if config['CONNECTORS'][connector]['BIDIR']:
+                                iperf3_pid = thread_or_process.subproc.pid
+                                thread_udp_hole(config, connector, connector_v, iperf3_pid, threads_n_processes)
 
                 # MAKE SURE WE HAVE A READLOG FOR EACH BIDIR CONNECTOR
                 for thr in threads_n_processes:
