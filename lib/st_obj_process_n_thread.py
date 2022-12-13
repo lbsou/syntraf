@@ -13,7 +13,7 @@ class st_obj_process_n_thread:
             self.opposite_side = kwargs['opposite_side']
             self.port = kwargs['port']
         elif kwargs['syntraf_instance_type'] == "SERVER" or kwargs['syntraf_instance_type'] == "CLIENT" or \
-                kwargs['syntraf_instance_type'] == "SERVER_SOCKET" or kwargs['syntraf_instance_type'] == "READ_LOG" or kwargs['syntraf_instance_type'] == "WEBUI" or kwargs['syntraf_instance_type'] == "COVARIANCE" or kwargs['syntraf_instance_type'] == "STATS":
+                kwargs['syntraf_instance_type'] == "SERVER_SOCKET" or kwargs['syntraf_instance_type'] == "READ_LOG" or kwargs['syntraf_instance_type'] == "WEBUI" or kwargs['syntraf_instance_type'] == "COVARIANCE" or kwargs['syntraf_instance_type'] == "STATS" or kwargs['syntraf_instance_type'] == "UDP_HOLE":
             self.syntraf_instance_type = kwargs['syntraf_instance_type']
             self.exit_boolean = kwargs['exit_boolean']
             self.name = kwargs['name']

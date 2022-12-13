@@ -7,20 +7,39 @@ import sys
 import logging
 import os
 import time
-import threading
+import psutil
+import warnings
+from cryptography.utils import CryptographyDeprecationWarning
+warnings.filterwarnings("ignore", category=CryptographyDeprecationWarning)
+
 from scapy import all as scapy
 
 iperf3_connectors_log = logging.getLogger("syntraf." + "lib.st_iperf3_connectors")
 iperf3_listeners_log = logging.getLogger("syntraf." + "lib.st_iperf3_listeners")
 
 
-def udp_hole_punch(dst_ip, dst_port):
-    iperf3_connectors_log.error("SCAPY: " + str(dst_ip) + " : " + str(dst_port))
-    capture = scapy.sniff(count=10000,
-                          filter=f"udp and src port {str(dst_port)} and src host {str(dst_ip)}")
-    iperf3_connectors_log.error(capture.summary())
-    scapy.send(scapy.IP(dst=dst_ip) / scapy.UDP(sport=scapy.RandShort(), dport=dst_port) / scapy.Raw(load="abc"),
+# Find the ephemeral port iperf3 used for the incoming connection in bidirectional mode then send a packet
+# to the other side with the right src and dst port to keep alive the udp hole punch.
+def udp_hole_punch(dst_ip, dst_port, iperf3_pid):
+
+    #capture = scapy.sniff(count=10000, filter=f"udp and src port {str(dst_port)} and src host {str(dst_ip)}")
+    #iperf3_connectors_log.error(capture.summary())
+
+    two_ports = False
+    lst_udp_port_iperf = []
+    net_conn = psutil.net_connections("udp4")
+    while not two_ports:
+        for con in net_conn:
+            if con.pid == iperf3_pid:
+                print(con.laddr[1])
+                lst_udp_port_iperf.append(con.laddr[1])
+        if len(lst_udp_port_iperf) == 2:
+            two_ports = True
+
+    print("SCAPY TIME")
+    scapy.send(scapy.IP(dst=dst_ip) / scapy.UDP(sport=lst_udp_port_iperf[1], dport=dst_port) / scapy.Raw(load="abc"),
                loop=1, inter=10)
+
 
 #################################################################################
 ### START AN IPERF3 CLIENT AS CHILD PROCESS
