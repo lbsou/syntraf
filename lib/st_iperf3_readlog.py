@@ -110,9 +110,11 @@ def parse_line_to_array(line, _config, edge_dict_key, edge_type, conn_db, dict_d
             # NOT OK : ["'2021-04-06", '15:10:12', "'[", '', '6]', '', '10.00-10.44', '', 'sec', '', '0.00', 'Bytes', '', '0.00','Kbits/sec', '', '0.017', 'ms', '', '0/0', '(0%)', '', '\n']
             # OK : ["'2021-04-06", '15:10:04', "'[", '', '6]', '', '', '1.00-2.00', '', '', 'sec', '', '10.6', 'KBytes', '','87.2', 'Kbits/sec', '', '0.011', 'ms', '', '0/50', '(0%)', '', '\n']
 
-            # When using bidir, we get RX and TX. We don't need the TX and the RX
+            # When using bidir, we get RX and TX. TX is discarded by previous condition, and RX need to be remove from the line for proper parsing
             if "[RX-C]" in line:
                 line = line.replace("[RX-C]", "")
+            if "[RX-S]" in line:
+                line = line.replace("[RX-S]", "")
 
             # timestamp
             x = re.findall(r"(\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d)", line)
@@ -147,6 +149,8 @@ def parse_line_to_array(line, _config, edge_dict_key, edge_type, conn_db, dict_d
             if bitrate == "0.00" and loss == "0" and packet_loss == "0" and packet_total == "0":
                 loss = "100"
 
+            log.error(packet_loss)
+
             # When we have bidir activated, the server will transmit
             if edge_type == "CONNECTORS":
                 save_to_server(
@@ -154,7 +158,7 @@ def parse_line_to_array(line, _config, edge_dict_key, edge_type, conn_db, dict_d
                      _config['CONNECTORS'][edge_dict_key]['UID_CLIENT'],
                      timestamp, utime, bitrate, jitter,
                      loss], _config, edge_type, edge_dict_key, packet_loss, packet_total, dict_data_to_send_to_server)
-                log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - connector:{edge_dict_key}")
+                log.error(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - connector:{edge_dict_key}")
             else:
                 save_to_server(
                     [_config['LISTENERS'][edge_dict_key]['UID_CLIENT'],
@@ -206,8 +210,6 @@ def read_log_connector(connector_dict_key, _config, stop_thread, dict_data_to_se
     log.info(f"READING LOGS FOR CONNECTOR {connector_dict_key} FROM {file.name} ")
     try:
         for line in lines:
-            log.error(connector_dict_key)
-            log.error(line)
             if stop_thread[0] or not parse_line_to_array(line, _config, connector_dict_key, "CONNECTORS", conn_db, dict_data_to_send_to_server):
                 break
 
