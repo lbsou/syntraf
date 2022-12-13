@@ -364,7 +364,9 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
                             threads_n_processes.append(thread_or_process)
 
                 # MAKE SURE WE HAVE A READLOG FOR EACH BIDIR CONNECTOR
+
                 for thr in threads_n_processes:
+                    log.error(config['CONNECTORS'][connector]['BIDIR'])
                     if thr.syntraf_instance_type == "LISTENER" and config['CONNECTORS'][connector]['BIDIR']:
                         got_a_readlog_instance = False
                         for thr2 in threads_n_processes:
@@ -395,7 +397,7 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
                                     got_a_readlog_instance = True
                                 else:
                                     got_a_readlog_instance = True
-
+                        log.error(got_a_readlog_instance)
                         if not got_a_readlog_instance:
                             # Was never launch, starting the new READLOG thread
                             thread_run = threading.Thread(target=read_log_connector,
