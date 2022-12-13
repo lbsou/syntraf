@@ -23,8 +23,8 @@ def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_k
         # reading last line
 
         while True:
-            time.sleep(interval / 2)
-            lines = file.readlines()
+            time.sleep(interval)
+            lines = file.read().splitlines()
             for line in lines:
                 values = line.split(" ")
 
@@ -149,8 +149,6 @@ def parse_line_to_array(line, _config, edge_dict_key, edge_type, conn_db, dict_d
             if bitrate == "0.00" and loss == "0" and packet_loss == "0" and packet_total == "0":
                 loss = "100"
 
-            log.error(packet_loss)
-
             # When we have bidir activated, the server will transmit
             if edge_type == "CONNECTORS":
                 save_to_server(
@@ -158,7 +156,7 @@ def parse_line_to_array(line, _config, edge_dict_key, edge_type, conn_db, dict_d
                      _config['CONNECTORS'][edge_dict_key]['UID_CLIENT'],
                      timestamp, utime, bitrate, jitter,
                      loss], _config, edge_type, edge_dict_key, packet_loss, packet_total, dict_data_to_send_to_server)
-                log.error(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - connector:{edge_dict_key}")
+                log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - connector:{edge_dict_key}")
             else:
                 save_to_server(
                     [_config['LISTENERS'][edge_dict_key]['UID_CLIENT'],
