@@ -15,6 +15,7 @@ iperf3_listeners_log = logging.getLogger("syntraf." + "lib.st_iperf3_listeners")
 
 
 def udp_hole_punch(dst_ip, dst_port):
+    iperf3_connectors_log.error("SCAPY: " + str(dst_ip) + " : " + str(dst_port))
     scapy.send(scapy.IP(dst=dst_ip) / scapy.UDP(sport=scapy.RandShort(), dport=dst_port) / scapy.Raw(load="abc"), loop=1, inter=10)
 
 
