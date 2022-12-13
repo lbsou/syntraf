@@ -16,8 +16,10 @@ iperf3_listeners_log = logging.getLogger("syntraf." + "lib.st_iperf3_listeners")
 
 def udp_hole_punch(dst_ip, dst_port):
     iperf3_connectors_log.error("SCAPY: " + str(dst_ip) + " : " + str(dst_port))
+    capture = scapy.sniff(count=1, filter=f"udp and src port {str(dst_port)} and src host {str(dst_ip)}")
+    iperf3_connectors_log.error(capture.summary())
     scapy.send(scapy.IP(dst=dst_ip) / scapy.UDP(sport=scapy.RandShort(), dport=dst_port) / scapy.Raw(load="abc"), loop=1, inter=10)
-    iperf3_connectors_log.error("SCAPY: " + str(dst_ip) + " : " + str(dst_port))
+
 
 #################################################################################
 ### START AN IPERF3 CLIENT AS CHILD PROCESS
@@ -41,8 +43,6 @@ def iperf3_client(connector_dict_key, _config):
             thread_run.daemon = True
             thread_run.name = str("UDP HOLE PUNCH")
             thread_run.start()
-
-
         else:
             bidir_arg = ""
 
