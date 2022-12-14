@@ -50,8 +50,8 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean):
                     if stats2.isup:
                         try:
                             iperf3_connectors_log.error("SENDING PACKET")
-                            scapy.sendp(scapy.Ether()/scapy.IP(dst=dst_ip) / scapy.UDP(sport=max(lst_udp_port_iperf), dport=1111) / scapy.Raw(load="KA"), verbose=False, iface=if_name, count=100, inter=0.0001)
-                            scapy.sendp(scapy.Ether() / scapy.IP(dst=dst_ip) / scapy.UDP(sport=min(lst_udp_port_iperf), dport=1111) / scapy.Raw(load="KA"), verbose=False, iface=if_name, count=100, inter=0.0001)
+                            scapy.sendp(scapy.Ether()/scapy.IP(dst=dst_ip) / scapy.UDP(sport=max(lst_udp_port_iperf), dport=dst_port) / scapy.Raw(load="KA"), verbose=False, iface=if_name, count=100, inter=0.0001)
+                            scapy.sendp(scapy.Ether() / scapy.IP(dst=dst_ip) / scapy.UDP(sport=min(lst_udp_port_iperf), dport=dst_port) / scapy.Raw(load="KA"), verbose=False, iface=if_name, count=100, inter=0.0001)
                             #scapy.send(scapy.IP(dst=dst_ip) / scapy.UDP(sport=max(lst_udp_port_iperf), dport=1111) / scapy.Raw(load="KA"), verbose=False, iface=if_name, count=100, inter=0.0001)
                             #scapy.send(scapy.IP(dst=dst_ip) / scapy.UDP(sport=min(lst_udp_port_iperf), dport=1111) / scapy.Raw(load="KA"), verbose=False, iface=if_name, count=100, inter=0.0001)
                         except Exception as ex:
