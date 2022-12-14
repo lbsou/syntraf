@@ -209,7 +209,7 @@ def read_log_connector(connector_dict_key, _config, stop_thread, dict_data_to_se
     log.info(f"READING LOGS FOR CONNECTOR {connector_dict_key} FROM {file.name} ")
     try:
         for line in lines:
-            log.error(line)
+            #log.error(line)
             if stop_thread[0] or not parse_line_to_array(line, _config, connector_dict_key, "CONNECTORS", conn_db, dict_data_to_send_to_server):
                 break
 
