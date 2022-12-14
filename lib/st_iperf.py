@@ -37,8 +37,10 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean):
         time.sleep(1)
 
     print("SCAPY TIME")
-    scapy.send(scapy.IP(dst=dst_ip) / scapy.UDP(sport=max(lst_udp_port_iperf), dport=dst_port) / scapy.Raw(load="abc"),
-               loop=1, inter=0.1)
+    while not exit_boolean:
+        scapy.send(scapy.IP(dst=dst_ip) / scapy.UDP(sport=max(lst_udp_port_iperf), dport=dst_port) / scapy.Raw(load="KA"), loop=0, inter=0.1)
+        scapy.send(scapy.IP(dst=dst_ip) / scapy.UDP(sport=min(lst_udp_port_iperf), dport=dst_port) / scapy.Raw(load="KA"), count=1, loop=0, inter=0.1)
+        #scapy.send(scapy.IP(dst=dst_ip) / scapy.UDP(sport=max(lst_udp_port_iperf), dport=dst_port) / scapy.Raw(load="KA"), count=1, loop=0, inter=0.1)
 
 
 #################################################################################
