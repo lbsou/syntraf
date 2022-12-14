@@ -222,19 +222,19 @@ def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, config_file_p
 
 
 def thread_udp_hole(config, connector, connector_v, iperf3_pid, threads_n_processes):
-    stop_thread = [False]
+    exit_boolean = [False]
 
     thread_run = threading.Thread(target=udp_hole_punch,
                                   args=(
                                       config['CONNECTORS'][connector]['DESTINATION_ADDRESS'],
-                                      config['CONNECTORS'][connector]['PORT'], iperf3_pid),
+                                      config['CONNECTORS'][connector]['PORT'], iperf3_pid, exit_boolean),
                                   daemon=True)
     thread_run.daemon = True
     thread_run.name = str("UDP HOLE PUNCH")
     thread_run.start()
     thread_or_process = st_obj_process_n_thread(thread_obj=thread_run, name=connector,
                                                 syntraf_instance_type="UDP_HOLE",
-                                                exit_boolean=stop_thread,
+                                                exit_boolean=exit_boolean,
                                                 starttime=datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
                                                 opposite_side=connector_v['UID_CLIENT'], group=connector_v['MESH_GROUP'],
                                                 port="")
@@ -367,6 +367,7 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
                         # Make sure we have a udp_hole punching thread for each bidir connector
                         if config['CONNECTORS'][connector]['BIDIR']:
                             iperf3_pid = thread_or_process.subproc.pid
+                            print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
                             thread_udp_hole(config, connector, connector_v, iperf3_pid, threads_n_processes)
 
                 # Was launch, but is it running?
@@ -380,8 +381,20 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
                         last_breath = last_breath.replace("\n", "")
                         log.warning(f"IPERF3 CLIENT OF CONNECTOR '{connector}' DIED OR NEVER START. LAST BREATH : '{last_breath.upper()}'")
 
-                        # Removing previous subprocess
                         threads_n_processes.remove(thr_temp)
+
+                        # If the connector is dead, kill the udp_hole instance
+                        if config['CONNECTORS'][connector]['BIDIR']:
+                            for thr_udp_hole in threads_n_processes:
+                                if thr_udp_hole.syntraf_instance_type == "UDP_HOLE" and thr_udp_hole.name == connector:
+                                    thr_udp_hole.exit_boolean = True
+                                    threads_n_processes.remove(thr_udp_hole)
+                                    thr_udp_hole = None
+                                    print("CLOSING UDP_HOLE")
+                                    break
+
+                        # Removing previous subprocess
+
 
                         # starting the new iperf connector
                         thread_or_process = st_obj_process_n_thread(subproc=iperf3_client(connector, config), name=connector,
@@ -394,6 +407,7 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
                             # Make sure we have a udp_hole punching thread for each bidir connector
                             if config['CONNECTORS'][connector]['BIDIR']:
                                 iperf3_pid = thread_or_process.subproc.pid
+                                print("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB")
                                 thread_udp_hole(config, connector, connector_v, iperf3_pid, threads_n_processes)
 
                 # MAKE SURE WE HAVE A READLOG FOR EACH BIDIR CONNECTOR

@@ -18,27 +18,27 @@ iperf3_connectors_log = logging.getLogger("syntraf." + "lib.st_iperf3_connectors
 iperf3_listeners_log = logging.getLogger("syntraf." + "lib.st_iperf3_listeners")
 
 
-# Find the ephemeral port iperf3 used for the incoming connection in bidirectional mode then send a packet
+# Find the ephemeral port iperf3 is using for the incoming connection in bidirectional mode then send a packet
 # to the other side with the right src and dst port to keep alive the udp hole punch.
-def udp_hole_punch(dst_ip, dst_port, iperf3_pid):
-
-    #capture = scapy.sniff(count=10000, filter=f"udp and src port {str(dst_port)} and src host {str(dst_ip)}")
-    #iperf3_connectors_log.error(capture.summary())
+def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean):
 
     two_ports = False
     lst_udp_port_iperf = []
     net_conn = psutil.net_connections("udp4")
+    print("FRESH==============================")
+    print(exit_boolean)
     while not two_ports:
         for con in net_conn:
             if con.pid == iperf3_pid:
-                print(con.laddr[1])
                 lst_udp_port_iperf.append(con.laddr[1])
+                print(lst_udp_port_iperf)
         if len(lst_udp_port_iperf) == 2:
             two_ports = True
+        time.sleep(1)
 
     print("SCAPY TIME")
-    scapy.send(scapy.IP(dst=dst_ip) / scapy.UDP(sport=lst_udp_port_iperf[1], dport=dst_port) / scapy.Raw(load="abc"),
-               loop=1, inter=10)
+    scapy.send(scapy.IP(dst=dst_ip) / scapy.UDP(sport=max(lst_udp_port_iperf), dport=dst_port) / scapy.Raw(load="abc"),
+               loop=1, inter=0.1)
 
 
 #################################################################################
