@@ -37,17 +37,22 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean):
         time.sleep(1)
 
     interfaces = psutil.net_if_addrs()
+    stats = psutil.net_if_stats()
 
     print("SCAPY TIME")
     while not exit_boolean[0]:
         iperf3_connectors_log.error("debut")
-        for if_name in interfaces.keys():
-            try:
-                iperf3_connectors_log.error("SENDING PACKET")
-                scapy.send(scapy.IP(dst=dst_ip) / scapy.UDP(sport=max(lst_udp_port_iperf), dport=dst_port) / scapy.Raw(load="KA"), verbose=False, iface=if_name)
-                scapy.send(scapy.IP(dst=dst_ip) / scapy.UDP(sport=min(lst_udp_port_iperf), dport=dst_port) / scapy.Raw(load="KA"), verbose=False, iface=if_name)
-            except Exception as ex:
-                pass
+        for if_name, addrs in interfaces.items():
+            for if_name2, stats2 in stats.items():
+                # Do not try to send on a down interface
+                if if_name2 == if_name:
+                    if stats2.isup:
+                        try:
+                            iperf3_connectors_log.error("SENDING PACKET")
+                            scapy.send(scapy.IP(dst=dst_ip) / scapy.UDP(sport=max(lst_udp_port_iperf), dport=dst_port) / scapy.Raw(load="KA"), verbose=False, iface=if_name)
+                            scapy.send(scapy.IP(dst=dst_ip) / scapy.UDP(sport=min(lst_udp_port_iperf), dport=dst_port) / scapy.Raw(load="KA"), verbose=False, iface=if_name)
+                        except Exception as ex:
+                            pass
         time.sleep(1)
         #scapy.send(scapy.IP(dst=dst_ip) / scapy.UDP(sport=max(lst_udp_port_iperf), dport=dst_port) / scapy.Raw(load="KA"), count=1, loop=0, inter=0.1)
     iperf3_connectors_log.error("end")
