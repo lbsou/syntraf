@@ -42,6 +42,7 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean):
     print("SCAPY TIME")
     while not exit_boolean[0]:
         iperf3_connectors_log.error("debut")
+        # Send on all interface, dirty ack
         for if_name, addrs in interfaces.items():
             for if_name2, stats2 in stats.items():
                 # Do not try to send on a down interface
@@ -49,8 +50,8 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean):
                     if stats2.isup:
                         try:
                             iperf3_connectors_log.error("SENDING PACKET")
-                            scapy.send(scapy.IP(dst=dst_ip) / scapy.UDP(sport=max(lst_udp_port_iperf), dport=dst_port) / scapy.Raw(load="KA"), verbose=False, iface=if_name, count=100, inter=0.0001)
-                            scapy.send(scapy.IP(dst=dst_ip) / scapy.UDP(sport=min(lst_udp_port_iperf), dport=dst_port) / scapy.Raw(load="KA"), verbose=False, iface=if_name, count=100, inter=0.0001)
+                            scapy.send(scapy.IP(dst=dst_ip) / scapy.UDP(sport=max(lst_udp_port_iperf), dport=1111) / scapy.Raw(load="KA"), verbose=False, iface=if_name, count=100, inter=0.0001)
+                            scapy.send(scapy.IP(dst=dst_ip) / scapy.UDP(sport=min(lst_udp_port_iperf), dport=1111) / scapy.Raw(load="KA"), verbose=False, iface=if_name, count=100, inter=0.0001)
                         except Exception as ex:
                             pass
         time.sleep(1)
