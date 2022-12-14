@@ -37,7 +37,6 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean):
         time.sleep(1)
 
     interfaces = psutil.net_if_addrs()
-    print(interfaces.keys())
 
     print("SCAPY TIME")
     while not exit_boolean[0]:
