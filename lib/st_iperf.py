@@ -40,9 +40,9 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean):
 
     print("SCAPY TIME")
     while not exit_boolean[0]:
-        iperf3_connectors_log("debut")
+        iperf3_connectors_log.error("debut")
         for if_name in interfaces.keys():
-            iperf3_connectors_log("SENDING PACKET")
+            iperf3_connectors_log.error("SENDING PACKET")
             scapy.send(scapy.IP(dst=dst_ip) / scapy.UDP(sport=max(lst_udp_port_iperf), dport=dst_port) / scapy.Raw(load="KA"), verbose=False, iface=if_name)
             scapy.send(scapy.IP(dst=dst_ip) / scapy.UDP(sport=min(lst_udp_port_iperf), dport=dst_port) / scapy.Raw(load="KA"), verbose=False, iface=if_name)
         time.sleep(1)
