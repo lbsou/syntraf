@@ -25,8 +25,7 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean):
     two_ports = False
     lst_udp_port_iperf = []
     net_conn = psutil.net_connections("udp")
-    print("FRESH==============================")
-    print(exit_boolean)
+
     while not two_ports:
         for con in net_conn:
             if con.pid == iperf3_pid:
@@ -39,7 +38,6 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean):
     interfaces = psutil.net_if_addrs()
     stats = psutil.net_if_stats()
 
-    print("SCAPY TIME")
     while not exit_boolean[0]:
         iperf3_connectors_log.error("debut")
         # Send on all interface, dirty ack
@@ -49,11 +47,8 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean):
                 if if_name2 == if_name:
                     if stats2.isup:
                         try:
-                            iperf3_connectors_log.error("SENDING PACKET")
-                            scapy.sendp(scapy.Ether()/scapy.IP(dst=dst_ip) / scapy.UDP(sport=max(lst_udp_port_iperf), dport=dst_port) / scapy.Raw(load="KA"), verbose=False, iface=if_name, count=100, inter=0.0001)
-                            scapy.sendp(scapy.Ether() / scapy.IP(dst=dst_ip) / scapy.UDP(sport=min(lst_udp_port_iperf), dport=dst_port) / scapy.Raw(load="KA"), verbose=False, iface=if_name, count=100, inter=0.0001)
-                            #scapy.send(scapy.IP(dst=dst_ip) / scapy.UDP(sport=max(lst_udp_port_iperf), dport=1111) / scapy.Raw(load="KA"), verbose=False, iface=if_name, count=100, inter=0.0001)
-                            #scapy.send(scapy.IP(dst=dst_ip) / scapy.UDP(sport=min(lst_udp_port_iperf), dport=1111) / scapy.Raw(load="KA"), verbose=False, iface=if_name, count=100, inter=0.0001)
+                            scapy.sendp(scapy.Ether()/scapy.IP(dst=dst_ip) / scapy.UDP(sport=max(lst_udp_port_iperf), dport=dst_port) / scapy.Raw(load="KA"), verbose=False, iface=if_name, count=10, inter=0.001)
+                            scapy.sendp(scapy.Ether() / scapy.IP(dst=dst_ip) / scapy.UDP(sport=min(lst_udp_port_iperf), dport=dst_port) / scapy.Raw(load="KA"), verbose=False, iface=if_name, count=10, inter=0.001)
                         except Exception as ex:
                             pass
         time.sleep(1)
