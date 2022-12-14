@@ -52,9 +52,6 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean):
                         except Exception as ex:
                             pass
         time.sleep(1)
-        #scapy.send(scapy.IP(dst=dst_ip) / scapy.UDP(sport=max(lst_udp_port_iperf), dport=dst_port) / scapy.Raw(load="KA"), count=1, loop=0, inter=0.1)
-    iperf3_connectors_log.error("end")
-
 
 #################################################################################
 ### START AN IPERF3 CLIENT AS CHILD PROCESS
