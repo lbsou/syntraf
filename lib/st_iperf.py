@@ -30,7 +30,6 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean):
         for con in net_conn:
             if con.pid == iperf3_pid:
                 lst_udp_port_iperf.append(con.laddr[1])
-                print(lst_udp_port_iperf)
         if len(lst_udp_port_iperf) == 2:
             two_ports = True
         time.sleep(1)
@@ -39,7 +38,6 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean):
     stats = psutil.net_if_stats()
 
     while not exit_boolean[0]:
-        iperf3_connectors_log.error("debut")
         # Send on all interface, dirty ack
         for if_name, addrs in interfaces.items():
             for if_name2, stats2 in stats.items():
@@ -47,8 +45,8 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean):
                 if if_name2 == if_name:
                     if stats2.isup:
                         try:
-                            scapy.sendp(scapy.Ether()/scapy.IP(dst=dst_ip) / scapy.UDP(sport=max(lst_udp_port_iperf), dport=dst_port) / scapy.Raw(load="KEEPALIVE"), verbose=False, iface=if_name, count=5, inter=0.1)
-                            scapy.sendp(scapy.Ether() / scapy.IP(dst=dst_ip) / scapy.UDP(sport=min(lst_udp_port_iperf), dport=dst_port) / scapy.Raw(load="KEEPALIVE"), verbose=False, iface=if_name, count=5, inter=0.1)
+                            scapy.sendp(scapy.Ether()/scapy.IP(dst=dst_ip) / scapy.UDP(sport=max(lst_udp_port_iperf), dport=dst_port) / scapy.Raw(load="KEEPALIVE"), verbose=False, iface=if_name, count=5, inter=1)
+                            scapy.sendp(scapy.Ether() / scapy.IP(dst=dst_ip) / scapy.UDP(sport=min(lst_udp_port_iperf), dport=dst_port) / scapy.Raw(load="KEEPALIVE"), verbose=False, iface=if_name, count=5, inter=1)
                         except Exception as ex:
                             pass
         time.sleep(1)
