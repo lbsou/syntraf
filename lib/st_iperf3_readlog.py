@@ -25,6 +25,8 @@ def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_k
         while True:
             time.sleep(interval)
             lines = file.read().splitlines()
+            file.seek(0)
+            file.truncate()
             for line in lines:
                 values = line.split(" ")
                 log.error(f":{line}")
@@ -35,9 +37,6 @@ def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_k
                         #log.error("tail():YIELDING LINE")
                         utime_last_event = time.time()
                         yield line
-
-                        file.seek(0)
-                        file.truncate()
 
                     else:
                         log.error(f"tail():LINE DOES NOT CONTAIN METRICS:{line}")
@@ -107,6 +106,7 @@ def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_k
 
                             utime_last_event = utime_now
                     continue
+
     except Exception as exc:
         log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
 
