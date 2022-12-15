@@ -25,6 +25,7 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean, iperf_conn_thread
     # Waiting for the READ_LOG thread to obtain the source port
     while iperf_conn_thread.bidir_src_port == 0:
         time.sleep(1)
+        iperf3_connectors_log.error("waiting for a port")
 
     # two_ports = False
     # lst_udp_port_iperf = []
@@ -49,6 +50,7 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean, iperf_conn_thread
                 if if_name2 == if_name:
                     if stats2.isup:
                         try:
+                            iperf3_connectors_log.error(f"SCAPY time on {if_name}")
                             scapy.sendp(scapy.Ether()/scapy.IP(dst=dst_ip) / scapy.UDP(sport=iperf_conn_thread.bidir_src_port, dport=dst_port) / scapy.Raw(load="KEEPALIVE"), verbose=True, iface=if_name, inter=0.001, count=1000)
                         except Exception as ex:
                             pass
