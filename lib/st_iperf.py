@@ -51,7 +51,7 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean, iperf_conn_thread
                         try:
                             iperf3_connectors_log.error(f"SCAPY time on {if_name}")
                             iperf3_connectors_log.error(f"SRC:{iperf_conn_thread.bidir_src_port}, DST:{dst_ip}/{dst_port}, IFACE:{if_name}")
-                            scapy.sendp(scapy.Ether()/scapy.IP(dst=dst_ip) / scapy.UDP(sport=int(iperf_conn_thread.bidir_src_port), dport=dst_port) / scapy.Raw(load="KEEPALIVE"), verbose=False, iface=if_name, inter=0.1, count=10)
+                            scapy.sendp(scapy.Ether()/scapy.IP(dst=dst_ip) / scapy.UDP(sport=int(iperf_conn_thread.bidir_src_port), dport=dst_port) / scapy.Raw(load="KEEPALIVE"), verbose=False, iface=if_name, inter=1, count=1)
                         except Exception as ex:
                             iperf3_connectors_log.error(ex)
         time.sleep(1)
