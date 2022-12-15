@@ -29,7 +29,7 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean, iperf_conn_thread
     net_conn = psutil.net_connections("udp")
     for con in net_conn:
         if con.pid == iperf3_pid:
-            iperf3_connectors_log.error(con.laddr)
+            iperf3_connectors_log.error(con.laddr[0])
 
 
     interfaces = psutil.net_if_addrs()
