@@ -40,14 +40,14 @@ def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_k
                         file.truncate()
 
                     else:
-                        log.debug(f"tail():LINE DOES NOT CONTAIN METRICS:{line}")
+                        log.error(f"tail():LINE DOES NOT CONTAIN METRICS:{line}")
 
                         # When we have a bidir connection, iperf will open two port to destination. We want to grab the second source port, as it will allow us to keepalive the udp hole with scapy in another thread.
                         #local 192.168.2.41 port 58743 connected to 192.168.6.100 port 15999
                         #local 192.168.2.41 port 58744 connected to 192.168.6.100 port 15999
 
                         m = re.search(r"local (?:[0-9]{1,3}.){3}[0-9]{1,3} port (\d{1,10}) connected to (?:[0-9]{1,"
-                                      r"3}.){3}[0-9]{1,3} port \d{1,10}", line)
+                                     r"3}.){3}[0-9]{1,3} port \d{1,10}", line)
 
                         # Grab only the port from the second line, which is the RX
                         if m:
