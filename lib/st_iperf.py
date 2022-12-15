@@ -49,7 +49,7 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean, iperf_conn_thread
                 if if_name2 == if_name:
                     if stats2.isup:
                         try:
-                            scapy.sendp(scapy.Ether()/scapy.IP(dst=dst_ip) / scapy.UDP(sport=iperf_conn_thread.bidir_src_port, dport=dst_port) / scapy.Raw(load="KEEPALIVE"), verbose=True, iface=if_name, inter=0.01, count=100)
+                            scapy.sendp(scapy.Ether()/scapy.IP(dst=dst_ip) / scapy.UDP(sport=iperf_conn_thread.bidir_src_port, dport=dst_port) / scapy.Raw(load="KEEPALIVE"), verbose=True, iface=if_name, inter=0.001, count=1000)
                         except Exception as ex:
                             pass
         time.sleep(1)
