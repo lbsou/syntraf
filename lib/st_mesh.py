@@ -1201,7 +1201,6 @@ class SSL_TCPServer(TCPServer):
                  bind_and_activate=True,
                  ssl_version=ssl.PROTOCOL_TLSv1):
         TCPServer.__init__(self, server_address, RequestHandlerClass, bind_and_activate)
-        TCPServer.allow_reuse_address = True
         self.certfile = certfile
         self.keyfile = keyfile
         self.ssl_version = ssl_version
@@ -1242,6 +1241,9 @@ def server(_config, threads_n_processes, stop_thread, dict_by_node_generated_con
     _config['SERVER']['IPERF3_PASSWORD_HASH'] = gen_iperf3_password_hash(_config['SERVER']['IPERF3_USERNAME'],
                                                                          _config['SERVER']['IPERF3_PASSWORD'])
     server_address = (_config['SERVER']['BIND_ADDRESS'], int(_config['SERVER']['SERVER_PORT']))
+
+    # Avoid "Address already in use" when restarting server
+    TCPServer.allow_reuse_address = True
 
     try:
         # Validating if we need to wrap the socket with legit cert or self-signed
