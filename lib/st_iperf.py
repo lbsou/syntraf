@@ -26,17 +26,11 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean, iperf_conn_thread
         time.sleep(1)
         iperf3_connectors_log.error("waiting for a port")
 
-    # two_ports = False
-    # lst_udp_port_iperf = []
-    # net_conn = psutil.net_connections("udp")
-    #
-    # while not two_ports:
-    #     for con in net_conn:
-    #         if con.pid == iperf3_pid:
-    #             lst_udp_port_iperf.append(con.laddr[1])
-    #     if len(lst_udp_port_iperf) == 2:
-    #         two_ports = True
-    #     time.sleep(1)
+    net_conn = psutil.net_connections("udp")
+    for con in net_conn:
+        if con.pid == iperf3_pid:
+            iperf3_connectors_log.error(con.laddr)
+
 
     interfaces = psutil.net_if_addrs()
     stats = psutil.net_if_stats()
