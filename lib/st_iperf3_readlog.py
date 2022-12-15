@@ -27,7 +27,7 @@ def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_k
             lines = file.read().splitlines()
             for line in lines:
                 values = line.split(" ")
-
+                log.error(f":{line}")
                 if line:
                     if (len(values) >= 20 and ("omitted" not in line) and ("terminated" not in line) and (
                             "Interval" not in line) and ("receiver" not in line) and ("------------" not in line) and (
