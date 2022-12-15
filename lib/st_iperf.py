@@ -20,19 +20,23 @@ iperf3_listeners_log = logging.getLogger("syntraf." + "lib.st_iperf3_listeners")
 
 # Find the ephemeral port iperf3 is using for the incoming connection in bidirectional mode then send a packet
 # to the other side with the right src and dst port to keep alive the udp hole punch.
-def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean):
+def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean, iperf_conn_thread):
 
-    two_ports = False
-    lst_udp_port_iperf = []
-    net_conn = psutil.net_connections("udp")
-
-    while not two_ports:
-        for con in net_conn:
-            if con.pid == iperf3_pid:
-                lst_udp_port_iperf.append(con.laddr[1])
-        if len(lst_udp_port_iperf) == 2:
-            two_ports = True
+    # Waiting for the READ_LOG thread to obtain the source port
+    while iperf_conn_thread.bidir_src_port == 0:
         time.sleep(1)
+
+    # two_ports = False
+    # lst_udp_port_iperf = []
+    # net_conn = psutil.net_connections("udp")
+    #
+    # while not two_ports:
+    #     for con in net_conn:
+    #         if con.pid == iperf3_pid:
+    #             lst_udp_port_iperf.append(con.laddr[1])
+    #     if len(lst_udp_port_iperf) == 2:
+    #         two_ports = True
+    #     time.sleep(1)
 
     interfaces = psutil.net_if_addrs()
     stats = psutil.net_if_stats()
@@ -45,8 +49,7 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean):
                 if if_name2 == if_name:
                     if stats2.isup:
                         try:
-                            scapy.sendp(scapy.Ether()/scapy.IP(dst=dst_ip) / scapy.UDP(sport=max(lst_udp_port_iperf), dport=dst_port) / scapy.Raw(load="KEEPALIVE"), verbose=False, iface=if_name, count=5, inter=1)
-                            scapy.sendp(scapy.Ether() / scapy.IP(dst=dst_ip) / scapy.UDP(sport=min(lst_udp_port_iperf), dport=dst_port) / scapy.Raw(load="KEEPALIVE"), verbose=False, iface=if_name, count=5, inter=1)
+                            scapy.sendp(scapy.Ether()/scapy.IP(dst=dst_ip) / scapy.UDP(sport=iperf_conn_thread.bidir_src_port, dport=dst_port) / scapy.Raw(load="KEEPALIVE"), verbose=True, iface=if_name, inter=1, count=5)
                         except Exception as ex:
                             pass
         time.sleep(1)

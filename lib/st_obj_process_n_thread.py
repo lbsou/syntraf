@@ -24,6 +24,9 @@ class st_obj_process_n_thread:
             self.opposite_side = kwargs['opposite_side']
             self.port = kwargs['port']
 
+        if kwargs['syntraf_instance_type'] == "CONNECTOR":
+            self.bidir_src_port = kwargs['bidir_src_port']
+
     def __str__(self):
         return f"name: {self.name}, syntraf_instance_type:{self.syntraf_instance_type}"
 
