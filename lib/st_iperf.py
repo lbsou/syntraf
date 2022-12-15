@@ -26,11 +26,13 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean, iperf_conn_thread
         time.sleep(1)
         iperf3_connectors_log.error("waiting for a port")
 
+    # In case there is PBR on the server, make sure we are sending the packet out the right interface
+    interface_ip = ""
     net_conn = psutil.net_connections("udp")
     for con in net_conn:
         if con.pid == iperf3_pid:
-            iperf3_connectors_log.error(con.laddr[0])
-
+            interface_ip = con.laddr[0]
+            break
 
     interfaces = psutil.net_if_addrs()
     stats = psutil.net_if_stats()
@@ -38,6 +40,7 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean, iperf_conn_thread
     while not exit_boolean[0]:
         # Send on all interface, dirty ack
         for if_name, addrs in interfaces.items():
+            iperf3_connectors_log.error(addrs)
             for if_name2, stats2 in stats.items():
                 # Do not try to send on a down interface
                 if if_name2 == if_name and if_name2 != "lo":
