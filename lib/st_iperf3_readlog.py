@@ -14,14 +14,14 @@ log = logging.getLogger("syntraf." + __name__)
 #################################################################################
 ### YIELD LINE FROM IPERF3 OUTPUT FILE
 #################################################################################
-def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_key, dict_data_to_send_to_server, threads_n_processes):
+def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_key, dict_data_to_send_to_server, threads_n_processes, iperf_read_log_thread=None):
     utime_last_event = 0
 
     try:
         # seek the end
         file.seek(0, os.SEEK_END)
-        # reading last line
 
+        cpt_port_bidir = 0
         while True:
             time.sleep(interval)
             lines = file.read().splitlines()
@@ -41,6 +41,21 @@ def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_k
 
                     else:
                         log.debug(f"tail():LINE DOES NOT CONTAIN METRICS:{line}")
+
+                        # When we have a bidir connection, iperf will open two port to destination. We want to grab the second source port, as it will allow us to keepalive the udp hole with scapy in another thread.
+                        #local 192.168.2.41 port 58743 connected to 192.168.6.100 port 15999
+                        #local 192.168.2.41 port 58744 connected to 192.168.6.100 port 15999
+
+                        m = re.search(r"local (?:[0-9]{1,3}.){3}[0-9]{1,3} port (\d{1,10}) connected to (?:[0-9]{1,"
+                                      r"3}.){3}[0-9]{1,3} port \d{1,10}", line)
+
+                        # Grab only the port from the second line, which is the RX
+                        if m:
+                            if cpt_port_bidir == 0:
+                                cpt_port_bidir += 1
+                            elif cpt_port_bidir == 1:
+                                iperf_read_log_thread.bidir_src_port = m.groups()[0]
+                                cpt_port_bidir = 0
                         continue
                 else:
                     #NO LINE
@@ -99,7 +114,7 @@ def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_k
 #################################################################################
 ###
 #################################################################################
-def parse_line_to_array(line, _config, edge_dict_key, edge_type, conn_db, dict_data_to_send_to_server):
+def parse_line_to_array(line, _config, edge_dict_key, edge_type, dict_data_to_send_to_server):
     values = line.split(" ")
 
     try:
@@ -187,7 +202,7 @@ def read_log_listener(listener_dict_key, _config, stop_thread, dict_data_to_send
     try:
         for line in lines:
             #log.debug(f"TEMP DEBUG {line}")
-            if stop_thread[0] or not parse_line_to_array(line, _config, listener_dict_key, "LISTENERS", conn_db, dict_data_to_send_to_server):
+            if stop_thread[0] or not parse_line_to_array(line, _config, listener_dict_key, "LISTENERS", dict_data_to_send_to_server):
                 break
     except Exception as exc:
         log.error(f"read_log:{type(exc).__name__}:{exc}", exc_info=True)
@@ -198,19 +213,19 @@ def read_log_listener(listener_dict_key, _config, stop_thread, dict_data_to_send
 #################################################################################
 ### FUNCTION USE WITH THREAD TO READ LOGS
 #################################################################################
-def read_log_connector(connector_dict_key, _config, stop_thread, dict_data_to_send_to_server, conn_db, threads_n_processes):
+def read_log_connector(connector_dict_key, _config, stop_thread, dict_data_to_send_to_server, conn_db, threads_n_processes, iperf_read_log_thread):
     # Opening file and using generator
     pathlib.Path(os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['CONNECTORS'][connector_dict_key]['PORT']) + "_connector.log")).touch()
     file = open(
         os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['CONNECTORS'][connector_dict_key]['PORT']) + "_connector.log"), "r+")
 
-    lines = tail(file, int(_config['CONNECTORS'][connector_dict_key]['INTERVAL']), _config['CONNECTORS'][connector_dict_key]['UID_CLIENT'], _config['CONNECTORS'][connector_dict_key]['UID_SERVER'], _config, "CONNECTORS", connector_dict_key, dict_data_to_send_to_server, threads_n_processes)
+    lines = tail(file, int(_config['CONNECTORS'][connector_dict_key]['INTERVAL']), _config['CONNECTORS'][connector_dict_key]['UID_CLIENT'], _config['CONNECTORS'][connector_dict_key]['UID_SERVER'], _config, "CONNECTORS", connector_dict_key, dict_data_to_send_to_server, threads_n_processes, iperf_read_log_thread)
 
     log.info(f"READING LOGS FOR CONNECTOR {connector_dict_key} FROM {file.name} ")
     try:
         for line in lines:
             #log.error(line)
-            if stop_thread[0] or not parse_line_to_array(line, _config, connector_dict_key, "CONNECTORS", conn_db, dict_data_to_send_to_server):
+            if stop_thread[0] or not parse_line_to_array(line, _config, connector_dict_key, "CONNECTORS", dict_data_to_send_to_server):
                 break
 
     except Exception as exc:
