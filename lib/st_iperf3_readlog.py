@@ -53,6 +53,7 @@ def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_k
                             elif cpt_port_bidir == 1:
                                 iperf_read_log_thread.bidir_src_port = m.groups()[0]
                                 log.debug(f"GOT A PORT FOR UDP_HOLE_PUNCH:{m.groups()[0]}")
+                                log.debug(iperf_read_log_thread)
                                 cpt_port_bidir = 0
                         continue
                 else:
