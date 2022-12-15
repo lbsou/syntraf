@@ -18,16 +18,13 @@ def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_k
     utime_last_event = 0
 
     try:
-        # seek the end
-        #file.seek(0, os.SEEK_END)
-
         cpt_port_bidir = 0
         while True:
             time.sleep(interval)
             lines = file.read().splitlines()
             file.seek(0)
             file.truncate()
-            log.error(f":{lines}")
+
             for line in lines:
                 values = line.split(" ")
 
