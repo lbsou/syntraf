@@ -20,6 +20,7 @@ iperf3_listeners_log = logging.getLogger("syntraf." + "lib.st_iperf3_listeners")
 # Find the ephemeral port iperf3 is using for the incoming connection in bidirectional mode then send a packet
 # to the other side with the right src and dst port to keep alive the udp hole punch.
 def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean, iperf_conn_thread):
+    iperf3_connectors_log.debug(iperf_conn_thread)
 
     # Waiting for the READ_LOG thread to obtain the source port
     while iperf_conn_thread.bidir_src_port == 0:
