@@ -652,7 +652,7 @@ def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processe
         client_log.error(f"SOCKET TIMEOUT: {address}: CLOSING CONNECTION")
     except OSError as exc:
         if exc.errno == 32:  # BROKEN PIPE, THE OTHER END HAS GONE AWAY
-            client_log.error(address, f"BROKEN PIPE: {address}: CLOSING CONNECTION")
+            client_log.error(f"BROKEN PIPE: {address}: CLOSING CONNECTION")
         # CONNECTION RESET BY PEER
         elif exc.errno == 104:
             client_log.error(f"CONNECTION RESET BY PEER: {address}: CLOSING CONNECTION")
