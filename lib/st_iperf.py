@@ -40,6 +40,8 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean, iperf_conn_thread
     while not exit_boolean[0]:
         # Send on all interface, dirty ack
         for if_name, addrs in interfaces.items():
+            for iface in addrs:
+                print(getattr(iface,'address'))
             iperf3_connectors_log.error(addrs)
             #iperf3_connectors_log.error(getattr(addrs,'address'))
             for if_name2, stats2 in stats.items():
