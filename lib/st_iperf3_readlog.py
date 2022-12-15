@@ -37,7 +37,7 @@ def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_k
                         yield line
 
                     else:
-                        log.error(f"tail():LINE DOES NOT CONTAIN METRICS:{line}")
+                        log.debug(f"tail():LINE DOES NOT CONTAIN METRICS:{line}")
 
                         # When we have a bidir connection, iperf will open two port to destination. We want to grab the second source port, as it will allow us to keepalive the udp hole with scapy in another thread.
                         #local 192.168.2.41 port 58743 connected to 192.168.6.100 port 15999
