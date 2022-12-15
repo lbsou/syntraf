@@ -423,7 +423,7 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
                                                                   args=(
                                                                       connector, config, stop_thread,
                                                                       dict_data_to_send_to_server, conn_db,
-                                                                      threads_n_processes, iperf_read_log_thread),
+                                                                      threads_n_processes, thr),
                                                                   daemon=True)
                                     thread_run.daemon = True
                                     thread_run.name = str(connector)
