@@ -47,14 +47,14 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean, iperf_conn_thread
         for if_name, addrs in interfaces.items():
             for if_name2, stats2 in stats.items():
                 # Do not try to send on a down interface
-                if if_name2 == if_name:
+                if if_name2 == if_name and if_name2 is not "lo":
                     if stats2.isup:
                         try:
                             iperf3_connectors_log.error(f"SCAPY time on {if_name}")
                             iperf3_connectors_log.error(f"SRC:{iperf_conn_thread.bidir_src_port}, DST:{dst_ip}/{dst_port}, IFACE:{if_name}")
-                            scapy.sendp(scapy.Ether()/scapy.IP(dst=dst_ip) / scapy.UDP(sport=iperf_conn_thread.bidir_src_port, dport=dst_port) / scapy.Raw(load="KEEPALIVE"), verbose=False, iface=if_name, inter=0.001, count=1000)
+                            scapy.sendp(scapy.Ether()/scapy.IP(dst=dst_ip) / scapy.UDP(sport=iperf_conn_thread.bidir_src_port, dport=dst_port) / scapy.Raw(load="KEEPALIVE"), verbose=False, iface=if_name, inter=0.1, count=10)
                         except Exception as ex:
-                            pass
+                            iperf3_connectors_log.error(ex)
         time.sleep(1)
 
 #################################################################################
