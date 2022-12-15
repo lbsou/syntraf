@@ -24,7 +24,7 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean, iperf_conn_thread
     # Waiting for the READ_LOG thread to obtain the source port
     while iperf_conn_thread.bidir_src_port == 0:
         time.sleep(1)
-        iperf3_connectors_log.error(f"waiting for a port:{iperf_conn_thread.bidir_src_port}:{iperf3_pid}")
+        iperf3_connectors_log.debug(f"UDP_HOLE_PUNCH FOR IPERF3 PROCESS ID: '{iperf3_pid}' IS WAITING FOR A PORT:{iperf_conn_thread.bidir_src_port}")
 
     # In case there is PBR on the server, make sure we are sending the packet out the right interface
     interface_ip = ""
@@ -38,15 +38,14 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean, iperf_conn_thread
     stats = psutil.net_if_stats()
 
     while not exit_boolean[0]:
-        # Send on all interface, dirty ack
         for if_name, addrs in interfaces.items():
             for if_name2, stats2 in stats.items():
-                # Do not try to send on a down interface
-                if if_name2 == if_name and if_name2 != "lo" and getattr(addrs[0],'address') == interface_ip:
+                # Do not try to send on a down interface, and only on the interface this instance of iperf3 is attached to
+                # Do I still need to check if up? Not really, will leave it here for the moment.
+                if if_name2 == if_name and getattr(addrs[0],'address') == interface_ip:
                     if stats2.isup:
                         try:
-                            iperf3_connectors_log.error(f"SCAPY time on {if_name}")
-                            iperf3_connectors_log.error(f"SRC:{iperf_conn_thread.bidir_src_port}, DST:{dst_ip}/{dst_port}, IFACE:{if_name}")
+                            iperf3_connectors_log.debug(f"SENDING KEEPALIVE WITH SRC:{iperf_conn_thread.bidir_src_port}, DST:{dst_ip}/{dst_port} ON IFACE:{if_name}")
                             scapy.sendp(scapy.Ether()/scapy.IP(dst=dst_ip) / scapy.UDP(sport=int(iperf_conn_thread.bidir_src_port), dport=dst_port) / scapy.Raw(load="KEEPALIVE"), verbose=False, iface=if_name, inter=1, count=1)
                         except Exception as ex:
                             iperf3_connectors_log.error(ex)
