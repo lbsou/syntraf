@@ -28,7 +28,7 @@ class st_obj_process_n_thread:
             self.bidir_src_port = kwargs['bidir_src_port']
 
     def __str__(self):
-        return f"name: {self.name}, syntraf_instance_type:{self.syntraf_instance_type}"
+        return f"name: {self.name}, syntraf_instance_type:{self.syntraf_instance_type}, bidir_port:{self.port}"
 
     def asjson(self):
         return {'starttime': self.starttime, 'syntraf_instance_type': self.syntraf_instance_type, 'group': self.group, 'opposite_side': self.opposite_side, 'listener_port': self.port}
