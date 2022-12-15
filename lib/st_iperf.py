@@ -24,7 +24,7 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean, iperf_conn_thread
     # Waiting for the READ_LOG thread to obtain the source port
     while iperf_conn_thread.bidir_src_port == 0:
         time.sleep(1)
-        iperf3_connectors_log.error(f"waiting for a port:{iperf_conn_thread.bidir_src_port}")
+        iperf3_connectors_log.error(f"waiting for a port:{iperf_conn_thread.bidir_src_port}:{iperf3_pid}")
 
     # In case there is PBR on the server, make sure we are sending the packet out the right interface
     interface_ip = ""
