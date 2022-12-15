@@ -40,12 +40,9 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean, iperf_conn_thread
     while not exit_boolean[0]:
         # Send on all interface, dirty ack
         for if_name, addrs in interfaces.items():
-            iperf3_connectors_log.error(getattr(addrs[0],'address'))
-            #iperf3_connectors_log.error(addrs)
-            #iperf3_connectors_log.error(getattr(addrs,'address'))
             for if_name2, stats2 in stats.items():
                 # Do not try to send on a down interface
-                if if_name2 == if_name and if_name2 != "lo":
+                if if_name2 == if_name and if_name2 != "lo" and getattr(addrs[0],'address') == interface_ip:
                     if stats2.isup:
                         try:
                             iperf3_connectors_log.error(f"SCAPY time on {if_name}")
