@@ -366,8 +366,7 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
 
                         # Make sure we have a udp_hole punching thread for each bidir connector
                         if config['CONNECTORS'][connector]['BIDIR']:
-                            iperf3_pid = iperf_conn_thread.subproc.pid
-                            thread_udp_hole(config, connector, connector_v, iperf3_pid, threads_n_processes, iperf_conn_thread)
+                            thread_udp_hole(config, connector, connector_v, iperf_conn_thread.subproc.pid, threads_n_processes, iperf_conn_thread)
 
                 # Was launch, but is it running?
                 else:
@@ -388,7 +387,7 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
                                 if thr_udp_hole.syntraf_instance_type == "UDP_HOLE" and thr_udp_hole.name == connector:
                                     thr_udp_hole.exit_boolean = True
                                     threads_n_processes.remove(thr_udp_hole)
-                                    thr_udp_hole = None
+                                    #thr_udp_hole = None
                                     break
 
                         # Removing previous subprocess
@@ -404,18 +403,19 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
 
                             # Make sure we have a udp_hole punching thread for each bidir connector
                             if config['CONNECTORS'][connector]['BIDIR']:
-                                iperf3_pid = iperf_conn_thread.subproc.pid
-                                thread_udp_hole(config, connector, connector_v, iperf3_pid, threads_n_processes, iperf_conn_thread)
+                                thread_udp_hole(config, connector, connector_v, iperf_conn_thread.subproc.pid, threads_n_processes, iperf_conn_thread)
 
                 # MAKE SURE WE HAVE A READLOG FOR EACH BIDIR CONNECTOR
                 for thr in threads_n_processes:
+                    # FIND A BIDIR CONNECTOR
                     if thr.syntraf_instance_type == "CONNECTOR" and config['CONNECTORS'][connector]['BIDIR']:
                         got_a_readlog_instance = False
+                        # FIND IF THERE IS AN ASSOCIATED READ_LOG
                         for thr2 in threads_n_processes:
-                            # There is already a thread, but is it running?
                             if thr2.syntraf_instance_type == "READ_LOG" and thr2.name == connector:
-                                # Is the subproc running? If no, restart it
+                                # THERE IS AN OBJECT BUT IS IT RUNNING?
                                 if not thr2.thread_obj.is_alive():
+                                    # DELETE THE DEAD THREAD
                                     threads_n_processes.remove(thr2)
 
                                     stop_thread = [False]
