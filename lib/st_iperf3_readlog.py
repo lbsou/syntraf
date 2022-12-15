@@ -47,6 +47,7 @@ def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_k
                                      r"3}.){3}[0-9]{1,3} port \d{1,10}", line)
 
                         # Grab only the port from the second line, which is the RX
+                        log.error(m)
                         if m:
                             if cpt_port_bidir == 0:
                                 cpt_port_bidir += 1
