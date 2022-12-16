@@ -225,7 +225,7 @@ def thread_udp_hole(config, connector, connector_v, iperf3_pid, threads_n_proces
     exit_boolean = [False]
 
     log.error("=================================")
-    log.error(f"{id(iperf_conn_thread)}")
+    log.error(f"{connector_v}---------------{id(iperf_conn_thread)}")
     log.error("=================================")
 
     thread_run = threading.Thread(target=udp_hole_punch,
