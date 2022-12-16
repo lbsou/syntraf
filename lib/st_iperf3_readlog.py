@@ -17,9 +17,10 @@ log = logging.getLogger("syntraf." + __name__)
 def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_key, dict_data_to_send_to_server, threads_n_processes, iperf_read_log_thread=None):
     utime_last_event = 0
 
-    log.error("=================================")
-    log.error(f"{iperf_read_log_thread.id}")
-    log.error("=================================")
+    if iperf_read_log_thread:
+        log.error("=================================")
+        log.error(f"{iperf_read_log_thread.id}")
+        log.error("=================================")
 
     try:
         cpt_port_bidir = 0
