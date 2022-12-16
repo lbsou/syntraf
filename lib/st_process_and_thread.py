@@ -224,9 +224,9 @@ def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, config_file_p
 def thread_udp_hole(config, connector, connector_v, iperf3_pid, threads_n_processes, iperf_conn_thread):
     exit_boolean = [False]
 
-    # log.error("=================================")
-    # log.error(f"{connector_v}---------------{id(iperf_conn_thread)}")
-    # log.error("=================================")
+    log.error("=================================")
+    log.error(f"{connector_v}---------------{id(iperf_conn_thread)}")
+    log.error("=================================")
 
     thread_run = threading.Thread(target=udp_hole_punch,
                                   args=(
