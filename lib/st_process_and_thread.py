@@ -224,9 +224,9 @@ def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, config_file_p
 def thread_udp_hole(config, connector, connector_v, iperf3_pid, threads_n_processes, iperf_conn_thread):
     exit_boolean = [False]
 
-    log.error("=================================")
-    log.error(f"{connector_v}---------------{id(iperf_conn_thread)}")
-    log.error("=================================")
+    # log.error("=================================")
+    # log.error(f"{connector_v}---------------{id(iperf_conn_thread)}")
+    # log.error("=================================")
 
     thread_run = threading.Thread(target=udp_hole_punch,
                                   args=(
@@ -234,7 +234,7 @@ def thread_udp_hole(config, connector, connector_v, iperf3_pid, threads_n_proces
                                       config['CONNECTORS'][connector]['PORT'], iperf3_pid, exit_boolean, iperf_conn_thread),
                                   daemon=True)
     thread_run.daemon = True
-    thread_run.name = str("UDP HOLE PUNCH")
+    thread_run.name = connector
     thread_run.start()
     thread_or_process = st_obj_process_n_thread(thread_obj=thread_run, name=connector,
                                                 syntraf_instance_type="UDP_HOLE",
@@ -391,15 +391,12 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
                                 if thr_udp_hole.syntraf_instance_type == "UDP_HOLE" and thr_udp_hole.name == connector:
                                     thr_udp_hole.exit_boolean = True
                                     threads_n_processes.remove(thr_udp_hole)
-                                    #thr_udp_hole = None
                                     break
-
-                        # Removing previous subprocess
 
 
                         # starting the new iperf connector
                         iperf_conn_thread = st_obj_process_n_thread(subproc=iperf3_client(connector, config), name=connector,
-                                                            syntraf_instance_type="CONNECTOR", starttime=datetime.now().strftime("%d/%m/%Y %H:%M:%S"), opposite_side=connector_v['UID_SERVER'], group=connector_v['MESH_GROUP'], port=connector_v['PORT'], bidir_src_port=0)
+                                                            syntraf_istance_type="CONNECTOR", starttime=datetime.now().strftime("%d/%m/%Y %H:%M:%S"), opposite_side=connector_v['UID_SERVER'], group=connector_v['MESH_GROUP'], port=connector_v['PORT'], bidir_src_port=0)
 
                         # It is possible that the process failed on start, in that case, do not add the object to the dict
                         if iperf_conn_thread.subproc:
@@ -412,7 +409,7 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
                 # MAKE SURE WE HAVE A READLOG FOR EACH BIDIR CONNECTOR
                 for thr in threads_n_processes:
                     # FIND A BIDIR CONNECTOR
-                    if thr.syntraf_instance_type == "CONNECTOR" and config['CONNECTORS'][connector]['BIDIR']:
+                    if thr.syntraf_instance_type == "CONNECTOR" and config['CONNECTORS'][connector]['BIDIR'] and thr.name == connector:
                         got_a_readlog_instance = False
                         # FIND IF THERE IS AN ASSOCIATED READ_LOG
                         for thr2 in threads_n_processes:
@@ -443,8 +440,8 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
                                     got_a_readlog_instance = True
                                 else:
                                     got_a_readlog_instance = True
+                        # Was never launch, starting the new READLOG thread
                         if not got_a_readlog_instance:
-                            # Was never launch, starting the new READLOG thread
                             thread_run = threading.Thread(target=read_log_connector,
                                                           args=(
                                                           connector, config, stop_thread, dict_data_to_send_to_server, conn_db,
