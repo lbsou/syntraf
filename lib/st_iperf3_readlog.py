@@ -19,7 +19,7 @@ def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_k
 
     if iperf_read_log_thread:
         log.error("=================================")
-        log.error(f"{iperf_read_log_thread.id}")
+        log.error(f"{id(iperf_read_log_thread)}")
         log.error("=================================")
 
     try:
