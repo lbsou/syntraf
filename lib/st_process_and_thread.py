@@ -381,14 +381,15 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
 
                         threads_n_processes.remove(thr_temp)
 
-                        # If the connector is dead, kill the udp_hole instance
+                        # If the connector is dead, kill the udp_hole and readlog instances
                         if config['CONNECTORS'][connector]['BIDIR']:
-                            for thr_udp_hole in threads_n_processes:
-                                if thr_udp_hole.syntraf_instance_type == "UDP_HOLE" and thr_udp_hole.name == connector:
-                                    thr_udp_hole.exit_boolean = True
-                                    threads_n_processes.remove(thr_udp_hole)
-                                    break
-
+                            for thread_to_kill in threads_n_processes:
+                                if thread_to_kill.syntraf_instance_type == "UDP_HOLE" and thread_to_kill.name == connector:
+                                    thread_to_kill.exit_boolean[0] = True
+                                    threads_n_processes.remove(thread_to_kill)
+                                if thread_to_kill.syntraf_instance_type == "READ_LOG" and thread_to_kill.name == connector:
+                                    thread_to_kill.exit_boolean[0] = True
+                                    threads_n_processes.remove(thread_to_kill)
 
                         # starting the new iperf connector
                         iperf_conn_thread = st_obj_process_n_thread(subproc=iperf3_client(connector, config), name=connector, syntraf_istance_type="CONNECTOR", starttime=datetime.now().strftime("%d/%m/%Y %H:%M:%S"), opposite_side=connector_v['UID_SERVER'], group=connector_v['MESH_GROUP'], port=connector_v['PORT'], bidir_src_port=0)
