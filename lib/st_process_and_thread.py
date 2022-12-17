@@ -385,9 +385,11 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
                         if config['CONNECTORS'][connector]['BIDIR']:
                             for thread_to_kill in threads_n_processes:
                                 if thread_to_kill.syntraf_instance_type == "UDP_HOLE" and thread_to_kill.name == connector:
+                                    log.error("DEBUG TERMINATED EXIT BOOL UDP HOLE")
                                     thread_to_kill.exit_boolean[0] = True
                                     threads_n_processes.remove(thread_to_kill)
                                 if thread_to_kill.syntraf_instance_type == "READ_LOG" and thread_to_kill.name == connector:
+                                    log.error("DEBUG TERMINATED EXIT BOOL READ_LOG")
                                     thread_to_kill.exit_boolean[0] = True
                                     threads_n_processes.remove(thread_to_kill)
 
