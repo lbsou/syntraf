@@ -63,7 +63,10 @@ def launch_and_respawn_workers(config, cli_parameters, threads_n_processes,  obj
 
         # LISTENERS
         manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_server, conn_db)
-
+        log.error("=***********************************************************")
+        log.error("=***********************************************************")
+        log.error("=***********************************************************")
+        log.error("=***********************************************************")
         # CONNECTORS
         manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_server, conn_db)
 
