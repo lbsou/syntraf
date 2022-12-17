@@ -37,6 +37,9 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean, iperf_conn_thread
     stats = psutil.net_if_stats()
 
     while not exit_boolean[0]:
+
+        if iperf_conn_thread.bidir_src_port == 0:
+            break
         for if_name, addrs in interfaces.items():
             for if_name2, stats2 in stats.items():
                 # Do not try to send on a down interface, and only on the interface this instance of iperf3 is attached to
