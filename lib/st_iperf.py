@@ -22,7 +22,7 @@ iperf3_listeners_log = logging.getLogger("syntraf." + "lib.st_iperf3_listeners")
 def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean, iperf_conn_thread, connector):
     exit_message = ""
     # Waiting for the READ_LOG thread to obtain the source port
-    while iperf_conn_thread.bidir_src_port == 0:
+    while iperf_conn_thread.bidir_src_port == 0 and not exit_boolean[0]:
         iperf3_connectors_log.debug(f"UDP_HOLE_PUNCH FOR {connector}, IPERF3 PROCESS ID: '{iperf3_pid}' IS WAITING FOR A PORT:{iperf_conn_thread.bidir_src_port}")
         time.sleep(1)
 
