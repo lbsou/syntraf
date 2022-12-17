@@ -49,7 +49,7 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean, iperf_conn_thread
                         except Exception as ex:
                             iperf3_connectors_log.error(ex)
         time.sleep(1)
-    iperf3_connectors_log.error(f"UDP_HOLE_PUNCH FOR {connector}, IPERF3 PROCESS ID: '{iperf3_pid}' TERMINATED")
+    iperf3_connectors_log.error(f"READ_LOG FOR {connector}, IPERF3 PROCESS ID: '{iperf3_pid}' TERMINATED")
 
 
 #################################################################################
@@ -109,7 +109,7 @@ def iperf3_client(connector_dict_key, _config):
                 explanation = "CLIENT FIREWALL"
             iperf3_connectors_log.error(f"UNABLE TO START IPERF3 CLIENT FOR CONNECTOR '{connector_dict_key}' : IPERF3 LAST BREATH : {last_breath}")
             iperf3_connectors_log.error(f"PROBABLE EXPLANATION: {explanation}")
-            iperf3_connectors_log.error(f"UDP_HOLE_PUNCH FOR {connector_dict_key} TERMINATED")
+            iperf3_connectors_log.error(f"IPERF3 CLIENT FOR {connector_dict_key} TERMINATED")
 
             return None
 
