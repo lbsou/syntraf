@@ -7,8 +7,17 @@ import os
 
 log = logging.getLogger("syntraf." + __name__)
 
+'''
+LEVEL      |       AUDIENCE        |       DESCRIPTION                             |
+====================================================================================
+DEBUG      |       DEVELOPERS      |       DEBUGGING                               |
+INFO       |       SYSOP           |       LOG A WANTED STATE                      |
+WARN       |       SYSOP           |       UNWANTED STATE, PROCESS CAN CONTINUE    |
+ERROR      |       SYSOP           |       PROCESS CANNOT CONTINUE, BUT APP CAN    |
+CRITICAL   |       SYSOP           |       APP CANNOT CONTINUE                     |
+'''
 
-# DEBUG < INFO < WARNING < ERROR < CRITICAL
+
 #################################################################################
 ###  LOGGING INIT
 #################################################################################

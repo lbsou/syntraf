@@ -32,7 +32,6 @@ def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_k
                     if (len(values) >= 20 and ("omitted" not in line) and ("terminated" not in line) and (
                             "Interval" not in line) and ("receiver" not in line) and ("------------" not in line) and (
                             "- - - - - - - - -" not in line)):
-                        #log.error("tail():YIELDING LINE")
                         utime_last_event = time.time()
                         yield line
 
@@ -52,8 +51,7 @@ def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_k
                                 cpt_port_bidir += 1
                             elif cpt_port_bidir == 1:
                                 iperf_read_log_thread.bidir_src_port = m.groups()[0]
-                                log.debug(f"GOT A PORT FOR UDP_HOLE_PUNCH:{m.groups()[0]}")
-                                log.debug(iperf_read_log_thread)
+                                log.info(f"GOT A PORT FOR UDP_HOLE_PUNCH:{m.groups()[0]}")
                                 cpt_port_bidir = -1
                         continue
                 else:
@@ -81,13 +79,13 @@ def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_k
                     #log.debug(f"{utime_last_event}{line}{listener_just_started_or_absent}")
 
                     if utime_last_event != 0 and not line:
-                        #log.debug(f"OUTAGE_MECHANISM DEBUG utime_now:{utime_now} utime_last_event:{utime_last_event} utime_now - utime_last_event: {(utime_now - utime_last_event)}")
+                        log.debug(f"OUTAGE_MECHANISM DEBUG utime_now:{utime_now} utime_last_event:{utime_last_event} utime_now - utime_last_event: {(utime_now - utime_last_event)}")
 
                         # If iperf3 did not write any events for the double of the interval he's supposed to
                         if (utime_now - utime_last_event) >= (2 * interval):
                             # Save new event to database with 100% loss for every time interval
                             qty_of_event_to_report = (utime_now - utime_last_event) / interval
-                            log.warning(
+                            log.warn(
                                 f"{edge_dict_key} - SYNTRAF HAS DETECTED AN OUTAGE, {qty_of_event_to_report} EVENTS WHERE LOST. GENERATING 100% LOSSES VALUES.")
 
                             for utime_generated in range(int(utime_last_event) + interval, int(utime_now), interval):
@@ -213,7 +211,7 @@ def read_log_listener(listener_dict_key, _config, exit_boolean, dict_data_to_sen
     if exit_boolean:
         exit_message = "Exit boolean became True"
 
-    log.error(f"READ_LOG FOR {listener_dict_key} TERMINATED. Exit message: {exit_message}")
+    log.error(f"THREAD READ_LOG FOR {listener_dict_key} TERMINATED. Exit message: {exit_message}")
 
 
 #################################################################################
