@@ -54,6 +54,10 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean, iperf_conn_thread
                         except Exception as ex:
                             iperf3_connectors_log.error(ex)
         time.sleep(1)
+
+    if exit_boolean[0]:
+        exit_message = "EXIT BOOLEAN BECAME TRUE"
+
     iperf3_connectors_log.error(f"READ_LOG FOR {connector}, IPERF3 PROCESS ID: '{iperf3_pid}' TERMINATED. EXIT MESSAGE: {exit_message}")
 
 
