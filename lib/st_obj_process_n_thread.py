@@ -12,6 +12,7 @@ class st_obj_process_n_thread:
             self.group = kwargs['group']
             self.opposite_side = kwargs['opposite_side']
             self.port = kwargs['port']
+            self.pid = self.subproc.pid
         elif kwargs['syntraf_instance_type'] == "SERVER" or kwargs['syntraf_instance_type'] == "CLIENT" or \
                 kwargs['syntraf_instance_type'] == "SERVER_SOCKET" or kwargs['syntraf_instance_type'] == "READ_LOG" or kwargs['syntraf_instance_type'] == "WEBUI" or kwargs['syntraf_instance_type'] == "COVARIANCE" or kwargs['syntraf_instance_type'] == "STATS" or kwargs['syntraf_instance_type'] == "UDP_HOLE":
             self.syntraf_instance_type = kwargs['syntraf_instance_type']
@@ -23,13 +24,14 @@ class st_obj_process_n_thread:
             self.group = kwargs['group']
             self.opposite_side = kwargs['opposite_side']
             self.port = kwargs['port']
+            self.pid = self.thread_obj.native_id
 
         if kwargs['syntraf_instance_type'] == "CONNECTOR":
             self.bidir_src_port = kwargs['bidir_src_port']
 
     def __str__(self):
         if self.syntraf_instance_type == "CONNECTOR":
-            return f"name: {self.name}, syntraf_instance_type:{self.syntraf_instance_type}, bidir_src_port:{self.bidir_src_port}"
+            return f"name: {self.name}, syntraf_instance_type:{self.syntraf_instance_type}, pid:{self.pid}, bidir_src_port:{self.bidir_src_port}"
         else:
             return f"name: {self.name}, syntraf_instance_type:{self.syntraf_instance_type}"
 
