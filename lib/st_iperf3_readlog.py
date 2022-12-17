@@ -14,7 +14,7 @@ log = logging.getLogger("syntraf." + __name__)
 #################################################################################
 ### YIELD LINE FROM IPERF3 OUTPUT FILE
 #################################################################################
-def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_key, dict_data_to_send_to_server, threads_n_processes, exit_boolean, iperf_read_log_thread=None):
+def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_key, dict_data_to_send_to_server, threads_n_processes, iperf_read_log_thread=None):
     utime_last_event = 0
 
     try:
