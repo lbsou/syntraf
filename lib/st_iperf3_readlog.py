@@ -189,7 +189,7 @@ def parse_line_to_array(line, _config, edge_dict_key, edge_type, dict_data_to_se
 #################################################################################
 ### FUNCTION TO READ LISTENERS LOGS
 #################################################################################
-def read_log_listener(listener_dict_key, _config, exit_boolean, dict_data_to_send_to_server, conn_db, threads_n_processes):
+def read_log_listener(listener_dict_key, _config, exit_boolean, dict_data_to_send_to_server, threads_n_processes):
     exit_message = "unknown"
     # Opening file and using generator
     pathlib.Path(os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['LISTENERS'][listener_dict_key]['PORT']) + "_listener.log")).touch()
@@ -217,7 +217,7 @@ def read_log_listener(listener_dict_key, _config, exit_boolean, dict_data_to_sen
 #################################################################################
 ### FUNCTION TO READ CONNECTORS LOGS
 #################################################################################
-def read_log_connector(connector_dict_key, _config, exit_boolean, dict_data_to_send_to_server, conn_db, threads_n_processes, iperf_read_log_thread):
+def read_log_connector(connector_dict_key, _config, exit_boolean, dict_data_to_send_to_server, threads_n_processes, iperf3_conn_thread):
     exit_message = "unknown"
 
     # Opening file and using generator
@@ -225,7 +225,7 @@ def read_log_connector(connector_dict_key, _config, exit_boolean, dict_data_to_s
     file = open(
         os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['CONNECTORS'][connector_dict_key]['PORT']) + "_connector.log"), "r+")
 
-    lines = tail(file, int(_config['CONNECTORS'][connector_dict_key]['INTERVAL']), _config['CONNECTORS'][connector_dict_key]['UID_CLIENT'], _config['CONNECTORS'][connector_dict_key]['UID_SERVER'], _config, "CONNECTORS", connector_dict_key, dict_data_to_send_to_server, threads_n_processes, iperf_read_log_thread)
+    lines = tail(file, int(_config['CONNECTORS'][connector_dict_key]['INTERVAL']), _config['CONNECTORS'][connector_dict_key]['UID_CLIENT'], _config['CONNECTORS'][connector_dict_key]['UID_SERVER'], _config, "CONNECTORS", connector_dict_key, dict_data_to_send_to_server, threads_n_processes, iperf3_conn_thread)
 
     log.info(f"READING LOGS FOR CONNECTOR {connector_dict_key} FROM {file.name} ")
     try:
