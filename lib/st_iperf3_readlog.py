@@ -47,7 +47,7 @@ def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_k
                                      r"3}.){3}[0-9]{1,3} port \d{1,10}", line)
 
                         # Grab only the port from the second line, which is the RX
-                        if m and cpt_port_bidir >= 0:
+                        if m and cpt_port_bidir >= 0 and hasattr(iperf_read_log_thread, 'bidir_src_port'):
                             if cpt_port_bidir == 0:
                                 cpt_port_bidir += 1
                             elif cpt_port_bidir == 1:
