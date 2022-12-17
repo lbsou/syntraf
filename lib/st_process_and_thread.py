@@ -401,8 +401,6 @@ def iperf3_client_print_last_breath(connector_key, threads_n_processes, thr_temp
 
 
 def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_server, conn_db):
-    stop_thread = [False]
-
     try:
         # For each connector, validate config and run the iperf_client
         if 'CONNECTORS' in config:
@@ -414,6 +412,7 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
 
                 # Do we already have an object/thread running
                 thr_temp = st_obj_process_n_thread_exist(threads_n_processes, "CONNECTOR", connector_key)
+                log.error(f"==========***********************************************************============{thr_temp}")
 
                 # Was never launch
                 if not thr_temp:
