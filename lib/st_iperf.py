@@ -19,11 +19,12 @@ iperf3_listeners_log = logging.getLogger("syntraf." + "lib.st_iperf3_listeners")
 
 # Find the ephemeral port iperf3 is using for the incoming connection in bidirectional mode then send a packet
 # to the other side with the right src and dst port to keep alive the udp hole punch.
-def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean, iperf_conn_thread, connector):
+def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector):
     exit_message = ""
+    iperf3_pid = iperf3_conn_thread.subproc.pid
     # Waiting for the READ_LOG thread to obtain the source port
-    while iperf_conn_thread.bidir_src_port == 0 and not exit_boolean[0]:
-        iperf3_connectors_log.debug(f"UDP_HOLE_PUNCH FOR {connector}, IPERF3 PROCESS ID: '{iperf3_pid}' IS WAITING FOR A PORT:{iperf_conn_thread.bidir_src_port}")
+    while iperf3_conn_thread.bidir_src_port == 0 and not exit_boolean[0]:
+        iperf3_connectors_log.debug(f"UDP_HOLE_PUNCH FOR {connector}, IPERF3 PROCESS ID: '{iperf3_pid}' IS WAITING FOR A PORT:{iperf3_conn_thread.bidir_src_port}")
         time.sleep(1)
 
     # In case there is PBR on the server, make sure we are sending the packet out the right interface
@@ -39,7 +40,7 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean, iperf_conn_thread
 
     while not exit_boolean[0]:
 
-        if iperf_conn_thread.bidir_src_port == 0:
+        if iperf3_conn_thread.bidir_src_port == 0:
             exit_message = "bidir_src_port became 0"
             break
         for if_name, addrs in interfaces.items():
@@ -49,8 +50,8 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean, iperf_conn_thread
                 if if_name2 == if_name and getattr(addrs[0], 'address') == interface_ip:
                     if stats2.isup:
                         try:
-                            iperf3_connectors_log.debug(f"SENDING KEEPALIVE WITH SRC:{interface_ip}/{iperf_conn_thread.bidir_src_port}, DST:{dst_ip}/{dst_port} ON IFACE:{if_name}")
-                            scapy.sendp(scapy.Ether()/scapy.IP(src=interface_ip, dst=dst_ip) / scapy.UDP(sport=int(iperf_conn_thread.bidir_src_port), dport=dst_port) / scapy.Raw(load="KEEPALIVE"), verbose=False, iface=if_name, inter=1, count=1)
+                            iperf3_connectors_log.debug(f"SENDING KEEPALIVE WITH SRC:{interface_ip}/{iperf3_conn_thread.bidir_src_port}, DST:{dst_ip}/{dst_port} ON IFACE:{if_name}")
+                            scapy.sendp(scapy.Ether()/scapy.IP(src=interface_ip, dst=dst_ip) / scapy.UDP(sport=int(iperf3_conn_thread.bidir_src_port), dport=dst_port) / scapy.Raw(load="KEEPALIVE"), verbose=False, iface=if_name, inter=1, count=1)
                         except Exception as ex:
                             iperf3_connectors_log.error(ex)
         time.sleep(1)
