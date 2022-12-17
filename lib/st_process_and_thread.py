@@ -63,10 +63,7 @@ def launch_and_respawn_workers(config, cli_parameters, threads_n_processes,  obj
 
         # LISTENERS
         manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_server, conn_db)
-        log.error("=***********************************************************")
-        log.error("=***********************************************************")
-        log.error("=***********************************************************")
-        log.error("=***********************************************************")
+
         # CONNECTORS
         manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_server, conn_db)
 
@@ -415,7 +412,6 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
 
                 # Do we already have an object/thread running
                 thr_temp = st_obj_process_n_thread_exist(threads_n_processes, "CONNECTOR", connector_key)
-                log.error(f"==========***********************************************************============{thr_temp}")
 
                 # Was never launch
                 if not thr_temp:
@@ -435,8 +431,8 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
                             for thread_to_kill in threads_n_processes:
                                 if thread_to_kill.syntraf_instance_type == "UDP_HOLE" and thread_to_kill.name == connector_key:
                                     log.error("====================================2=====================")
-                                    thread_to_kill.thread_obj.join()
                                     thread_to_kill.exit_boolean[0] = True
+                                    thread_to_kill.thread_obj.join()
                                     threads_n_processes.remove(thread_to_kill)
                                 if thread_to_kill.syntraf_instance_type == "READ_LOG" and thread_to_kill.name == connector_key:
                                     log.error("====================================3=====================")
