@@ -22,9 +22,8 @@ iperf3_listeners_log = logging.getLogger("syntraf." + "lib.st_iperf3_listeners")
 def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean, iperf_conn_thread):
     # Waiting for the READ_LOG thread to obtain the source port
     while iperf_conn_thread.bidir_src_port == 0:
-        time.sleep(1)
-        iperf3_connectors_log.debug(f"IN UDP_HOLE_PUNCH:{iperf_conn_thread}")
         iperf3_connectors_log.debug(f"UDP_HOLE_PUNCH FOR IPERF3 PROCESS ID: '{iperf3_pid}' IS WAITING FOR A PORT:{iperf_conn_thread.bidir_src_port}")
+        time.sleep(1)
 
     # In case there is PBR on the server, make sure we are sending the packet out the right interface
     interface_ip = ""
@@ -50,6 +49,7 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean, iperf_conn_thread
                         except Exception as ex:
                             iperf3_connectors_log.error(ex)
         time.sleep(1)
+    iperf3_connectors_log.debug(f"UDP_HOLE_PUNCH FOR IPERF3 PROCESS ID: '{iperf3_pid}' TERMINATED")
 
 
 #################################################################################
