@@ -40,12 +40,12 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean, iperf_conn_thread
         for if_name, addrs in interfaces.items():
             for if_name2, stats2 in stats.items():
                 # Do not try to send on a down interface, and only on the interface this instance of iperf3 is attached to
-                # Do I still need to check if up? Not really, will leave it here for the moment.
-                if if_name2 == if_name and getattr(addrs[0],'address') == interface_ip:
+                # Do I still need to check if interface is up? Not really, will leave it here for the moment just in case.
+                if if_name2 == if_name and getattr(addrs[0], 'address') == interface_ip:
                     if stats2.isup:
                         try:
-                            iperf3_connectors_log.debug(f"SENDING KEEPALIVE WITH SRC:{iperf_conn_thread.bidir_src_port}/{interface_ip}, DST:{dst_ip}/{dst_port} ON IFACE:{if_name}")
-                            scapy.sendp(scapy.Ether()/scapy.IP( dst=dst_ip, chksum=0) / scapy.UDP(sport=int(iperf_conn_thread.bidir_src_port), dport=dst_port) / scapy.Raw(load="KEEPALIVE"), verbose=False, iface=if_name, inter=1, count=1)
+                            iperf3_connectors_log.debug(f"SENDING KEEPALIVE WITH SRC:{interface_ip}/{iperf_conn_thread.bidir_src_port}, DST:{dst_ip}/{dst_port} ON IFACE:{if_name}")
+                            scapy.sendp(scapy.Ether()/scapy.IP(src=interface_ip, dst=dst_ip) / scapy.UDP(sport=int(iperf_conn_thread.bidir_src_port), dport=dst_port) / scapy.Raw(load="KEEPALIVE"), verbose=False, iface=if_name, inter=1, count=1)
                         except Exception as ex:
                             iperf3_connectors_log.error(ex)
         time.sleep(1)
