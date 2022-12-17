@@ -110,6 +110,7 @@ def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_k
     except Exception as exc:
         log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
 
+    log.error(f"UDP_HOLE_PUNCH FOR {edge_dict_key} TERMINATED")
 
 #################################################################################
 ###

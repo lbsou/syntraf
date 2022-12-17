@@ -97,9 +97,9 @@ def run():
         sys.exit()
     log_init(cli_parameters, config)
 
-    # HANDLER TO OUTPUT ERROR ONLY TO STDOUT
+    # HANDLER TO OUTPUT CRITICAL ONLY TO STDOUT
     ch = logging.StreamHandler()
-    ch.setLevel(logging.ERROR)
+    ch.setLevel(logging.CRITICAL)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     ch.setFormatter(formatter)
     log.addHandler(ch)
