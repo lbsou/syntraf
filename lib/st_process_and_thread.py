@@ -392,7 +392,7 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
                                     threads_n_processes.remove(thread_to_kill)
 
                         # starting the new iperf connector
-                        iperf_conn_thread = st_obj_process_n_thread(subproc=iperf3_client(connector, config), name=connector, syntraf_istance_type="CONNECTOR", starttime=datetime.now().strftime("%d/%m/%Y %H:%M:%S"), opposite_side=connector_v['UID_SERVER'], group=connector_v['MESH_GROUP'], port=connector_v['PORT'], bidir_src_port=0)
+                        iperf_conn_thread = st_obj_process_n_thread(subproc=iperf3_client(connector, config), name=connector, syntraf_instance_type="CONNECTOR", starttime=datetime.now().strftime("%d/%m/%Y %H:%M:%S"), opposite_side=connector_v['UID_SERVER'], group=connector_v['MESH_GROUP'], port=connector_v['PORT'], bidir_src_port=0)
 
                         # It is possible that the process failed on start, in that case, do not add the object to the dict
                         if iperf_conn_thread.subproc:
