@@ -429,12 +429,15 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
 
                         # If the connector is dead, send signal to terminate udp_hole and readlog instances and remove them from threads_n_processes dict
                         if config['CONNECTORS'][connector_key]['BIDIR']:
+                            log.error("====================================1=====================")
                             for thread_to_kill in threads_n_processes:
                                 if thread_to_kill.syntraf_instance_type == "UDP_HOLE" and thread_to_kill.name == connector_key:
+                                    log.error("====================================2=====================")
                                     thread_to_kill.thread_obj.join()
                                     thread_to_kill.exit_boolean[0] = True
                                     threads_n_processes.remove(thread_to_kill)
                                 if thread_to_kill.syntraf_instance_type == "READ_LOG" and thread_to_kill.name == connector_key:
+                                    log.error("====================================3=====================")
                                     thread_to_kill.exit_boolean[0] = True
                                     thread_to_kill.thread_obj.join()
                                     threads_n_processes.remove(thread_to_kill)
