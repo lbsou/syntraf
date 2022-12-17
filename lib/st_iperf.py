@@ -19,10 +19,10 @@ iperf3_listeners_log = logging.getLogger("syntraf." + "lib.st_iperf3_listeners")
 
 # Find the ephemeral port iperf3 is using for the incoming connection in bidirectional mode then send a packet
 # to the other side with the right src and dst port to keep alive the udp hole punch.
-def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean, iperf_conn_thread):
+def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean, iperf_conn_thread, connector):
     # Waiting for the READ_LOG thread to obtain the source port
     while iperf_conn_thread.bidir_src_port == 0:
-        iperf3_connectors_log.debug(f"UDP_HOLE_PUNCH FOR IPERF3 PROCESS ID: '{iperf3_pid}' IS WAITING FOR A PORT:{iperf_conn_thread.bidir_src_port}")
+        iperf3_connectors_log.debug(f"UDP_HOLE_PUNCH FOR {connector}, IPERF3 PROCESS ID: '{iperf3_pid}' IS WAITING FOR A PORT:{iperf_conn_thread.bidir_src_port}")
         time.sleep(1)
 
     # In case there is PBR on the server, make sure we are sending the packet out the right interface
@@ -49,7 +49,7 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean, iperf_conn_thread
                         except Exception as ex:
                             iperf3_connectors_log.error(ex)
         time.sleep(1)
-    iperf3_connectors_log.debug(f"UDP_HOLE_PUNCH FOR IPERF3 PROCESS ID: '{iperf3_pid}' TERMINATED")
+    iperf3_connectors_log.debug(f"UDP_HOLE_PUNCH FOR {connector}, IPERF3 PROCESS ID: '{iperf3_pid}' TERMINATED")
 
 
 #################################################################################

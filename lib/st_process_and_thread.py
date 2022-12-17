@@ -227,7 +227,7 @@ def thread_udp_hole(config, connector, connector_v, iperf3_pid, threads_n_proces
     thread_run = threading.Thread(target=udp_hole_punch,
                                   args=(
                                       config['CONNECTORS'][connector]['DESTINATION_ADDRESS'],
-                                      config['CONNECTORS'][connector]['PORT'], iperf3_pid, exit_boolean, iperf_conn_thread),
+                                      config['CONNECTORS'][connector]['PORT'], iperf3_pid, exit_boolean, iperf_conn_thread, connector),
                                   daemon=True)
     thread_run.daemon = True
     thread_run.name = connector
