@@ -33,7 +33,7 @@ class st_obj_process_n_thread:
         if self.syntraf_instance_type == "CONNECTOR":
             return f"name: {self.name}, syntraf_instance_type:{self.syntraf_instance_type}, pid:{self.pid}, bidir_src_port:{self.bidir_src_port}"
         else:
-            return f"name: {self.name}, syntraf_instance_type:{self.syntraf_instance_type}"
+            return f"name: {self.name}, syntraf_instance_type:{self.syntraf_instance_type}, pid:{self.pid}, "
 
     def asjson(self):
         return {'starttime': self.starttime, 'syntraf_instance_type': self.syntraf_instance_type, 'group': self.group, 'opposite_side': self.opposite_side, 'listener_port': self.port}
