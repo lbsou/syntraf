@@ -432,12 +432,13 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
                                 if thread_to_kill.syntraf_instance_type == "UDP_HOLE" and thread_to_kill.name == connector_key:
                                     log.error("====================================2=====================")
                                     thread_to_kill.exit_boolean[0] = True
-                                    thread_to_kill.thread_obj.join()
+                                    thread_to_kill.thread_obj._stop()
                                     threads_n_processes.remove(thread_to_kill)
+
                                 if thread_to_kill.syntraf_instance_type == "READ_LOG" and thread_to_kill.name == connector_key:
                                     log.error("====================================3=====================")
                                     thread_to_kill.exit_boolean[0] = True
-                                    thread_to_kill.thread_obj.join()
+                                    thread_to_kill.thread_obj._stop()
                                     threads_n_processes.remove(thread_to_kill)
 
                         # starting the new iperf3 connector. Also start udp_hole and read_log if this is a bidirectionnal connection
