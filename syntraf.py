@@ -124,8 +124,8 @@ def run():
                 if new_conn.status == "ONLINE":
                     flag_at_least_one_db_online = True
 
-    if not flag_at_least_one_db_online:
-        # We should print a message
+    if not flag_at_least_one_db_online and "SERVER" in config:
+        # Print a warning that all data will be volatile because there is no available database
         log.warning(f"**********************************************************************************************")
         log.warning(f"NO DATABASES CONFIGURED OR ONLINE AT THE MOMENT, DATA WILL BE VOLATILE")
         log.warning(f"DEPENDING ON YOUR CONFIGURATION, SOME DATA COULD BE RECORDED WHEN DATABASE WILL BE BACK ONLINE")
