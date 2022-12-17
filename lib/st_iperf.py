@@ -45,7 +45,7 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_pid, exit_boolean, iperf_conn_thread
                     if stats2.isup:
                         try:
                             iperf3_connectors_log.debug(f"SENDING KEEPALIVE WITH SRC:{iperf_conn_thread.bidir_src_port}/{interface_ip}, DST:{dst_ip}/{dst_port} ON IFACE:{if_name}")
-                            scapy.sendp(scapy.Ether()/scapy.IP(src=interface_ip, dst=dst_ip, chksum=0) / scapy.UDP(sport=int(iperf_conn_thread.bidir_src_port), dport=dst_port) / scapy.Raw(load="KEEPALIVE"), verbose=False, iface=if_name, inter=1, count=1)
+                            scapy.sendp(scapy.Ether()/scapy.IP( dst=dst_ip, chksum=0) / scapy.UDP(sport=int(iperf_conn_thread.bidir_src_port), dport=dst_port) / scapy.Raw(load="KEEPALIVE"), verbose=False, iface=if_name, inter=1, count=1)
                         except Exception as ex:
                             iperf3_connectors_log.error(ex)
         time.sleep(1)
