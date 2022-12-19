@@ -276,7 +276,7 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                                     stop_thread = [False]
                                     thread_run = threading.Thread(target=read_log_listener,
                                                                   args=(
-                                                                  listener, config, stop_thread, dict_data_to_send_to_server, conn_db, threads_n_processes),
+                                                                  listener, config, stop_thread, dict_data_to_send_to_server, threads_n_processes),
                                                                   daemon=True)
                                     thread_run.daemon = True
                                     thread_run.name = str(listener)
@@ -293,7 +293,7 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                         if not got_a_readlog_instance:
                             # Was never launch, starting the new READLOG thread
                             thread_run = threading.Thread(target=read_log_listener,
-                                                          args=(listener, config, stop_thread, dict_data_to_send_to_server, conn_db, threads_n_processes),
+                                                          args=(listener, config, stop_thread, dict_data_to_send_to_server, threads_n_processes),
                                                           daemon=True)
                             thread_run.daemon = True
                             thread_run.name = str(listener)
@@ -434,7 +434,6 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
                                     thread_to_kill.exit_boolean[0] = True
                                     thread_to_kill.thread_obj._stop()
                                     threads_n_processes.remove(thread_to_kill)
-
                                 if thread_to_kill.syntraf_instance_type == "READ_LOG" and thread_to_kill.name == connector_key:
                                     log.error("====================================3=====================")
                                     thread_to_kill.exit_boolean[0] = True
