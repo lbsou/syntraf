@@ -1,4 +1,6 @@
 # SYNTRAF GLOBAL IMPORT
+import copy
+
 from lib.st_global import DefaultValues
 from lib.st_mesh import *
 from lib.st_iperf import *
@@ -25,6 +27,7 @@ from datetime import datetime
 import threading
 import time
 import os
+
 
 # from lib.st_covariance import *
 
@@ -421,23 +424,24 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
                 # Iperf3 client was launch, but is it still running?
                 else:
                     # The subproc is not running
+                    print(thr_temp.getstatus())
                     if not thr_temp.getstatus():
+                        print("HERE")
                         # Print the last breath and remove from threads_n_processes dict
                         iperf3_client_print_last_breath(connector_key, threads_n_processes, thr_temp)
 
                         # If the connector is dead, send signal to terminate udp_hole and readlog instances and remove them from threads_n_processes dict
                         if config['CONNECTORS'][connector_key]['BIDIR']:
                             log.error("====================================1=====================")
-                            for thread_to_kill in threads_n_processes:
+                            copy_threads_n_processes = copy(threads_n_processes)
+                            for thread_to_kill in copy_threads_n_processes:
                                 if thread_to_kill.syntraf_instance_type == "UDP_HOLE" and thread_to_kill.name == connector_key:
                                     log.error("====================================2=====================")
                                     thread_to_kill.exit_boolean[0] = True
-                                    thread_to_kill.thread_obj._stop()
                                     threads_n_processes.remove(thread_to_kill)
                                 if thread_to_kill.syntraf_instance_type == "READ_LOG" and thread_to_kill.name == connector_key:
                                     log.error("====================================3=====================")
                                     thread_to_kill.exit_boolean[0] = True
-                                    thread_to_kill.thread_obj._stop()
                                     threads_n_processes.remove(thread_to_kill)
 
                         # starting the new iperf3 connector. Also start udp_hole and read_log if this is a bidirectionnal connection
