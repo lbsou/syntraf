@@ -122,9 +122,9 @@ def launch_webui(threads_n_processes, subprocess_iperf_dict, _dict_by_node_gener
         #                             cert_reqs=ssl.CERT_NONE, do_handshake_on_connect=True, spawn=pool, environ={'wsgi.multithread': True, 'wsgi.multiprocess': True,})
             http_server.serve_forever()
         except Exception as exc:
-            print(exc)
+            log.error(exc)
     except Exception as msg:
-        print(msg)
+        log.error(msg)
 
 
 def launch_stats(config, obj_stats):
@@ -258,7 +258,6 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                         # Print the last breath
                         log.warning(f"IPERF3 SERVER OF LISTENER '{listener}' DIED OR NEVER START. LAST BREATH : '{thr_temp.subproc.communicate()[1]}'")
                         threads_n_processes.remove(thr_temp)
-                        print("99C")
 
                         # starting the new iperf server
                         thread_or_process = st_obj_process_n_thread(subproc=iperf3_server(listener, config), name=listener,
@@ -276,7 +275,6 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                                 # Is the subproc running? If no, restart it
                                 if not thr2.thread_obj.is_alive():
                                     threads_n_processes.remove(thr2)
-                                    print("99D")
 
                                     stop_thread = [False]
                                     thread_run = threading.Thread(target=read_log_listener,
@@ -310,9 +308,9 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                             threads_n_processes.append(thread_or_process)
 
     except Exception as exc:
-        exc_type, exc_obj, exc_tb = sys.exc_info()
-        fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-        print(exc_type, fname, exc_tb.tb_lineno)
+        # exc_type, exc_obj, exc_tb = sys.exc_info()
+        # fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+        # print(exc_type, fname, exc_tb.tb_lineno)
         log.error(f"manage_listeners_process:{type(exc).__name__}:{exc}", exc_info=True)
 
 
@@ -371,7 +369,6 @@ def start_iperf3_client(config, connector_key, connector_value, threads_n_proces
     try:
         # If this is a dynamic IP client, do not start a connector until we have the IP address of the listener
         if config['CONNECTORS'][connector_key]['DESTINATION_ADDRESS'] != "0.0.0.0":
-            print("IPERF3 CONNECTOR STARTED FOR THE FIRST TIME")
             iperf3_conn_thread = st_obj_process_n_thread(subproc=iperf3_client(connector_key, config), name=connector_key,
                                                         syntraf_instance_type="CONNECTOR",
                                                         starttime=datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
@@ -402,7 +399,6 @@ def iperf3_client_print_last_breath(connector_key, threads_n_processes, thr_temp
         f"IPERF3 CLIENT OF CONNECTOR '{connector_key}' DIED OR NEVER START. LAST BREATH : '{last_breath.upper()}'")
 
     threads_n_processes.remove(thr_temp)
-    print("99E")
 
 
 def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_server, conn_db):
@@ -424,10 +420,7 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
                     if not thr_temp.getstatus():
                         terminate_connector(threads_n_processes, connector_key, thr_temp, config)
                         # starting the new iperf3 connector. Also start udp_hole and read_log if this is a bidirectionnal connection
-                        print("IPERF3 CONNECTOR RELAUNCH")
                         start_iperf3_client(config, connector_key, connector_value, threads_n_processes, dict_data_to_send_to_server)
-                    else:
-                        print("IPERF3 CONNECTOR STILL ALIVE!")
     except Exception as exc:
         log.error(f"manage_connectors_process:{type(exc).__name__}:{exc}", exc_info=True)
 
@@ -443,20 +436,16 @@ def terminate_connector(threads_n_processes, connector_key, thr_temp, config):
     """
     # If the connector is dead, send signal to terminate udp_hole and readlog instances and remove them from threads_n_processes dict
     if config['CONNECTORS'][connector_key]['BIDIR']:
-        print("CONNECTOR IS BIDIR")
         copy_threads_n_processes = copy(threads_n_processes)
         for thread_to_kill in copy_threads_n_processes:
             if thread_to_kill.syntraf_instance_type == "UDP_HOLE" and thread_to_kill.name == connector_key:
                 thread_to_kill.exit_boolean[0] = True
                 threads_n_processes.remove(thread_to_kill)
-                print("UDP_HOLE REMOVED", st_obj_process_n_thread_exist(threads_n_processes, "UDP_HOLE", connector_key))
             if thread_to_kill.syntraf_instance_type == "READ_LOG" and thread_to_kill.name == connector_key:
                 thread_to_kill.exit_boolean[0] = True
                 threads_n_processes.remove(thread_to_kill)
-                print("READ_LOG REMOVED", st_obj_process_n_thread_exist(threads_n_processes, "READ_LOG", connector_key))
 
     # Print the last breath and remove from threads_n_processes dict
-    print("IPERF3 CONNECTOR REMOVED")
     iperf3_client_print_last_breath(connector_key, threads_n_processes, thr_temp)
 
 
