@@ -25,7 +25,7 @@ def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_k
             file.seek(0)
             file.truncate()
 
-            if exit_boolean:
+            if exit_boolean[0]:
                 yield "exit_boolean_true"
 
             for line in lines:
@@ -214,7 +214,7 @@ def read_log_listener(listener_dict_key, _config, exit_boolean, dict_data_to_sen
         file.close()
 
     if exit_boolean:
-        exit_message = "Exit boolean became True"
+        exit_message = "EXIT BOOLEAN BECAME TRUE"
 
     log.error(f"THREAD READ_LOG FOR {listener_dict_key} TERMINATED. Exit message: {exit_message}")
 
@@ -247,6 +247,6 @@ def read_log_connector(connector_dict_key, _config, exit_boolean, dict_data_to_s
         file.close()
 
     if exit_boolean:
-        exit_message = "Exit boolean became True"
+        exit_message = "EXIT BOOLEAN BECAME TRUE. THE CONNECTOR PROBABLY DIED."
 
     log.error(f"READ_LOG FOR {connector_dict_key} TERMINATED. Exit message: {exit_message}")

@@ -1218,157 +1218,159 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
 
         # Loop over all client
         for client in _config['SERVER_CLIENT']:
+            #Maybe client
+            if 'MESH_GROUP_UID_LIST' in client:
+                # if the current client is member of the current mesh_group
+                if mesh_group['UID'] in client['MESH_GROUP_UID_LIST']:
 
-            # if the current client is member of the current mesh_group
-            if mesh_group['UID'] in client['MESH_GROUP_UID_LIST']:
+                    # Loop over all mesh client
+                    for client2 in _config['SERVER_CLIENT']:
+                        # if the current client is member of the current mesh_group
+                        if 'MESH_GROUP_UID_LIST' in client2:
+                            if mesh_group['UID'] in client2['MESH_GROUP_UID_LIST']:
 
-                # Loop over all mesh client
-                for client2 in _config['SERVER_CLIENT']:
-                    # if the current client is member of the current mesh_group
-                    if mesh_group['UID'] in client2['MESH_GROUP_UID_LIST']:
+                                # process all client2 if it's not the current client. The goal is to generate connectors and listeners to all nodes in the mesh_group except current client.
+                                if not client2['UID'] == client['UID']:
 
-                        # process all client2 if it's not the current client. The goal is to generate connectors and listeners to all nodes in the mesh_group except current client.
-                        if not client2['UID'] == client['UID']:
+                                    pair_UID_1 = mesh_group['UID'] + "_" + client['UID'] + "_" + client2['UID']
+                                    pair_UID_2 = mesh_group['UID'] + "_" + client2['UID'] + "_" + client['UID']
 
-                            pair_UID_1 = mesh_group['UID'] + "_" + client['UID'] + "_" + client2['UID']
-                            pair_UID_2 = mesh_group['UID'] + "_" + client2['UID'] + "_" + client['UID']
+                                    # Check if this pair has not already been done
+                                    if not pair_UID_1 in _list_generated_pair_uid and not pair_UID_2 in _list_generated_pair_uid:
 
-                            # Check if this pair has not already been done
-                            if not pair_UID_1 in _list_generated_pair_uid and not pair_UID_2 in _list_generated_pair_uid:
+                                        # Adding pair UID so that we don't process the same pair when the loop stumble upon the other client2 as client1
+                                        _list_generated_pair_uid.append(pair_UID_1)
+                                        _list_generated_pair_uid.append(pair_UID_2)
 
-                                # Adding pair UID so that we don't process the same pair when the loop stumble upon the other client2 as client1
-                                _list_generated_pair_uid.append(pair_UID_1)
-                                _list_generated_pair_uid.append(pair_UID_2)
+                                        # Apply partial mesh configuration
+                                        # When one of the two client has the other in his INCLUDE_ONLY_CLIENT_UID for the current group
+                                        if not client.get('INCLUDE_ONLY_CLIENT_UID', None) is None or not client2.get('INCLUDE_ONLY_CLIENT_UID', None) is None:
+                                            if mesh_group['UID'] in client.get('INCLUDE_ONLY_CLIENT_UID', []) or mesh_group['UID'] in client2.get('INCLUDE_ONLY_CLIENT_UID', []):
+                                                if not client2['UID'] in client.get('INCLUDE_ONLY_CLIENT_UID', {}).get(mesh_group['UID'], []) and not client['UID'] in client2.get('INCLUDE_ONLY_CLIENT_UID', {}).get(mesh_group['UID'], []):
+                                                    continue
 
-                                # Apply partial mesh configuration
-                                # When one of the two client has the other in his INCLUDE_ONLY_CLIENT_UID for the current group
-                                if not client.get('INCLUDE_ONLY_CLIENT_UID', None) is None or not client2.get('INCLUDE_ONLY_CLIENT_UID', None) is None:
-                                    if mesh_group['UID'] in client.get('INCLUDE_ONLY_CLIENT_UID', []) or mesh_group['UID'] in client2.get('INCLUDE_ONLY_CLIENT_UID', []):
-                                        if not client2['UID'] in client.get('INCLUDE_ONLY_CLIENT_UID', {}).get(mesh_group['UID'], []) and not client['UID'] in client2.get('INCLUDE_ONLY_CLIENT_UID', {}).get(mesh_group['UID'], []):
+                                        else:
+                                            if 'EXCLUDED_CLIENT_UID' in client:
+                                                if mesh_group['UID'] in client['EXCLUDED_CLIENT_UID']:
+                                                    if client2['UID'] in client['EXCLUDED_CLIENT_UID'][mesh_group['UID']]:
+                                                        continue
+
+                                            if 'EXCLUDED_CLIENT_UID' in client2:
+                                                if mesh_group['UID'] in client2['EXCLUDED_CLIENT_UID']:
+                                                    if client['UID'] in client2['EXCLUDED_CLIENT_UID'][mesh_group['UID']]:
+                                                        continue
+
+                                        # Once we excluded the node, we can create the dict that will be use to generate the map
+                                        _list_tuple_for_map_gen.append((client['UID'], client2['UID']))
+                                        _list_tuple_for_map_gen.append((client2['UID'], client['UID']))
+
+                                        # obtain a free port for the listeners
+                                        listener_client1_port = find_free_port(_dict_port_ref, client['UID'])
+                                        listener_client2_port = find_free_port(_dict_port_ref, client2['UID'])
+
+                                        client_ip = client['IP_ADDRESS']
+                                        client2_ip = client2['IP_ADDRESS']
+
+                                        if 'OVERRIDE_DST_NODE_IP' in client:
+                                            for k, v in client['OVERRIDE_DST_NODE_IP'].items():
+                                                if k == client2['UID']:
+                                                    client2_ip = v
+
+                                        if 'OVERRIDE_DST_NODE_IP' in client2:
+                                            for k, v in client2['OVERRIDE_DST_NODE_IP'].items():
+                                                if k == client['UID']:
+                                                    client_ip = v
+
+                                        # Manage bidirectionnal connection in case there is a node behind a firewall/NAT
+                                        if 'BEHIND_NAT' in client:
+                                                client_behind_nat = client['BEHIND_NAT']
+                                        else:
+                                            client_behind_nat = False
+
+                                        # Manage bidirectionnal connection in case there is a node behind a firewall/NAT
+                                        if 'BEHIND_NAT' in client2:
+                                                client2_behind_nat = client2['BEHIND_NAT']
+                                        else:
+                                            client2_behind_nat = False
+
+                                        # Two client behind NAT, do not create connector/listener
+                                        if client_behind_nat and client2_behind_nat:
+                                            log.error(f"CLIENT {client['UID']} AND {client2['UID']} ARE BEHIND A NAT, NOT COMMUNICATION POSSIBLE BETWEEN THOSE TWO CLIENT")
                                             continue
 
-                                else:
-                                    if 'EXCLUDED_CLIENT_UID' in client:
-                                        if mesh_group['UID'] in client['EXCLUDED_CLIENT_UID']:
-                                            if client2['UID'] in client['EXCLUDED_CLIENT_UID'][mesh_group['UID']]:
-                                                continue
+                                        # if this client can receive a connection, open a listener
+                                        if not client_behind_nat:
+                                            # add the listeners and connectors of the current pair
+                                            obj_listener_client_listener = st_obj_mesh(syntraf_instance_type="LISTENER",
+                                                                                            UID_CLIENT=client2['UID'],
+                                                                                            UID_SERVER=client['UID'],
+                                                                                            PORT=listener_client1_port,
+                                                                                            INTERVAL=mesh_group['INTERVAL'],
+                                                                                            BIND_ADDRESS=client['IP_ADDRESS'],
+                                                                                            CLIENT_PARAM_DSCP=mesh_group['DSCP'],
+                                                                                            MESH_GROUP=mesh_group['UID'],
+                                                                                            CLIENT_PARAM_PACKET_SIZE=mesh_group['PACKET_SIZE'])
 
-                                    if 'EXCLUDED_CLIENT_UID' in client2:
-                                        if mesh_group['UID'] in client2['EXCLUDED_CLIENT_UID']:
-                                            if client['UID'] in client2['EXCLUDED_CLIENT_UID'][mesh_group['UID']]:
-                                                continue
+                                        # if the other client can receive a connection, create a connector
+                                        if not client2_behind_nat:
+                                            obj_connector_client_connector = st_obj_mesh(syntraf_instance_type="CONNECTOR",
+                                                                                            UID_CLIENT=client['UID'],
+                                                                                            UID_SERVER=client2['UID'],
+                                                                                            DESTINATION_ADDRESS=client2_ip,
+                                                                                            PORT=listener_client2_port,
+                                                                                            INTERVAL=mesh_group['INTERVAL'],
+                                                                                            BANDWIDTH=mesh_group['BANDWIDTH'],
+                                                                                            DSCP=mesh_group['DSCP'],
+                                                                                            MESH_GROUP=mesh_group['UID'],
+                                                                                            PACKET_SIZE=mesh_group['PACKET_SIZE'],
+                                                                                            BIDIR=client_behind_nat)
 
-                                # Once we excluded the node, we can create the dict that will be use to generate the map
-                                _list_tuple_for_map_gen.append((client['UID'], client2['UID']))
-                                _list_tuple_for_map_gen.append((client2['UID'], client['UID']))
+                                        # if this client can receive a connection, open a listener
+                                        if not client2_behind_nat:
+                                            obj_listener_client2_listener = st_obj_mesh(syntraf_instance_type="LISTENER",
+                                                                                            UID_CLIENT=client['UID'],
+                                                                                            UID_SERVER=client2['UID'],
+                                                                                            PORT=listener_client2_port,
+                                                                                            INTERVAL=mesh_group['INTERVAL'],
+                                                                                            BIND_ADDRESS=client2['IP_ADDRESS'],
+                                                                                            CLIENT_PARAM_DSCP=mesh_group['DSCP'],
+                                                                                            MESH_GROUP=mesh_group['UID'],
+                                                                                            CLIENT_PARAM_PACKET_SIZE=mesh_group[
+                                                                                             'PACKET_SIZE'])
 
-                                # obtain a free port for the listeners
-                                listener_client1_port = find_free_port(_dict_port_ref, client['UID'])
-                                listener_client2_port = find_free_port(_dict_port_ref, client2['UID'])
+                                        # if the other client can receive a connection, create a connector
+                                        if not client_behind_nat:
+                                            obj_connector_client2_connector = st_obj_mesh(syntraf_instance_type="CONNECTOR",
+                                                                                            UID_CLIENT=client2['UID'],
+                                                                                            UID_SERVER=client['UID'],
+                                                                                            DESTINATION_ADDRESS=client_ip,
+                                                                                            PORT=listener_client1_port,
+                                                                                            INTERVAL=mesh_group['INTERVAL'],
+                                                                                            BANDWIDTH=mesh_group['BANDWIDTH'],
+                                                                                            DSCP=mesh_group['DSCP'],
+                                                                                            MESH_GROUP=mesh_group['UID'],
+                                                                                            PACKET_SIZE=mesh_group['PACKET_SIZE'],
+                                                                                            BIDIR=client2_behind_nat)
 
-                                client_ip = client['IP_ADDRESS']
-                                client2_ip = client2['IP_ADDRESS']
+                                        # Creating array inside dictionary before appending the objects
+                                        if not client['UID'] in dict_obj_listeners:
+                                            dict_obj_listeners[client['UID']] = []
+                                        if not client['UID'] in dict_obj_connectors:
+                                            dict_obj_connectors[client['UID']] = []
+                                        if not client2['UID'] in dict_obj_listeners:
+                                            dict_obj_listeners[client2['UID']] = []
+                                        if not client2['UID'] in dict_obj_connectors:
+                                            dict_obj_connectors[client2['UID']] = []
 
-                                if 'OVERRIDE_DST_NODE_IP' in client:
-                                    for k, v in client['OVERRIDE_DST_NODE_IP'].items():
-                                        if k == client2['UID']:
-                                            client2_ip = v
-
-                                if 'OVERRIDE_DST_NODE_IP' in client2:
-                                    for k, v in client2['OVERRIDE_DST_NODE_IP'].items():
-                                        if k == client['UID']:
-                                            client_ip = v
-
-                                # Manage bidirectionnal connection in case there is a node behind a firewall/NAT
-                                if 'BEHIND_NAT' in client:
-                                        client_behind_nat = client['BEHIND_NAT']
-                                else:
-                                    client_behind_nat = False
-
-                                # Manage bidirectionnal connection in case there is a node behind a firewall/NAT
-                                if 'BEHIND_NAT' in client2:
-                                        client2_behind_nat = client2['BEHIND_NAT']
-                                else:
-                                    client2_behind_nat = False
-
-                                # Two client behind NAT, do not create connector/listener
-                                if client_behind_nat and client2_behind_nat:
-                                    log.error(f"CLIENT {client['UID']} AND {client2['UID']} ARE BEHIND A NAT, NOT COMMUNICATION POSSIBLE BETWEEN THOSE TWO CLIENT")
-                                    continue
-
-                                # if this client can receive a connection, open a listener
-                                if not client_behind_nat:
-                                    # add the listeners and connectors of the current pair
-                                    obj_listener_client_listener = st_obj_mesh(syntraf_instance_type="LISTENER",
-                                                                                    UID_CLIENT=client2['UID'],
-                                                                                    UID_SERVER=client['UID'],
-                                                                                    PORT=listener_client1_port,
-                                                                                    INTERVAL=mesh_group['INTERVAL'],
-                                                                                    BIND_ADDRESS=client['IP_ADDRESS'],
-                                                                                    CLIENT_PARAM_DSCP=mesh_group['DSCP'],
-                                                                                    MESH_GROUP=mesh_group['UID'],
-                                                                                    CLIENT_PARAM_PACKET_SIZE=mesh_group['PACKET_SIZE'])
-
-                                # if the other client can receive a connection, create a connector
-                                if not client2_behind_nat:
-                                    obj_connector_client_connector = st_obj_mesh(syntraf_instance_type="CONNECTOR",
-                                                                                    UID_CLIENT=client['UID'],
-                                                                                    UID_SERVER=client2['UID'],
-                                                                                    DESTINATION_ADDRESS=client2_ip,
-                                                                                    PORT=listener_client2_port,
-                                                                                    INTERVAL=mesh_group['INTERVAL'],
-                                                                                    BANDWIDTH=mesh_group['BANDWIDTH'],
-                                                                                    DSCP=mesh_group['DSCP'],
-                                                                                    MESH_GROUP=mesh_group['UID'],
-                                                                                    PACKET_SIZE=mesh_group['PACKET_SIZE'],
-                                                                                    BIDIR=client_behind_nat)
-
-                                # if this client can receive a connection, open a listener
-                                if not client2_behind_nat:
-                                    obj_listener_client2_listener = st_obj_mesh(syntraf_instance_type="LISTENER",
-                                                                                    UID_CLIENT=client['UID'],
-                                                                                    UID_SERVER=client2['UID'],
-                                                                                    PORT=listener_client2_port,
-                                                                                    INTERVAL=mesh_group['INTERVAL'],
-                                                                                    BIND_ADDRESS=client2['IP_ADDRESS'],
-                                                                                    CLIENT_PARAM_DSCP=mesh_group['DSCP'],
-                                                                                    MESH_GROUP=mesh_group['UID'],
-                                                                                    CLIENT_PARAM_PACKET_SIZE=mesh_group[
-                                                                                     'PACKET_SIZE'])
-
-                                # if the other client can receive a connection, create a connector
-                                if not client_behind_nat:
-                                    obj_connector_client2_connector = st_obj_mesh(syntraf_instance_type="CONNECTOR",
-                                                                                    UID_CLIENT=client2['UID'],
-                                                                                    UID_SERVER=client['UID'],
-                                                                                    DESTINATION_ADDRESS=client_ip,
-                                                                                    PORT=listener_client1_port,
-                                                                                    INTERVAL=mesh_group['INTERVAL'],
-                                                                                    BANDWIDTH=mesh_group['BANDWIDTH'],
-                                                                                    DSCP=mesh_group['DSCP'],
-                                                                                    MESH_GROUP=mesh_group['UID'],
-                                                                                    PACKET_SIZE=mesh_group['PACKET_SIZE'],
-                                                                                    BIDIR=client2_behind_nat)
-
-                                # Creating array inside dictionary before appending the objects
-                                if not client['UID'] in dict_obj_listeners:
-                                    dict_obj_listeners[client['UID']] = []
-                                if not client['UID'] in dict_obj_connectors:
-                                    dict_obj_connectors[client['UID']] = []
-                                if not client2['UID'] in dict_obj_listeners:
-                                    dict_obj_listeners[client2['UID']] = []
-                                if not client2['UID'] in dict_obj_connectors:
-                                    dict_obj_connectors[client2['UID']] = []
-
-                                # Adding listeners and connectors
-                                if 'obj_listener_client_listener' in locals():
-                                    dict_obj_listeners[client['UID']].append(obj_listener_client_listener)
-                                if 'obj_listener_client2_listener' in locals():
-                                    dict_obj_listeners[client2['UID']].append(obj_listener_client2_listener)
-                                if 'obj_connector_client_connector' in locals():
-                                    dict_obj_connectors[client['UID']].append(obj_connector_client_connector)
-                                if 'obj_connector_client2_connector' in locals():
-                                    dict_obj_connectors[client2['UID']].append(obj_connector_client2_connector)
+                                        # Adding listeners and connectors
+                                        if 'obj_listener_client_listener' in locals():
+                                            dict_obj_listeners[client['UID']].append(obj_listener_client_listener)
+                                        if 'obj_listener_client2_listener' in locals():
+                                            dict_obj_listeners[client2['UID']].append(obj_listener_client2_listener)
+                                        if 'obj_connector_client_connector' in locals():
+                                            dict_obj_connectors[client['UID']].append(obj_connector_client_connector)
+                                        if 'obj_connector_client2_connector' in locals():
+                                            dict_obj_connectors[client2['UID']].append(obj_connector_client2_connector)
 
         _dict_by_group_of_generated_tuple_for_map[mesh_group['UID']] = _list_tuple_for_map_gen
 
@@ -1376,12 +1378,13 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
     for m_client in _config['SERVER_CLIENT']:
         if 'MAX_BANDWIDTH' in m_client:
             sum_bandwidth = 0
-            for l in dict_obj_connectors[m_client['UID']]:
-                sum_bandwidth += validate_bandwidth(l.bandwidth)
-            max_bandwidth = validate_bandwidth(m_client['MAX_BANDWIDTH'])
-            if sum_bandwidth > max_bandwidth:
-                log.error(f"MAX_BANDWIDTH '{max_bandwidth}' FOR CLIENT '{m_client['UID']}' EXCEEDED. ONE WAY SUM IS '{sum_bandwidth}'.")
-                sys.exit()
+            if m_client['UID'] in dict_obj_connectors:
+                for l in dict_obj_connectors[m_client['UID']]:
+                    sum_bandwidth += validate_bandwidth(l.bandwidth)
+                max_bandwidth = validate_bandwidth(m_client['MAX_BANDWIDTH'])
+                if sum_bandwidth > max_bandwidth:
+                    log.error(f"MAX_BANDWIDTH '{max_bandwidth}' FOR CLIENT '{m_client['UID']}' EXCEEDED. ONE WAY SUM IS '{sum_bandwidth}'.")
+                    sys.exit()
 
     # Now, we need to add the final dictionary wrapping "LISTENER" and "CONNECTOR" by node
     # For doing that, we need to create a dictionary for each node and insert the listeners and connectors in it
