@@ -757,8 +757,12 @@ def config_validation_client(_config, parameters):
 
     # SERVER IP
     if 'SERVER' in _config['CLIENT']:
-        if not is_ip_or_hostname_valid(_config['CLIENT']['SERVER'], "SERVER"):
+        if not FQDN(_config['CLIENT']['SERVER']).is_valid:
+            log.debug(f"IS SERVER IP'{_config['CLIENT']['SERVER']}' RESOLVE TO A VALID IP : NO")
             return False
+        else:
+            log.debug(
+                f"IS SERVER IP '{_config['CLIENT']['SERVER']}' RESOLVE TO A VALID IP : YES")
     else:
         log.error(
             f"IS SERVER SPECIFIED IN CLIENT CONFIGURATION : NO")
