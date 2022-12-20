@@ -13,7 +13,6 @@ import socket
 from cryptography.utils import CryptographyDeprecationWarning
 warnings.filterwarnings("ignore", category=CryptographyDeprecationWarning)
 from scapy import all as scapy
-from fqdn import FQDN
 
 iperf3_connectors_log = logging.getLogger("syntraf." + "lib.st_iperf3_connectors")
 iperf3_listeners_log = logging.getLogger("syntraf." + "lib.st_iperf3_listeners")
@@ -28,6 +27,8 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
     while iperf3_conn_thread.bidir_src_port == 0 and not exit_boolean[0]:
         iperf3_connectors_log.debug(f"UDP_HOLE_PUNCH FOR {connector}, IPERF3 PROCESS ID: '{iperf3_pid}' IS WAITING FOR A PORT:{iperf3_conn_thread.bidir_src_port}")
         time.sleep(1)
+
+    dst_ip = socket.gethostbyname(dst_ip)
 
     # In case there is PBR on the server, make sure we are sending the packet out the right interface
     interface_ip = ""
@@ -78,7 +79,6 @@ def iperf3_client(connector_dict_key, _config):
         if _config['CONNECTORS'][connector_dict_key]['BIDIR']:
             bidir_arg = "--bidir"
             iperf3_connectors_log.debug(f"{connector_dict_key} - BIDIRECTIONAL MODE ACTIVATED")
-
         else:
             bidir_arg = ""
 
