@@ -6,6 +6,8 @@ from lib.st_influxdb import *
 from lib.st_obj_mesh import *
 from lib.st_map import *
 
+from fqdn import FQDN
+
 # SYNTRAF SERVER IMPORT
 if not CompilationOptions.client_only:
     from collections import defaultdict
@@ -909,13 +911,13 @@ def config_validation_server(_config, parameters):
 
             # Validate IP
             if 'IP_ADDRESS' in server_client:
-                if not validate_ipv4(server_client['IP_ADDRESS']):
+                if not FQDN(server_client['IP_ADDRESS']).is_valid:
                     log.error(
-                        f"IS 'SERVER_CLIENT' IP_ADDRESS VALUE '{server_client['IP_ADDRESS']}' VALID FOR SERVER_CLIENT '{server_client['UID']}': NO")
+                        f"IS 'SERVER_CLIENT' IP_ADDRESS OR FQDN VALUE '{server_client['IP_ADDRESS']}' VALID FOR SERVER_CLIENT '{server_client['UID']}': NO")
                     return False, None, None
                 else:
                     log.debug(
-                        f"IS 'SERVER_CLIENT' IP_ADDRESS VALUE '{server_client['IP_ADDRESS']}' VALID FOR SERVER_CLIENT '{server_client['UID']}' : YES")
+                        f"IS 'SERVER_CLIENT' IP_ADDRESS OR FQDN VALUE '{server_client['IP_ADDRESS']}' VALID FOR SERVER_CLIENT '{server_client['UID']}' : YES")
             else:
                 log.error(
                     f"IS 'SERVER_CLIENT' IP_ADDRESS VALUE VALID FOR SERVER_CLIENT '{server_client['UID']}': PARAMETER NOT FOUND")
@@ -1095,13 +1097,13 @@ def validate_override_dst_node_ip(server_client, _config):
 
     #validation of the IP's
     for ip in server_client['OVERRIDE_DST_NODE_IP'].values():
-        if not is_ip_or_hostname_valid(ip, "CLIENT_IP"):
+        if not FQDN(ip).is_valid:
             log.error(
-                f"IS '{ip}' A VALID IP ADDRESS IN OVERRIDE_DST_NODE_IP IN SERVER_CLIENT '{server_client['UID']}' : NO")
+                f"IS '{ip}' A VALID IP ADDRESS OR HOSTNAME IN OVERRIDE_DST_NODE_IP IN SERVER_CLIENT '{server_client['UID']}' : NO")
             validation_ok = False
         else:
             log.debug(
-                f"IS '{ip}' A VALID IP ADDRESS IN OVERRIDE_DST_NODE_IP IN SERVER_CLIENT '{server_client['UID']}' : YES")
+                f"IS '{ip}' A VALID IP ADDRESS OR HOSTNAME IN OVERRIDE_DST_NODE_IP IN SERVER_CLIENT '{server_client['UID']}' : YES")
 
     # validation of the client's UID
     for override_ip_client_uid in server_client['OVERRIDE_DST_NODE_IP']:
