@@ -57,9 +57,9 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
         time.sleep(1)
 
     if exit_boolean[0]:
-        exit_message = "EXIT BOOLEAN BECAME TRUE"
+        exit_message = "EXIT BOOLEAN BECAME TRUE, THE CONNECTOR PROBABLY DIED."
 
-    iperf3_connectors_log.error(f"READ_LOG FOR {connector}, IPERF3 PROCESS ID: '{iperf3_pid}' TERMINATED. EXIT MESSAGE: {exit_message}")
+    iperf3_connectors_log.error(f"UDP_HOLE FOR {connector}, IPERF3 PROCESS ID: '{iperf3_pid}' TERMINATED. EXIT MESSAGE: {exit_message}")
 
 
 #################################################################################
@@ -105,7 +105,7 @@ def iperf3_client(connector_dict_key, _config):
 
         p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.DEVNULL, env=env_var)
 
-        time.sleep(int(DefaultValues.DEFAULT_IPERF3_CONNECT_TIMEOUT)/1000 + 2)
+        #time.sleep(int(DefaultValues.DEFAULT_IPERF3_CONNECT_TIMEOUT)/1000 + 2)
 
         if p.poll() is None:
             iperf3_connectors_log.warning(f"IPERF3 CLIENT FOR CONNECTOR '{connector_dict_key}' STARTED WITH SERVER {_config['CONNECTORS'][connector_dict_key]['DESTINATION_ADDRESS']}:{_config['CONNECTORS'][connector_dict_key]['PORT']} {arguments}")

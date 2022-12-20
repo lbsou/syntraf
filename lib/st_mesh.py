@@ -3,6 +3,7 @@ from lib.st_crypto import *
 from lib.st_struct import cl_ifreq
 from lib.st_read_toml import read_conf
 from lib.st_conf_validation import valid_dir_rsa_keypair, valid_dir_logs
+from lib.st_process_and_thread import *
 from tabulate import tabulate
 # SYNTRAF SERVER IMPORT
 if not CompilationOptions.client_only:
@@ -574,27 +575,26 @@ def client_command_diffconfig(_config, received_data, threads_n_processes):
         # A dynamic client just connected, we need to add his IP address to the local config
         if received_data['PAYLOAD']['ELEMENT'] == "CLIENT_IP":
             # In case there was no CONNECTORS associated with that client, there is no IP to update.
-
             if 'CONNECTORS' in _config:
-                for key, connector in _config['CONNECTORS'].items():
+                for connector_key, connector in _config['CONNECTORS'].items():
                     # If a CONNECTOR config match the client_uid, change the destination_address for the one we just received.
                     # If we receive a valid IP we do not need to restart the connector, the next loop will launch the process for the first time
                     # But if we are setting it to the default IP for dynamic client "0.0.0.0", process_and_thread will not start a CONNECTOR when there is that IP assigned. We will take care to terminate the actual CONNECTOR.
                     if re.match(
                             r"^.{40}_MEMBER_OF_GROUP_.+_CONNECTING_TO_" + received_data['PAYLOAD']['CLIENT_UID'] + "$",
-                            key):
-                        _config['CONNECTORS'][key]['DESTINATION_ADDRESS'] = received_data['PAYLOAD']['IP_ADDRESS']
+                            connector_key):
+                        _config['CONNECTORS'][connector_key]['DESTINATION_ADDRESS'] = received_data['PAYLOAD']['IP_ADDRESS']
                         client_log.info(
-                            f"CONNECTOR: '{key}' DESTINATION IP ADDRESS UPDATED WITH '{received_data['PAYLOAD']['IP_ADDRESS']}'")
+                            f"CONNECTOR: '{connector_key}' DESTINATION IP ADDRESS UPDATED WITH '{received_data['PAYLOAD']['IP_ADDRESS']}'")
 
                         # If we are reverting to unknown dynamic IP client, we should terminate the associated CONNECTOR
                         if received_data['PAYLOAD']['IP_ADDRESS'] == "0.0.0.0":
                             for thr in threads_n_processes:
-                                if thr.syntraf_instance_type == "CONNECTOR" and thr.name == key:
+                                if thr.syntraf_instance_type == "CONNECTOR" and thr.name == connector_key:
                                     client_log.info(
-                                        f"CONNECTOR: '{key}' TERMINATED BECAUSE IP ADDRESS IS NOW UNKNOWN (CLIENT IS NOT CONNECTED TO SERVER ANYMORE)'")
+                                        f"CONNECTOR: '{connector_key}' TERMINATED BECAUSE IP ADDRESS IS NOW UNKNOWN (CLIENT IS NOT CONNECTED TO SERVER ANYMORE)'")
                                     thr.close()
-                                    threads_n_processes.remove(thr)
+                                    terminate_connector(threads_n_processes, connector_key, thr, _config)
     except Exception as exc:
         raise exc
 
