@@ -427,7 +427,7 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
 
 def terminate_connector(threads_n_processes, connector_key, thr_temp, config):
     """
-    This function is called when we need to remove a connector. Either because we received non defined IP, which mean the
+    This function is called when we need to remove a connector. Either because we received non defined IP (see st_mesh.py), which mean the
     CLIENT on the other end was disconnected from SERVER, or when there is failure establishing a connection between the CONNECTOR and the LISTENER
     :param threads_n_processes: Dictionnary of st_obj_process_n_thread where we have all our thread and subproc
     :param connector_key: The unique key of the connector
