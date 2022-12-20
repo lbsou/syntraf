@@ -280,9 +280,15 @@ def client_sck_init(_config):
 
         client_log.info(f"TRYING TO CONNECT TO : {_config['CLIENT']['SERVER']}:{_config['CLIENT']['SERVER_PORT']}")
 
+        server_ip_addr = socket.gethostbyname(_config['CLIENT']['SERVER'])
+
         # CONNECT
-        ssl_conn.connect((_config['CLIENT']['SERVER'], int(_config['CLIENT']['SERVER_PORT'])))
-        client_log.info(f"CONNECTED TO : {_config['CLIENT']['SERVER']}:{_config['CLIENT']['SERVER_PORT']}")
+        ssl_conn.connect((server_ip_addr, int(_config['CLIENT']['SERVER_PORT'])))
+
+        if server_ip_addr != _config['CLIENT']['SERVER']:
+            client_log.info(f"CONNECTED TO : {_config['CLIENT']['SERVER']}({server_ip_addr}):{_config['CLIENT']['SERVER_PORT']}")
+        else:
+            client_log.info(f"CONNECTED TO : {_config['CLIENT']['SERVER']}:{_config['CLIENT']['SERVER_PORT']}")
 
     except (ConnectionRefusedError, ConnectionResetError) as exc:
         client_log.error(
