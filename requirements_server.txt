@@ -12,3 +12,4 @@ Flask-Login
 Flask-SQLAlchemy
 python-dotenv
 pillow
+fqdn

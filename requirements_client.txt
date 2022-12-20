@@ -4,3 +4,4 @@ toml
 cryptography
 pytz
 py-cpuinfo
+fqdn
