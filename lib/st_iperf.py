@@ -9,9 +9,11 @@ import os
 import time
 import psutil
 import warnings
+import socket
 from cryptography.utils import CryptographyDeprecationWarning
 warnings.filterwarnings("ignore", category=CryptographyDeprecationWarning)
 from scapy import all as scapy
+from fqdn import FQDN
 
 iperf3_connectors_log = logging.getLogger("syntraf." + "lib.st_iperf3_connectors")
 iperf3_listeners_log = logging.getLogger("syntraf." + "lib.st_iperf3_listeners")
@@ -80,10 +82,12 @@ def iperf3_client(connector_dict_key, _config):
         else:
             bidir_arg = ""
 
+        ip_address = socket.gethostbyname(_config['CONNECTORS'][connector_dict_key]['DESTINATION_ADDRESS'])
+
         args = (
             _config['GLOBAL']['IPERF3_BINARY_PATH'], "-u", "-l",
             _config['CONNECTORS'][connector_dict_key]['PACKET_SIZE'], "-c",
-            _config['CONNECTORS'][connector_dict_key]['DESTINATION_ADDRESS'], "-t", "0", "-b",
+            ip_address, "-t", "0", "-b",
             _config['CONNECTORS'][connector_dict_key]['BANDWIDTH'],
             "--udp-counters-64bit", "--connect-timeout=" + DefaultValues.DEFAULT_IPERF3_CONNECT_TIMEOUT, "--dscp", _config['CONNECTORS'][connector_dict_key]['DSCP'],
             "--pacing-timer", "12000",
