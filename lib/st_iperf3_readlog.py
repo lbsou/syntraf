@@ -45,16 +45,17 @@ def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_k
                         #local 192.168.2.41 port 58743 connected to 192.168.6.100 port 15999
                         #local 192.168.2.41 port 58744 connected to 192.168.6.100 port 15999
 
-                        m = re.search(r"local (?:[0-9]{1,3}.){3}[0-9]{1,3} port (\d{1,10}) connected to (?:[0-9]{1,"
-                                     r"3}.){3}[0-9]{1,3} port \d{1,10}", line)
+                        m_lport = re.search(r"local (?:[0-9]{1,3}.){3}[0-9]{1,3} port (\d{1,10}) connected to (?:[0-9]{1,3}.){3}[0-9]{1,3} port \d{1,10}", line)
+                        m_laddr = re.search(r"local ((?:[0-9]{1,3}.){3}[0-9]{1,3}) port \d{1,10} connected to (?:[0-9]{1,3}.){3}[0-9]{1,3} port \d{1,10}", line)
 
                         # Grab only the port from the second line, which is the RX
-                        if m and cpt_port_bidir >= 0 and hasattr(iperf_read_log_thread, 'bidir_src_port'):
+                        if m_lport and cpt_port_bidir >= 0 and hasattr(iperf_read_log_thread, 'bidir_src_port'):
                             if cpt_port_bidir == 0:
                                 cpt_port_bidir += 1
                             elif cpt_port_bidir == 1:
-                                iperf_read_log_thread.bidir_src_port = m.groups()[0]
-                                log.info(f"GOT A PORT FOR UDP_HOLE_PUNCH:{m.groups()[0]}")
+                                iperf_read_log_thread.bidir_src_port = m_lport.groups()[0]
+                                iperf_read_log_thread.bidir_local_addr = m_laddr.groups()[0]
+                                log.info(f"GOT A SRC_IP AND SRC_PORT FOR UDP_HOLE_PUNCH:{m_laddr.groups()[0]}/{m_lport.groups()[0]}")
                                 cpt_port_bidir = -1
                         continue
                 else:
