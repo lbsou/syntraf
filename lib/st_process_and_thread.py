@@ -374,7 +374,7 @@ def start_iperf3_client(config, connector_key, connector_value, threads_n_proces
                                                         starttime=datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
                                                         opposite_side=connector_value['UID_SERVER'],
                                                         group=connector_value['MESH_GROUP'], port=connector_value['PORT'],
-                                                        bidir_src_port=0)
+                                                        bidir_src_port=0, bidir_local_addr="")
 
             # It is possible that the process failed on start, in that case, do not add the object to the dict
             #time.sleep(5)

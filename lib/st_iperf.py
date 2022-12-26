@@ -6,10 +6,13 @@ import subprocess
 import sys
 import logging
 import os
+import re
 import time
 import psutil
 import warnings
 import socket
+import getmac
+
 from cryptography.utils import CryptographyDeprecationWarning
 warnings.filterwarnings("ignore", category=CryptographyDeprecationWarning)
 from scapy import all as scapy
@@ -29,20 +32,51 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
         time.sleep(1)
 
     dst_ip = socket.gethostbyname(dst_ip)
+    dst_port = iperf3_conn_thread.port
+    src_ip = iperf3_conn_thread.bidir_local_addr
+    src_port = iperf3_conn_thread.bidir_src_port
+    src_if = ""
+    src_mac = ""
+    dst_mac = ""
 
     # In case there is PBR on the server, make sure we are sending the packet out the right interface
-    interface_ip = ""
-    net_conn = psutil.net_connections("udp")
-    for con in net_conn:
-        if con.pid == iperf3_pid:
-            interface_ip = con.laddr[0]
-            break
+    if not exit_boolean[0]:
 
-    interfaces = psutil.net_if_addrs()
-    stats = psutil.net_if_stats()
+        interfaces = psutil.net_if_addrs()
+        stats = psutil.net_if_stats()
+
+        # We need to figure out what is the out interface so that we can get the mac address
+        for iface_key, iface_values in interfaces.items():
+            for iface in iface_values:
+                if iface.address == src_ip:
+                    src_if = iface_key
+
+        # Get the MAC of the out_if
+        for iface_key, iface_values in interfaces.items():
+            if iface_key == src_if:
+                for iface in iface_values:
+                    if iface.family == psutil.AF_LINK:
+                        src_mac = iface.address
+
+        cmd = ""
+        args = None
+        if sys.platform == "linux":
+            cmd = "ip"
+            args = (f"route get from {src_ip} to {dst_ip} oif {src_if} ipproto udp sport {src_port} dport {dst_port}")
+            p = subprocess.check_output(cmd + " " + args)
+
+        elif sys.platform == "win32":
+            cmd = "powershell"
+            args = (f"find-netroute -remoteipaddress {dst_ip} | Select-Object NextHop | Select -ExpandProperty NextHop")
+            p = subprocess.check_output(cmd + " " + args)
+            nexthop = p.decode('utf-8')
+            dst_mac = getmac.get_mac_address(None, nexthop)
+        else:
+            exit_boolean[0] = True
+
+        # We need the mac of the gateway
 
     while not exit_boolean[0]:
-
         if iperf3_conn_thread.bidir_src_port == 0:
             exit_message = "bidir_src_port became 0"
             break
@@ -50,11 +84,11 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
             for if_name2, stats2 in stats.items():
                 # Do not try to send on a down interface, and only on the interface this instance of iperf3 is attached to
                 # Do I still need to check if interface is up? Not really, will leave it here for the moment just in case.
-                if if_name2 == if_name and getattr(addrs[0], 'address') == interface_ip:
+                if if_name2 == if_name and getattr(addrs[0], 'address') == src_ip:
                     if stats2.isup:
                         try:
-                            iperf3_connectors_log.debug(f"SENDING KEEPALIVE WITH SRC:{interface_ip}/{iperf3_conn_thread.bidir_src_port}, DST:{dst_ip}/{dst_port} ON IFACE:{if_name}")
-                            scapy.sendp(scapy.Ether()/scapy.IP(src=interface_ip, dst=dst_ip) / scapy.UDP(sport=int(iperf3_conn_thread.bidir_src_port), dport=dst_port) / scapy.Raw(load="KEEPALIVE"), verbose=False, iface=if_name, inter=1, count=1)
+                            iperf3_connectors_log.debug(f"SENDING KEEPALIVE WITH SRC:{src_ip}/{iperf3_conn_thread.bidir_src_port}, DST:{dst_ip}/{dst_port} ON IFACE:{if_name}")
+                            scapy.sendp(scapy.Ether(src=src_mac, dst=dst_mac)/scapy.IP(src=src_ip, dst=dst_ip) / scapy.UDP(sport=src_port, dport=dst_port) / scapy.Raw(load="KEEPALIVE"), verbose=False, iface=if_name, inter=1, count=1)
                         except Exception as ex:
                             iperf3_connectors_log.error(ex)
         time.sleep(1)

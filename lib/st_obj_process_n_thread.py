@@ -28,6 +28,7 @@ class st_obj_process_n_thread:
 
         if kwargs['syntraf_instance_type'] == "CONNECTOR":
             self.bidir_src_port = kwargs['bidir_src_port']
+            self.bidir_local_addr = kwargs['bidir_local_addr']
 
     def __str__(self):
         if self.syntraf_instance_type == "CONNECTOR":
