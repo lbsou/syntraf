@@ -62,9 +62,10 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
         args = None
         if sys.platform == "linux":
             cmd = "ip"
-            args = (f"route get from {src_ip} to {dst_ip} oif {src_if} ipproto udp sport {src_port} dport {dst_port}")
+            args = (f"route get from {src_ip} to {dst_ip} oif {src_if} ipproto udp sport {src_port} dport {dst_port} | awk '{{print $3}}'")
             p = subprocess.check_output(cmd + " " + args)
-
+            nexthop = p.decode('utf-8')
+            dst_mac = getmac.get_mac_address(None, nexthop)
         elif sys.platform == "win32":
             cmd = "powershell"
             args = (f"find-netroute -remoteipaddress {dst_ip} | Select-Object NextHop | Select -ExpandProperty NextHop")
@@ -74,8 +75,7 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
         else:
             exit_boolean[0] = True
 
-        # We need the mac of the gateway
-
+    # We need the mac of the gateway
     while not exit_boolean[0]:
         if iperf3_conn_thread.bidir_src_port == 0:
             exit_message = "bidir_src_port became 0"
