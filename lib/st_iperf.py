@@ -6,7 +6,6 @@ import subprocess
 import sys
 import logging
 import os
-import re
 import time
 import psutil
 import warnings
@@ -32,7 +31,7 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
         time.sleep(1)
 
     dst_ip = socket.gethostbyname(dst_ip)
-    dst_port = iperf3_conn_thread.port
+    #dst_port = iperf3_conn_thread.port
     src_ip = iperf3_conn_thread.bidir_local_addr
     src_port = iperf3_conn_thread.bidir_src_port
     src_if = ""
@@ -75,7 +74,6 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
         else:
             exit_boolean[0] = True
 
-    # We need the mac of the gateway
     while not exit_boolean[0]:
         if iperf3_conn_thread.bidir_src_port == 0:
             exit_message = "bidir_src_port became 0"
