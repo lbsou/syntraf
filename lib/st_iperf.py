@@ -6,6 +6,7 @@ import subprocess
 import sys
 import logging
 import os
+import re
 import time
 import psutil
 import warnings
@@ -31,7 +32,6 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
         time.sleep(1)
 
     dst_ip = socket.gethostbyname(dst_ip)
-    #dst_port = iperf3_conn_thread.port
     src_ip = iperf3_conn_thread.bidir_local_addr
     src_port = iperf3_conn_thread.bidir_src_port
     src_if = ""
@@ -42,7 +42,6 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
     if not exit_boolean[0]:
 
         interfaces = psutil.net_if_addrs()
-        stats = psutil.net_if_stats()
 
         # We need to figure out what is the out interface so that we can get the mac address
         for iface_key, iface_values in interfaces.items():
@@ -66,6 +65,7 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
             nexthop = p.decode('utf-8')
             dst_mac = getmac.get_mac_address(None, nexthop)
         elif sys.platform == "win32":
+            #p = subprocess.check_output("where powershell")
             cmd = "powershell"
             args = (f"find-netroute -remoteipaddress {dst_ip} | Select-Object NextHop | Select -ExpandProperty NextHop")
             p = subprocess.check_output(cmd + " " + args)
@@ -78,17 +78,13 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
         if iperf3_conn_thread.bidir_src_port == 0:
             exit_message = "bidir_src_port became 0"
             break
-        for if_name, addrs in interfaces.items():
-            for if_name2, stats2 in stats.items():
-                # Do not try to send on a down interface, and only on the interface this instance of iperf3 is attached to
-                # Do I still need to check if interface is up? Not really, will leave it here for the moment just in case.
-                if if_name2 == if_name and getattr(addrs[0], 'address') == src_ip:
-                    if stats2.isup:
-                        try:
-                            iperf3_connectors_log.debug(f"SENDING KEEPALIVE WITH SRC:{src_ip}/{iperf3_conn_thread.bidir_src_port}, DST:{dst_ip}/{dst_port} ON IFACE:{if_name}")
-                            scapy.sendp(scapy.Ether(src=src_mac, dst=dst_mac)/scapy.IP(src=src_ip, dst=dst_ip) / scapy.UDP(sport=src_port, dport=dst_port) / scapy.Raw(load="KEEPALIVE"), verbose=False, iface=if_name, inter=1, count=1)
-                        except Exception as ex:
-                            iperf3_connectors_log.error(ex)
+
+        try:
+            iperf3_connectors_log.debug(f"SENDING KEEPALIVE WITH SRC:{src_mac}/{src_ip}/{iperf3_conn_thread.bidir_src_port}, DST:{dst_mac}/{dst_ip}/{dst_port} ON IFACE:{src_if}")
+            scapy.sendp(scapy.Ether(src=src_mac, dst=dst_mac) / scapy.IP(src=src_ip, dst=dst_ip) / scapy.UDP(sport=src_port,dport=dst_port) / scapy.Raw(load="KEEPALIVE"), verbose=False, iface=src_if, inter=1, count=1)
+        except Exception as ex:
+            iperf3_connectors_log.error(ex)
+
         time.sleep(1)
 
     if exit_boolean[0]:
