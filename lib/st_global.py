@@ -8,15 +8,15 @@ except Exception as ex:
     print("MISSING MODULE: no module named 'tzlocal'")
     exit()
 
+
 # Will impact the requirement of modules
 class CompilationOptions:
     client_only = False
 
 
-
 class DefaultValues:
     # GLOBAL
-    SYNTRAF_VERSION = "0.43"
+    SYNTRAF_VERSION = "0.44"
     SYNTRAF_ROOT_DIR = pathlib.Path(__file__).parent.parent.absolute()
     SYNTRAF_PID_FILE = os.path.join(SYNTRAF_ROOT_DIR, 'syntraf.pid')
     TIMEZONE = str(get_localzone())
