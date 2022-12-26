@@ -280,7 +280,16 @@ def client_sck_init(_config):
 
         client_log.info(f"TRYING TO CONNECT TO : {_config['CLIENT']['SERVER']}:{_config['CLIENT']['SERVER_PORT']}")
 
-        server_ip_addr = socket.gethostbyname(_config['CLIENT']['SERVER'])
+        valid_ip = False
+        while not valid_ip:
+            try:
+                server_ip_addr = socket.gethostbyname(socket.gethostbyname(_config['CLIENT']['SERVER']))
+                if validate_ipv4(server_ip_addr):
+                    valid_ip = True
+            except socket.gaierror as e:
+                if e.errno == socket.EAI_AGAIN:
+                    logging.error(f"TEMPORARY FAILURE IN NAME RESOLUTION OF {server_ip_addr}")
+            time.sleep(1)
 
         # CONNECT
         ssl_conn.connect((server_ip_addr, int(_config['CLIENT']['SERVER_PORT'])))

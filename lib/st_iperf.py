@@ -1,6 +1,6 @@
 from lib.st_global import DefaultValues
 from lib.st_crypto import *
-from lib.st_conf_validation import is_port_available
+from lib.st_conf_validation import is_port_available, validate_ipv4
 from lib.st_global import DefaultValues
 import subprocess
 import sys
@@ -31,7 +31,18 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
         iperf3_connectors_log.debug(f"UDP_HOLE_PUNCH FOR {connector}, IPERF3 PROCESS ID: '{iperf3_pid}' IS WAITING FOR A PORT:{iperf3_conn_thread.bidir_src_port}")
         time.sleep(1)
 
-    dst_ip = socket.gethostbyname(dst_ip)
+    # Hostname resolution
+    valid_ip = False
+    while not valid_ip:
+        try:
+            dst_ip = socket.gethostbyname(dst_ip)
+            if validate_ipv4(dst_ip):
+                valid_ip = True
+        except socket.gaierror as e:
+            if e.errno == socket.EAI_AGAIN:
+                logging.error(f"TEMPORARY FAILURE IN NAME RESOLUTION OF {dst_ip}")
+        time.sleep(1)
+
     src_ip = iperf3_conn_thread.bidir_local_addr
     src_port = iperf3_conn_thread.bidir_src_port
     src_if = ""
@@ -110,7 +121,16 @@ def iperf3_client(connector_dict_key, _config):
         else:
             bidir_arg = ""
 
-        ip_address = socket.gethostbyname(_config['CONNECTORS'][connector_dict_key]['DESTINATION_ADDRESS'])
+        valid_ip = False
+        while not valid_ip:
+            try:
+                ip_address = socket.gethostbyname(socket.gethostbyname(_config['CONNECTORS'][connector_dict_key]['DESTINATION_ADDRESS']))
+                if validate_ipv4(ip_address):
+                    valid_ip = True
+            except socket.gaierror as e:
+                if e.errno == socket.EAI_AGAIN:
+                    logging.error(f"TEMPORARY FAILURE IN NAME RESOLUTION OF {ip_address}")
+            time.sleep(1)
 
         args = (
             _config['GLOBAL']['IPERF3_BINARY_PATH'], "-u", "-l",
