@@ -2,7 +2,7 @@
 from lib.st_crypto import *
 from lib.st_struct import cl_ifreq
 from lib.st_read_toml import read_conf
-from lib.st_conf_validation import valid_dir_rsa_keypair, valid_dir_logs
+from lib.st_conf_validation import valid_dir_rsa_keypair, valid_dir_logs, validate_ipv4
 from lib.st_process_and_thread import *
 from tabulate import tabulate
 # SYNTRAF SERVER IMPORT
