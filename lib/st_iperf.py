@@ -40,7 +40,7 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
                 valid_ip = True
         except socket.gaierror as e:
             if e.errno == socket.EAI_AGAIN:
-                logging.error(f"TEMPORARY FAILURE IN NAME RESOLUTION OF {dst_ip}")
+                iperf3_connectors_log.error(f"TEMPORARY FAILURE IN NAME RESOLUTION OF {dst_ip}")
         time.sleep(1)
 
     src_ip = iperf3_conn_thread.bidir_local_addr
@@ -70,11 +70,15 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
         cmd = ""
         args = None
         if sys.platform == "linux":
-            cmd = "ip"
-            args = (f"route get from {src_ip} to {dst_ip} oif {src_if} ipproto udp sport {src_port} dport {dst_port} | awk '{{print $3}}'")
-            p = subprocess.check_output(cmd + " " + args)
-            nexthop = p.decode('utf-8')
-            dst_mac = getmac.get_mac_address(None, nexthop)
+            try:
+                cmd = "ip"
+                args = (f"route get from {src_ip} to {dst_ip} oif {src_if} ipproto udp sport {src_port} dport {dst_port} | awk '{{print $3}}'")
+                p = subprocess.check_output(cmd + " " + args)
+                nexthop = p.decode('utf-8')
+                dst_mac = getmac.get_mac_address(None, nexthop)
+                iperf3_connectors_log.error(dst_mac)
+            except Exception as e:
+                iperf3_connectors_log.error(f"ERROR IN ip route get")
         elif sys.platform == "win32":
             #p = subprocess.check_output("where powershell")
             cmd = "powershell"
