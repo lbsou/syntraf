@@ -78,7 +78,7 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
                 dst_mac = getmac.get_mac_address(None, nexthop)
                 iperf3_connectors_log.error(dst_mac)
             except Exception as e:
-                iperf3_connectors_log.error(f"ERROR IN ip route get")
+                iperf3_connectors_log.error(e)
         elif sys.platform == "win32":
             #p = subprocess.check_output("where powershell")
             cmd = "powershell"
