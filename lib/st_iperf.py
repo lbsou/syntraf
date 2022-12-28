@@ -70,20 +70,13 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
 
         if sys.platform == "linux":
             try:
-                #| awk '{{print $3}}'
                 cmd = (f"ip route get from {src_ip} to {dst_ip} oif {src_if} ipproto udp sport {src_port} dport {dst_port}")
                 p = subprocess.check_output(shlex.split(cmd))
-                iperf3_connectors_log.error(p.decode('utf-8').replace("\n", "").split()[4])
-
-                nexthop = p.decode('utf-8')
-                p = subprocess.check_output(p.decode('utf-8'))
+                nexthop = p.decode('utf-8').replace("\n", "").split()[4]
                 dst_mac = getmac.get_mac_address(None, nexthop)
-                iperf3_connectors_log.error(dst_mac)
             except Exception as e:
                 iperf3_connectors_log.error(f"ERREUR========================={e}")
         elif sys.platform == "win32":
-            #p = subprocess.check_output("where powershell")
-            #print(p.decode('utf-8'))
             cmd = (f"powershell find-netroute -remoteipaddress {dst_ip} | Select-Object NextHop | Select -ExpandProperty NextHop")
             p = subprocess.check_output(shlex.split(cmd))
             nexthop = p.decode('utf-8')
