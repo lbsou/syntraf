@@ -68,23 +68,23 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
                     if iface.family == psutil.AF_LINK:
                         src_mac = iface.address
 
-        cmd = ""
-        args = None
         if sys.platform == "linux":
             try:
-                cmd = "ip"
-                args = (f"ip route get from {src_ip} to {dst_ip} oif {src_if} ipproto udp sport {src_port} dport {dst_port} | awk '{{print $3}}'")
-                p = subprocess.check_output(shlex.split(args), shell=True)
+                cmd = (f"ip route get from {src_ip} to {dst_ip} oif {src_if} ipproto udp sport {src_port} dport {dst_port} | awk '{{print $3}}'")
+                iperf3_connectors_log.error(cmd)
+                iperf3_connectors_log.error(shlex.split(cmd))
+                p = subprocess.check_output(shlex.split(cmd))
                 nexthop = p.decode('utf-8')
+                p = subprocess.check_output(p.decode('utf-8'))
                 dst_mac = getmac.get_mac_address(None, nexthop)
                 iperf3_connectors_log.error(dst_mac)
             except Exception as e:
                 iperf3_connectors_log.error(f"ERREUR========================={e}")
         elif sys.platform == "win32":
             #p = subprocess.check_output("where powershell")
-            cmd = "powershell"
-            args = (f"find-netroute -remoteipaddress {dst_ip} | Select-Object NextHop | Select -ExpandProperty NextHop")
-            p = subprocess.check_output(cmd + " " + args)
+            #print(p.decode('utf-8'))
+            cmd = (f"powershell find-netroute -remoteipaddress {dst_ip} | Select-Object NextHop | Select -ExpandProperty NextHop")
+            p = subprocess.check_output(shlex.split(cmd))
             nexthop = p.decode('utf-8')
             dst_mac = getmac.get_mac_address(None, nexthop)
         else:
