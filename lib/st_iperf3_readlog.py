@@ -53,7 +53,7 @@ def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_k
                             if cpt_port_bidir == 0:
                                 cpt_port_bidir += 1
                             elif cpt_port_bidir == 1:
-                                iperf_read_log_thread.bidir_src_port = m_lport.groups()[0]
+                                iperf_read_log_thread.bidir_src_port = int(m_lport.groups()[0])
                                 iperf_read_log_thread.bidir_local_addr = m_laddr.groups()[0]
                                 log.info(f"GOT A SRC_IP AND SRC_PORT FOR UDP_HOLE_PUNCH:{m_laddr.groups()[0]}/{m_lport.groups()[0]}")
                                 cpt_port_bidir = -1
