@@ -72,16 +72,16 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
             try:
                 p = subprocess.check_output(["whereis", "ip"])
                 ip_bin = p.decode('utf-8').split()[1]
-                iperf3_connectors_log.error(f"IP BIN : {ip_bin}")
-                cmd = (f"{ip_bin} route get from {src_ip} to {dst_ip} oif {src_if} ipproto udp sport {src_port} dport {dst_port}")
-                iperf3_connectors_log.error(f"CMD : {cmd}")
-                p = subprocess.check_output(shlex.split(cmd))
-                iperf3_connectors_log.error(f"RESULTS: {p.decode('utf-8')}")
-                nexthop = p.decode('utf-8').replace("\n", "").split()[4]
-                dst_mac = getmac.get_mac_address(None, nexthop)
-                iperf3_connectors_log.error(f"MAC: {dst_mac}")
+                if ip_bin:
+                    cmd = (f"{ip_bin} route get from {src_ip} to {dst_ip} oif {src_if} ipproto udp sport {src_port} dport {dst_port}")
+                    p = subprocess.check_output(shlex.split(cmd))
+                    nexthop = p.decode('utf-8').replace("\n", "").split()[4]
+                    dst_mac = getmac.get_mac_address(None, nexthop)
+                else:
+                    exit_boolean[0] = True
             except Exception as e:
-                iperf3_connectors_log.error(f"ERREUR========================={e}")
+                iperf3_connectors_log.error(e)
+                exit_boolean[0] = True
         elif sys.platform == "win32":
             cmd = (f"powershell find-netroute -remoteipaddress {dst_ip} | Select-Object NextHop | Select -ExpandProperty NextHop")
             p = subprocess.check_output(shlex.split(cmd))
@@ -94,9 +94,7 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
         if iperf3_conn_thread.bidir_src_port == 0:
             exit_message = "bidir_src_port became 0"
             break
-
         try:
-            iperf3_connectors_log.error(f"SPORT: {src_port}")
             iperf3_connectors_log.debug(f"SENDING KEEPALIVE WITH SRC:{src_mac}/{src_ip}/{iperf3_conn_thread.bidir_src_port}, DST:{dst_mac}/{dst_ip}/{dst_port} ON IFACE:{src_if}")
             scapy.sendp(scapy.Ether(src=src_mac, dst=dst_mac) / scapy.IP(src=src_ip, dst=dst_ip) / scapy.UDP(sport=src_port,dport=dst_port) / scapy.Raw(load="KEEPALIVE"), verbose=False, iface=src_if, inter=1, count=1)
         except Exception as ex:
