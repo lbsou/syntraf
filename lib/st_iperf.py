@@ -71,7 +71,9 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
         if sys.platform == "linux":
             try:
                 p = subprocess.check_output(["whereis", "ip"])
-                cmd = (f"{p.decode('utf-8').split()[1]} route get from {src_ip} to {dst_ip} oif {src_if} ipproto udp sport {src_port} dport {dst_port}")
+                ip_bin = p.decode('utf-8').split()[1]
+                iperf3_connectors_log.error(f"IP BIN : {ip_bin}")
+                cmd = (f"{ip_bin} route get from {src_ip} to {dst_ip} oif {src_if} ipproto udp sport {src_port} dport {dst_port}")
                 p = subprocess.check_output(shlex.split(cmd))
                 iperf3_connectors_log.error(p.decode('utf-8'))
                 nexthop = p.decode('utf-8').replace("\n", "").split()[4]
