@@ -79,6 +79,7 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
                 iperf3_connectors_log.error(f"RESULTS: {p.decode('utf-8')}")
                 nexthop = p.decode('utf-8').replace("\n", "").split()[4]
                 dst_mac = getmac.get_mac_address(None, nexthop)
+                iperf3_connectors_log.error(f"MAC: {dst_mac}")
             except Exception as e:
                 iperf3_connectors_log.error(f"ERREUR========================={e}")
         elif sys.platform == "win32":
@@ -95,6 +96,7 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
             break
 
         try:
+            iperf3_connectors_log.error(f"SPORT: {src_port}")
             iperf3_connectors_log.debug(f"SENDING KEEPALIVE WITH SRC:{src_mac}/{src_ip}/{iperf3_conn_thread.bidir_src_port}, DST:{dst_mac}/{dst_ip}/{dst_port} ON IFACE:{src_if}")
             scapy.sendp(scapy.Ether(src=src_mac, dst=dst_mac) / scapy.IP(src=src_ip, dst=dst_ip) / scapy.UDP(sport=src_port,dport=dst_port) / scapy.Raw(load="KEEPALIVE"), verbose=False, iface=src_if, inter=1, count=1)
         except Exception as ex:
