@@ -70,10 +70,11 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
 
         if sys.platform == "linux":
             try:
-                cmd = (f"ip route get from {src_ip} to {dst_ip} oif {src_if} ipproto udp sport {src_port} dport {dst_port} | awk '{{print $3}}'")
-                iperf3_connectors_log.error(cmd)
-                iperf3_connectors_log.error(shlex.split(cmd))
+                #| awk '{{print $3}}'
+                cmd = (f"ip route get from {src_ip} to {dst_ip} oif {src_if} ipproto udp sport {src_port} dport {dst_port}")
                 p = subprocess.check_output(shlex.split(cmd))
+                iperf3_connectors_log.error(p.decode('utf-8'))
+
                 nexthop = p.decode('utf-8')
                 p = subprocess.check_output(p.decode('utf-8'))
                 dst_mac = getmac.get_mac_address(None, nexthop)
