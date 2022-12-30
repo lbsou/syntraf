@@ -344,16 +344,14 @@ def thread_udp_hole(config, connector_key, connector_value, threads_n_processes,
                                   daemon=True)
     thread_run.daemon = True
     thread_run.name = str(connector_key)
-    thread_run.start()
     thread_or_process = st_obj_process_n_thread(thread_obj=thread_run, name=connector_key,
                                                 syntraf_instance_type="UDP_HOLE",
                                                 exit_boolean=exit_boolean,
                                                 starttime=datetime.now(),
                                                 opposite_side=connector_value['UID_CLIENT'], group=connector_value['MESH_GROUP'],
                                                 port="")
-
     threads_n_processes.append(thread_or_process)
-
+    thread_run.start()
 
 # Validate if a st_obj_process_n_thread exist in the thread dict that correspond to the instance_type and the key provided
 def st_obj_process_n_thread_exist(threads_n_processes, instance_type, connector_key):
