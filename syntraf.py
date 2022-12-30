@@ -201,7 +201,9 @@ def run():
             lst_thread.append(
                 [thr.name, thr.syntraf_instance_type, thr.pid, thr.getstatus(), thr.starttime, thr.last_activity, thr.port, thr.bidir_src_port, thr.bidir_local_addr])
         f.write(tabulate(lst_thread))
+        f.write("\n")
         f.close()
+
 
         # # Validate if reload flag has been set by user with another instance of the script (-r)
         # try:
