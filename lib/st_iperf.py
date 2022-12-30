@@ -33,6 +33,7 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
         if thr.name == connector and thr.syntraf_instance_type == "UDP_HOLE":
             curr_thread = thr
     curr_thread.packet_sent = 0
+    curr_thread.pid = curr_thread.thread_obj.native_id
 
     # Waiting for the READ_LOG thread to obtain the source port
     while iperf3_conn_thread.bidir_src_port == 0 and not exit_boolean[0]:
