@@ -6,7 +6,6 @@ import subprocess
 import sys
 import logging
 import os
-import re
 import time
 import psutil
 import shlex
@@ -24,9 +23,19 @@ iperf3_listeners_log = logging.getLogger("syntraf." + "lib.st_iperf3_listeners")
 
 # Find the ephemeral port iperf3 is using for the incoming connection in bidirectional mode then send a packet
 # to the other side with the right src and dst port to keep alive the udp hole punch.
-def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector):
+def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector, threads_n_processes):
     exit_message = ""
     iperf3_pid = iperf3_conn_thread.subproc.pid
+
+    #Find current thread to update packet sent
+    curr_thread = None
+    for thr in threads_n_processes:
+        time.sleep(1)
+        #print(thr.name, thr.syntraf_instance_type)
+        if thr.name == connector and thr.syntraf_instance_type == "UDP_HOLE":
+            curr_thread = thr
+    curr_thread.packet_sent = 0
+
     # Waiting for the READ_LOG thread to obtain the source port
     while iperf3_conn_thread.bidir_src_port == 0 and not exit_boolean[0]:
         iperf3_connectors_log.debug(f"UDP_HOLE_PUNCH FOR {connector}, IPERF3 PROCESS ID: '{iperf3_pid}' IS WAITING FOR A PORT:{iperf3_conn_thread.bidir_src_port}")
@@ -95,8 +104,10 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
             exit_message = "bidir_src_port became 0"
             break
         try:
+            curr_thread.packet_sent += 1
             iperf3_connectors_log.debug(f"SENDING KEEPALIVE WITH SRC:{src_mac}/{src_ip}/{iperf3_conn_thread.bidir_src_port}, DST:{dst_mac}/{dst_ip}/{dst_port} ON IFACE:{src_if}")
             scapy.sendp(scapy.Ether(src=src_mac, dst=dst_mac) / scapy.IP(src=src_ip, dst=dst_ip) / scapy.UDP(sport=src_port,dport=dst_port) / scapy.Raw(load="KEEPALIVE"), verbose=False, iface=src_if, inter=1, count=1)
+
         except Exception as ex:
             iperf3_connectors_log.error(ex)
 

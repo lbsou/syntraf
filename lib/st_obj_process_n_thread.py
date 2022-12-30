@@ -15,6 +15,8 @@ class st_obj_process_n_thread:
             self.pid = self.subproc.pid
             self.bidir_src_port = None
             self.bidir_local_addr = None
+            self.line_read = None
+            self.packet_sent = None
         elif kwargs['syntraf_instance_type'] == "SERVER" or kwargs['syntraf_instance_type'] == "CLIENT" or \
                 kwargs['syntraf_instance_type'] == "SERVER_SOCKET" or kwargs['syntraf_instance_type'] == "READ_LOG" or kwargs['syntraf_instance_type'] == "WEBUI" or kwargs['syntraf_instance_type'] == "COVARIANCE" or kwargs['syntraf_instance_type'] == "STATS" or kwargs['syntraf_instance_type'] == "UDP_HOLE":
             self.syntraf_instance_type = kwargs['syntraf_instance_type']
@@ -29,6 +31,8 @@ class st_obj_process_n_thread:
             self.pid = self.thread_obj.native_id
             self.bidir_src_port = None
             self.bidir_local_addr = None
+            self.line_read = None
+            self.packet_sent = None
 
         if kwargs['syntraf_instance_type'] == "CONNECTOR":
             self.bidir_src_port = kwargs['bidir_src_port']

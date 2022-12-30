@@ -195,11 +195,11 @@ def run():
 
         lst_thread = []
         lst_thread.append(
-            ["NAME", "TYPE", "PID", "RUNNING", "STARTTIME", "LAST_ACTIVITY", "PORT", "BIDIR_SRC_PORT", "BIDIR_LADDR"])
+            ["NAME", "TYPE", "PID", "RUNNING", "STARTTIME", "LAST_ACTIVITY", "PORT", "BIDIR_SRC_PORT", "BIDIR_LADDR", "LINE_READ", "PACKET_SENT"])
 
         for thr in threads_n_processes:
             lst_thread.append(
-                [thr.name, thr.syntraf_instance_type, thr.pid, thr.getstatus(), thr.starttime, thr.last_activity, thr.port, thr.bidir_src_port, thr.bidir_local_addr])
+                [thr.name, thr.syntraf_instance_type, thr.pid, thr.getstatus(), thr.starttime, thr.last_activity, thr.port, thr.bidir_src_port, thr.bidir_local_addr, thr.line_read, thr.packet_sent])
         f.write(tabulate(lst_thread))
         f.write("\n")
         f.close()

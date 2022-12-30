@@ -16,6 +16,12 @@ log = logging.getLogger("syntraf." + __name__)
 #################################################################################
 def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_key, dict_data_to_send_to_server, threads_n_processes, exit_boolean, iperf_read_log_thread=None):
     utime_last_event = 0
+    
+    curr_thread = None
+    for thr in threads_n_processes:
+        if thr.name == edge_dict_key and thr.syntraf_instance_type == "READ_LOG":
+            curr_thread = thr
+    curr_thread.line_read = 0
 
     try:
         cpt_port_bidir = 0
@@ -36,6 +42,7 @@ def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_k
                             "Interval" not in line) and ("receiver" not in line) and ("------------" not in line) and (
                             "- - - - - - - - -" not in line)):
                         utime_last_event = time.time()
+                        curr_thread.line_read += 1
                         yield line
 
                     else:
