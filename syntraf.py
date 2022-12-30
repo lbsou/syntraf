@@ -95,6 +95,7 @@ def run():
     if not bool_config_valid:
         log.error(f"CONFIGURATION VALIDATION FAILED")
         sys.exit()
+    validate_purge_logs(config)
     log_init(cli_parameters, config)
 
     # HANDLER TO OUTPUT CRITICAL ONLY TO STDOUT
@@ -192,11 +193,14 @@ def run():
         # WHILE WEBUI DOWN, DUMP THREAD STATUS TO FILE
         f = open(os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, "thread_status.txt"), "w")
 
-        thr_str = ""
-        for thr in threads_n_processes:
-            thr_str = f"{thr_str}{str(thr)}\r\n"
+        lst_thread = []
+        lst_thread.append(
+            ["NAME", "TYPE", "PID", "RUNNING", "STARTTIME", "LAST_ACTIVITY", "PORT", "BIDIR_SRC_PORT", "BIDIR_LADDR"])
 
-        f.write(thr_str)
+        for thr in threads_n_processes:
+            lst_thread.append(
+                [thr.name, thr.syntraf_instance_type, thr.pid, thr.getstatus(), thr.starttime, thr.last_activity, thr.port, thr.bidir_src_port, thr.bidir_local_addr])
+        f.write(tabulate(lst_thread))
         f.close()
 
         # # Validate if reload flag has been set by user with another instance of the script (-r)
