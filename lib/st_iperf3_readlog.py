@@ -76,7 +76,7 @@ def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_k
                     for obj_thread_n_process in threads_n_processes:
                         if obj_thread_n_process.name == edge_dict_key and (obj_thread_n_process.syntraf_instance_type == "LISTENER" or obj_thread_n_process.syntraf_instance_type == "CONNECTOR"):
                             flag_no_thread_found = False
-                            dt_delta = datetime.datetime.now() - datetime.datetime.strptime(obj_thread_n_process.starttime,
+                            dt_delta = datetime.now() - datetime.strptime(obj_thread_n_process.starttime,
                                                                                             "%d/%m/%Y %H:%M:%S")
                             if dt_delta.total_seconds() <= 60:
                                 listener_just_started_or_absent = True
@@ -101,7 +101,7 @@ def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_k
                                 f"{edge_dict_key} - SYNTRAF HAS DETECTED AN OUTAGE, {qty_of_event_to_report} EVENTS WHERE LOST. GENERATING 100% LOSSES VALUES.")
 
                             for utime_generated in range(int(utime_last_event) + interval, int(utime_now), interval):
-                                dt_generated = datetime.datetime.fromtimestamp(utime_generated)
+                                dt_generated = datetime.fromtimestamp(utime_generated)
                                 timezone = pytz.timezone(DefaultValues.TIMEZONE)
                                 dt_tz_generated = timezone.localize(dt_generated)
                                 timestamp_generated = dt_tz_generated.astimezone(pytz.timezone("UTC"))
@@ -143,7 +143,7 @@ def parse_line_to_array(line, _config, edge_dict_key, edge_type, dict_data_to_se
 
             # timestamp
             x = re.findall(r"(\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d)", line)
-            dt = datetime.datetime.strptime(str(x[0]), "%Y-%m-%d %H:%M:%S")
+            dt = datetime.strptime(str(x[0]), "%Y-%m-%d %H:%M:%S")
             timezone = pytz.timezone(DefaultValues.TIMEZONE)
             dt_tz = timezone.localize(dt)
             timestamp = dt_tz.astimezone(pytz.timezone("UTC"))
