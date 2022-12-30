@@ -189,17 +189,18 @@ def run():
         f.write(tabulate(lst_client))
         f.close()
 
-
         # WHILE WEBUI DOWN, DUMP THREAD STATUS TO FILE
         f = open(os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, "thread_status.txt"), "w")
 
         lst_thread = []
-        lst_thread.append(
-            ["NAME", "TYPE", "PID", "RUNNING", "STARTTIME", "LAST_ACTIVITY", "PORT", "BIDIR_SRC_PORT", "BIDIR_LADDR", "LINE_READ", "PACKET_SENT"])
+        lst_thread.append(["NAME", "TYPE", "PID", "RUNNING", "STARTTIME", "SINCE_START", "LAST_ACTIVITY", "SINCE_LAST", "PORT", "BIDIR_SRC_PORT", "BIDIR_LADDR", "LINE_READ", "PACKET_SENT"])
 
         for thr in threads_n_processes:
-            lst_thread.append(
-                [thr.name, thr.syntraf_instance_type, thr.pid, thr.getstatus(), thr.starttime, thr.last_activity, thr.port, thr.bidir_src_port, thr.bidir_local_addr, thr.line_read, thr.packet_sent])
+            since_start = datetime.now() - thr.starttime
+            minutes_since_start = divmod(since_start.total_seconds(), 60)
+            since_last = datetime.now() - thr.last_activity
+            minutes_since_last = divmod(since_last.total_seconds(), 60)
+            lst_thread.append([thr.name, thr.syntraf_instance_type, thr.pid, thr.getstatus(), thr.starttime.strftime("%d/%m/%Y %H:%M:%S"), f"{minutes_since_start[0]}m {round(minutes_since_start[1])}s", thr.last_activity, f"{minutes_since_last[0]}m {round(minutes_since_last[1])}s", thr.port, thr.bidir_src_port, thr.bidir_local_addr, thr.line_read, thr.packet_sent])
         f.write(tabulate(lst_thread))
         f.write("\n")
         f.close()

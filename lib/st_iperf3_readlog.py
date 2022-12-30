@@ -43,7 +43,7 @@ def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_k
                             "- - - - - - - - -" not in line)):
                         utime_last_event = time.time()
                         curr_thread.line_read += 1
-                        curr_thread.last_activity = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                        curr_thread.last_activity = datetime.now()
                         yield line
 
                     else:

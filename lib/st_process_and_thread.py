@@ -61,7 +61,7 @@ def launch_and_respawn_workers(config, cli_parameters, threads_n_processes,  obj
                                           daemon=True)
             thr_stats.name = "STATS"
             thr_stats.start()
-            thread_or_process = st_obj_process_n_thread(thread_obj=thr_stats, name="STATS", syntraf_instance_type="STATS", exit_boolean=False, starttime=datetime.now().strftime("%d/%m/%Y %H:%M:%S"), opposite_side="", group="", port="")
+            thread_or_process = st_obj_process_n_thread(thread_obj=thr_stats, name="STATS", syntraf_instance_type="STATS", exit_boolean=False, starttime=datetime.now(), opposite_side="", group="", port="")
             threads_n_processes.append(thread_or_process)
 
         # LISTENERS
@@ -82,7 +82,7 @@ def launch_and_respawn_workers(config, cli_parameters, threads_n_processes,  obj
                                               daemon=True)
                 thr_webui.name = "WEBUI"
                 thr_webui.start()
-                thread_or_process = st_obj_process_n_thread(thread_obj=thr_webui, name="WEBUI", syntraf_instance_type="WEBUI", exit_boolean=False, starttime=datetime.now().strftime("%d/%m/%Y %H:%M:%S"), opposite_side="", group="", port="")
+                thread_or_process = st_obj_process_n_thread(thread_obj=thr_webui, name="WEBUI", syntraf_instance_type="WEBUI", exit_boolean=False, starttime=datetime.now(), opposite_side="", group="", port="")
                 threads_n_processes.append(thread_or_process)
 
             # COVARIANCE, ONLY IF SERVER
@@ -141,7 +141,7 @@ def init_client_obj_dict(config, dict_of_clients):
         # Initializing status dict
         for client in config['SERVER_CLIENT']:
 
-            dict_of_clients[client['UID']] = cc_client(status="UNKNOWN", status_since=datetime.now().strftime("%d/%m/%Y %H:%M:%S"),  status_explanation="NEVER CONNECTED", client_uid=client['UID'], bool_dynamic_client=False)
+            dict_of_clients[client['UID']] = cc_client(status="UNKNOWN", status_since=datetime.now(),  status_explanation="NEVER CONNECTED", client_uid=client['UID'], bool_dynamic_client=False)
 
             list_stats_if_pct_usage_tx = []
             list_stats_if_pct_usage_rx = []
@@ -188,7 +188,7 @@ def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, config_file_p
                 thread_run.name = mesh_type
                 thread_run.start()
                 thread_or_process = st_obj_process_n_thread(thread_obj=thread_run, name=mesh_type, object_type="THREAD",
-                                                            syntraf_instance_type=mesh_type, exit_boolean=stop_thread, starttime=datetime.now().strftime("%d/%m/%Y %H:%M:%S"), opposite_side="", group="", port="")
+                                                            syntraf_instance_type=mesh_type, exit_boolean=stop_thread, starttime=datetime.now(), opposite_side="", group="", port="")
                 threads_n_processes.append(thread_or_process)
                 if mesh_type == "CLIENT":
                     log.info(f"{mesh_type} RE-INITIATED : {config[mesh_type]['SERVER']}:{config[mesh_type]['SERVER_PORT']}")
@@ -211,7 +211,7 @@ def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, config_file_p
                 thread_run.name = mesh_type
                 thread_run.start()
                 thread_or_process = st_obj_process_n_thread(thread_obj=thread_run, name=mesh_type, object_type="THREAD",
-                                                            syntraf_instance_type=mesh_type, exit_boolean=stop_thread, starttime=datetime.now().strftime("%d/%m/%Y %H:%M:%S"), opposite_side="", group="", port="")
+                                                            syntraf_instance_type=mesh_type, exit_boolean=stop_thread, starttime=datetime.now(), opposite_side="", group="", port="")
 
                 threads_n_processes.append(thread_or_process)
                 if config[mesh_type] == "CLIENT":
@@ -249,7 +249,7 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                     # starting the new iperf server
                     thread_or_process = st_obj_process_n_thread(subproc=iperf3_server(listener, config), name=listener,
                                                                 syntraf_instance_type="LISTENER",
-                                                                starttime=datetime.now().strftime("%d/%m/%Y %H:%M:%S"), opposite_side=listener_v['UID_CLIENT'], group=listener_v['MESH_GROUP'], port=listener_v['PORT'])
+                                                                starttime=datetime.now(), opposite_side=listener_v['UID_CLIENT'], group=listener_v['MESH_GROUP'], port=listener_v['PORT'])
                     threads_n_processes.append(thread_or_process)
                 # Was launch, but is it running?
                 else:
@@ -261,7 +261,7 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
 
                         # starting the new iperf server
                         thread_or_process = st_obj_process_n_thread(subproc=iperf3_server(listener, config), name=listener,
-                                                            syntraf_instance_type="LISTENER", starttime=datetime.now().strftime("%d/%m/%Y %H:%M:%S"), opposite_side=listener_v['UID_CLIENT'], group=listener_v['MESH_GROUP'], port=listener_v['PORT'])
+                                                            syntraf_instance_type="LISTENER", starttime=datetime.now(), opposite_side=listener_v['UID_CLIENT'], group=listener_v['MESH_GROUP'], port=listener_v['PORT'])
 
                         threads_n_processes.append(thread_or_process)
 
@@ -287,7 +287,7 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                                     thread_or_process = st_obj_process_n_thread(thread_obj=thread_run, name=listener,
                                                                                 syntraf_instance_type="READ_LOG",
                                                                                 exit_boolean=stop_thread,
-                                                                                starttime=datetime.now().strftime("%d/%m/%Y %H:%M:%S"), opposite_side=listener_v['UID_CLIENT'], group=listener_v['MESH_GROUP'], port="")
+                                                                                starttime=datetime.now(), opposite_side=listener_v['UID_CLIENT'], group=listener_v['MESH_GROUP'], port="")
                                     threads_n_processes.append(thread_or_process)
                                     got_a_readlog_instance = True
                                 else:
@@ -303,7 +303,7 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                             thread_run.start()
                             thread_or_process = st_obj_process_n_thread(thread_obj=thread_run, name=listener,
                                                                         syntraf_instance_type="READ_LOG",
-                                                                        exit_boolean=stop_thread, starttime=datetime.now().strftime("%d/%m/%Y %H:%M:%S"), opposite_side=listener_v['UID_CLIENT'], group=listener_v['MESH_GROUP'], port="")
+                                                                        exit_boolean=stop_thread, starttime=datetime.now(), opposite_side=listener_v['UID_CLIENT'], group=listener_v['MESH_GROUP'], port="")
 
                             threads_n_processes.append(thread_or_process)
 
@@ -328,8 +328,7 @@ def thread_read_log(config, connector_key, connector_value, threads_n_processes,
     iperf_read_log_thread = st_obj_process_n_thread(thread_obj=thread_run, name=connector_key,
                                                     syntraf_instance_type="READ_LOG",
                                                     exit_boolean=stop_thread,
-                                                    starttime=datetime.now().strftime(
-                                                        "%d/%m/%Y %H:%M:%S"),
+                                                    starttime=datetime.now(),
                                                     opposite_side=connector_value['UID_CLIENT'],
                                                     group=connector_value['MESH_GROUP'], port="")
     threads_n_processes.append(iperf_read_log_thread)
@@ -349,7 +348,7 @@ def thread_udp_hole(config, connector_key, connector_value, threads_n_processes,
     thread_or_process = st_obj_process_n_thread(thread_obj=thread_run, name=connector_key,
                                                 syntraf_instance_type="UDP_HOLE",
                                                 exit_boolean=exit_boolean,
-                                                starttime=datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                                                starttime=datetime.now(),
                                                 opposite_side=connector_value['UID_CLIENT'], group=connector_value['MESH_GROUP'],
                                                 port="")
 
@@ -371,7 +370,7 @@ def start_iperf3_client(config, connector_key, connector_value, threads_n_proces
         if config['CONNECTORS'][connector_key]['DESTINATION_ADDRESS'] != "0.0.0.0":
             iperf3_conn_thread = st_obj_process_n_thread(subproc=iperf3_client(connector_key, config), name=connector_key,
                                                         syntraf_instance_type="CONNECTOR",
-                                                        starttime=datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                                                        starttime=datetime.now(),
                                                         opposite_side=connector_value['UID_SERVER'],
                                                         group=connector_value['MESH_GROUP'], port=connector_value['PORT'],
                                                         bidir_src_port=0, bidir_local_addr="")

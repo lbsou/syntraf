@@ -72,14 +72,14 @@ class InfluxObj(object):
                             log.error(
                                 f"CONNECTION TO DATABASE '{database['DB_UID']}', '{prefix}://{database['DB_SERVER']}:{database['DB_PORT']}' FAILED")
                             self.status = "OFFLINE"
-                        self.status_time = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                        self.status_time = datetime.now()
         except Exception as exc:
             # log.error(f"get_connection_influxdb2:{type(exc).__name__}:{exc}", exc_info=True)
             log.error(
                 f"CONNECTION TO DATABASE '{database['DB_UID']}', '{prefix}://{database['DB_SERVER']}:{database['DB_PORT']}' FAILED")
             self._connection.__del__()
             self.status = "FAIL"
-            self.status_time = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            self.status_time = datetime.now()
 
         self.write_api = self._connection.write_api(write_options=SYNCHRONOUS)
         self.query_api = self._connection.query_api()
@@ -95,7 +95,7 @@ class InfluxObj(object):
                 self.status = "ONLINE"
             elif health.status == "fail":
                 self.status = "OFFLINE"
-            self.status_time = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            self.status_time = datetime.now()
 
             # logging the event
             if self.status == "ONLINE":
@@ -119,7 +119,7 @@ class InfluxObj(object):
             # If status changed, update status in timestamp
             if not self.status == "ONLINE":
                 self.status = "ONLINE"
-                self.status_time = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                self.status_time = datetime.now()
             return "OK"
 
         except Exception as exc:
@@ -134,7 +134,7 @@ class InfluxObj(object):
             # If status changed, update status dans timestamp
             if not self.status == "OFFLINE":
                 self.status = "OFFLINE"
-                self.status_time = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                self.status_time = datetime.now()
                 log.error(f"UNABLE TO CONNECT TO DATABASE, SETTING DATABASE STATUS TO 'OFFLINE'")
 
             return "ERROR"
