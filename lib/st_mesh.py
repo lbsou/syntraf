@@ -743,7 +743,7 @@ def authenticate_server_client(_config, data, obj_client, sckt):
 
         # NEW STATUS TRACKING
         obj_client.status = "CONNECTED"
-        obj_client.status_since = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        obj_client.status_since = datetime.now()
 
         return True, ""
 
@@ -855,14 +855,14 @@ def server_auth(received_data, obj_client, _config, address, dict_of_commands_fo
     if is_authenticated:
         obj_client.status = "CONNECTED"
         obj_client.status_explanation = "AUTHENTICATION SUCCESSFUL"
-        obj_client.status_since = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        obj_client.status_since = datetime.now()
 
         sock_send(sckt, None, obj_client.status_explanation)
 
     else:
         obj_client.status = rejection_explanation
         obj_client.status_explanation = "AUTHENTICATION FAILED"
-        obj_client.status_since = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        obj_client.status_since = datetime.now()
 
         sock_send(sckt, rejection_explanation, "AUTH_FAILED")
 
@@ -924,7 +924,7 @@ def server_auth(received_data, obj_client, _config, address, dict_of_commands_fo
 
         obj_client.status = "CONNECTED (PASSIVE)"
         obj_client.status_explanation = "NO CONFIG FOR THIS CLIENT"
-        obj_client.status_since = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        obj_client.status_since = datetime.now()
 
     return True
 
@@ -1070,7 +1070,7 @@ class Handler(StreamRequestHandler):
         log.debug(current_thread)
 
         uid = address[0]
-        dict_of_clients[uid] = cc_client(status="CONNECTING", status_since=datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+        dict_of_clients[uid] = cc_client(status="CONNECTING", status_since=datetime.now(),
                                          status_explanation="NOT YET AUTHENTICATED", client_uid="UNKNOWN",
                                          bool_dynamic_client=False, tcp_port=address[1], ip_address=address[0])
 
@@ -1192,7 +1192,7 @@ class Handler(StreamRequestHandler):
                 # We don't want to overwrite a reason for failed authentication, so we overwrite only when the client was connected
                 if "CONNECTED" in dict_of_clients[uid].status:
                     dict_of_clients[uid].status = "DISCONNECTED"
-                    dict_of_clients[uid].status_since = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                    dict_of_clients[uid].status_since = datetime.now()
 
                 # Reinitializing stats array so that the sparklines graphes does not appear in the webui
                 dict_of_clients[uid].system_stats['if_pct_usage_rx'] = []

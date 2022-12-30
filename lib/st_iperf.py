@@ -31,7 +31,7 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
     curr_thread = None
     for thr in threads_n_processes:
         time.sleep(1)
-        #print(thr.name, thr.syntraf_instance_type)
+        print(thr.name, thr.syntraf_instance_type)
         if thr.name == connector and thr.syntraf_instance_type == "UDP_HOLE":
             curr_thread = thr
     curr_thread.packet_sent = 0
@@ -105,7 +105,7 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
             break
         try:
             curr_thread.packet_sent += 1
-            curr_thread.last_activity = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            curr_thread.last_activity = datetime.now()
             iperf3_connectors_log.debug(f"SENDING KEEPALIVE WITH SRC:{src_mac}/{src_ip}/{iperf3_conn_thread.bidir_src_port}, DST:{dst_mac}/{dst_ip}/{dst_port} ON IFACE:{src_if}")
             scapy.sendp(scapy.Ether(src=src_mac, dst=dst_mac) / scapy.IP(src=src_ip, dst=dst_ip) / scapy.UDP(sport=src_port,dport=dst_port) / scapy.Raw(load="KEEPALIVE"), verbose=False, iface=src_if, inter=1, count=1)
 

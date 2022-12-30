@@ -8,7 +8,7 @@ class st_obj_process_n_thread:
             self.name = kwargs['name']
             self.subproc = kwargs['subproc']
             self.starttime = kwargs['starttime']
-            self.last_activity = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            self.last_activity = datetime.now()
             self.group = kwargs['group']
             self.opposite_side = kwargs['opposite_side']
             self.port = kwargs['port']
@@ -24,7 +24,7 @@ class st_obj_process_n_thread:
             self.name = kwargs['name']
             self.thread_obj = kwargs['thread_obj']
             self.starttime = kwargs['starttime']
-            self.last_activity = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            self.last_activity = datetime.now()
             self.group = kwargs['group']
             self.opposite_side = kwargs['opposite_side']
             self.port = kwargs['port']
@@ -63,5 +63,5 @@ class st_obj_process_n_thread:
             self.thread_obj.join(0.01)
 
     def touch_last_activity(self):
-        self.last_activity = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        self.last_activity = datetime.now()
 
