@@ -4,6 +4,7 @@ import sys
 import logging
 import logging.config
 import os
+import glob
 
 log = logging.getLogger("syntraf." + __name__)
 
@@ -110,6 +111,13 @@ def log_init(results, config={}):
     else:
         print(f"IS LOG DIR {p.absolute()} EXIST : NO")
         sys.exit()
+
+    if config['GLOBAL']['LOG_PURGE_ON_START']:
+        try:
+            for f in glob.glob(f"{log_file}*"):
+                os.remove(f)
+        except Exception as exc:
+            log.info(f"UNABLE TO REMOVE ALL LOG FILES: {exc}")
 
     syntraf = conf_logging("syntraf", log_file, level, level_int, logto, logmaxsizeperfile, logfiletokeep)
     log.debug(f"LOG LEVEL IS SET TO '{level.upper()}', with a maximum size per file of {config['GLOBAL']['LOG_MAX_SIZE_PER_FILE_MB']}MB and maximum of {logfiletokeep} file on rotation")

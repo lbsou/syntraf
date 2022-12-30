@@ -72,5 +72,6 @@ class DefaultValues:
     DEFAULT_LOG_TO = "file"
     DEFAULT_LOG_FILENAME = "syntraf.log"
     DEFAULT_LOG_FILE_TO_KEEP = 2
+    DEFAULT_LOG_PURGE_ON_START = False
 
     # SERVER_MAX_CONNECTION = 50

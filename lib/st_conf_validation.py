@@ -658,6 +658,22 @@ def config_validation_global(_config):
     return True
 
 
+def validate_purge_logs(_config):
+    # Should we delete logs on start
+    if 'GLOBAL' in _config:
+        if 'LOG_PURGE_ON_START' in _config['GLOBAL']:
+            if _config['GLOBAL']['LOG_PURGE_ON_START'] != True and _config['GLOBAL']['LOG_PURGE_ON_START'] != False:
+                log.debug(
+                    f"IS LOG_PURGE_ON_START VALID : NO, APPLYING DEFAULT '{DefaultValues.DEFAULT_LOG_PURGE_ON_START}'")
+                _config['GLOBAL']['LOG_PURGE_ON_START'] = DefaultValues.DEFAULT_LOG_PURGE_ON_START
+        else:
+            log.debug(f"IS LOG_PURGE_ON_START VALID : NO, APPLYING DEFAULT '{DefaultValues.DEFAULT_LOG_PURGE_ON_START}'")
+            _config['GLOBAL']['LOG_PURGE_ON_START'] = DefaultValues.DEFAULT_LOG_PURGE_ON_START
+    else:
+        log.error(f"NOT GLOBAL SECTION DEFINED, EXITING")
+        sys.exit()
+
+
 def valid_dir_logs(_config):
     # validating directory for iperf3 logs
     if 'IPERF3_TEMP_DIRECTORY' in _config['GLOBAL']:
@@ -688,7 +704,7 @@ def valid_dir_rsa_keypair(_config):
         if not is_dir_create_on_fail(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], "IPERF3_RSA_KEY_DIRECTORY"):
             return False
     else:
-        log.warning(
+        log.debug(
             f"IS IPERF3_RSA_KEY_DIRECTORY DEFINED: NO, APPLYING DEFAULT: '{DefaultValues.DEFAULT_IPERF3_RSA_KEY_DIRECTORY}'")
         _config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'] = DefaultValues.DEFAULT_IPERF3_RSA_KEY_DIRECTORY
 
