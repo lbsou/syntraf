@@ -4,7 +4,7 @@ from lib.st_influxdb import *
 import os
 import time
 import re
-import datetime
+from datetime import datetime
 import pytz
 import pathlib
 import logging
