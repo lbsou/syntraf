@@ -16,7 +16,7 @@ log = logging.getLogger("syntraf." + __name__)
 #################################################################################
 def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_key, dict_data_to_send_to_server, threads_n_processes, exit_boolean, iperf_read_log_thread=None):
     utime_last_event = 0
-    
+
     curr_thread = None
     for thr in threads_n_processes:
         if thr.name == edge_dict_key and thr.syntraf_instance_type == "READ_LOG":
@@ -43,6 +43,7 @@ def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_k
                             "- - - - - - - - -" not in line)):
                         utime_last_event = time.time()
                         curr_thread.line_read += 1
+                        curr_thread.last_activity = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
                         yield line
 
                     else:
