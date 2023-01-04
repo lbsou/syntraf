@@ -26,9 +26,9 @@ def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_k
     try:
         cpt_port_bidir = 0
         while True:
-            time.sleep(interval)
-            lines = file.read().splitlines()
+            time.sleep(interval/10)
             file.seek(0)
+            lines = file.read().splitlines()
             file.truncate()
 
             if exit_boolean[0]:
