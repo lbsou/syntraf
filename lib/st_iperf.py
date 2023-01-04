@@ -27,7 +27,7 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
     exit_message = ""
     iperf3_pid = iperf3_conn_thread.subproc.pid
 
-    #Find current thread to update packet sent
+    # Find current thread to update packet sent in the st_obj_process_n_thread object
     curr_thread = None
     for thr in threads_n_processes:
         if thr.name == connector and thr.syntraf_instance_type == "UDP_HOLE":
