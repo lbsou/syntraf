@@ -31,7 +31,7 @@ def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, di
     try:
         cpt_port_bidir = 0
         for line in thr_iperf3.subproc.stdout:
-            print(line)
+            #print(line)
             if exit_boolean[0]:
                 yield "exit_boolean_true"
 
@@ -228,7 +228,7 @@ def read_log_listener(listener_dict_key, _config, exit_boolean, dict_data_to_sen
 #################################################################################
 def read_log_connector(connector_dict_key, _config, exit_boolean, dict_data_to_send_to_server, threads_n_processes, iperf3_conn_thread, thr_iperf3):
     exit_message = "unknown"
-    print("CLIENT")
+
     lines = tail(int(_config['CONNECTORS'][connector_dict_key]['INTERVAL']), _config['CONNECTORS'][connector_dict_key]['UID_CLIENT'], _config['CONNECTORS'][connector_dict_key]['UID_SERVER'], _config, "CONNECTORS", connector_dict_key, dict_data_to_send_to_server, threads_n_processes, exit_boolean, iperf3_conn_thread, thr_iperf3)
 
     log.info(f"READING LOGS FOR CONNECTOR {connector_dict_key}")
