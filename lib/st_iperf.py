@@ -150,7 +150,7 @@ def iperf3_client(connector_dict_key, _config):
         args = (
             _config['GLOBAL']['IPERF3_BINARY_PATH'], "-u", "-l",
             _config['CONNECTORS'][connector_dict_key]['PACKET_SIZE'], "-c",
-            ip_address, "-t", "0", "-b","--forceflush",
+            ip_address, "-t", "0", "-b",
             _config['CONNECTORS'][connector_dict_key]['BANDWIDTH'],
             "--udp-counters-64bit", "--connect-timeout=" + DefaultValues.DEFAULT_IPERF3_CONNECT_TIMEOUT, "--dscp", _config['CONNECTORS'][connector_dict_key]['DSCP'],
             "--pacing-timer", "12000",
@@ -161,7 +161,7 @@ def iperf3_client(connector_dict_key, _config):
             os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'],
                          "syntraf_" + str(_config['CONNECTORS'][connector_dict_key]['PORT']) + "_connector.log"),
             "-f", "k", "-p", str(_config['CONNECTORS'][connector_dict_key]['PORT']), "--timestamps='%F %T '",
-            bidir_arg)
+            bidir_arg, "--forceflush")
 
         arguments = ""
         for i in args:
