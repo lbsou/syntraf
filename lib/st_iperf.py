@@ -253,7 +253,7 @@ def iperf3_server(listener_dict_key, _config):
         try:
             args = (_config['GLOBAL']['IPERF3_BINARY_PATH'], "-s", "-i", _config['LISTENERS'][listener_dict_key]['INTERVAL'],
                     #var_cfg_default_bind_arg[0], var_cfg_default_bind_arg[1],
-                    "-f", "k",
+                    "-f", "k", "--forceflush",
                     "--rsa-private-key-path", os.path.join(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'private_key_iperf_client.pem'),
                     "--authorized-users-path", os.path.join(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'credentials.csv'),
                     "--time-skew-threshold", _config['GLOBAL']['IPERF3_TIME_SKEW_THRESHOLD'],
@@ -266,7 +266,7 @@ def iperf3_server(listener_dict_key, _config):
             for i in args:
                 arguments += " " + i
 
-            p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, bufsize=1, universal_newlines=True)
+            p = subprocess.Popen(args, close_fds=True, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, bufsize=1, universal_newlines=True)
 
             for line in p.stdout:
                 print(line)
