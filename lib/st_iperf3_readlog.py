@@ -228,7 +228,7 @@ def read_log_listener(listener_dict_key, _config, exit_boolean, dict_data_to_sen
 #################################################################################
 def read_log_connector(connector_dict_key, _config, exit_boolean, dict_data_to_send_to_server, threads_n_processes, iperf3_conn_thread, thr_iperf3):
     exit_message = "unknown"
-
+    print("CLIENT")
     lines = tail(int(_config['CONNECTORS'][connector_dict_key]['INTERVAL']), _config['CONNECTORS'][connector_dict_key]['UID_CLIENT'], _config['CONNECTORS'][connector_dict_key]['UID_SERVER'], _config, "CONNECTORS", connector_dict_key, dict_data_to_send_to_server, threads_n_processes, exit_boolean, iperf3_conn_thread, thr_iperf3)
 
     log.info(f"READING LOGS FOR CONNECTOR {connector_dict_key}")
