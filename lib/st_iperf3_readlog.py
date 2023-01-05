@@ -23,6 +23,11 @@ def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, di
             curr_thread = thr
     curr_thread.line_read = 0
 
+    while thr_iperf3.subproc is None:
+        time.sleep(1)
+        if thr_iperf3.subproc:
+            break
+
     try:
         cpt_port_bidir = 0
         for line in thr_iperf3.subproc.stdout:
