@@ -31,6 +31,7 @@ def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, di
     try:
         cpt_port_bidir = 0
         for line in thr_iperf3.subproc.stdout:
+            print(line)
             if exit_boolean[0]:
                 yield "exit_boolean_true"
 
