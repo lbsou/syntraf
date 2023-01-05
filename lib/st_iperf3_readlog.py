@@ -241,7 +241,7 @@ def read_log_connector(connector_dict_key, _config, exit_boolean, dict_data_to_s
     file = open(
         os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['CONNECTORS'][connector_dict_key]['PORT']) + "_connector.log"), "r+")
 
-    lines = tail(file, int(_config['CONNECTORS'][connector_dict_key]['INTERVAL']), _config['CONNECTORS'][connector_dict_key]['UID_CLIENT'], _config['CONNECTORS'][connector_dict_key]['UID_SERVER'], _config, "CONNECTORS", connector_dict_key, dict_data_to_send_to_server, threads_n_processes, exit_boolean, iperf3_conn_thread)
+    #lines = tail(file, int(_config['CONNECTORS'][connector_dict_key]['INTERVAL']), _config['CONNECTORS'][connector_dict_key]['UID_CLIENT'], _config['CONNECTORS'][connector_dict_key]['UID_SERVER'], _config, "CONNECTORS", connector_dict_key, dict_data_to_send_to_server, threads_n_processes, exit_boolean, iperf3_conn_thread)
 
     log.info(f"READING LOGS FOR CONNECTOR {connector_dict_key} FROM {file.name} ")
     try:
