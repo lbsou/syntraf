@@ -14,7 +14,7 @@ log = logging.getLogger("syntraf." + __name__)
 #################################################################################
 ### YIELD LINE FROM IPERF3 OUTPUT FILE
 #################################################################################
-def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_key, dict_data_to_send_to_server, threads_n_processes, exit_boolean, iperf_read_log_thread=None):
+def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, dict_data_to_send_to_server, threads_n_processes, exit_boolean, thr_iperf3, iperf_read_log_thread=None):
     utime_last_event = 0
 
     curr_thread = None
@@ -25,11 +25,8 @@ def tail(file, interval, uid_client, uid_server, _config, edge_type, edge_dict_k
 
     try:
         cpt_port_bidir = 0
-        while True:
-            time.sleep(interval/2)
-            file.seek(0)
-            lines = file.read().splitlines()
-            file.truncate()
+        for line in thr_iperf3.subproc.stdout:
+            lines = line.read().splitlines()
 
             if exit_boolean[0]:
                 yield "exit_boolean_true"
@@ -201,28 +198,21 @@ def parse_line_to_array(line, _config, edge_dict_key, edge_type, dict_data_to_se
 #################################################################################
 ### FUNCTION TO READ LISTENERS LOGS
 #################################################################################
-def read_log_listener(listener_dict_key, _config, exit_boolean, dict_data_to_send_to_server, threads_n_processes, thr):
+def read_log_listener(listener_dict_key, _config, exit_boolean, dict_data_to_send_to_server, threads_n_processes, thr_iperf3):
     exit_message = "unknown"
-    # Opening file and using generator
-    pathlib.Path(os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['LISTENERS'][listener_dict_key]['PORT']) + "_listener.log")).touch()
-    file = open(
-        os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['LISTENERS'][listener_dict_key]['PORT']) + "_listener.log"), "r+")
 
-    #lines = tail(file, int(_config['LISTENERS'][listener_dict_key]['INTERVAL']), _config['LISTENERS'][listener_dict_key]['UID_CLIENT'], _config['LISTENERS'][listener_dict_key]['UID_SERVER'], _config, "LISTENERS", listener_dict_key, dict_data_to_send_to_server, threads_n_processes, exit_boolean)
-    log.info(f"READING LOGS FOR LISTENER {listener_dict_key} FROM {file.name} ")
+    lines = tail(int(_config['LISTENERS'][listener_dict_key]['INTERVAL']), _config['LISTENERS'][listener_dict_key]['UID_CLIENT'], _config['LISTENERS'][listener_dict_key]['UID_SERVER'], _config, "LISTENERS", listener_dict_key, dict_data_to_send_to_server, threads_n_processes, exit_boolean, thr_iperf3)
+    log.info(f"READING LOGS FOR LISTENER {listener_dict_key}")
     try:
-        for line in thr.subproc.stdout:
+        for line in lines:
+            if "exit_boolean_true" in line:
+                exit_boolean[0] = True
+
             if exit_boolean[0] or not parse_line_to_array(line, _config, listener_dict_key, "LISTENERS", dict_data_to_send_to_server):
                 break
-        # for line in lines:
-        #     if "exit_boolean_true" in line:
-        #         exit_boolean[0] = True
-            #log.debug(f"TEMP DEBUG {line}")
 
     except Exception as exc:
         log.error(f"read_log:{type(exc).__name__}:{exc}", exc_info=True)
-    finally:
-        file.close()
 
     if exit_boolean:
         exit_message = "EXIT BOOLEAN BECAME TRUE"
@@ -233,32 +223,22 @@ def read_log_listener(listener_dict_key, _config, exit_boolean, dict_data_to_sen
 #################################################################################
 ### FUNCTION TO READ CONNECTORS LOGS
 #################################################################################
-def read_log_connector(connector_dict_key, _config, exit_boolean, dict_data_to_send_to_server, threads_n_processes, iperf3_conn_thread, thr):
+def read_log_connector(connector_dict_key, _config, exit_boolean, dict_data_to_send_to_server, threads_n_processes, iperf3_conn_thread, thr_iperf3):
     exit_message = "unknown"
 
-    # Opening file and using generator
-    pathlib.Path(os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['CONNECTORS'][connector_dict_key]['PORT']) + "_connector.log")).touch()
-    file = open(
-        os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['CONNECTORS'][connector_dict_key]['PORT']) + "_connector.log"), "r+")
+    lines = tail(int(_config['CONNECTORS'][connector_dict_key]['INTERVAL']), _config['CONNECTORS'][connector_dict_key]['UID_CLIENT'], _config['CONNECTORS'][connector_dict_key]['UID_SERVER'], _config, "CONNECTORS", connector_dict_key, dict_data_to_send_to_server, threads_n_processes, exit_boolean, iperf3_conn_thread, thr_iperf3)
 
-    #lines = tail(file, int(_config['CONNECTORS'][connector_dict_key]['INTERVAL']), _config['CONNECTORS'][connector_dict_key]['UID_CLIENT'], _config['CONNECTORS'][connector_dict_key]['UID_SERVER'], _config, "CONNECTORS", connector_dict_key, dict_data_to_send_to_server, threads_n_processes, exit_boolean, iperf3_conn_thread)
-
-    log.info(f"READING LOGS FOR CONNECTOR {connector_dict_key} FROM {file.name} ")
+    log.info(f"READING LOGS FOR CONNECTOR {connector_dict_key}")
     try:
-        for line in thr.subproc.stdout:
+        for line in lines:
+            if "exit_boolean_true" in line:
+                exit_boolean[0] = True
+
             if exit_boolean[0] or not parse_line_to_array(line, _config, connector_dict_key, "CONNECTORS", dict_data_to_send_to_server):
                 break
-        # for line in lines:
-        #     if "exit_boolean_true" in line:
-        #         exit_boolean[0] = True
-        #
-        #     if exit_boolean[0] or not parse_line_to_array(line, _config, connector_dict_key, "CONNECTORS", dict_data_to_send_to_server):
-        #         break
 
     except Exception as exc:
         log.error(f"read_log:{type(exc).__name__}:{exc}", exc_info=True)
-    finally:
-        file.close()
 
     if exit_boolean:
         exit_message = "EXIT BOOLEAN BECAME TRUE. THE CONNECTOR PROBABLY DIED."
