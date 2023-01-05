@@ -198,7 +198,7 @@ def iperf3_client(connector_dict_key, _config):
 #################################################################################
 ### START AN IPERF3 SERVER AS CHILD PROCESS
 #################################################################################
-def iperf3_server(listener_dict_key, _config):
+def iperf3_server_old(listener_dict_key, _config):
     global var_cfg_default_bind_arg
 
     #if "BIND_ADDRESS" in _config['LISTENERS'][listener_dict_key]:
@@ -224,6 +224,53 @@ def iperf3_server(listener_dict_key, _config):
                 arguments += " " + i
 
             p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.DEVNULL)
+            if p.poll() is None:
+                iperf3_listeners_log.warning(
+                    f"IPERF3 SERVER FOR LISTENER '{listener_dict_key}' STARTED ON {_config['LISTENERS'][listener_dict_key]['BIND_ADDRESS']}:{_config['LISTENERS'][listener_dict_key]['PORT']}")
+                return p
+            else:
+                iperf3_listeners_log.error(
+                    f"UNABLE TO START IPERF3 SERVER FOR LISTENER '{listener_dict_key}'")
+
+        except Exception as exc:
+            iperf3_listeners_log.error(f"iperf_server:{type(exc).__name__}:{exc}", exc_info=True)
+    else:
+        iperf3_listeners_log.error(f"iperf_server: port unavailable")
+        sys.exit()
+
+
+#################################################################################
+### START AN IPERF3 SERVER AS CHILD PROCESS
+#################################################################################
+def iperf3_server(listener_dict_key, _config):
+    global var_cfg_default_bind_arg
+
+    #if "BIND_ADDRESS" in _config['LISTENERS'][listener_dict_key]:
+    #    if not _config['LISTENERS'][listener_dict_key]['BIND_ADDRESS'] == "*":
+    #        var_cfg_default_bind_arg = ("-B", _config['LISTENERS'][listener_dict_key]['BIND_ADDRESS'])
+
+    if is_port_available(_config['LISTENERS'][listener_dict_key]['BIND_ADDRESS'], str(_config['LISTENERS'][listener_dict_key]['PORT'])):
+        try:
+            args = (_config['GLOBAL']['IPERF3_BINARY_PATH'], "-s", "-i", _config['LISTENERS'][listener_dict_key]['INTERVAL'],
+                    #var_cfg_default_bind_arg[0], var_cfg_default_bind_arg[1],
+                    "-f", "k",
+                    "--rsa-private-key-path", os.path.join(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'private_key_iperf_client.pem'),
+                    "--authorized-users-path", os.path.join(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'credentials.csv'),
+                    "--time-skew-threshold", _config['GLOBAL']['IPERF3_TIME_SKEW_THRESHOLD'],
+                    "--idle-timeout", DefaultValues.DEFAULT_IPERF3_SERVER_IDLE_TIMEOUT,
+                    "--rcv-timeout", DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT,
+                    "--one-off",
+                    "-p", str(_config['LISTENERS'][listener_dict_key]['PORT']), "--timestamps='%F %T '")
+
+            arguments = ""
+            for i in args:
+                arguments += " " + i
+
+            p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, bufsize=1, universal_newlines=True)
+
+            for line in p.stdout:
+                print(line)
+
             if p.poll() is None:
                 iperf3_listeners_log.warning(
                     f"IPERF3 SERVER FOR LISTENER '{listener_dict_key}' STARTED ON {_config['LISTENERS'][listener_dict_key]['BIND_ADDRESS']}:{_config['LISTENERS'][listener_dict_key]['PORT']}")
