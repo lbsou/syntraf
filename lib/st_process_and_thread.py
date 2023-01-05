@@ -279,7 +279,7 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                                     stop_thread = [False]
                                     thread_run = threading.Thread(target=read_log_listener,
                                                                   args=(
-                                                                  listener, config, stop_thread, dict_data_to_send_to_server, threads_n_processes),
+                                                                  listener, config, stop_thread, dict_data_to_send_to_server, threads_n_processes, thr),
                                                                   daemon=True)
                                     thread_run.daemon = True
                                     thread_run.name = str(listener)
@@ -296,7 +296,7 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                         if not got_a_readlog_instance:
                             # Was never launch, starting the new READLOG thread
                             thread_run = threading.Thread(target=read_log_listener,
-                                                          args=(listener, config, stop_thread, dict_data_to_send_to_server, threads_n_processes),
+                                                          args=(listener, config, stop_thread, dict_data_to_send_to_server, threads_n_processes, thr),
                                                           daemon=True)
                             thread_run.daemon = True
                             thread_run.name = str(listener)
@@ -320,7 +320,7 @@ def thread_read_log(config, connector_key, connector_value, threads_n_processes,
                                   args=(
                                       connector_key, config, stop_thread,
                                       dict_data_to_send_to_server,
-                                      threads_n_processes, iperf3_conn_thread),
+                                      threads_n_processes, iperf3_conn_thread, iperf3_conn_thread),
                                   daemon=True)
     thread_run.daemon = True
     thread_run.name = str(connector_key)

@@ -201,22 +201,24 @@ def parse_line_to_array(line, _config, edge_dict_key, edge_type, dict_data_to_se
 #################################################################################
 ### FUNCTION TO READ LISTENERS LOGS
 #################################################################################
-def read_log_listener(listener_dict_key, _config, exit_boolean, dict_data_to_send_to_server, threads_n_processes):
+def read_log_listener(listener_dict_key, _config, exit_boolean, dict_data_to_send_to_server, threads_n_processes, thr):
     exit_message = "unknown"
     # Opening file and using generator
     pathlib.Path(os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['LISTENERS'][listener_dict_key]['PORT']) + "_listener.log")).touch()
     file = open(
         os.path.join(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "syntraf_" + str(_config['LISTENERS'][listener_dict_key]['PORT']) + "_listener.log"), "r+")
 
-    lines = tail(file, int(_config['LISTENERS'][listener_dict_key]['INTERVAL']), _config['LISTENERS'][listener_dict_key]['UID_CLIENT'], _config['LISTENERS'][listener_dict_key]['UID_SERVER'], _config, "LISTENERS", listener_dict_key, dict_data_to_send_to_server, threads_n_processes, exit_boolean)
+    #lines = tail(file, int(_config['LISTENERS'][listener_dict_key]['INTERVAL']), _config['LISTENERS'][listener_dict_key]['UID_CLIENT'], _config['LISTENERS'][listener_dict_key]['UID_SERVER'], _config, "LISTENERS", listener_dict_key, dict_data_to_send_to_server, threads_n_processes, exit_boolean)
     log.info(f"READING LOGS FOR LISTENER {listener_dict_key} FROM {file.name} ")
     try:
-        for line in lines:
-            if "exit_boolean_true" in line:
-                exit_boolean[0] = True
-            #log.debug(f"TEMP DEBUG {line}")
+        for line in thr.subproc.stdout:
             if exit_boolean[0] or not parse_line_to_array(line, _config, listener_dict_key, "LISTENERS", dict_data_to_send_to_server):
                 break
+        # for line in lines:
+        #     if "exit_boolean_true" in line:
+        #         exit_boolean[0] = True
+            #log.debug(f"TEMP DEBUG {line}")
+
     except Exception as exc:
         log.error(f"read_log:{type(exc).__name__}:{exc}", exc_info=True)
     finally:
@@ -231,7 +233,7 @@ def read_log_listener(listener_dict_key, _config, exit_boolean, dict_data_to_sen
 #################################################################################
 ### FUNCTION TO READ CONNECTORS LOGS
 #################################################################################
-def read_log_connector(connector_dict_key, _config, exit_boolean, dict_data_to_send_to_server, threads_n_processes, iperf3_conn_thread):
+def read_log_connector(connector_dict_key, _config, exit_boolean, dict_data_to_send_to_server, threads_n_processes, iperf3_conn_thread, thr):
     exit_message = "unknown"
 
     # Opening file and using generator
@@ -243,12 +245,15 @@ def read_log_connector(connector_dict_key, _config, exit_boolean, dict_data_to_s
 
     log.info(f"READING LOGS FOR CONNECTOR {connector_dict_key} FROM {file.name} ")
     try:
-        for line in lines:
-            if "exit_boolean_true" in line:
-                exit_boolean[0] = True
-
+        for line in thr.subproc.stdout:
             if exit_boolean[0] or not parse_line_to_array(line, _config, connector_dict_key, "CONNECTORS", dict_data_to_send_to_server):
                 break
+        # for line in lines:
+        #     if "exit_boolean_true" in line:
+        #         exit_boolean[0] = True
+        #
+        #     if exit_boolean[0] or not parse_line_to_array(line, _config, connector_dict_key, "CONNECTORS", dict_data_to_send_to_server):
+        #         break
 
     except Exception as exc:
         log.error(f"read_log:{type(exc).__name__}:{exc}", exc_info=True)

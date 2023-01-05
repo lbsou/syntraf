@@ -268,9 +268,6 @@ def iperf3_server(listener_dict_key, _config):
 
             p = subprocess.Popen(args, close_fds=True, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, bufsize=1, universal_newlines=True)
 
-            for line in p.stdout:
-                print(line)
-
             if p.poll() is None:
                 iperf3_listeners_log.warning(
                     f"IPERF3 SERVER FOR LISTENER '{listener_dict_key}' STARTED ON {_config['LISTENERS'][listener_dict_key]['BIND_ADDRESS']}:{_config['LISTENERS'][listener_dict_key]['PORT']}")
