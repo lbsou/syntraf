@@ -117,6 +117,9 @@ def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, di
                         utime_last_event = utime_now
                 continue
 
+    except ValueError as exc:
+        #I/O operation on closed file
+        exit_boolean[0] = True
     except Exception as exc:
         log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
 
