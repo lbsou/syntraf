@@ -25,7 +25,6 @@ def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, di
 
     while thr_iperf3.subproc.stdout is None:
         time.sleep(1)
-        print("asd")
         if thr_iperf3.subproc.stdout:
             break
 
