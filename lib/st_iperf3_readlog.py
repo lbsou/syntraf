@@ -207,12 +207,12 @@ def read_log_listener(listener_dict_key, _config, exit_boolean, dict_data_to_sen
     lines = tail(int(_config['LISTENERS'][listener_dict_key]['INTERVAL']), _config['LISTENERS'][listener_dict_key]['UID_CLIENT'], _config['LISTENERS'][listener_dict_key]['UID_SERVER'], _config, "LISTENERS", listener_dict_key, dict_data_to_send_to_server, threads_n_processes, exit_boolean, thr_iperf3)
     log.info(f"READING LOGS FOR LISTENER {listener_dict_key}")
     try:
-        for line in lines:
-            if "exit_boolean_true" in line:
-                exit_boolean[0] = True
-
+        while True:
+            line = next(lines)
             if exit_boolean[0] or not parse_line_to_array(line, _config, listener_dict_key, "LISTENERS", dict_data_to_send_to_server):
                 break
+            parse_line_to_array(line, _config, listener_dict_key, "CONNECTORS", dict_data_to_send_to_server)
+            time.sleep(0.125)
 
     except Exception as exc:
         log.error(f"read_log:{type(exc).__name__}:{exc}", exc_info=True)
@@ -220,7 +220,7 @@ def read_log_listener(listener_dict_key, _config, exit_boolean, dict_data_to_sen
     if exit_boolean:
         exit_message = "EXIT BOOLEAN BECAME TRUE"
 
-    log.error(f"THREAD READ_LOG FOR {listener_dict_key} TERMINATED. Exit message: {exit_message}")
+    log.error(f"THREAD READ_LOG FOR {listener_dict_key} TERMINATED. EXIT MESSAGE: {exit_message}")
 
 
 #################################################################################
@@ -233,12 +233,12 @@ def read_log_connector(connector_dict_key, _config, exit_boolean, dict_data_to_s
 
     log.info(f"READING LOGS FOR CONNECTOR {connector_dict_key}")
     try:
-        for line in lines:
-            if "exit_boolean_true" in line:
-                exit_boolean[0] = True
-
+        while True:
+            line = next(lines)
             if exit_boolean[0] or not parse_line_to_array(line, _config, connector_dict_key, "CONNECTORS", dict_data_to_send_to_server):
                 break
+            parse_line_to_array(line, _config, connector_dict_key, "CONNECTORS", dict_data_to_send_to_server)
+            time.sleep(0.125)
 
     except Exception as exc:
         log.error(f"read_log:{type(exc).__name__}:{exc}", exc_info=True)
@@ -246,4 +246,4 @@ def read_log_connector(connector_dict_key, _config, exit_boolean, dict_data_to_s
     if exit_boolean:
         exit_message = "EXIT BOOLEAN BECAME TRUE. THE CONNECTOR PROBABLY DIED."
 
-    log.error(f"READ_LOG FOR {connector_dict_key} TERMINATED. Exit message: {exit_message}")
+    log.error(f"READ_LOG FOR {connector_dict_key} TERMINATED. EXIT MESSAGE:  {exit_message}")

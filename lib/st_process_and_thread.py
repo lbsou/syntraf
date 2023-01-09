@@ -353,6 +353,7 @@ def thread_udp_hole(config, connector_key, connector_value, threads_n_processes,
     threads_n_processes.append(thread_or_process)
     thread_run.start()
 
+
 # Validate if a st_obj_process_n_thread exist in the thread dict that correspond to the instance_type and the key provided
 def st_obj_process_n_thread_exist(threads_n_processes, instance_type, connector_key):
     for thr in threads_n_processes:
@@ -389,7 +390,6 @@ def start_iperf3_client(config, connector_key, connector_value, threads_n_proces
 
 def iperf3_client_print_last_breath(connector_key, threads_n_processes, thr_temp):
     last_breath = thr_temp.subproc.communicate()[1]
-    #last_breath = thr_temp.subproc.communicate()[1].decode('utf-8')
     thr_temp.subproc.stderr.close()
     last_breath = last_breath.replace("\r", "")
     last_breath = last_breath.replace("\n", "")
