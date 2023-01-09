@@ -208,10 +208,12 @@ def read_log_listener(listener_dict_key, _config, exit_boolean, dict_data_to_sen
     log.info(f"READING LOGS FOR LISTENER {listener_dict_key}")
     try:
         while True:
-            line = next(lines)
-            if exit_boolean[0] or not parse_line_to_array(line, _config, listener_dict_key, "LISTENERS", dict_data_to_send_to_server):
+            if exit_boolean[0]:
                 break
-            parse_line_to_array(line, _config, listener_dict_key, "CONNECTORS", dict_data_to_send_to_server)
+            line = next(lines, None)
+            if line:
+                if not parse_line_to_array(line, _config, listener_dict_key, "LISTENERS", dict_data_to_send_to_server):
+                    break
             time.sleep(0.125)
 
     except Exception as exc:
@@ -234,10 +236,12 @@ def read_log_connector(connector_dict_key, _config, exit_boolean, dict_data_to_s
     log.info(f"READING LOGS FOR CONNECTOR {connector_dict_key}")
     try:
         while True:
-            line = next(lines)
-            if exit_boolean[0] or not parse_line_to_array(line, _config, connector_dict_key, "CONNECTORS", dict_data_to_send_to_server):
+            if exit_boolean[0]:
                 break
-            parse_line_to_array(line, _config, connector_dict_key, "CONNECTORS", dict_data_to_send_to_server)
+            line = next(lines, None)
+            if line:
+                if not parse_line_to_array(line, _config, connector_dict_key, "CONNECTORS", dict_data_to_send_to_server):
+                    break
             time.sleep(0.125)
 
     except Exception as exc:
