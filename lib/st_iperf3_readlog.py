@@ -209,18 +209,16 @@ def read_log_listener(listener_dict_key, _config, exit_boolean, dict_data_to_sen
     try:
         while True:
             if exit_boolean[0]:
+                exit_message = "EXIT BOOLEAN BECAME TRUE"
                 break
             line = next(lines, None)
             if line:
                 if not parse_line_to_array(line, _config, listener_dict_key, "LISTENERS", dict_data_to_send_to_server):
                     break
-            time.sleep(0.125)
+            time.sleep(1)
 
     except Exception as exc:
         log.error(f"read_log:{type(exc).__name__}:{exc}", exc_info=True)
-
-    if exit_boolean:
-        exit_message = "EXIT BOOLEAN BECAME TRUE"
 
     log.error(f"THREAD READ_LOG FOR {listener_dict_key} TERMINATED. EXIT MESSAGE: {exit_message}")
 
@@ -237,17 +235,15 @@ def read_log_connector(connector_dict_key, _config, exit_boolean, dict_data_to_s
     try:
         while True:
             if exit_boolean[0]:
+                exit_message = "EXIT BOOLEAN BECAME TRUE. THE CONNECTOR PROBABLY DIED."
                 break
             line = next(lines, None)
             if line:
                 if not parse_line_to_array(line, _config, connector_dict_key, "CONNECTORS", dict_data_to_send_to_server):
                     break
-            time.sleep(0.125)
+            time.sleep(1)
 
     except Exception as exc:
         log.error(f"read_log:{type(exc).__name__}:{exc}", exc_info=True)
-
-    if exit_boolean:
-        exit_message = "EXIT BOOLEAN BECAME TRUE. THE CONNECTOR PROBABLY DIED."
 
     log.error(f"READ_LOG FOR {connector_dict_key} TERMINATED. EXIT MESSAGE:  {exit_message}")
