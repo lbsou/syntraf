@@ -1,4 +1,4 @@
-#*.py    linguist-language=Python
+*.py    linguist-language=Python
 crypto/* linguist-vendored
 doc/* linguist-vendored
 etc/* linguist-vendored
