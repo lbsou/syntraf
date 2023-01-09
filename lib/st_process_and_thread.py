@@ -388,7 +388,8 @@ def start_iperf3_client(config, connector_key, connector_value, threads_n_proces
 
 
 def iperf3_client_print_last_breath(connector_key, threads_n_processes, thr_temp):
-    last_breath = thr_temp.subproc.communicate()[1].decode('utf-8')
+    last_breath = thr_temp.subproc.communicate()[1]
+    #last_breath = thr_temp.subproc.communicate()[1].decode('utf-8')
     thr_temp.subproc.stderr.close()
     last_breath = last_breath.replace("\r", "")
     last_breath = last_breath.replace("\n", "")
