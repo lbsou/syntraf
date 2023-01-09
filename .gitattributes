@@ -1,0 +1,8 @@
+*.py    linguist-language=Python
+crypto/* linguist-vendored
+doc/* linguist-vendored
+etc/* linguist-vendored
+lib/web_ui/* linguist-vendored
+lib/web_ui/static/* linguist-vendored
+lib/web_ui_kindafixed2/static/* linguist-vendored
+lib/webui_kindafixed/static/* linguist-vendored
