@@ -167,7 +167,7 @@ def iperf3_client(connector_dict_key, _config):
         #print(args)
         #print(_config['CLIENT']['IPERF3_PASSWORD'])
 
-        p = subprocess.Popen(args, close_fds=True, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, bufsize=1, universal_newlines=True, env=env_var)
+        p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, bufsize=1, universal_newlines=True, env=env_var)
 
         #time.sleep(int(DefaultValues.DEFAULT_IPERF3_CONNECT_TIMEOUT)/1000 + 2)
 
@@ -219,7 +219,7 @@ def iperf3_server(listener_dict_key, _config):
             for i in args:
                 arguments += " " + i
 
-            p = subprocess.Popen(args, close_fds=True, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, bufsize=1, universal_newlines=True)
+            p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, bufsize=1, universal_newlines=True)
 
             if p.poll() is None:
                 iperf3_listeners_log.warning(
