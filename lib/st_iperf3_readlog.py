@@ -77,8 +77,7 @@ def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, di
                 for obj_thread_n_process in threads_n_processes:
                     if obj_thread_n_process.name == edge_dict_key and (obj_thread_n_process.syntraf_instance_type == "LISTENER" or obj_thread_n_process.syntraf_instance_type == "CONNECTOR"):
                         flag_no_thread_found = False
-                        dt_delta = datetime.now() - datetime.strptime(obj_thread_n_process.starttime,
-                                                                                        "%d/%m/%Y %H:%M:%S")
+                        dt_delta = datetime.now() - obj_thread_n_process.starttime
                         if dt_delta.total_seconds() <= 60:
                             listener_just_started_or_absent = True
 
