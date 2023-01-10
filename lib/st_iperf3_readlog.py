@@ -37,11 +37,12 @@ def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, di
                 exit_message = "EXIT BOOLEAN BECAME TRUE. THE CONNECTOR PROBABLY DIED."
                 break
             line = next(thr_iperf3.subproc.stdout, None)
+            log.debug(f"LINE {edge_dict_key} {repr(line)}")
 
             values = line.split(" ")
 
             if line:
-                log.debug(f"LINE {edge_dict_key} {line}")
+
                 if (len(values) >= 20 and ("omitted" not in line) and ("terminated" not in line) and (
                         "Interval" not in line) and ("receiver" not in line) and ("------------" not in line) and (
                         "- - - - - - - - -" not in line)):
