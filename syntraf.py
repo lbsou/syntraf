@@ -200,7 +200,7 @@ def run():
             minutes_since_start = divmod(since_start.total_seconds(), 60)
             since_last = datetime.now() - thr.last_activity
             minutes_since_last = divmod(since_last.total_seconds(), 60)
-            lst_thread.append([thr.name, thr.syntraf_instance_type, thr.pid, thr.getstatus(), thr.starttime.strftime("%d/%m/%Y %H:%M:%S"), f"{minutes_since_start[0]}m {round(minutes_since_start[1])}s", thr.last_activity, f"{minutes_since_last[0]}m {round(minutes_since_last[1])}s", thr.port, thr.bidir_src_port, thr.bidir_local_addr, thr.line_read, thr.packet_sent])
+            lst_thread.append([thr.name, thr.syntraf_instance_type, thr.getpid(), thr.getstatus(), thr.starttime.strftime("%d/%m/%Y %H:%M:%S"), f"{minutes_since_start[0]}m {round(minutes_since_start[1])}s", thr.last_activity, f"{minutes_since_last[0]}m {round(minutes_since_last[1])}s", thr.port, thr.bidir_src_port, thr.bidir_local_addr, thr.line_read, thr.packet_sent])
         f.write(tabulate(lst_thread))
         f.write("\n")
         f.close()

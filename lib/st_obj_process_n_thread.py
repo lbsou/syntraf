@@ -12,7 +12,6 @@ class st_obj_process_n_thread:
             self.group = kwargs['group']
             self.opposite_side = kwargs['opposite_side']
             self.port = kwargs['port']
-            self.pid = self.subproc.pid
             self.bidir_src_port = None
             self.bidir_local_addr = None
             self.line_read = None
@@ -28,7 +27,6 @@ class st_obj_process_n_thread:
             self.group = kwargs['group']
             self.opposite_side = kwargs['opposite_side']
             self.port = kwargs['port']
-            self.pid = self.thread_obj.native_id
             self.bidir_src_port = None
             self.bidir_local_addr = None
             self.line_read = None
@@ -40,21 +38,36 @@ class st_obj_process_n_thread:
 
     def __str__(self):
         if self.syntraf_instance_type == "CONNECTOR":
-            return f"name: {self.name}, syntraf_instance_type: {self.syntraf_instance_type}, pid: {self.pid}, running: {self.getstatus()}, bidir_src_port: {self.bidir_src_port}"
+            return f"name: {self.name}, syntraf_instance_type: {self.syntraf_instance_type}, running: {self.getstatus()}, bidir_src_port: {self.bidir_src_port}"
         else:
-            return f"name: {self.name}, syntraf_instance_type: {self.syntraf_instance_type}, pid: {self.pid}, running: {self.getstatus()}"
+            return f"name: {self.name}, syntraf_instance_type: {self.syntraf_instance_type}, running: {self.getstatus()}"
 
     def asjson(self):
         return {'starttime': self.starttime, 'syntraf_instance_type': self.syntraf_instance_type, 'group': self.group, 'opposite_side': self.opposite_side, 'listener_port': self.port}
 
     def getstatus(self):
         if hasattr(self, 'subproc'):
-            if self.subproc.poll() is None:
-                return True
+            if self.subproc:
+                if self.subproc.poll() is None:
+                    return True
+                else:
+                    return False
             else:
                 return False
         elif hasattr(self, 'thread_obj'):
             return self.thread_obj.is_alive()
+
+    def getpid(self):
+        if hasattr(self, 'subproc'):
+            if self.subproc:
+                if self.subproc.poll() is None:
+                    return self.subproc.pid
+                else:
+                    return 0
+            else:
+                return 0
+        elif hasattr(self, 'thread_obj'):
+            return self.thread_obj.native_id
 
     def close(self):
         if hasattr(self, 'subproc'):

@@ -2,6 +2,7 @@ from lib.st_global import DefaultValues
 from lib.st_crypto import *
 from lib.st_conf_validation import is_port_available, validate_ipv4
 from lib.st_global import DefaultValues
+from lib.st_process_and_thread import thread_read_log, thread_udp_hole, get_current_obj_proc_n_thread
 import subprocess
 import sys
 import logging
@@ -23,21 +24,18 @@ iperf3_listeners_log = logging.getLogger("syntraf." + "lib.st_iperf3_listeners")
 
 # Find the ephemeral port iperf3 is using for the incoming connection in bidirectional mode then send a packet
 # to the other side with the right src and dst port to keep alive the udp hole punch.
-def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector, threads_n_processes):
+def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector_key, threads_n_processes):
     exit_message = ""
     iperf3_pid = iperf3_conn_thread.subproc.pid
 
     # Find current thread to update packet sent in the st_obj_process_n_thread object
-    curr_thread = None
-    for thr in threads_n_processes:
-        if thr.name == connector and thr.syntraf_instance_type == "UDP_HOLE":
-            curr_thread = thr
+    curr_thread = get_current_obj_proc_n_thread(threads_n_processes, connector_key, "UDP_HOLE")
     curr_thread.packet_sent = 0
     curr_thread.pid = curr_thread.thread_obj.native_id
 
     # Waiting for the READ_LOG thread to obtain the source port
     while iperf3_conn_thread.bidir_src_port == 0 and not exit_boolean[0]:
-        iperf3_connectors_log.debug(f"UDP_HOLE_PUNCH FOR {connector}, IPERF3 PROCESS ID: '{iperf3_pid}' IS WAITING FOR A PORT:{iperf3_conn_thread.bidir_src_port}")
+        iperf3_connectors_log.debug(f"UDP_HOLE_PUNCH FOR {connector_key}, IPERF3 PROCESS ID: '{iperf3_pid}' IS WAITING FOR A PORT:{iperf3_conn_thread.bidir_src_port}")
         time.sleep(1)
 
     # Hostname resolution
@@ -116,30 +114,33 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
     if exit_boolean[0]:
         exit_message = "EXIT BOOLEAN BECAME TRUE, THE CONNECTOR PROBABLY DIED."
 
-    iperf3_connectors_log.error(f"UDP_HOLE FOR {connector}, IPERF3 PROCESS ID: '{iperf3_pid}' TERMINATED. EXIT MESSAGE: {exit_message}")
+    iperf3_connectors_log.error(f"UDP_HOLE FOR {connector_key}, IPERF3 PROCESS ID: '{iperf3_pid}' TERMINATED. EXIT MESSAGE: {exit_message}")
 
 
 #################################################################################
 ### START AN IPERF3 CLIENT AS CHILD PROCESS
 #################################################################################
-def iperf3_client(connector_dict_key, _config):
+def iperf3_client(config, connector_key, connector_value, threads_n_processes, dict_data_to_send_to_server):
     try:
+        iperf3_conn_thread = get_current_obj_proc_n_thread(threads_n_processes, connector_key, "CONNECTOR")
+
         env_var = os.environ
-        env_var['IPERF3_PASSWORD'] = _config['CLIENT']['IPERF3_PASSWORD']
+        env_var['IPERF3_PASSWORD'] = config['CLIENT']['IPERF3_PASSWORD']
         # print(_config['CLIENT']['IPERF3_PASSWORD'])
         # DEBUG
         # subprocess.call(shlex.split("echo %IPERF3_PASSWORD%"), shell=True, env=env_var)
 
-        if _config['CONNECTORS'][connector_dict_key]['BIDIR']:
+        if config['CONNECTORS'][connector_key]['BIDIR']:
             bidir_arg = "--bidir"
-            iperf3_connectors_log.debug(f"{connector_dict_key} - BIDIRECTIONAL MODE ACTIVATED")
+            iperf3_connectors_log.debug(f"{connector_key} - BIDIRECTIONAL MODE ACTIVATED")
         else:
             bidir_arg = ""
 
         valid_ip = False
+        ip_address = None
         while not valid_ip:
             try:
-                ip_address = socket.gethostbyname(socket.gethostbyname(_config['CONNECTORS'][connector_dict_key]['DESTINATION_ADDRESS']))
+                ip_address = socket.gethostbyname(socket.gethostbyname(config['CONNECTORS'][connector_key]['DESTINATION_ADDRESS']))
                 if validate_ipv4(ip_address):
                     valid_ip = True
             except socket.gaierror as e:
@@ -148,16 +149,16 @@ def iperf3_client(connector_dict_key, _config):
             time.sleep(1)
 
         args = (
-            _config['GLOBAL']['IPERF3_BINARY_PATH'], "-u", "-l",
-            _config['CONNECTORS'][connector_dict_key]['PACKET_SIZE'], "-c",
+            config['GLOBAL']['IPERF3_BINARY_PATH'], "-u", "-l",
+            config['CONNECTORS'][connector_key]['PACKET_SIZE'], "-c",
             ip_address, "-t", "0", "-b",
-            _config['CONNECTORS'][connector_dict_key]['BANDWIDTH'],
-            "--udp-counters-64bit", "--connect-timeout=" + DefaultValues.DEFAULT_IPERF3_CONNECT_TIMEOUT, "--dscp", _config['CONNECTORS'][connector_dict_key]['DSCP'],
+            config['CONNECTORS'][connector_key]['BANDWIDTH'],
+            "--udp-counters-64bit", "--connect-timeout=" + DefaultValues.DEFAULT_IPERF3_CONNECT_TIMEOUT, "--dscp", config['CONNECTORS'][connector_key]['DSCP'],
             "--pacing-timer", "12000",
-            "--username", _config['CLIENT']['IPERF3_USERNAME'],
-            "--rsa-public-key-path", os.path.join(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'public_key_iperf_client.pem'),
+            "--username", config['CLIENT']['IPERF3_USERNAME'],
+            "--rsa-public-key-path", os.path.join(config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'public_key_iperf_client.pem'),
             "--connect-timeout", DefaultValues.DEFAULT_IPERF3_CLIENT_CONNECT_TIMEOUT,
-            "-f", "k", "-p", str(_config['CONNECTORS'][connector_dict_key]['PORT']), "--timestamps='%F %T '",
+            "-f", "k", "-p", str(config['CONNECTORS'][connector_key]['PORT']), "--timestamps='%F %T '",
             bidir_arg, "--forceflush")
 
         arguments = ""
@@ -168,12 +169,18 @@ def iperf3_client(connector_dict_key, _config):
         #print(_config['CLIENT']['IPERF3_PASSWORD'])
 
         p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, bufsize=1, universal_newlines=True, env=env_var)
+        iperf3_conn_thread.subproc = p
 
         #time.sleep(int(DefaultValues.DEFAULT_IPERF3_CONNECT_TIMEOUT)/1000 + 2)
 
         if p.poll() is None:
-            iperf3_connectors_log.warning(f"IPERF3 CLIENT FOR CONNECTOR '{connector_dict_key}' STARTED WITH SERVER {_config['CONNECTORS'][connector_dict_key]['DESTINATION_ADDRESS']}:{_config['CONNECTORS'][connector_dict_key]['PORT']} {arguments}")
-            return p
+
+            if config['CONNECTORS'][connector_key]['BIDIR']:
+                # Make sure we have udp_hole punching and read_log thread for each bidir connector
+                thread_udp_hole(config, connector_key, connector_value, threads_n_processes, iperf3_conn_thread)
+                thread_read_log(config, connector_key, connector_value, threads_n_processes, iperf3_conn_thread, dict_data_to_send_to_server)
+
+            iperf3_connectors_log.warning(f"IPERF3 CLIENT FOR CONNECTOR '{connector_key}' STARTED WITH SERVER {config['CONNECTORS'][connector_key]['DESTINATION_ADDRESS']}:{config['CONNECTORS'][connector_key]['PORT']} {arguments}")
         else:
             #p.stderr.close()
             last_breath = p.communicate()[1].decode('utf-8')
@@ -181,30 +188,27 @@ def iperf3_client(connector_dict_key, _config):
             explanation = "UNKNOWN"
             if "unable to connect to server: No route to host" in last_breath:
                 explanation = "CLIENT FIREWALL"
-            iperf3_connectors_log.error(f"UNABLE TO START IPERF3 CLIENT FOR CONNECTOR '{connector_dict_key}' : IPERF3 LAST BREATH : {last_breath}")
+            iperf3_connectors_log.error(f"UNABLE TO START IPERF3 CLIENT FOR CONNECTOR '{connector_key}' : IPERF3 LAST BREATH : {last_breath}")
             iperf3_connectors_log.error(f"PROBABLE EXPLANATION: {explanation}")
-            iperf3_connectors_log.error(f"IPERF3 CLIENT FOR {connector_dict_key} TERMINATED")
-
-            return None
+            iperf3_connectors_log.error(f"IPERF3 CLIENT FOR {connector_key} TERMINATED")
 
     except Exception as exc:
         iperf3_connectors_log.error(f"iperf_client:{type(exc).__name__}:{exc}", exc_info=True)
-        return None
 
 
 #################################################################################
 ### START AN IPERF3 SERVER AS CHILD PROCESS
 #################################################################################
-def iperf3_server(listener_dict_key, _config):
+def iperf3_server(listener_key, _config):
     global var_cfg_default_bind_arg
 
     #if "BIND_ADDRESS" in _config['LISTENERS'][listener_dict_key]:
     #    if not _config['LISTENERS'][listener_dict_key]['BIND_ADDRESS'] == "*":
     #        var_cfg_default_bind_arg = ("-B", _config['LISTENERS'][listener_dict_key]['BIND_ADDRESS'])
 
-    if is_port_available(_config['LISTENERS'][listener_dict_key]['BIND_ADDRESS'], str(_config['LISTENERS'][listener_dict_key]['PORT'])):
+    if is_port_available(_config['LISTENERS'][listener_key]['BIND_ADDRESS'], str(_config['LISTENERS'][listener_key]['PORT'])):
         try:
-            args = (_config['GLOBAL']['IPERF3_BINARY_PATH'], "-s", "-i", _config['LISTENERS'][listener_dict_key]['INTERVAL'],
+            args = (_config['GLOBAL']['IPERF3_BINARY_PATH'], "-s", "-i", _config['LISTENERS'][listener_key]['INTERVAL'],
                     #var_cfg_default_bind_arg[0], var_cfg_default_bind_arg[1],
                     "-f", "k", "--forceflush",
                     "--rsa-private-key-path", os.path.join(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'private_key_iperf_client.pem'),
@@ -213,7 +217,7 @@ def iperf3_server(listener_dict_key, _config):
                     "--idle-timeout", DefaultValues.DEFAULT_IPERF3_SERVER_IDLE_TIMEOUT,
                     "--rcv-timeout", DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT,
                     "--one-off",
-                    "-p", str(_config['LISTENERS'][listener_dict_key]['PORT']), "--timestamps='%F %T '")
+                    "-p", str(_config['LISTENERS'][listener_key]['PORT']), "--timestamps='%F %T '")
 
             arguments = ""
             for i in args:
@@ -223,14 +227,15 @@ def iperf3_server(listener_dict_key, _config):
 
             if p.poll() is None:
                 iperf3_listeners_log.warning(
-                    f"IPERF3 SERVER FOR LISTENER '{listener_dict_key}' STARTED ON PORT {_config['LISTENERS'][listener_dict_key]['PORT']}")
+                    f"IPERF3 SERVER FOR LISTENER '{listener_key}' STARTED ON PORT {_config['LISTENERS'][listener_key]['PORT']}")
                 return p
             else:
                 iperf3_listeners_log.error(
-                    f"UNABLE TO START IPERF3 SERVER FOR LISTENER '{listener_dict_key}'")
+                    f"UNABLE TO START IPERF3 SERVER FOR LISTENER '{listener_key}'")
 
         except Exception as exc:
             iperf3_listeners_log.error(f"iperf_server:{type(exc).__name__}:{exc}", exc_info=True)
     else:
         iperf3_listeners_log.error(f"iperf_server: port unavailable")
         sys.exit()
+
