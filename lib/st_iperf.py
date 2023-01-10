@@ -223,7 +223,7 @@ def iperf3_server(listener_dict_key, _config):
 
             if p.poll() is None:
                 iperf3_listeners_log.warning(
-                    f"IPERF3 SERVER FOR LISTENER '{listener_dict_key}' STARTED ON {_config['LISTENERS'][listener_dict_key]['BIND_ADDRESS']}:{_config['LISTENERS'][listener_dict_key]['PORT']}")
+                    f"IPERF3 SERVER FOR LISTENER '{listener_dict_key}' STARTED ON PORT {_config['LISTENERS'][listener_dict_key]['PORT']}")
                 return p
             else:
                 iperf3_listeners_log.error(
