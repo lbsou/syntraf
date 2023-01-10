@@ -3,12 +3,9 @@ import copy
 
 from lib.st_global import DefaultValues
 from lib.st_mesh import *
-from lib.st_iperf import *
 from lib.st_obj_process_n_thread import *
 from lib.st_conf_validation import *
-from lib.st_iperf3_readlog import *
 from lib.st_system_stats import *
-
 
 # SYNTRAF SERVER IMPORT
 if not CompilationOptions.client_only:
@@ -315,12 +312,14 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
 
 
 def thread_read_log(config, connector_key, connector_value, threads_n_processes, iperf3_conn_thread, dict_data_to_send_to_server):
+    from lib.st_iperf3_readlog import read_log_connector
+
     stop_thread = [False]
     thread_run = threading.Thread(target=read_log_connector,
                                   args=(
                                       connector_key, config, stop_thread,
                                       dict_data_to_send_to_server,
-                                      threads_n_processes, iperf3_conn_thread, iperf3_conn_thread),
+                                      threads_n_processes, iperf3_conn_thread),
                                   daemon=True)
     thread_run.daemon = True
     thread_run.name = str(connector_key)
@@ -335,6 +334,7 @@ def thread_read_log(config, connector_key, connector_value, threads_n_processes,
 
 
 def thread_udp_hole(config, connector_key, connector_value, threads_n_processes, iperf3_conn_thread):
+    from lib.st_iperf import udp_hole_punch
     exit_boolean = [False]
 
     thread_run = threading.Thread(target=udp_hole_punch,
@@ -364,25 +364,18 @@ def st_obj_process_n_thread_exist(threads_n_processes, instance_type, connector_
 
 # Launch the iperf3_client and add the subproc to threads_n_processes dict of st_obj_process_n_thread
 def start_iperf3_client(config, connector_key, connector_value, threads_n_processes, dict_data_to_send_to_server):
+    from lib.st_iperf import iperf3_client
     try:
         # If this is a dynamic IP client, do not start a connector until we have the IP address of the listener
         if config['CONNECTORS'][connector_key]['DESTINATION_ADDRESS'] != "0.0.0.0":
-            iperf3_conn_thread = st_obj_process_n_thread(subproc=iperf3_client(connector_key, config), name=connector_key,
+            iperf3_conn_thread = st_obj_process_n_thread(subproc=None, name=connector_key,
                                                         syntraf_instance_type="CONNECTOR",
                                                         starttime=datetime.now(),
                                                         opposite_side=connector_value['UID_SERVER'],
                                                         group=connector_value['MESH_GROUP'], port=connector_value['PORT'],
                                                         bidir_src_port=0, bidir_local_addr="")
-
-            # It is possible that the process failed on start, in that case, do not add the object to the dict
-            #time.sleep(5)
-            #if iperf3_conn_thread.subproc:
             threads_n_processes.append(iperf3_conn_thread)
-
-            # Make sure we have udp_hole punching and read_log thread for each bidir connector
-            if config['CONNECTORS'][connector_key]['BIDIR']:
-                thread_udp_hole(config, connector_key, connector_value, threads_n_processes, iperf3_conn_thread)
-                thread_read_log(config, connector_key, connector_value, threads_n_processes, iperf3_conn_thread, dict_data_to_send_to_server)
+            iperf3_client(config, connector_key, connector_value, threads_n_processes, dict_data_to_send_to_server)
 
     except Exception as exc:
         log.error(f"{type(exc).__name__}:{exc}", exc_info=True)
@@ -393,9 +386,7 @@ def iperf3_client_print_last_breath(connector_key, threads_n_processes, thr_temp
     thr_temp.subproc.stderr.close()
     last_breath = last_breath.replace("\r", "")
     last_breath = last_breath.replace("\n", "")
-    log.warning(
-        f"IPERF3 CLIENT OF CONNECTOR '{connector_key}' DIED OR NEVER START. LAST BREATH : '{last_breath.upper()}'")
-
+    log.warning(f"IPERF3 CLIENT OF CONNECTOR '{connector_key}' DIED OR NEVER START. LAST BREATH : '{last_breath.upper()}'")
     threads_n_processes.remove(thr_temp)
 
 
@@ -416,35 +407,13 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
                 else:
                     # The subproc is not running
                     if not thr_temp.getstatus():
-                        terminate_connector(threads_n_processes, connector_key, thr_temp, config)
+                        # Print the last breath and remove from threads_n_processes dict
+                        iperf3_client_print_last_breath(connector_key, threads_n_processes, thr_temp)
+
                         # starting the new iperf3 connector. Also start udp_hole and read_log if this is a bidirectionnal connection
                         start_iperf3_client(config, connector_key, connector_value, threads_n_processes, dict_data_to_send_to_server)
     except Exception as exc:
         log.error(f"manage_connectors_process:{type(exc).__name__}:{exc}", exc_info=True)
-
-
-def terminate_connector(threads_n_processes, connector_key, thr_temp, config):
-    """
-    This function is called when we need to remove a connector. Either because we received non defined IP (see st_mesh.py), which mean the
-    CLIENT on the other end was disconnected from SERVER, or when there is failure establishing a connection between the CONNECTOR and the LISTENER
-    :param threads_n_processes: Dictionnary of st_obj_process_n_thread where we have all our thread and subproc
-    :param connector_key: The unique key of the connector
-    :param thr_temp : The actual thread we want to remove
-    :param config : The configuration of syntraf
-    """
-    # If the connector is dead, send signal to terminate udp_hole and readlog instances and remove them from threads_n_processes dict
-    if config['CONNECTORS'][connector_key]['BIDIR']:
-        copy_threads_n_processes = copy(threads_n_processes)
-        for thread_to_kill in copy_threads_n_processes:
-            if thread_to_kill.syntraf_instance_type == "UDP_HOLE" and thread_to_kill.name == connector_key:
-                thread_to_kill.exit_boolean[0] = True
-                threads_n_processes.remove(thread_to_kill)
-            if thread_to_kill.syntraf_instance_type == "READ_LOG" and thread_to_kill.name == connector_key:
-                thread_to_kill.exit_boolean[0] = True
-                threads_n_processes.remove(thread_to_kill)
-
-    # Print the last breath and remove from threads_n_processes dict
-    iperf3_client_print_last_breath(connector_key, threads_n_processes, thr_temp)
 
 
 #################################################################################
@@ -456,3 +425,11 @@ def kill_processes(subprocess_iperf_dict):
         os.kill(subprocess_iperf_dict[f].pid, signal.SIGTERM)
 
 
+#################################################################################
+### RETURN THE st_obj_process_n_thread FROM THE threads_n_processes dict
+#################################################################################
+def get_current_obj_proc_n_thread(threads_n_processes, key, type):
+    # Find current thread to update packet sent in the st_obj_process_n_thread object
+    for thr in threads_n_processes:
+        if thr.name == key and thr.syntraf_instance_type == type:
+            return thr

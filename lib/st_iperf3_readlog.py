@@ -14,14 +14,14 @@ log = logging.getLogger("syntraf." + __name__)
 #################################################################################
 ### YIELD LINE FROM IPERF3 OUTPUT FILE
 #################################################################################
-def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, dict_data_to_send_to_server, threads_n_processes, exit_boolean, thr_iperf3, iperf_read_log_thread=None):
+def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, dict_data_to_send_to_server, threads_n_processes, exit_boolean, thr_iperf3):
     utime_last_event = 0
 
-    curr_thread = None
+    thr_iperf3_readlog = None
     for thr in threads_n_processes:
         if thr.name == edge_dict_key and thr.syntraf_instance_type == "READ_LOG":
-            curr_thread = thr
-    curr_thread.line_read = 0
+            thr_iperf3_readlog = thr
+    thr_iperf3_readlog.line_read = 0
 
     while thr_iperf3.subproc.stdout is None:
         time.sleep(1)
@@ -33,22 +33,18 @@ def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, di
 
         while True:
             time.sleep(0.1)
-            if exit_boolean[0]:
-                exit_message = "EXIT BOOLEAN BECAME TRUE. THE CONNECTOR PROBABLY DIED."
-                break
             line = next(thr_iperf3.subproc.stdout, None)
             log.debug(f"LINE {edge_dict_key} {repr(line)}")
             log.debug(f"LINE {edge_dict_key} {line}")
             values = line.split(" ")
 
             if line:
-
                 if (len(values) >= 20 and ("omitted" not in line) and ("terminated" not in line) and (
                         "Interval" not in line) and ("receiver" not in line) and ("------------" not in line) and (
                         "- - - - - - - - -" not in line)):
                     utime_last_event = time.time()
-                    curr_thread.line_read += 1
-                    curr_thread.last_activity = datetime.now()
+                    thr_iperf3_readlog.line_read += 1
+                    thr_iperf3_readlog.last_activity = datetime.now()
                     yield line
 
                 else:
@@ -62,12 +58,12 @@ def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, di
                     m_laddr = re.search(r"local ((?:[0-9]{1,3}.){3}[0-9]{1,3}) port \d{1,10} connected to (?:[0-9]{1,3}.){3}[0-9]{1,3} port \d{1,10}", line)
 
                     # Grab only the port from the second line, which is the RX
-                    if m_lport and cpt_port_bidir >= 0 and hasattr(iperf_read_log_thread, 'bidir_src_port'):
+                    if m_lport and cpt_port_bidir >= 0 and hasattr(thr_iperf3, 'bidir_src_port'):
                         if cpt_port_bidir == 0:
                             cpt_port_bidir += 1
                         elif cpt_port_bidir == 1:
-                            iperf_read_log_thread.bidir_src_port = int(m_lport.groups()[0])
-                            iperf_read_log_thread.bidir_local_addr = m_laddr.groups()[0]
+                            thr_iperf3.bidir_src_port = int(m_lport.groups()[0])
+                            thr_iperf3.bidir_local_addr = m_laddr.groups()[0]
                             log.info(f"GOT A SRC_IP AND SRC_PORT FOR UDP_HOLE_PUNCH:{m_laddr.groups()[0]}/{m_lport.groups()[0]}")
                             cpt_port_bidir = -1
                     continue
@@ -236,10 +232,10 @@ def read_log_listener(listener_dict_key, _config, exit_boolean, dict_data_to_sen
 #################################################################################
 ### FUNCTION TO READ CONNECTORS LOGS
 #################################################################################
-def read_log_connector(connector_dict_key, _config, exit_boolean, dict_data_to_send_to_server, threads_n_processes, iperf3_conn_thread, thr_iperf3):
+def read_log_connector(connector_dict_key, _config, exit_boolean, dict_data_to_send_to_server, threads_n_processes, iperf3_conn_thread):
     exit_message = "unknown"
 
-    lines = tail(int(_config['CONNECTORS'][connector_dict_key]['INTERVAL']), _config['CONNECTORS'][connector_dict_key]['UID_CLIENT'], _config['CONNECTORS'][connector_dict_key]['UID_SERVER'], _config, "CONNECTORS", connector_dict_key, dict_data_to_send_to_server, threads_n_processes, exit_boolean, iperf3_conn_thread, thr_iperf3)
+    lines = tail(int(_config['CONNECTORS'][connector_dict_key]['INTERVAL']), _config['CONNECTORS'][connector_dict_key]['UID_CLIENT'], _config['CONNECTORS'][connector_dict_key]['UID_SERVER'], _config, "CONNECTORS", connector_dict_key, dict_data_to_send_to_server, threads_n_processes, exit_boolean, iperf3_conn_thread)
 
     log.info(f"READING LOGS FOR CONNECTOR {connector_dict_key}")
     try:
