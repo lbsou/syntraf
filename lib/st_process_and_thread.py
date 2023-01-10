@@ -222,8 +222,8 @@ def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, config_file_p
 
 
 def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_server, conn_db):
-    #from lib.st_iperf3_readlog import read_log_listener
-    #from lib.st_iperf import iperf3_server
+    from lib.st_iperf3_readlog import read_log_listener
+    from lib.st_iperf import iperf3_server
     stop_thread = [False]
     try:
         # For each listener, validate config and run the iperf_server
