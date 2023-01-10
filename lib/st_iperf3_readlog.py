@@ -119,6 +119,8 @@ def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, di
 
     except ValueError as exc:
         #I/O operation on closed file
+        log.error(f"NO MORE LINE TO READ FROM STDOUT OF {edge_type} {edge_dict_key}")
+        log.error(exc)
         exit_boolean[0] = True
     except Exception as exc:
         log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)

@@ -129,7 +129,7 @@ class system_stats(object):
         self._hasdata = value
 
     def update_stats(self):
-        log.debug(f"UPDATING SYSTEM STATS")
+        #log.debug(f"UPDATING SYSTEM STATS")
         try:
             # Free memory
             self.mem_pct_free = grab_free_memory()

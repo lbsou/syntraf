@@ -498,9 +498,9 @@ def client_send_system_stats(ssl_conn, obj_stats):
         if obj_stats.hasdata:
             sock_send(ssl_conn, obj_stats.as_dict(), "SAVE_STATS_METRIC")
             obj_stats.hasdata = False
-            client_log.debug(f"SYSTEM STATS SENT TO SERVER")
-        else:
-            client_log.debug(f"NO SYSTEM STATS TO SEND TO SERVER")
+            #client_log.debug(f"SYSTEM STATS SENT TO SERVER")
+        #else:
+            #client_log.debug(f"NO SYSTEM STATS TO SEND TO SERVER")
     except Exception as exc:
         raise exc
 
@@ -578,7 +578,7 @@ def client_send_thread_status(ssl_conn, threads_n_processes):
                 thread_status[thr.name + thr.syntraf_instance_type] = thr.asjson()
 
         sock_send(ssl_conn, thread_status, "SAVE_THREAD_STATUS")
-        client_log.debug(f"THREAD STATUS SENT TO SERVER")
+        #client_log.debug(f"THREAD STATUS SENT TO SERVER")
     except Exception as exc:
         raise exc
 
@@ -656,7 +656,7 @@ def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processe
                 elif received_data['COMMAND'] == "DIFFCONFIG":
                     client_command_diffconfig(_config, received_data, threads_n_processes)
 
-                client_log.debug(f"SLEEPING FOR {DefaultValues.CONTROL_CHANNEL_HEARTBEAT} SECOND(S)")
+                #client_log.debug(f"SLEEPING FOR {DefaultValues.CONTROL_CHANNEL_HEARTBEAT} SECOND(S)")
                 time.sleep(DefaultValues.CONTROL_CHANNEL_HEARTBEAT)
                 # client_log.debug(f"SLEEP IS OVER")
 
