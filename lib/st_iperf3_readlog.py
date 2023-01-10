@@ -31,9 +31,7 @@ def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, di
     try:
         cpt_port_bidir = 0
 
-        while True:
-            time.sleep(0.1)
-            line = next(thr_iperf3.subproc.stdout, None)
+        for line in thr_iperf3.subproc.stdout:
             log.debug(f"LINE {edge_dict_key} {repr(line)}")
             log.debug(f"LINE {edge_dict_key} {line}")
 
