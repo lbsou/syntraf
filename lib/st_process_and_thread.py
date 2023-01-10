@@ -222,11 +222,12 @@ def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, config_file_p
 
 
 def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_server, conn_db):
+    #from lib.st_iperf3_readlog import read_log_listener
+    #from lib.st_iperf import iperf3_server
     stop_thread = [False]
     try:
         # For each listener, validate config and run the iperf_server
         if 'LISTENERS' in config:
-
             for listener, listener_v in config['LISTENERS'].items():
                 # check if a st_obj_process_n_thread exist with LISTENER instance_type and the name corresponding the current listener config of the loop
                 # the goal is to see if it's already running
@@ -408,7 +409,7 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
                     # The subproc is not running
                     if not thr_temp.getstatus():
                         # Print the last breath and remove from threads_n_processes dict
-                        iperf3_client_print_last_breath(connector_key, threads_n_processes, thr_temp)
+                        terminate_connector(threads_n_processes, connector_key, thr_temp, config)
 
                         # starting the new iperf3 connector. Also start udp_hole and read_log if this is a bidirectionnal connection
                         start_iperf3_client(config, connector_key, connector_value, threads_n_processes, dict_data_to_send_to_server)
@@ -433,3 +434,27 @@ def get_current_obj_proc_n_thread(threads_n_processes, key, type):
     for thr in threads_n_processes:
         if thr.name == key and thr.syntraf_instance_type == type:
             return thr
+
+
+def terminate_connector(threads_n_processes, connector_key, thr_temp, config):
+    """
+    This function is called when we need to remove a connector. Either because we received non defined IP (see st_mesh.py), which mean the
+    CLIENT on the other end was disconnected from SERVER, or when there is failure establishing a connection between the CONNECTOR and the LISTENER
+    :param threads_n_processes: Dictionnary of st_obj_process_n_thread where we have all our thread and subproc
+    :param connector_key: The unique key of the connector
+    :param thr_temp : The actual thread we want to remove
+    :param config : The configuration of syntraf
+    """
+    # If the connector is dead, send signal to terminate udp_hole and readlog instances and remove them from threads_n_processes dict
+    if config['CONNECTORS'][connector_key]['BIDIR']:
+        copy_threads_n_processes = copy(threads_n_processes)
+        for thread_to_kill in copy_threads_n_processes:
+            if thread_to_kill.syntraf_instance_type == "UDP_HOLE" and thread_to_kill.name == connector_key:
+                #thread_to_kill.close()
+                threads_n_processes.remove(thread_to_kill)
+            if thread_to_kill.syntraf_instance_type == "READ_LOG" and thread_to_kill.name == connector_key:
+                thread_to_kill.close()
+                #threads_n_processes.remove(thread_to_kill)
+
+    # Print the last breath and remove from threads_n_processes dict
+    iperf3_client_print_last_breath(connector_key, threads_n_processes, thr_temp)
