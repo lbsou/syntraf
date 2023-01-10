@@ -38,7 +38,7 @@ def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, di
                 break
             line = next(thr_iperf3.subproc.stdout, None)
             log.debug(f"LINE {edge_dict_key} {repr(line)}")
-
+            log.debug(f"LINE {edge_dict_key} {line}")
             values = line.split(" ")
 
             if line:
