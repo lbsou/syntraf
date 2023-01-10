@@ -450,11 +450,11 @@ def terminate_connector(threads_n_processes, connector_key, thr_temp, config):
         copy_threads_n_processes = copy(threads_n_processes)
         for thread_to_kill in copy_threads_n_processes:
             if thread_to_kill.syntraf_instance_type == "UDP_HOLE" and thread_to_kill.name == connector_key:
-                #thread_to_kill.close()
+                thread_to_kill.close()
                 threads_n_processes.remove(thread_to_kill)
             if thread_to_kill.syntraf_instance_type == "READ_LOG" and thread_to_kill.name == connector_key:
                 thread_to_kill.close()
-                #threads_n_processes.remove(thread_to_kill)
+                threads_n_processes.remove(thread_to_kill)
 
     # Print the last breath and remove from threads_n_processes dict
     iperf3_client_print_last_breath(connector_key, threads_n_processes, thr_temp)
