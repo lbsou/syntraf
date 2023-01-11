@@ -336,18 +336,16 @@ def thread_read_log(config, connector_key, connector_value, threads_n_processes,
 
 def thread_udp_hole(config, connector_key, connector_value, threads_n_processes, iperf3_conn_thread):
     from lib.st_iperf import udp_hole_punch
-    exit_boolean = [False]
 
     thread_run = threading.Thread(target=udp_hole_punch,
                                   args=(
                                       config['CONNECTORS'][connector_key]['DESTINATION_ADDRESS'],
-                                      config['CONNECTORS'][connector_key]['PORT'], exit_boolean, iperf3_conn_thread, connector_key, threads_n_processes),
+                                      config['CONNECTORS'][connector_key]['PORT'], iperf3_conn_thread, connector_key, threads_n_processes),
                                   daemon=True)
     thread_run.daemon = True
     thread_run.name = str(connector_key)
     thread_or_process = st_obj_process_n_thread(thread_obj=thread_run, name=connector_key,
                                                 syntraf_instance_type="UDP_HOLE",
-                                                exit_boolean=exit_boolean,
                                                 starttime=datetime.now(),
                                                 opposite_side=connector_value['UID_CLIENT'], group=connector_value['MESH_GROUP'],
                                                 port="")
