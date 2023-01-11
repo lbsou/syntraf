@@ -50,6 +50,7 @@ def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, di
                     continue
                 elif "connected to" in line and "local" in line:
                     log.debug(f"TRYING TO GRAB SOURCE PORT")
+                    log.debug(f"LINE2 {edge_dict_key} {repr(line)}")
                     # When we have a bidir connection, iperf will open two port to destination. We want to grab the second source port, as it will allow us to keepalive the udp hole with scapy in another thread.
                     #local 192.168.2.41 port 58743 connected to 192.168.6.100 port 15999
                     #local 192.168.2.41 port 58744 connected to 192.168.6.100 port 15999
