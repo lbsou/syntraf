@@ -206,8 +206,7 @@ def iperf3_server(listener_key, _config):
                     "--idle-timeout", DefaultValues.DEFAULT_IPERF3_SERVER_IDLE_TIMEOUT,
                     "--rcv-timeout", DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT,
                     "--one-off",
-                    "-p", str(_config['LISTENERS'][listener_key]['PORT']-50), "--timestamps='%F %T '")
-                    #"-p", str(_config['LISTENERS'][listener_key]['PORT']), "--timestamps='%F %T '")
+                    "-p", str(_config['LISTENERS'][listener_key]['PORT']), "--timestamps='%F %T '")
 
             arguments = ""
             for i in args:
