@@ -48,7 +48,7 @@ def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, di
                     thr_iperf3_readlog.last_activity = datetime.now()
                     yield line
                 #No valuable information in TX lines
-                elif "TX-C" not in line and "TX-S" not in line:
+                elif "TX-C" in line and "TX-S" in line:
                     log.debug("LINE!!!2")
                     continue
                 elif "connected to" in line and "local" in line:
