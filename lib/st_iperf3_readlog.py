@@ -35,7 +35,7 @@ def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, di
 
         #for line in thr_iperf3.subproc.stdout:
         while True:
-            time.sleep(0.125)
+            time.sleep(0.01)
             line = thr_iperf3.subproc.stdout.read1(8888)
             line = line.decode('utf-8')
             if line:
