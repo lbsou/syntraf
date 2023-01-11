@@ -23,13 +23,15 @@ def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, di
             thr_iperf3_readlog = thr
     thr_iperf3_readlog.line_read = 0
     log.error("HERE")
-    log.error(thr_iperf3.subproc.stdout)
+
     while thr_iperf3.subproc.stdout is None:
+        log.error("HERE2")
         time.sleep(1)
         if thr_iperf3.subproc.stdout:
             log.info("STDOUT ACQUIRED FOR THE READLOG THREAD OF {edge_type} {edge_dict_key} ")
+            log.error("HERE4")
             break
-
+    log.error("HERE3")
     try:
         cpt_port_bidir = 0
 
