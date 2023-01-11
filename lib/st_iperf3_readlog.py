@@ -28,7 +28,7 @@ def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, di
         if thr_iperf3.subproc.stdout:
             break
 
-    log.debug("READLOG THREAD ACQUIRED IPERF3 STDOUT FOR THE {edge_type} {edge_dict_key} ")
+    log.debug(f"READLOG THREAD ACQUIRED IPERF3 STDOUT FOR THE {edge_type} {edge_dict_key} ")
 
     for line in thr_iperf3.subproc.stdout:
         log.debug(line.decode('utf-8'))
