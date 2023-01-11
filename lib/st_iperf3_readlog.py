@@ -48,9 +48,8 @@ def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, di
                 #No valuable information in TX lines
                 elif "TX-C" not in line and "TX-S" not in line:
                     continue
-                else:
-                    log.debug(f"tail(): {edge_dict_key} - LINE DOES NOT CONTAIN METRICS:{line}")
-
+                elif "connected to" in line and "local" in line:
+                    log.debug(f"TRYING TO GRAB SOURCE PORT")
                     # When we have a bidir connection, iperf will open two port to destination. We want to grab the second source port, as it will allow us to keepalive the udp hole with scapy in another thread.
                     #local 192.168.2.41 port 58743 connected to 192.168.6.100 port 15999
                     #local 192.168.2.41 port 58744 connected to 192.168.6.100 port 15999
@@ -67,6 +66,8 @@ def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, di
                             thr_iperf3.bidir_local_addr = m_laddr.groups()[0]
                             log.info(f"GOT A SRC_IP AND SRC_PORT FOR UDP_HOLE_PUNCH:{m_laddr.groups()[0]}/{m_lport.groups()[0]}")
                             cpt_port_bidir = -1
+                else:
+                    log.debug(f"tail(): {edge_dict_key} - LINE DOES NOT CONTAIN METRICS:{line}")
                     continue
             else:
                 #NO LINE
