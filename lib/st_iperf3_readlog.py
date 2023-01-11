@@ -31,7 +31,7 @@ def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, di
     log.debug(f"READLOG THREAD ACQUIRED IPERF3 STDOUT FOR THE {edge_type} {edge_dict_key} ")
 
     for line in thr_iperf3.subproc.stdout:
-        log.debug(line.decode('utf-8'))
+        log.debug(f"LINE {edge_dict_key} {line}")
 
     try:
         cpt_port_bidir = 0
