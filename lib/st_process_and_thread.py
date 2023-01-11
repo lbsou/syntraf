@@ -277,14 +277,14 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                                     stop_thread = [False]
                                     thread_run = threading.Thread(target=read_log_listener,
                                                                   args=(
-                                                                  listener, config, stop_thread, dict_data_to_send_to_server, threads_n_processes, thr),
+                                                                  listener, config, dict_data_to_send_to_server, threads_n_processes, thr),
                                                                   daemon=True)
                                     thread_run.daemon = True
                                     thread_run.name = str(listener)
                                     thread_run.start()
                                     thread_or_process = st_obj_process_n_thread(thread_obj=thread_run, name=listener,
                                                                                 syntraf_instance_type="READ_LOG",
-                                                                                exit_boolean=stop_thread,
+                                                                                exit_boolean=False,
                                                                                 starttime=datetime.now(), opposite_side=listener_v['UID_CLIENT'], group=listener_v['MESH_GROUP'], port="")
                                     threads_n_processes.append(thread_or_process)
                                     got_a_readlog_instance = True
@@ -294,7 +294,7 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                         if not got_a_readlog_instance:
                             # Was never launch, starting the new READLOG thread
                             thread_run = threading.Thread(target=read_log_listener,
-                                                          args=(listener, config, stop_thread, dict_data_to_send_to_server, threads_n_processes, thr),
+                                                          args=(listener, config, dict_data_to_send_to_server, threads_n_processes, thr),
                                                           daemon=True)
                             thread_run.daemon = True
                             thread_run.name = str(listener)
@@ -315,10 +315,9 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
 def thread_read_log(config, connector_key, connector_value, threads_n_processes, iperf3_conn_thread, dict_data_to_send_to_server):
     from lib.st_iperf3_readlog import read_log_connector
 
-    stop_thread = [False]
     thread_run = threading.Thread(target=read_log_connector,
                                   args=(
-                                      connector_key, config, stop_thread,
+                                      connector_key, config,
                                       dict_data_to_send_to_server,
                                       threads_n_processes, iperf3_conn_thread),
                                   daemon=True)
@@ -327,7 +326,7 @@ def thread_read_log(config, connector_key, connector_value, threads_n_processes,
     thread_run.start()
     iperf_read_log_thread = st_obj_process_n_thread(thread_obj=thread_run, name=connector_key,
                                                     syntraf_instance_type="READ_LOG",
-                                                    exit_boolean=stop_thread,
+                                                    exit_boolean=False,
                                                     starttime=datetime.now(),
                                                     opposite_side=connector_value['UID_CLIENT'],
                                                     group=connector_value['MESH_GROUP'], port="")
