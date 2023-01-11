@@ -37,7 +37,6 @@ def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, di
             log.debug(f"LINE {edge_dict_key} {repr(line)}")
 
             if line:
-
                 values = line.split(" ")
                 if (len(values) >= 20 and ("omitted" not in line) and ("terminated" not in line) and (
                         "Interval" not in line) and ("receiver" not in line) and ("------------" not in line) and (
@@ -219,7 +218,7 @@ def read_log_listener(listener_dict_key, _config, exit_boolean, dict_data_to_sen
             if line:
                 if not parse_line_to_array(line, _config, listener_dict_key, "LISTENERS", dict_data_to_send_to_server):
                     break
-            time.sleep(0.1)
+            time.sleep(0.01)
 
     except Exception as exc:
         log.error(f"read_log:{type(exc).__name__}:{exc}", exc_info=True)
@@ -242,7 +241,7 @@ def read_log_connector(connector_dict_key, _config, exit_boolean, dict_data_to_s
             if line:
                 if not parse_line_to_array(line, _config, connector_dict_key, "CONNECTORS", dict_data_to_send_to_server):
                     break
-            time.sleep(0.1)
+            time.sleep(0.01)
 
     except Exception as exc:
         log.error(f"read_log:{type(exc).__name__}:{exc}", exc_info=True)
