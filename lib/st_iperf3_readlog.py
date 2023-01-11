@@ -24,6 +24,7 @@ def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, di
     thr_iperf3_readlog.line_read = 0
 
     while thr_iperf3.subproc.stdout is None:
+        log.error("HERE")
         time.sleep(1)
         if thr_iperf3.subproc.stdout:
             break
@@ -211,9 +212,6 @@ def read_log_listener(listener_dict_key, _config, exit_boolean, dict_data_to_sen
     log.info(f"READING LOGS FOR LISTENER {listener_dict_key}")
     try:
         while True:
-            if exit_boolean[0]:
-                exit_message = "EXIT BOOLEAN BECAME TRUE"
-                break
             line = next(lines, None)
             if line:
                 if not parse_line_to_array(line, _config, listener_dict_key, "LISTENERS", dict_data_to_send_to_server):
@@ -237,9 +235,6 @@ def read_log_connector(connector_dict_key, _config, exit_boolean, dict_data_to_s
     log.info(f"READING LOGS FOR CONNECTOR {connector_dict_key}")
     try:
         while True:
-            if exit_boolean[0]:
-                exit_message = "EXIT BOOLEAN BECAME TRUE. THE CONNECTOR PROBABLY DIED."
-                break
             line = next(lines, None)
             if line:
                 if not parse_line_to_array(line, _config, connector_dict_key, "CONNECTORS", dict_data_to_send_to_server):
