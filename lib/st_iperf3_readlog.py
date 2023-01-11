@@ -39,7 +39,7 @@ def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, di
             line = thr_iperf3.subproc.stdout.read1(88888)
             line = line.decode('utf-8')
             if line:
-                log.debug(f"LINE {edge_dict_key} {line}")
+                log.debug(f"LINE {edge_dict_key} {repr(line)}")
                 values = line.split(" ")
                 if (len(values) >= 20 and ("omitted" not in line) and ("terminated" not in line) and (
                         "Interval" not in line) and ("receiver" not in line) and ("------------" not in line) and (
