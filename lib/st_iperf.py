@@ -24,7 +24,7 @@ iperf3_listeners_log = logging.getLogger("syntraf." + "lib.st_iperf3_listeners")
 
 # Find the ephemeral port iperf3 is using for the incoming connection in bidirectional mode then send a packet
 # to the other side with the right src and dst port to keep alive the udp hole punch.
-def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector_key, threads_n_processes):
+def udp_hole_punch(dst_ip, dst_port, iperf3_conn_thread, connector_key, threads_n_processes):
     exit_message = ""
     iperf3_pid = iperf3_conn_thread.subproc.pid
 
@@ -34,7 +34,7 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
     curr_thread.pid = curr_thread.thread_obj.native_id
 
     # Waiting for the READ_LOG thread to obtain the source port
-    while iperf3_conn_thread.bidir_src_port == 0 and not exit_boolean[0]:
+    while iperf3_conn_thread.bidir_src_port == 0:
         iperf3_connectors_log.debug(f"UDP_HOLE_PUNCH FOR {connector_key}, IPERF3 PROCESS ID: '{iperf3_pid}' IS WAITING FOR A PORT:{iperf3_conn_thread.bidir_src_port}")
         time.sleep(1)
 
@@ -57,46 +57,40 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
     dst_mac = ""
 
     # In case there is PBR on the server, make sure we are sending the packet out the right interface
-    if not exit_boolean[0]:
+    interfaces = psutil.net_if_addrs()
 
-        interfaces = psutil.net_if_addrs()
+    # We need to figure out what is the out interface so that we can get the mac address
+    for iface_key, iface_values in interfaces.items():
+        for iface in iface_values:
+            if iface.address == src_ip:
+                src_if = iface_key
 
-        # We need to figure out what is the out interface so that we can get the mac address
-        for iface_key, iface_values in interfaces.items():
+    # Get the MAC of the out_if
+    for iface_key, iface_values in interfaces.items():
+        if iface_key == src_if:
             for iface in iface_values:
-                if iface.address == src_ip:
-                    src_if = iface_key
+                if iface.family == psutil.AF_LINK:
+                    src_mac = iface.address
 
-        # Get the MAC of the out_if
-        for iface_key, iface_values in interfaces.items():
-            if iface_key == src_if:
-                for iface in iface_values:
-                    if iface.family == psutil.AF_LINK:
-                        src_mac = iface.address
+    if sys.platform == "linux":
+        try:
+            p = subprocess.check_output(["whereis", "ip"])
+            ip_bin = p.decode('utf-8').split()[1]
+            if ip_bin:
+                cmd = (f"{ip_bin} route get from {src_ip} to {dst_ip} oif {src_if} ipproto udp sport {src_port} dport {dst_port}")
+                p = subprocess.check_output(shlex.split(cmd))
+                nexthop = p.decode('utf-8').replace("\n", "").split()[4]
+                dst_mac = getmac.get_mac_address(None, nexthop)
 
-        if sys.platform == "linux":
-            try:
-                p = subprocess.check_output(["whereis", "ip"])
-                ip_bin = p.decode('utf-8').split()[1]
-                if ip_bin:
-                    cmd = (f"{ip_bin} route get from {src_ip} to {dst_ip} oif {src_if} ipproto udp sport {src_port} dport {dst_port}")
-                    p = subprocess.check_output(shlex.split(cmd))
-                    nexthop = p.decode('utf-8').replace("\n", "").split()[4]
-                    dst_mac = getmac.get_mac_address(None, nexthop)
-                else:
-                    exit_boolean[0] = True
-            except Exception as e:
-                iperf3_connectors_log.error(e)
-                exit_boolean[0] = True
-        elif sys.platform == "win32":
-            cmd = (f"powershell find-netroute -remoteipaddress {dst_ip} | Select-Object NextHop | Select -ExpandProperty NextHop")
-            p = subprocess.check_output(shlex.split(cmd))
-            nexthop = p.decode('utf-8')
-            dst_mac = getmac.get_mac_address(None, nexthop)
-        else:
-            exit_boolean[0] = True
+        except Exception as e:
+            iperf3_connectors_log.error(e)
+    elif sys.platform == "win32":
+        cmd = (f"powershell find-netroute -remoteipaddress {dst_ip} | Select-Object NextHop | Select -ExpandProperty NextHop")
+        p = subprocess.check_output(shlex.split(cmd))
+        nexthop = p.decode('utf-8')
+        dst_mac = getmac.get_mac_address(None, nexthop)
 
-    while not exit_boolean[0]:
+    while True:
         if iperf3_conn_thread.bidir_src_port == 0:
             exit_message = "bidir_src_port became 0"
             break
@@ -110,9 +104,6 @@ def udp_hole_punch(dst_ip, dst_port, exit_boolean, iperf3_conn_thread, connector
             iperf3_connectors_log.error(ex)
 
         time.sleep(1)
-
-    if exit_boolean[0]:
-        exit_message = "EXIT BOOLEAN BECAME TRUE, THE CONNECTOR PROBABLY DIED."
 
     iperf3_connectors_log.error(f"UDP_HOLE FOR {connector_key}, IPERF3 PROCESS ID: '{iperf3_pid}' TERMINATED. EXIT MESSAGE: {exit_message}")
 
