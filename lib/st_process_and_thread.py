@@ -346,6 +346,7 @@ def thread_udp_hole(config, connector_key, connector_value, threads_n_processes,
     thread_run.name = str(connector_key)
     thread_or_process = st_obj_process_n_thread(thread_obj=thread_run, name=connector_key,
                                                 syntraf_instance_type="UDP_HOLE",
+                                                exit_boolean=False,
                                                 starttime=datetime.now(),
                                                 opposite_side=connector_value['UID_CLIENT'], group=connector_value['MESH_GROUP'],
                                                 port="")
