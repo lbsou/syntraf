@@ -37,19 +37,22 @@ def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, di
             log.debug(f"LINE {edge_dict_key} {repr(line)}")
 
             if line:
-                log.debug("LINE!!!")
+
                 values = line.split(" ")
                 if (len(values) >= 20 and ("omitted" not in line) and ("terminated" not in line) and (
                         "Interval" not in line) and ("receiver" not in line) and ("------------" not in line) and (
                         "- - - - - - - - -" not in line)):
+                    log.debug("LINE!!!1")
                     utime_last_event = time.time()
                     thr_iperf3_readlog.line_read += 1
                     thr_iperf3_readlog.last_activity = datetime.now()
                     yield line
                 #No valuable information in TX lines
                 elif "TX-C" not in line and "TX-S" not in line:
+                    log.debug("LINE!!!2")
                     continue
                 elif "connected to" in line and "local" in line:
+                    log.debug("LINE!!!3")
                     log.debug(f"TRYING TO GRAB SOURCE PORT")
                     log.debug(f"LINE2 {edge_dict_key} {repr(line)}")
                     # When we have a bidir connection, iperf will open two port to destination. We want to grab the second source port, as it will allow us to keepalive the udp hole with scapy in another thread.
