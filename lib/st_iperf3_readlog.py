@@ -14,7 +14,7 @@ log = logging.getLogger("syntraf." + __name__)
 #################################################################################
 ### YIELD LINE FROM IPERF3 OUTPUT FILE
 #################################################################################
-def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, dict_data_to_send_to_server, threads_n_processes, exit_boolean, thr_iperf3):
+def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, dict_data_to_send_to_server, threads_n_processes, thr_iperf3):
     utime_last_event = 0
 
     thr_iperf3_readlog = None
@@ -23,16 +23,21 @@ def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, di
             thr_iperf3_readlog = thr
     thr_iperf3_readlog.line_read = 0
 
+    log.debug("1")
+
     while thr_iperf3.subproc.stdout is None:
         time.sleep(1)
+        log.debug("2")
         if thr_iperf3.subproc.stdout:
             log.debug("READLOG THREAD ACQUIRED IPERF3 STDOUT FOR THE {edge_type} {edge_dict_key} ")
+            log.debug("3")
             break
-
+    log.debug("4")
     try:
         cpt_port_bidir = 0
 
         for line in thr_iperf3.subproc.stdout:
+            log.debug("5")
             line = line.decode('utf-8')
             log.debug(f"LINE {edge_dict_key} {repr(line)}")
 
@@ -207,10 +212,10 @@ def parse_line_to_array(line, _config, edge_dict_key, edge_type, dict_data_to_se
 #################################################################################
 ### FUNCTION TO READ LISTENERS LOGS
 #################################################################################
-def read_log_listener(listener_dict_key, _config, exit_boolean, dict_data_to_send_to_server, threads_n_processes, thr_iperf3):
+def read_log_listener(listener_dict_key, _config, dict_data_to_send_to_server, threads_n_processes, thr_iperf3):
     exit_message = "unknown"
 
-    lines = tail(int(_config['LISTENERS'][listener_dict_key]['INTERVAL']), _config['LISTENERS'][listener_dict_key]['UID_CLIENT'], _config['LISTENERS'][listener_dict_key]['UID_SERVER'], _config, "LISTENERS", listener_dict_key, dict_data_to_send_to_server, threads_n_processes, exit_boolean, thr_iperf3)
+    lines = tail(int(_config['LISTENERS'][listener_dict_key]['INTERVAL']), _config['LISTENERS'][listener_dict_key]['UID_CLIENT'], _config['LISTENERS'][listener_dict_key]['UID_SERVER'], _config, "LISTENERS", listener_dict_key, dict_data_to_send_to_server, threads_n_processes, thr_iperf3)
     log.info(f"READING LOGS FOR LISTENER {listener_dict_key}")
     try:
         while True:
@@ -218,7 +223,7 @@ def read_log_listener(listener_dict_key, _config, exit_boolean, dict_data_to_sen
             if line:
                 if not parse_line_to_array(line, _config, listener_dict_key, "LISTENERS", dict_data_to_send_to_server):
                     break
-            time.sleep(0.01)
+            time.sleep(0.1)
 
     except Exception as exc:
         log.error(f"read_log:{type(exc).__name__}:{exc}", exc_info=True)
@@ -229,10 +234,10 @@ def read_log_listener(listener_dict_key, _config, exit_boolean, dict_data_to_sen
 #################################################################################
 ### FUNCTION TO READ CONNECTORS LOGS
 #################################################################################
-def read_log_connector(connector_dict_key, _config, exit_boolean, dict_data_to_send_to_server, threads_n_processes, iperf3_conn_thread):
+def read_log_connector(connector_dict_key, _config, dict_data_to_send_to_server, threads_n_processes, iperf3_conn_thread):
     exit_message = "unknown"
 
-    lines = tail(int(_config['CONNECTORS'][connector_dict_key]['INTERVAL']), _config['CONNECTORS'][connector_dict_key]['UID_CLIENT'], _config['CONNECTORS'][connector_dict_key]['UID_SERVER'], _config, "CONNECTORS", connector_dict_key, dict_data_to_send_to_server, threads_n_processes, exit_boolean, iperf3_conn_thread)
+    lines = tail(int(_config['CONNECTORS'][connector_dict_key]['INTERVAL']), _config['CONNECTORS'][connector_dict_key]['UID_CLIENT'], _config['CONNECTORS'][connector_dict_key]['UID_SERVER'], _config, "CONNECTORS", connector_dict_key, dict_data_to_send_to_server, threads_n_processes, iperf3_conn_thread)
 
     log.info(f"READING LOGS FOR CONNECTOR {connector_dict_key}")
     try:
@@ -241,7 +246,7 @@ def read_log_connector(connector_dict_key, _config, exit_boolean, dict_data_to_s
             if line:
                 if not parse_line_to_array(line, _config, connector_dict_key, "CONNECTORS", dict_data_to_send_to_server):
                     break
-            time.sleep(0.01)
+            time.sleep(0.1)
 
     except Exception as exc:
         log.error(f"read_log:{type(exc).__name__}:{exc}", exc_info=True)
