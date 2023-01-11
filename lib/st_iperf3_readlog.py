@@ -24,9 +24,9 @@ def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, di
     thr_iperf3_readlog.line_read = 0
 
     while thr_iperf3.subproc.stdout is None:
-        log.error("HERE")
         time.sleep(1)
         if thr_iperf3.subproc.stdout:
+            log.info("STDOUT ACQUIRED FOR THE READLOG THREAD OF {edge_type} {edge_dict_key} ")
             break
 
     try:
