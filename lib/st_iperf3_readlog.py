@@ -37,40 +37,39 @@ def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, di
             line = line_raw.decode('utf-8')
             log.debug(f"LINE {edge_dict_key} {line}")
 
-            if line_raw:
-                for line in line_raw.splitlines():
-                    log.debug(f"LINE {edge_dict_key} {repr(line)}")
-                    log.debug(type(line))
-                    values = line.split(" ")
-                    if (len(values) >= 20 and ("omitted" not in line) and ("terminated" not in line) and (
-                            "Interval" not in line) and ("receiver" not in line) and ("------------" not in line) and (
-                            "- - - - - - - - -" not in line)):
-                        utime_last_event = time.time()
-                        thr_iperf3_readlog.line_read += 1
-                        thr_iperf3_readlog.last_activity = datetime.now()
-                        yield line
-                    #No valuable information in TX lines
-                    elif "TX-C" in line and "TX-S" in line:
-                        continue
-                    elif "connected to" in line and "local" in line:
-                        if edge_dict_key in _config['CONNECTORS']:
-                            if _config['CONNECTORS'][edge_dict_key]['BIDIR']:
-                                # When we have a bidir connection, iperf will open two port to destination. We want to grab the second source port, as it will allow us to keepalive the udp hole with scapy in another thread.
-                                #local 192.168.2.41 port 58743 connected to 192.168.6.100 port 15999
-                                #local 192.168.2.41 port 58744 connected to 192.168.6.100 port 15999
+            if line:
+                log.debug(f"LINE {edge_dict_key} {repr(line)}")
 
-                                m_lport = re.search(r"local (?:[0-9]{1,3}.){3}[0-9]{1,3} port (\d{1,10}) connected to (?:[0-9]{1,3}.){3}[0-9]{1,3} port \d{1,10}", line)
-                                m_laddr = re.search(r"local ((?:[0-9]{1,3}.){3}[0-9]{1,3}) port \d{1,10} connected to (?:[0-9]{1,3}.){3}[0-9]{1,3} port \d{1,10}", line)
+                values = line.split(" ")
+                if (len(values) >= 20 and ("omitted" not in line) and ("terminated" not in line) and (
+                        "Interval" not in line) and ("receiver" not in line) and ("------------" not in line) and (
+                        "- - - - - - - - -" not in line)):
+                    utime_last_event = time.time()
+                    thr_iperf3_readlog.line_read += 1
+                    thr_iperf3_readlog.last_activity = datetime.now()
+                    yield line
+                #No valuable information in TX lines
+                elif "TX-C" in line and "TX-S" in line:
+                    continue
+                elif "connected to" in line and "local" in line:
+                    if edge_dict_key in _config['CONNECTORS']:
+                        if _config['CONNECTORS'][edge_dict_key]['BIDIR']:
+                            # When we have a bidir connection, iperf will open two port to destination. We want to grab the second source port, as it will allow us to keepalive the udp hole with scapy in another thread.
+                            #local 192.168.2.41 port 58743 connected to 192.168.6.100 port 15999
+                            #local 192.168.2.41 port 58744 connected to 192.168.6.100 port 15999
 
-                                # Grab only the port from the second line, which is the RX
-                                if m_lport and cpt_port_bidir >= 0 and hasattr(thr_iperf3, 'bidir_src_port'):
-                                    if cpt_port_bidir == 0:
-                                        cpt_port_bidir += 1
-                                    elif cpt_port_bidir == 1:
-                                        thr_iperf3.bidir_src_port = int(m_lport.groups()[0])
-                                        thr_iperf3.bidir_local_addr = m_laddr.groups()[0]
-                                        log.info(f"GOT A SRC_IP AND SRC_PORT FOR UDP_HOLE_PUNCH:{m_laddr.groups()[0]}/{m_lport.groups()[0]}")
-                                        cpt_port_bidir = -1
+                            m_lport = re.search(r"local (?:[0-9]{1,3}.){3}[0-9]{1,3} port (\d{1,10}) connected to (?:[0-9]{1,3}.){3}[0-9]{1,3} port \d{1,10}", line)
+                            m_laddr = re.search(r"local ((?:[0-9]{1,3}.){3}[0-9]{1,3}) port \d{1,10} connected to (?:[0-9]{1,3}.){3}[0-9]{1,3} port \d{1,10}", line)
+
+                            # Grab only the port from the second line, which is the RX
+                            if m_lport and cpt_port_bidir >= 0 and hasattr(thr_iperf3, 'bidir_src_port'):
+                                if cpt_port_bidir == 0:
+                                    cpt_port_bidir += 1
+                                elif cpt_port_bidir == 1:
+                                    thr_iperf3.bidir_src_port = int(m_lport.groups()[0])
+                                    thr_iperf3.bidir_local_addr = m_laddr.groups()[0]
+                                    log.info(f"GOT A SRC_IP AND SRC_PORT FOR UDP_HOLE_PUNCH:{m_laddr.groups()[0]}/{m_lport.groups()[0]}")
+                                    cpt_port_bidir = -1
                 else:
                     log.debug(f"tail(): {edge_dict_key} - LINE DOES NOT CONTAIN METRICS:{line}")
                     continue
