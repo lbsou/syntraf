@@ -22,9 +22,10 @@ def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, di
         if thr.name == edge_dict_key and thr.syntraf_instance_type == "READ_LOG":
             thr_iperf3_readlog = thr
     thr_iperf3_readlog.line_read = 0
-    log.info("POUET POUET")
+
     while thr_iperf3.subproc.stdout is None:
         time.sleep(1)
+        log.info("POUET POUET")
         if thr_iperf3.subproc.stdout:
             log.info("STDOUT ACQUIRED FOR THE READLOG THREAD OF {edge_type} {edge_dict_key} ")
             break
