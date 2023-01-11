@@ -31,9 +31,6 @@ def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, di
 
     try:
         cpt_port_bidir = 0
-        for line in thr_iperf3.subproc.stdout:
-            line = line.decode('utf-8')
-            log.debug(f"LINE {edge_dict_key} {repr(line)}")
 
         for line in thr_iperf3.subproc.stdout:
             line = line.decode('utf-8')
@@ -48,7 +45,9 @@ def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, di
                     thr_iperf3_readlog.line_read += 1
                     thr_iperf3_readlog.last_activity = datetime.now()
                     yield line
-
+                #No valuable information in TX lines
+                elif "TX-C" not in line and "TX-S" not in line:
+                    continue
                 else:
                     log.debug(f"tail(): {edge_dict_key} - LINE DOES NOT CONTAIN METRICS:{line}")
 
