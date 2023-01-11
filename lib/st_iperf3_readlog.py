@@ -37,6 +37,7 @@ def tail(interval, uid_client, uid_server, _config, edge_type, edge_dict_key, di
             log.debug(f"LINE {edge_dict_key} {repr(line)}")
 
             if line:
+                log.debug("LINE!!!")
                 values = line.split(" ")
                 if (len(values) >= 20 and ("omitted" not in line) and ("terminated" not in line) and (
                         "Interval" not in line) and ("receiver" not in line) and ("------------" not in line) and (
