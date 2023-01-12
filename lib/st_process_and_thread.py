@@ -1,5 +1,5 @@
 # SYNTRAF GLOBAL IMPORT
-import copy
+from copy import copy
 
 from lib.st_global import DefaultValues
 
