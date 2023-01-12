@@ -14,6 +14,7 @@ class st_obj_process_n_thread:
             self.port = kwargs['port']
             self.bidir_src_port = None
             self.bidir_local_addr = None
+            self.bidir_src_port_cpt = 0
             self.line_read = None
             self.packet_sent = None
         elif kwargs['syntraf_instance_type'] == "SERVER" or kwargs['syntraf_instance_type'] == "CLIENT" or \
@@ -28,6 +29,7 @@ class st_obj_process_n_thread:
             self.opposite_side = kwargs['opposite_side']
             self.port = kwargs['port']
             self.bidir_src_port = None
+            self.bidir_src_port_cpt = 0
             self.bidir_local_addr = None
             self.line_read = None
             self.packet_sent = None
