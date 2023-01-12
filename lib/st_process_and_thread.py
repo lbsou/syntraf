@@ -25,12 +25,8 @@ import threading
 import time
 import os
 
-
 # from lib.st_covariance import *
-
 log = logging.getLogger("syntraf." + __name__)
-
-
 
 
 ## Monkeypatch to catch gevent webserver events directed at stderr

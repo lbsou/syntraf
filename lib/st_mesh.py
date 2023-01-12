@@ -3,7 +3,7 @@ from lib.st_crypto import *
 from lib.st_struct import cl_ifreq
 from lib.st_read_toml import read_conf
 from lib.st_conf_validation import valid_dir_rsa_keypair, valid_dir_logs, validate_ipv4
-from lib.st_process_and_thread import terminate_connector_and_childs, close_listeners_and_connectors
+
 from tabulate import tabulate
 # SYNTRAF SERVER IMPORT
 if not CompilationOptions.client_only:
@@ -414,6 +414,7 @@ def client_receive_configuration(_config, ssl_conn, threads_n_processes, config_
 
                 # got new config, close all listeners and connectors because if the server has restarted, all the credentials has been re-initialized
                 client_log.debug(f"CLOSING LISTENERS AND CONNECTORS BEFORE APPLYING NEW CONFIG")
+                from lib.st_process_and_thread import close_listeners_and_connectors
                 close_listeners_and_connectors(threads_n_processes, _config)
 
                 # update local config
@@ -609,6 +610,7 @@ def client_command_diffconfig(_config, received_data, threads_n_processes):
                                     client_log.info(
                                         f"CONNECTOR: '{connector_key}' TERMINATED BECAUSE IP ADDRESS IS NOW UNKNOWN (CLIENT IS NOT CONNECTED TO SERVER ANYMORE)'")
                                     thr.close()
+                                    from lib.st_process_and_thread import terminate_connector_and_childs
                                     terminate_connector_and_childs(threads_n_processes, connector_key, thr, _config)
     except Exception as exc:
         raise exc
