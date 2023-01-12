@@ -7,6 +7,7 @@ from lib.st_obj_process_n_thread import *
 from lib.st_conf_validation import *
 from lib.st_system_stats import *
 from lib.st_obj_cc_client import cc_client
+from lib.st_mesh import client, server
 
 # SYNTRAF SERVER IMPORT
 if not CompilationOptions.client_only:
