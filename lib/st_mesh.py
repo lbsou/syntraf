@@ -609,7 +609,7 @@ def client_command_diffconfig(_config, received_data, threads_n_processes):
                                     client_log.info(
                                         f"CONNECTOR: '{connector_key}' TERMINATED BECAUSE IP ADDRESS IS NOW UNKNOWN (CLIENT IS NOT CONNECTED TO SERVER ANYMORE)'")
                                     thr.close()
-                                    terminate_connector(threads_n_processes, connector_key, thr, _config)
+                                    terminate_connector_and_childs(threads_n_processes, connector_key, thr, _config)
     except Exception as exc:
         raise exc
 
@@ -1409,13 +1409,7 @@ def set_tcp_ka(sckt, log):
             f"AFTER: TCP_KEEPIDLE --> {sckt.getsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE)}, TCP_KEEPINTVL --> {sckt.getsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL)}, TCP_KEEPCNT --> {sckt.getsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT)}")
 
 
-def close_listeners_and_connectors(threads_n_processes, _config):
-    for thr in threads_n_processes:
-        if thr.syntraf_instance_type == "CONNECTOR":
-            terminate_connector(threads_n_processes, thr.name, thr, _config)
-        elif thr.syntraf_instance_type == "LISTENER":
-            thr.close()
-            threads_n_processes.remove(thr)
+
 
 
 def update_config(data, _config):
