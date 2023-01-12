@@ -30,7 +30,6 @@ try:
     from lib.st_clean_close import *
     from lib.st_process_and_thread import *
     from lib.st_system_stats import system_stats
-    from lib.st_obj_cc_client import cc_client
 
 except Exception as exc:
     print("MISSING MODULE: " + str(exc))
