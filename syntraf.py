@@ -187,7 +187,7 @@ def run():
             lst_client.append(
                 [k, v.status, v.status_since, v.status_explanation, v.client_uid, v.bool_dynamic_client, v.tcp_port,
                  v.ip_address])
-        f.write(tabulate(lst_client))
+        f.write(tabulate.tabulate(lst_client))
         f.close()
 
         # WHILE WEBUI DOWN, DUMP THREAD STATUS TO FILE
