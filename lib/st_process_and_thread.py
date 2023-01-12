@@ -407,7 +407,7 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
                     # The subproc is not running
                     if not thr_temp.getstatus():
                         # Print the last breath and remove from threads_n_processes dict
-                        terminate_connector(threads_n_processes, connector_key, thr_temp, config)
+                        terminate_connector_and_childs(threads_n_processes, connector_key, thr_temp, config)
 
                         # starting the new iperf3 connector. Also start udp_hole and read_log if this is a bidirectionnal connection
                         start_iperf3_client(config, connector_key, connector_value, threads_n_processes, dict_data_to_send_to_server)
@@ -434,7 +434,7 @@ def get_current_obj_proc_n_thread(threads_n_processes, key, type):
             return thr
 
 
-def terminate_connector(threads_n_processes, connector_key, thr_temp, config):
+def terminate_connector_and_childs(threads_n_processes, connector_key, thr_temp, config):
     """
     This function is called when we need to remove a connector. Either because we received non defined IP (see st_mesh.py), which mean the
     CLIENT on the other end was disconnected from SERVER, or when there is failure establishing a connection between the CONNECTOR and the LISTENER
@@ -456,3 +456,12 @@ def terminate_connector(threads_n_processes, connector_key, thr_temp, config):
 
     # Print the last breath and remove from threads_n_processes dict
     iperf3_client_print_last_breath(connector_key, threads_n_processes, thr_temp)
+
+
+def close_listeners_and_connectors(threads_n_processes, _config):
+    for thr in threads_n_processes:
+        if thr.syntraf_instance_type == "CONNECTOR":
+            terminate_connector_and_childs(threads_n_processes, thr.name, thr, _config)
+        elif thr.syntraf_instance_type == "LISTENER":
+            thr.close()
+            threads_n_processes.remove(thr)
