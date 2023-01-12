@@ -1,3 +1,5 @@
+import json
+
 class cc_client:
     _status = "UNKNOWN"
     _status_since = "UNKNOWN"
