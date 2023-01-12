@@ -14,6 +14,7 @@ from lib.st_global import DefaultValues, CompilationOptions
 import sys
 import argparse
 import atexit
+import tabulate
 import queue
 import logging
 import os
