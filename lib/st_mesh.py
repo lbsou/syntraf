@@ -414,7 +414,7 @@ def client_receive_configuration(_config, ssl_conn, threads_n_processes, config_
 
                 # got new config, close all listeners and connectors because if the server has restarted, all the credentials has been re-initialized
                 client_log.debug(f"CLOSING LISTENERS AND CONNECTORS BEFORE APPLYING NEW CONFIG")
-                close_listeners_and_connectors(threads_n_processes)
+                close_listeners_and_connectors(threads_n_processes, _config)
 
                 # update local config
                 client_log.debug(f"UPDATING LOCAL CONFIG WITH CONFIG SENT BY SERVER")
@@ -1409,9 +1409,11 @@ def set_tcp_ka(sckt, log):
             f"AFTER: TCP_KEEPIDLE --> {sckt.getsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE)}, TCP_KEEPINTVL --> {sckt.getsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL)}, TCP_KEEPCNT --> {sckt.getsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT)}")
 
 
-def close_listeners_and_connectors(threads_n_processes):
+def close_listeners_and_connectors(threads_n_processes, _config):
     for thr in threads_n_processes:
-        if thr.syntraf_instance_type == "LISTENER" or thr.syntraf_instance_type == "CONNECTOR":
+        if thr.syntraf_instance_type == "CONNECTOR":
+            terminate_connector(threads_n_processes, thr.name, thr, _config)
+        elif thr.syntraf_instance_type == "LISTENER":
             thr.close()
             threads_n_processes.remove(thr)
 
