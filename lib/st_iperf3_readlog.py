@@ -30,8 +30,7 @@ def tail(_config, edge_type, edge_dict_key, thr_iperf3):
     log.debug(f"READLOG THREAD ACQUIRED IPERF3 STDOUT FOR THE {edge_type} {edge_dict_key} ")
 
     try:
-        for line_raw in thr_iperf3.subproc.stdout:
-            line = line_raw.decode('utf-8')
+        for line in thr_iperf3.subproc.stdout:
             log.debug(f"LINE {edge_dict_key} {line}")
             yield line
 
