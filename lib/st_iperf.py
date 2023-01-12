@@ -24,9 +24,15 @@ iperf3_listeners_log = logging.getLogger("syntraf." + "lib.st_iperf3_listeners")
 
 # Find the ephemeral port iperf3 is using for the incoming connection in bidirectional mode then send a packet
 # to the other side with the right src and dst port to keep alive the udp hole punch.
-def udp_hole_punch(dst_ip, dst_port, iperf3_conn_thread, connector_key, threads_n_processes):
-    exit_message = ""
-    iperf3_pid = iperf3_conn_thread.subproc.pid
+def udp_hole_punch(dst_ip, dst_port, iperf3_connector_obj_pnt, connector_key, threads_n_processes):
+
+    # Wait for iperf3 to start
+    while iperf3_connector_obj_pnt.subproc is None:
+        time.sleep(1)
+        if iperf3_connector_obj_pnt.subproc:
+            break
+
+    iperf3_pid = iperf3_connector_obj_pnt.subproc.pid
 
     # Find current thread to update packet sent in the st_obj_process_n_thread object
     curr_thread = get_current_obj_proc_n_thread(threads_n_processes, connector_key, "UDP_HOLE")
@@ -34,8 +40,8 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_conn_thread, connector_key, threads_
     curr_thread.pid = curr_thread.thread_obj.native_id
 
     # Waiting for the READ_LOG thread to obtain the source port
-    while iperf3_conn_thread.bidir_src_port == 0:
-        iperf3_connectors_log.debug(f"UDP_HOLE_PUNCH FOR {connector_key}, IPERF3 PROCESS ID: '{iperf3_pid}' IS WAITING FOR A PORT:{iperf3_conn_thread.bidir_src_port}")
+    while iperf3_connector_obj_pnt.bidir_src_port == 0:
+        iperf3_connectors_log.debug(f"UDP_HOLE_PUNCH FOR {connector_key}, IPERF3 PROCESS ID: '{iperf3_pid}' IS WAITING FOR A PORT:{iperf3_connector_obj_pnt.bidir_src_port}")
         time.sleep(1)
 
     # Hostname resolution
@@ -50,8 +56,8 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_conn_thread, connector_key, threads_
                 iperf3_connectors_log.error(f"TEMPORARY FAILURE IN NAME RESOLUTION OF {dst_ip}")
         time.sleep(1)
 
-    src_ip = iperf3_conn_thread.bidir_local_addr
-    src_port = iperf3_conn_thread.bidir_src_port
+    src_ip = iperf3_connector_obj_pnt.bidir_local_addr
+    src_port = iperf3_connector_obj_pnt.bidir_src_port
     src_if = ""
     src_mac = ""
     dst_mac = ""
@@ -91,13 +97,13 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_conn_thread, connector_key, threads_
         dst_mac = getmac.get_mac_address(None, nexthop)
 
     while True:
-        if iperf3_conn_thread.bidir_src_port == 0:
+        if iperf3_connector_obj_pnt.bidir_src_port == 0:
             exit_message = "bidir_src_port became 0"
             break
         try:
             curr_thread.packet_sent += 1
             curr_thread.last_activity = datetime.now()
-            iperf3_connectors_log.debug(f"SENDING KEEPALIVE WITH SRC:{src_mac}/{src_ip}/{iperf3_conn_thread.bidir_src_port}, DST:{dst_mac}/{dst_ip}/{dst_port} ON IFACE:{src_if}")
+            iperf3_connectors_log.debug(f"SENDING KEEPALIVE WITH SRC:{src_mac}/{src_ip}/{iperf3_connector_obj_pnt.bidir_src_port}, DST:{dst_mac}/{dst_ip}/{dst_port} ON IFACE:{src_if}")
             scapy.sendp(scapy.Ether(src=src_mac, dst=dst_mac) / scapy.IP(src=src_ip, dst=dst_ip) / scapy.UDP(sport=src_port,dport=dst_port) / scapy.Raw(load="KEEPALIVE"), verbose=False, iface=src_if, inter=1, count=1)
 
         except Exception as ex:
@@ -159,19 +165,18 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
         #print(args)
         #print(_config['CLIENT']['IPERF3_PASSWORD'])
 
+        if config['CONNECTORS'][connector_key]['BIDIR']:
+            # Make sure we have udp_hole punching and read_log thread for each bidir connector
+            thread_udp_hole(config, connector_key, connector_value, threads_n_processes, iperf3_conn_thread)
+            thread_read_log(config, connector_key, connector_value, threads_n_processes, iperf3_conn_thread, dict_data_to_send_to_server)
+            time.sleep(2)
         #p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, bufsize=10000, text=True, env=env_var)
         p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, env=env_var)
         iperf3_conn_thread.subproc = p
 
         if p.poll() is None:
-            if config['CONNECTORS'][connector_key]['BIDIR']:
-                # Make sure we have udp_hole punching and read_log thread for each bidir connector
-                thread_udp_hole(config, connector_key, connector_value, threads_n_processes, iperf3_conn_thread)
-                thread_read_log(config, connector_key, connector_value, threads_n_processes, iperf3_conn_thread, dict_data_to_send_to_server)
-
             iperf3_connectors_log.warning(f"IPERF3 CLIENT FOR CONNECTOR '{connector_key}' STARTED WITH SERVER {config['CONNECTORS'][connector_key]['DESTINATION_ADDRESS']}:{config['CONNECTORS'][connector_key]['PORT']} {arguments}")
         else:
-            #p.stderr.close()
             last_breath = p.communicate()[1].decode('utf-8')
 
             explanation = "UNKNOWN"
