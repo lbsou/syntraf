@@ -35,18 +35,20 @@ def read_log_listener(listener_dict_key, _config, dict_data_to_send_to_server, t
 #################################################################################
 ### FUNCTION TO READ CONNECTORS LOGS
 #################################################################################
-def read_log_connector(connector_dict_key, _config, dict_data_to_send_to_server, threads_n_processes, iperf3_connector_thread):
+def read_log_connector(connector_key, config, dict_data_to_send_to_server, threads_n_processes, iperf3_connector_thread):
     utime_last_event = time.time()
-    lines = tail(_config, "CONNECTORS", connector_dict_key, iperf3_connector_thread)
+    lines = tail(config, "CONNECTORS", connector_key, iperf3_connector_thread)
 
-    log.info(f"READING LOGS FOR CONNECTOR {connector_dict_key}")
+    log.info(f"READING LOGS FOR CONNECTOR {connector_key}")
     try:
         while True:
             line = next(lines, None)
+
             if line:
                 utime_last_event = time.time()
-                if not parse_line(line, _config, connector_dict_key, "CONNECTORS", threads_n_processes, dict_data_to_send_to_server, iperf3_connector_thread):
-                    break
+                if config['CONNECTORS'][connector_key]['BIDIR']:
+                    if not parse_line(line, config, connector_key, "CONNECTORS", threads_n_processes, dict_data_to_send_to_server, iperf3_connector_thread):
+                        break
             #else:
             #    outage_management(_config, "CONNECTOR", connector_dict_key, threads_n_processes, utime_last_event, dict_data_to_send_to_server)
 
@@ -101,7 +103,6 @@ def parse_line(line, _config, edge_dict_key, edge_type, threads_n_processes, dic
     for thr in threads_n_processes:
         if thr.name == edge_dict_key and thr.syntraf_instance_type == "READ_LOG":
             thr_iperf3_readlog = thr
-
 
     line = format_line(line)
 

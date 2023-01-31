@@ -170,6 +170,10 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
             thread_udp_hole(config, connector_key, connector_value, threads_n_processes, iperf3_conn_thread)
             thread_read_log(config, connector_key, connector_value, threads_n_processes, iperf3_conn_thread, dict_data_to_send_to_server)
             time.sleep(2)
+        else:
+            thread_read_log(config, connector_key, connector_value, threads_n_processes, iperf3_conn_thread, dict_data_to_send_to_server)
+            time.sleep(2)
+
         p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, text=True, env=env_var)
         iperf3_conn_thread.subproc = p
 
