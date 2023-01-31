@@ -1,14 +1,59 @@
 from lib.st_global import DefaultValues
 from lib.st_iperf import *
 from lib.st_influxdb import *
-import os
 import time
 import re
 from datetime import datetime
 import pytz
-import pathlib
 import logging
 log = logging.getLogger("syntraf." + __name__)
+
+
+#################################################################################
+### FUNCTION TO READ LISTENERS LOGS
+#################################################################################
+def read_log_listener(listener_dict_key, _config, dict_data_to_send_to_server, threads_n_processes, iperf3_listener_thread):
+    utime_last_event = time.time()
+
+    lines = tail(_config, "LISTENERS", listener_dict_key, iperf3_listener_thread)
+    log.info(f"READING LOGS FOR LISTENER {listener_dict_key}")
+    try:
+        while True:
+            line = next(lines, None)
+            if line:
+                utime_last_event = time.time()
+                if not parse_line(line, _config, listener_dict_key, "LISTENERS", threads_n_processes, dict_data_to_send_to_server):
+                    break
+            #else:
+            #    outage_management(_config, "LISTENER", listener_dict_key, threads_n_processes, utime_last_event, dict_data_to_send_to_server)
+            time.sleep(0.1)
+
+    except Exception as exc:
+        log.error(f"read_log:{type(exc).__name__}:{exc}", exc_info=True)
+
+
+#################################################################################
+### FUNCTION TO READ CONNECTORS LOGS
+#################################################################################
+def read_log_connector(connector_dict_key, _config, dict_data_to_send_to_server, threads_n_processes, iperf3_connector_thread):
+    utime_last_event = time.time()
+    lines = tail(_config, "CONNECTORS", connector_dict_key, iperf3_connector_thread)
+
+    log.info(f"READING LOGS FOR CONNECTOR {connector_dict_key}")
+    try:
+        while True:
+            line = next(lines, None)
+            if line:
+                utime_last_event = time.time()
+                if not parse_line(line, _config, connector_dict_key, "CONNECTORS", threads_n_processes, dict_data_to_send_to_server, iperf3_connector_thread):
+                    break
+            #else:
+            #    outage_management(_config, "CONNECTOR", connector_dict_key, threads_n_processes, utime_last_event, dict_data_to_send_to_server)
+
+            time.sleep(0.1)
+
+    except Exception as exc:
+        log.error(f"read_log:{type(exc).__name__}:{exc}", exc_info=True)
 
 
 #################################################################################
@@ -32,7 +77,11 @@ def tail(_config, edge_type, edge_dict_key, thr_iperf3):
     try:
         for line in thr_iperf3.subproc.stdout:
             log.debug(f"LINE {edge_dict_key} {line}")
-            yield line
+            # No valuable information in TX lines
+            if "TX-C" in line or "TX-S" in line:
+                continue
+            else:
+                yield line
 
     except ValueError as exc:
         #I/O operation on closed file
@@ -41,6 +90,76 @@ def tail(_config, edge_type, edge_dict_key, thr_iperf3):
         log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
 
 
+#################################################################################
+###
+#################################################################################
+def parse_line(line, _config, edge_dict_key, edge_type, threads_n_processes, dict_data_to_send_to_server, iperf3_connector_thread=None):
+    values = line.split(" ")
+    thr_iperf3_readlog = None
+
+    # Get the current thread object to update counter and status
+    for thr in threads_n_processes:
+        if thr.name == edge_dict_key and thr.syntraf_instance_type == "READ_LOG":
+            thr_iperf3_readlog = thr
+
+
+    line = format_line(line)
+
+    try:
+        #Grab src port if bidir conection
+        if "connected to" in line and "local" in line:
+            if edge_dict_key in _config['CONNECTORS']:
+                if _config['CONNECTORS'][edge_dict_key]['BIDIR']:
+                    grab_bidir_src_port(_config, line, iperf3_connector_thread)
+        elif (len(values) >= 20 and ("omitted" not in line) and ("terminated" not in line) and (
+                "Interval" not in line) and ("receiver" not in line) and ("------------" not in line) and (
+                "- - - - - - - - -" not in line) and "TX-C" not in line and "TX-S" not in line):
+            # When connection is dropped without the management channel being aware of it, iperf3 start to log 0 values
+            # NOT OK : ["'2021-04-06", '15:10:12', "'[", '', '6]', '', '10.00-10.44', '', 'sec', '', '0.00', 'Bytes', '', '0.00','Kbits/sec', '', '0.017', 'ms', '', '0/0', '(0%)', '', '\n']
+            # OK : ["'2021-04-06", '15:10:04', "'[", '', '6]', '', '', '1.00-2.00', '', '', 'sec', '', '10.6', 'KBytes', '','87.2', 'Kbits/sec', '', '0.011', 'ms', '', '0/50', '(0%)', '', '\n']
+
+            # increment the counter of line read
+            if not thr_iperf3_readlog.line_read:
+                thr_iperf3_readlog.line_read = 1
+            else:
+                thr_iperf3_readlog.line_read += 1
+
+            # Update last activity var
+            thr_iperf3_readlog.last_activity = datetime.now()
+
+            timestamp, utime, bitrate, jitter, loss, packet_loss, packet_total = extract_values_from_iperf3_result_line(line)
+
+            # when 100% packet loss, iperf report 0 for all values except jitter
+            # ie: [  5]   4.00-5.00   sec  0.00 Bytes  0.00 bits/sec  0.024 ms  0/0 (0%)
+            if bitrate == "0.00" and loss == "0" and packet_loss == "0" and packet_total == "0":
+                loss = "100"
+
+            # When we have bidir activated, the server will transmit
+            if edge_type == "CONNECTORS":
+                save_to_server(
+                    [_config['CONNECTORS'][edge_dict_key]['UID_SERVER'],
+                     _config['CONNECTORS'][edge_dict_key]['UID_CLIENT'],
+                     timestamp, utime, bitrate, jitter,
+                     loss], _config, edge_type, edge_dict_key, packet_loss, packet_total, dict_data_to_send_to_server)
+                log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - connector:{edge_dict_key}")
+            else:
+                save_to_server(
+                    [_config['LISTENERS'][edge_dict_key]['UID_CLIENT'],
+                     _config['LISTENERS'][edge_dict_key]['UID_SERVER'], timestamp, utime, bitrate, jitter,
+                     loss], _config, edge_type, edge_dict_key, packet_loss, packet_total, dict_data_to_send_to_server)
+                log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - listener:{edge_dict_key}")
+
+            log.debug(f"timestamp:{timestamp.strftime('%d/%m/%Y %H:%M:%S')}, bitrate: {bitrate}, jitter: {jitter}, loss: {loss}, packet_loss: {packet_loss}, packet_total: {packet_total}")
+
+        else:
+            log.debug(f"tail(): {edge_dict_key} - LINE DOES NOT CONTAIN METRICS:{line}")
+
+    except Exception as exc:
+        log.error(f"parse_line:{type(exc).__name__}:{exc}", exc_info=True)
+        return False
+
+    return True
+
 def format_line(line):
     # When using bidir, we get RX and TX. TX is discarded by previous condition, and RX need to be remove from the line for proper parsing
     if "[RX-C]" in line:
@@ -48,6 +167,7 @@ def format_line(line):
     elif "[RX-S]" in line:
         line = line.replace("[RX-S]", "")
     return line
+
 
 
 def extract_values_from_iperf3_result_line(line):
@@ -102,73 +222,7 @@ def grab_bidir_src_port(_config, line, iperf3_connector_thread):
             iperf3_connector_thread.bidir_src_port_cpt = -1
 
 
-#################################################################################
-###
-#################################################################################
-def parse_line_to_array(line, _config, edge_dict_key, edge_type, threads_n_processes, dict_data_to_send_to_server, iperf3_connector_thread=None):
-    values = line.split(" ")
-    thr_iperf3_readlog = None
-    for thr in threads_n_processes:
-        if thr.name == edge_dict_key and thr.syntraf_instance_type == "READ_LOG":
-            thr_iperf3_readlog = thr
 
-    try:
-        #Grab src port if bidir conection
-        if "connected to" in line and "local" in line:
-            if edge_dict_key in _config['CONNECTORS']:
-                if _config['CONNECTORS'][edge_dict_key]['BIDIR']:
-                    grab_bidir_src_port(_config, line, iperf3_connector_thread)
-        # No valuable information in TX lines
-        elif "TX-C" in line and "TX-S" in line:
-            return
-        elif (len(values) >= 20 and ("omitted" not in line) and ("terminated" not in line) and (
-                "Interval" not in line) and ("receiver" not in line) and ("------------" not in line) and (
-                "- - - - - - - - -" not in line) and "TX-C" not in line and "TX-S" not in line):
-            # When connection is dropped without the management channel being aware of it, iperf3 start to log 0 values
-            # NOT OK : ["'2021-04-06", '15:10:12', "'[", '', '6]', '', '10.00-10.44', '', 'sec', '', '0.00', 'Bytes', '', '0.00','Kbits/sec', '', '0.017', 'ms', '', '0/0', '(0%)', '', '\n']
-            # OK : ["'2021-04-06", '15:10:04', "'[", '', '6]', '', '', '1.00-2.00', '', '', 'sec', '', '10.6', 'KBytes', '','87.2', 'Kbits/sec', '', '0.011', 'ms', '', '0/50', '(0%)', '', '\n']
-
-            if not thr_iperf3_readlog.line_read:
-                thr_iperf3_readlog.line_read = 1
-            else:
-                thr_iperf3_readlog.line_read += 1
-
-            thr_iperf3_readlog.last_activity = datetime.now()
-
-            line = format_line(line)
-
-            timestamp, utime, bitrate, jitter, loss, packet_loss, packet_total = extract_values_from_iperf3_result_line(line)
-
-            # when 100% packet loss, iperf report 0 for all values except jitter
-            # ie: [  5]   4.00-5.00   sec  0.00 Bytes  0.00 bits/sec  0.024 ms  0/0 (0%)
-            if bitrate == "0.00" and loss == "0" and packet_loss == "0" and packet_total == "0":
-                loss = "100"
-
-            # When we have bidir activated, the server will transmit
-            if edge_type == "CONNECTORS":
-                save_to_server(
-                    [_config['CONNECTORS'][edge_dict_key]['UID_SERVER'],
-                     _config['CONNECTORS'][edge_dict_key]['UID_CLIENT'],
-                     timestamp, utime, bitrate, jitter,
-                     loss], _config, edge_type, edge_dict_key, packet_loss, packet_total, dict_data_to_send_to_server)
-                log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - connector:{edge_dict_key}")
-            else:
-                save_to_server(
-                    [_config['LISTENERS'][edge_dict_key]['UID_CLIENT'],
-                     _config['LISTENERS'][edge_dict_key]['UID_SERVER'], timestamp, utime, bitrate, jitter,
-                     loss], _config, edge_type, edge_dict_key, packet_loss, packet_total, dict_data_to_send_to_server)
-                log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - listener:{edge_dict_key}")
-
-            log.debug(f"timestamp:{timestamp.strftime('%d/%m/%Y %H:%M:%S')}, bitrate: {bitrate}, jitter: {jitter}, loss: {loss}, packet_loss: {packet_loss}, packet_total: {packet_total}")
-
-        else:
-            log.debug(f"tail(): {edge_dict_key} - LINE DOES NOT CONTAIN METRICS:{line}")
-
-    except Exception as exc:
-        log.error(f"parse_line_to_array:{type(exc).__name__}:{exc}", exc_info=True)
-        return False
-
-    return True
 
 
 def outage_management(_config, edge_type, edge_dict_key, threads_n_processes, utime_last_event, dict_data_to_send_to_server):
@@ -221,48 +275,3 @@ def outage_management(_config, edge_type, edge_dict_key, threads_n_processes, ut
             utime_last_event = utime_now
 
 
-#################################################################################
-### FUNCTION TO READ LISTENERS LOGS
-#################################################################################
-def read_log_listener(listener_dict_key, _config, dict_data_to_send_to_server, threads_n_processes, iperf3_listener_thread):
-    utime_last_event = time.time()
-
-    lines = tail(_config, "LISTENERS", listener_dict_key, iperf3_listener_thread)
-    log.info(f"READING LOGS FOR LISTENER {listener_dict_key}")
-    try:
-        while True:
-            line = next(lines, None)
-            if line:
-                utime_last_event = time.time()
-                if not parse_line_to_array(line, _config, listener_dict_key, "LISTENERS", threads_n_processes, dict_data_to_send_to_server):
-                    break
-            #else:
-            #    outage_management(_config, "LISTENER", listener_dict_key, threads_n_processes, utime_last_event, dict_data_to_send_to_server)
-            time.sleep(0.1)
-
-    except Exception as exc:
-        log.error(f"read_log:{type(exc).__name__}:{exc}", exc_info=True)
-
-
-#################################################################################
-### FUNCTION TO READ CONNECTORS LOGS
-#################################################################################
-def read_log_connector(connector_dict_key, _config, dict_data_to_send_to_server, threads_n_processes, iperf3_connector_thread):
-    utime_last_event = time.time()
-    lines = tail(_config, "CONNECTORS", connector_dict_key, iperf3_connector_thread)
-
-    log.info(f"READING LOGS FOR CONNECTOR {connector_dict_key}")
-    try:
-        while True:
-            line = next(lines, None)
-            if line:
-                utime_last_event = time.time()
-                if not parse_line_to_array(line, _config, connector_dict_key, "CONNECTORS", threads_n_processes, dict_data_to_send_to_server, iperf3_connector_thread):
-                    break
-            #else:
-            #    outage_management(_config, "CONNECTOR", connector_dict_key, threads_n_processes, utime_last_event, dict_data_to_send_to_server)
-
-            time.sleep(0.1)
-
-    except Exception as exc:
-        log.error(f"read_log:{type(exc).__name__}:{exc}", exc_info=True)
