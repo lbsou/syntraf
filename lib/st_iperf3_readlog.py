@@ -78,7 +78,7 @@ def tail(_config, edge_type, edge_dict_key, thr_iperf3):
 
     try:
         for line in thr_iperf3.subproc.stdout:
-            log.debug(f"LINE {edge_dict_key} {line}")
+            log.debug(f"LINE FROM {edge_type} : {edge_dict_key} - {line}")
             # No valuable information in TX lines
             if "TX-C" in line or "TX-S" in line:
                 continue
