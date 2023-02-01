@@ -220,7 +220,8 @@ def iperf3_server(listener_key, _config):
             for i in args:
                 arguments += " " + i
 
-            p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+            #p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+            p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
 
             if p.poll() is None:
                 iperf3_listeners_log.warning(
