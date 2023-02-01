@@ -212,7 +212,7 @@ def iperf3_server(listener_key, _config):
                     "--rsa-private-key-path", os.path.join(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'private_key_iperf_client.pem'),
                     "--authorized-users-path", os.path.join(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'credentials.csv'),
                     "--time-skew-threshold", _config['GLOBAL']['IPERF3_TIME_SKEW_THRESHOLD'],
-                    "--idle-timeout", DefaultValues.DEFAULT_IPERF3_SERVER_IDLE_TIMEOUT,
+                 #   "--idle-timeout", DefaultValues.DEFAULT_IPERF3_SERVER_IDLE_TIMEOUT,
                     "--rcv-timeout", DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT,
                     "--one-off",
                     "-p", str(_config['LISTENERS'][listener_key]['PORT']), "--timestamps='%F %T '")
