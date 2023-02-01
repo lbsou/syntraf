@@ -161,6 +161,7 @@ def parse_line(line, _config, edge_dict_key, edge_type, threads_n_processes, dic
 
     return True
 
+
 def format_line(line):
     # When using bidir, we get RX and TX. TX is discarded by previous condition, and RX need to be remove from the line for proper parsing
     if "[RX-C]" in line:
@@ -168,7 +169,6 @@ def format_line(line):
     elif "[RX-S]" in line:
         line = line.replace("[RX-S]", "")
     return line
-
 
 
 def extract_values_from_iperf3_result_line(line):
