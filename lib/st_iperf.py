@@ -174,14 +174,14 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
             thread_read_log(config, connector_key, connector_value, threads_n_processes, iperf3_conn_thread, dict_data_to_send_to_server)
             time.sleep(2)
 
-        p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, env=env_var)
-        #p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, text=True, env=env_var)
+        #p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, env=env_var)
+        p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, text=True, env=env_var)
         iperf3_conn_thread.subproc = p
 
         if p.poll() is None:
             iperf3_connectors_log.warning(f"IPERF3 CLIENT FOR CONNECTOR '{connector_key}' STARTED WITH SERVER {config['CONNECTORS'][connector_key]['DESTINATION_ADDRESS']}:{config['CONNECTORS'][connector_key]['PORT']} {arguments}")
         else:
-            last_breath = p.communicate()[1].decode('utf-8')
+            last_breath = p.communicate()[1]
 
             explanation = "UNKNOWN"
             if "unable to connect to server: No route to host" in last_breath:
@@ -212,8 +212,8 @@ def iperf3_server(listener_key, _config):
                     "--rsa-private-key-path", os.path.join(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'private_key_iperf_client.pem'),
                     "--authorized-users-path", os.path.join(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'credentials.csv'),
                     "--time-skew-threshold", _config['GLOBAL']['IPERF3_TIME_SKEW_THRESHOLD'],
-                 #   "--idle-timeout", DefaultValues.DEFAULT_IPERF3_SERVER_IDLE_TIMEOUT,
-                    "--rcv-timeout", DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT,
+                    "--idle-timeout", DefaultValues.DEFAULT_IPERF3_SERVER_IDLE_TIMEOUT,
+                    #"--rcv-timeout", DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT,
                     "--one-off",
                     "-p", str(_config['LISTENERS'][listener_key]['PORT']), "--timestamps='%F %T '")
 
@@ -221,8 +221,7 @@ def iperf3_server(listener_key, _config):
             for i in args:
                 arguments += " " + i
 
-            #p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
-            p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+            p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
 
             if p.poll() is None:
                 iperf3_listeners_log.warning(
