@@ -252,7 +252,7 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                     # The subproc is not running
                     if not thr_temp.subproc.poll() is None:
                         # Print the last breath
-                        log.warning(f"IPERF3 SERVER OF LISTENER '{listener}' DIED OR NEVER START. LAST BREATH : '{thr_temp.subproc.communicate()[1]}'")
+                        log.warning(f"IPERF3 SERVER OF LISTENER '{listener}' DIED OR NEVER START. LAST BREATH : '{thr_temp.subproc.communicate()[1]} - {thr_temp.subproc.stderr}'")
                         threads_n_processes.remove(thr_temp)
 
                         # starting the new iperf server
