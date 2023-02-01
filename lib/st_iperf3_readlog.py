@@ -78,7 +78,9 @@ def tail(_config, edge_type, edge_dict_key, thr_iperf3):
 
     try:
         for line in thr_iperf3.subproc.stdout:
+            line = line.decode('utf-8')
             log.debug(f"LINE FROM {edge_type} : {edge_dict_key} - {line}")
+
             # No valuable information in TX lines
             if "TX-C" in line or "TX-S" in line:
                 continue
@@ -221,8 +223,6 @@ def grab_bidir_src_port(_config, line, iperf3_connector_thread):
             iperf3_connector_thread.bidir_local_addr = m_laddr.groups()[0]
             log.info(f"GOT A SRC_IP AND SRC_PORT FOR UDP_HOLE_PUNCH:{m_laddr.groups()[0]}/{m_lport.groups()[0]}")
             iperf3_connector_thread.bidir_src_port_cpt = -1
-
-
 
 
 
