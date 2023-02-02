@@ -24,8 +24,8 @@ def read_log_listener(listener_dict_key, _config, dict_data_to_send_to_server, t
                 utime_last_event = time.time()
                 if not parse_line(line, _config, listener_dict_key, "LISTENERS", threads_n_processes, dict_data_to_send_to_server):
                     break
-            else:
-                outage_management(_config, "LISTENERS", listener_dict_key, threads_n_processes, utime_last_event, dict_data_to_send_to_server)
+            #else:
+            #    outage_management(_config, "LISTENERS", listener_dict_key, threads_n_processes, utime_last_event, dict_data_to_send_to_server)
             time.sleep(0.1)
 
     except Exception as exc:
@@ -48,8 +48,8 @@ def read_log_connector(connector_key, config, dict_data_to_send_to_server, threa
                 utime_last_event = time.time()
                 if not parse_line(line, config, connector_key, "CONNECTORS", threads_n_processes, dict_data_to_send_to_server, iperf3_connector_thread):
                     break
-            else:
-                outage_management(config, "CONNECTORS", connector_key, threads_n_processes, utime_last_event, dict_data_to_send_to_server)
+            #else:
+            #    outage_management(config, "CONNECTORS", connector_key, threads_n_processes, utime_last_event, dict_data_to_send_to_server)
 
             time.sleep(0.1)
 
@@ -220,7 +220,6 @@ def grab_bidir_src_port(_config, line, iperf3_connector_thread):
             iperf3_connector_thread.bidir_local_addr = m_laddr.groups()[0]
             log.info(f"GOT A SRC_IP AND SRC_PORT FOR UDP_HOLE_PUNCH:{m_laddr.groups()[0]}/{m_lport.groups()[0]}")
             iperf3_connector_thread.bidir_src_port_cpt = -1
-
 
 
 def outage_management(config, edge_type, edge_key, threads_n_processes, utime_last_event, dict_data_to_send_to_server):
