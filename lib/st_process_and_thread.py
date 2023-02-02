@@ -168,7 +168,6 @@ def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, config_file_p
             if thr_temp and not thr_temp.thread_obj.is_alive():
                 #log.error("WEBUI THREAD COULD NOT RUN OR DIED, PLEASE INVESTIGATE")
                 #sys.exit()
-                thr_temp.subproc.kill()
                 threads_n_processes.remove(thr_temp)
 
                 thread_run = None
