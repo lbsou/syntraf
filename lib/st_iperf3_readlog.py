@@ -223,17 +223,17 @@ def grab_bidir_src_port(_config, line, iperf3_connector_thread):
 
 
 
-def outage_management(_config, edge_type, edge_dict_key, threads_n_processes, utime_last_event, dict_data_to_send_to_server):
+def outage_management(config, edge_type, edge_key, threads_n_processes, utime_last_event, dict_data_to_send_to_server):
     utime_now = time.time()
     listener_just_started_or_absent = False
-    interval = int(_config['LISTENERS'][edge_dict_key]['INTERVAL'])
-    uid_client = _config['LISTENERS'][edge_dict_key]['UID_CLIENT']
-    uid_server = _config['LISTENERS'][edge_dict_key]['UID_SERVER']
+    interval = int(config[edge_type][edge_key]['INTERVAL'])
+    uid_client = config[edge_type][edge_key]['UID_CLIENT']
+    uid_server = config[edge_type][edge_key]['UID_SERVER']
 
     # Get the infos of the starttime of the current listener, if it has just started or does not exist, do no log an outage, it's just iperf that is not running.
     flag_no_thread_found = True
     for obj_thread_n_process in threads_n_processes:
-        if obj_thread_n_process.name == edge_dict_key and (
+        if obj_thread_n_process.name == edge_key and (
                 obj_thread_n_process.syntraf_instance_type == "LISTENER" or obj_thread_n_process.syntraf_instance_type == "CONNECTOR"):
             flag_no_thread_found = False
             dt_delta = datetime.now() - obj_thread_n_process.starttime
@@ -255,7 +255,7 @@ def outage_management(_config, edge_type, edge_dict_key, threads_n_processes, ut
         if (utime_now - utime_last_event) >= (2 * interval):
             # Save new event to database with 100% loss for every time interval
             qty_of_event_to_report = (utime_now - utime_last_event) / interval
-            log.warning(f"{edge_dict_key} - SYNTRAF HAS DETECTED AN OUTAGE, {qty_of_event_to_report} EVENTS WHERE LOST. GENERATING 100% LOSSES VALUES.")
+            log.warning(f"{edge_key} - SYNTRAF HAS DETECTED AN OUTAGE, {qty_of_event_to_report} EVENTS WHERE LOST. GENERATING 100% LOSSES VALUES.")
 
             for utime_generated in range(int(utime_last_event) + interval, int(utime_now), interval):
                 dt_generated = datetime.fromtimestamp(utime_generated)
@@ -265,9 +265,9 @@ def outage_management(_config, edge_type, edge_dict_key, threads_n_processes, ut
                 utime_generated_utc = dt_tz_generated.astimezone(pytz.timezone("UTC")).timestamp()
 
                 # save
-                save_to_server([uid_client, uid_server, timestamp_generated, utime_generated_utc, "0", "0", "100"], _config, edge_type, edge_dict_key, "0", "0", dict_data_to_send_to_server)
+                save_to_server([uid_client, uid_server, timestamp_generated, utime_generated_utc, "0", "0", "100"], config, edge_type, edge_key, "0", "0", dict_data_to_send_to_server)
 
-                log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - {edge_dict_key}")
+                log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - {edge_key}")
                 log.debug(f"timestamp:{timestamp_generated}, bitrate: 0, jitter: 0, loss: 100, packet_loss: 0, packet_total: 0")
 
             utime_last_event = utime_now
