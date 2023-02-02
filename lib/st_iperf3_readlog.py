@@ -61,7 +61,7 @@ def read_log_connector(connector_key, config, dict_data_to_send_to_server, threa
 #################################################################################
 ### YIELD LINE FROM IPERF3 OUTPUT FILE
 #################################################################################
-def tail(_config, edge_type, edge_dict_key, thr_iperf3):
+def tail(_config, edge_type, edge_key, thr_iperf3):
 
     # Wait for iperf3 to start
     while thr_iperf3.subproc is None:
@@ -74,7 +74,7 @@ def tail(_config, edge_type, edge_dict_key, thr_iperf3):
         if thr_iperf3.subproc.stdout:
             break
 
-    log.debug(f"READLOG THREAD ACQUIRED IPERF3 STDOUT FOR THE {edge_type} {edge_dict_key} ")
+    log.debug(f"READLOG THREAD ACQUIRED IPERF3 STDOUT FOR THE {edge_type} {edge_key} ")
 
     try:
         for line in thr_iperf3.subproc.stdout:
@@ -82,12 +82,12 @@ def tail(_config, edge_type, edge_dict_key, thr_iperf3):
             if "TX-C" in line or "TX-S" in line:
                 continue
             else:
-                log.debug(f"LINE FROM {edge_type} : {edge_dict_key} - {line}")
+                log.debug(f"LINE FROM {edge_type} : {edge_key} - {line}")
                 yield line
 
     except ValueError as exc:
         #I/O operation on closed file
-        log.error(f"NO MORE LINE TO READ FROM STDOUT OF {edge_type} {edge_dict_key}")
+        log.error(f"NO MORE LINE TO READ FROM STDOUT OF {edge_type} {edge_key}")
     except Exception as exc:
         log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
 
@@ -95,13 +95,13 @@ def tail(_config, edge_type, edge_dict_key, thr_iperf3):
 #################################################################################
 ###
 #################################################################################
-def parse_line(line, _config, edge_dict_key, edge_type, threads_n_processes, dict_data_to_send_to_server, iperf3_connector_thread=None):
+def parse_line(line, _config, edge_key, edge_type, threads_n_processes, dict_data_to_send_to_server, iperf3_connector_thread=None):
     values = line.split(" ")
     thr_iperf3_readlog = None
 
     # Get the current thread object to update counter and status
     for thr in threads_n_processes:
-        if thr.name == edge_dict_key and thr.syntraf_instance_type == "READ_LOG":
+        if thr.name == edge_key and thr.syntraf_instance_type == "READ_LOG":
             thr_iperf3_readlog = thr
 
     line = format_line(line)
@@ -109,8 +109,8 @@ def parse_line(line, _config, edge_dict_key, edge_type, threads_n_processes, dic
     try:
         #Grab src port if bidir conection
         if "connected to" in line and "local" in line:
-            if edge_dict_key in _config['CONNECTORS']:
-                if _config['CONNECTORS'][edge_dict_key]['BIDIR']:
+            if edge_key in _config['CONNECTORS']:
+                if _config['CONNECTORS'][edge_key]['BIDIR']:
                     grab_bidir_src_port(_config, line, iperf3_connector_thread)
         elif (len(values) >= 20 and ("omitted" not in line) and ("terminated" not in line) and (
                 "Interval" not in line) and ("receiver" not in line) and ("------------" not in line) and (
@@ -138,22 +138,22 @@ def parse_line(line, _config, edge_dict_key, edge_type, threads_n_processes, dic
             # When we have bidir activated, the server will transmit
             if edge_type == "CONNECTORS":
                 save_to_server(
-                    [_config['CONNECTORS'][edge_dict_key]['UID_SERVER'],
-                     _config['CONNECTORS'][edge_dict_key]['UID_CLIENT'],
+                    [_config['CONNECTORS'][edge_key]['UID_SERVER'],
+                     _config['CONNECTORS'][edge_key]['UID_CLIENT'],
                      timestamp, utime, bitrate, jitter,
-                     loss], _config, edge_type, edge_dict_key, packet_loss, packet_total, dict_data_to_send_to_server)
-                log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - connector:{edge_dict_key}")
+                     loss], _config, edge_type, edge_key, packet_loss, packet_total, dict_data_to_send_to_server)
+                log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - connector:{edge_key}")
             else:
                 save_to_server(
-                    [_config['LISTENERS'][edge_dict_key]['UID_CLIENT'],
-                     _config['LISTENERS'][edge_dict_key]['UID_SERVER'], timestamp, utime, bitrate, jitter,
-                     loss], _config, edge_type, edge_dict_key, packet_loss, packet_total, dict_data_to_send_to_server)
-                log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - listener:{edge_dict_key}")
+                    [_config['LISTENERS'][edge_key]['UID_CLIENT'],
+                     _config['LISTENERS'][edge_key]['UID_SERVER'], timestamp, utime, bitrate, jitter,
+                     loss], _config, edge_type, edge_key, packet_loss, packet_total, dict_data_to_send_to_server)
+                log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - listener:{edge_key}")
 
             log.debug(f"timestamp:{timestamp.strftime('%d/%m/%Y %H:%M:%S')}, bitrate: {bitrate}, jitter: {jitter}, loss: {loss}, packet_loss: {packet_loss}, packet_total: {packet_total}")
 
         else:
-            log.debug(f"tail(): {edge_dict_key} - LINE DOES NOT CONTAIN METRICS:{line}")
+            log.debug(f"tail(): {edge_key} - LINE DOES NOT CONTAIN METRICS:{line}")
 
     except Exception as exc:
         log.error(f"parse_line:{type(exc).__name__}:{exc}", exc_info=True)
