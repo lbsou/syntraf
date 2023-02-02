@@ -304,9 +304,6 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                             threads_n_processes.append(thread_or_process)
 
     except Exception as exc:
-        # exc_type, exc_obj, exc_tb = sys.exc_info()
-        # fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-        # print(exc_type, fname, exc_tb.tb_lineno)
         log.error(f"manage_listeners_process:{type(exc).__name__}:{exc}", exc_info=True)
 
 
@@ -478,4 +475,5 @@ def close_listeners_and_connectors(threads_n_processes, _config):
             terminate_connector_and_childs(threads_n_processes, thr.name, thr, _config)
         elif thr.syntraf_instance_type == "LISTENER":
             thr.close()
+            stdout, stderr = thr.communicate()
             threads_n_processes.remove(thr)
