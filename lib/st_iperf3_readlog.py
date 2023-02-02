@@ -25,7 +25,7 @@ def read_log_listener(listener_dict_key, _config, dict_data_to_send_to_server, t
                 if not parse_line(line, _config, listener_dict_key, "LISTENERS", threads_n_processes, dict_data_to_send_to_server):
                     break
             else:
-                outage_management(_config, "LISTENER", listener_dict_key, threads_n_processes, utime_last_event, dict_data_to_send_to_server)
+                outage_management(_config, "LISTENERS", listener_dict_key, threads_n_processes, utime_last_event, dict_data_to_send_to_server)
             time.sleep(0.1)
 
     except Exception as exc:
@@ -49,7 +49,7 @@ def read_log_connector(connector_key, config, dict_data_to_send_to_server, threa
                 if not parse_line(line, config, connector_key, "CONNECTORS", threads_n_processes, dict_data_to_send_to_server, iperf3_connector_thread):
                     break
             else:
-                outage_management(config, "CONNECTOR", connector_key, threads_n_processes, utime_last_event, dict_data_to_send_to_server)
+                outage_management(config, "CONNECTORS", connector_key, threads_n_processes, utime_last_event, dict_data_to_send_to_server)
 
             time.sleep(0.1)
 
