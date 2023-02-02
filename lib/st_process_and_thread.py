@@ -475,5 +475,5 @@ def close_listeners_and_connectors(threads_n_processes, _config):
             terminate_connector_and_childs(threads_n_processes, thr.name, thr, _config)
         elif thr.syntraf_instance_type == "LISTENER":
             thr.close()
-            stdout, stderr = thr.communicate()
+            stdout, stderr = thr.subproc.communicate()
             threads_n_processes.remove(thr)
