@@ -168,6 +168,7 @@ def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, config_file_p
             if thr_temp and not thr_temp.thread_obj.is_alive():
                 #log.error("WEBUI THREAD COULD NOT RUN OR DIED, PLEASE INVESTIGATE")
                 #sys.exit()
+                thr_temp.subproc.kill()
                 threads_n_processes.remove(thr_temp)
 
                 thread_run = None
@@ -258,6 +259,7 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
 
                         # Print the last breath
                         log.warning(f"IPERF3 SERVER OF LISTENER '{listener}' DIED OR NEVER START. LAST BREATH : '{thr_temp.subproc.communicate()[1]} - {stderr_last_breath}'")
+                        thr_temp.subproc.kill()
                         threads_n_processes.remove(thr_temp)
 
                         # starting the new iperf server
@@ -389,6 +391,7 @@ def iperf3_client_print_last_breath(connector_key, threads_n_processes, thr_temp
     last_breath = last_breath.replace("\r", "")
     last_breath = last_breath.replace("\n", "")
     log.warning(f"IPERF3 CLIENT OF CONNECTOR '{connector_key}' DIED OR NEVER START. LAST BREATH : '{last_breath.upper()}'")
+    thr_temp.subproc.kill()
     threads_n_processes.remove(thr_temp)
 
 
