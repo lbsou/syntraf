@@ -253,7 +253,7 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                     if not thr_temp.subproc.poll() is None:
 
                         # Print the last breath and remove from threads_n_processes dict
-                        iperf3_print_last_breath(edge_key, threads_n_processes, thr_temp)
+                        iperf3_print_last_breath(edge_key, "LISTENER", threads_n_processes, thr_temp)
 
                         # starting the new iperf server
                         thread_or_process = st_obj_process_n_thread(subproc=iperf3_server(edge_key, config), name=edge_key,
@@ -466,7 +466,7 @@ def terminate_connector_and_childs(threads_n_processes, connector_key, thr_temp,
             threads_n_processes.remove(thread_to_kill)
 
     # Print the last breath and remove from threads_n_processes dict
-    iperf3_print_last_breath(connector_key, threads_n_processes, thr_temp)
+    iperf3_print_last_breath(connector_key, "CONNECTOR", threads_n_processes, thr_temp)
 
 
 def close_listeners_and_connectors(threads_n_processes, _config):
