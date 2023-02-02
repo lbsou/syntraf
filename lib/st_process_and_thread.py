@@ -226,11 +226,11 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
     try:
         # For each listener, validate config and run the iperf_server
         if 'LISTENERS' in config:
-            for listener, listener_v in config['LISTENERS'].items():
+            for edge_key, listener_v in config['LISTENERS'].items():
                 # check if a st_obj_process_n_thread exist with LISTENER instance_type and the name corresponding the current listener config of the loop
                 # the goal is to see if it's already running
                 for thr in threads_n_processes:
-                    if thr.syntraf_instance_type == "LISTENER" and thr.name == listener:
+                    if thr.syntraf_instance_type == "LISTENER" and thr.name == edge_key:
                         if not thr.subproc:
                             threads_n_processes.remove(thr)
                             thr_temp = None
@@ -243,7 +243,7 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                 # Was never launch
                 if not thr_temp:
                     # starting the new iperf server
-                    thread_or_process = st_obj_process_n_thread(subproc=iperf3_server(listener, config), name=listener,
+                    thread_or_process = st_obj_process_n_thread(subproc=iperf3_server(edge_key, config), name=edge_key,
                                                                 syntraf_instance_type="LISTENER",
                                                                 starttime=datetime.now(), opposite_side=listener_v['UID_CLIENT'], group=listener_v['MESH_GROUP'], port=listener_v['PORT'])
                     threads_n_processes.append(thread_or_process)
@@ -252,17 +252,11 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                     # The subproc is not running
                     if not thr_temp.subproc.poll() is None:
 
-                        stderr_last_breath = ""
-                        for l in thr_temp.subproc.stderr:
-                            stderr_last_breath = f"{stderr_last_breath} - {l}"
-
-                        # Print the last breath
-                        log.warning(f"IPERF3 SERVER OF LISTENER '{listener}' DIED OR NEVER START. LAST BREATH : '{thr_temp.subproc.communicate()[1]} - {stderr_last_breath}'")
-                        thr_temp.subproc.kill()
-                        threads_n_processes.remove(thr_temp)
+                        # Print the last breath and remove from threads_n_processes dict
+                        iperf3_print_last_breath(edge_key, threads_n_processes, thr_temp)
 
                         # starting the new iperf server
-                        thread_or_process = st_obj_process_n_thread(subproc=iperf3_server(listener, config), name=listener,
+                        thread_or_process = st_obj_process_n_thread(subproc=iperf3_server(edge_key, config), name=edge_key,
                                                             syntraf_instance_type="LISTENER", starttime=datetime.now(), opposite_side=listener_v['UID_CLIENT'], group=listener_v['MESH_GROUP'], port=listener_v['PORT'])
 
                         threads_n_processes.append(thread_or_process)
@@ -273,7 +267,7 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                         got_a_readlog_instance = False
                         for thr2 in threads_n_processes:
                             # There is already a thread, but is it running?
-                            if thr2.syntraf_instance_type == "READ_LOG" and thr2.name == listener:
+                            if thr2.syntraf_instance_type == "READ_LOG" and thr2.name == edge_key:
                                 # Is the subproc running? If no, restart it
                                 if not thr2.thread_obj.is_alive():
                                     threads_n_processes.remove(thr2)
@@ -281,12 +275,12 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                                     stop_thread = [False]
                                     thread_run = threading.Thread(target=read_log_listener,
                                                                   args=(
-                                                                  listener, config, dict_data_to_send_to_server, threads_n_processes, thr),
+                                                                  edge_key, config, dict_data_to_send_to_server, threads_n_processes, thr),
                                                                   daemon=True)
                                     thread_run.daemon = True
-                                    thread_run.name = str(listener)
+                                    thread_run.name = str(edge_key)
                                     thread_run.start()
-                                    thread_or_process = st_obj_process_n_thread(thread_obj=thread_run, name=listener,
+                                    thread_or_process = st_obj_process_n_thread(thread_obj=thread_run, name=edge_key,
                                                                                 syntraf_instance_type="READ_LOG",
                                                                                 exit_boolean=False,
                                                                                 starttime=datetime.now(), opposite_side=listener_v['UID_CLIENT'], group=listener_v['MESH_GROUP'], port="")
@@ -298,12 +292,12 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                         if not got_a_readlog_instance:
                             # Was never launch, starting the new READLOG thread
                             thread_run = threading.Thread(target=read_log_listener,
-                                                          args=(listener, config, dict_data_to_send_to_server, threads_n_processes, thr),
+                                                          args=(edge_key, config, dict_data_to_send_to_server, threads_n_processes, thr),
                                                           daemon=True)
                             thread_run.daemon = True
-                            thread_run.name = str(listener)
+                            thread_run.name = str(edge_key)
                             thread_run.start()
-                            thread_or_process = st_obj_process_n_thread(thread_obj=thread_run, name=listener,
+                            thread_or_process = st_obj_process_n_thread(thread_obj=thread_run, name=edge_key,
                                                                         syntraf_instance_type="READ_LOG",
                                                                         exit_boolean=stop_thread, starttime=datetime.now(), opposite_side=listener_v['UID_CLIENT'], group=listener_v['MESH_GROUP'], port="")
 
@@ -384,14 +378,28 @@ def start_iperf3_client(config, connector_key, connector_value, threads_n_proces
         log.error(f"{type(exc).__name__}:{exc}", exc_info=True)
 
 
-def iperf3_client_print_last_breath(connector_key, threads_n_processes, thr_temp):
+def iperf3_print_last_breath(edge_key, edge_type, threads_n_processes, thr_temp):
+    stderr_last_breath = ""
+    for l in thr_temp.subproc.stderr:
+        stderr_last_breath = f"{stderr_last_breath} - {l}"
+
     last_breath = thr_temp.subproc.communicate()[1]
     thr_temp.subproc.stderr.close()
     last_breath = last_breath.replace("\r", "")
     last_breath = last_breath.replace("\n", "")
-    log.warning(f"IPERF3 CLIENT OF CONNECTOR '{connector_key}' DIED OR NEVER START. LAST BREATH : '{last_breath.upper()}'")
+    log.warning(f"IPERF3 {edge_type} '{edge_key}' DIED OR NEVER START. LAST BREATH : '{last_breath.upper()} - {stderr_last_breath}'")
     thr_temp.subproc.kill()
     threads_n_processes.remove(thr_temp)
+
+
+# def iperf3_client_print_last_breath(connector_key, threads_n_processes, thr_temp):
+#     last_breath = thr_temp.subproc.communicate()[1]
+#     thr_temp.subproc.stderr.close()
+#     last_breath = last_breath.replace("\r", "")
+#     last_breath = last_breath.replace("\n", "")
+#     log.warning(f"IPERF3 CLIENT OF CONNECTOR '{connector_key}' DIED OR NEVER START. LAST BREATH : '{last_breath.upper()}'")
+#     thr_temp.subproc.kill()
+#     threads_n_processes.remove(thr_temp)
 
 
 def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_server, conn_db):
@@ -461,7 +469,7 @@ def terminate_connector_and_childs(threads_n_processes, connector_key, thr_temp,
             threads_n_processes.remove(thread_to_kill)
 
     # Print the last breath and remove from threads_n_processes dict
-    iperf3_client_print_last_breath(connector_key, threads_n_processes, thr_temp)
+    iperf3_print_last_breath(connector_key, threads_n_processes, thr_temp)
 
 
 def close_listeners_and_connectors(threads_n_processes, _config):
