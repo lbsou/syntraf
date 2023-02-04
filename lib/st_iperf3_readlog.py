@@ -7,7 +7,9 @@ from datetime import datetime
 import pytz
 import logging
 log = logging.getLogger("syntraf." + __name__)
-
+import sys
+if sys.platform == "linux":
+    import pyprctl
 
 #################################################################################
 ### FUNCTION TO READ LISTENERS LOGS
@@ -36,6 +38,9 @@ def read_log_listener(listener_dict_key, _config, dict_data_to_send_to_server, t
 ### FUNCTION TO READ CONNECTORS LOGS
 #################################################################################
 def read_log_connector(connector_key, config, dict_data_to_send_to_server, threads_n_processes, iperf3_connector_thread):
+    if sys.platform == "linux":
+        pyprctl.set_name("READLOG")
+
     utime_last_event = time.time()
     lines = tail(config, "CONNECTORS", connector_key, iperf3_connector_thread)
 

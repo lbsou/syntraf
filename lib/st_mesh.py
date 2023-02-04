@@ -43,7 +43,7 @@ from ctypes import *
 
 # To detect if the NIC is wireless or ethernet
 if sys.platform == "linux":
-    import fcntl
+     import pyprctl
 elif sys.platform == "win32":
     pass
 elif sys.platform == "darwin":
@@ -484,6 +484,9 @@ def client_command_diffconfig(_config, received_data, threads_n_processes):
 ###  MESH CLIENT SOCKET
 #################################################################################
 def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processes, obj_stats, config_file_path, cli_parameters):
+    if platform == "linux":
+        pyprctl.set_name("CLIENT")
+
     address = "0.0.0.0"
     ssl_conn = None
     try:
@@ -1116,6 +1119,8 @@ class SSLnThreadingTCPServer(ThreadingMixIn, SSL_TCPServer):
 #################################################################################
 def server(_config, threads_n_processes, stop_thread, dict_by_node_generated_config, obj_stats, conn_db,
            dict_of_commands_for_network_clients, dict_of_clients, dict_of_client_pending_acceptance):
+    if platform == "linux":
+        pyprctl.set_name("SERVER")
     # Generating the rsa keypair for iperf3 authentication
     gen_rsa_iperf3(server_log, _config)
     gen_user_pass_iperf3(server_log, _config)
