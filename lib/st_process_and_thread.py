@@ -26,8 +26,6 @@ from datetime import datetime
 import time
 import os
 import threading
-import namedthreads
-namedthreads.patch()
 
 
 # from lib.st_covariance import *
