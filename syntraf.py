@@ -10,6 +10,10 @@
 from lib.st_global import DefaultValues, CompilationOptions
 #from lib.st_class_winsvc import SMWinservice
 
+import namedthreads
+namedthreads.patch()
+
+
 # BUILTIN IMPORT
 import sys
 import argparse
