@@ -20,6 +20,7 @@ import logging
 import os
 from multiprocessing import shared_memory
 
+
 try:
     # SYNTRAF modules
     #from lib.st_mesh import *
