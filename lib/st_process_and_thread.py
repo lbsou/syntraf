@@ -23,9 +23,12 @@ if not CompilationOptions.client_only:
 # BUILTIN IMPORT
 import logging
 from datetime import datetime
-import threading
 import time
 import os
+import threading
+import namedthreads
+namedthreads.patch()
+
 
 # from lib.st_covariance import *
 log = logging.getLogger("syntraf." + __name__)
