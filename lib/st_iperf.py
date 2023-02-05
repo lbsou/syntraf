@@ -27,12 +27,14 @@ iperf3_listeners_log = logging.getLogger("syntraf." + "lib.st_iperf3_listeners")
 
 # Find the ephemeral port iperf3 is using for the incoming connection in bidirectional mode then send a packet
 # to the other side with the right src and dst port to keep alive the udp hole punch.
-def udp_hole_punch(dst_ip, dst_port, iperf3_connector_obj_pnt, connector_key, threads_n_processes):
+def udp_hole_punch(dst_ip, dst_port, iperf3_connector_obj_pnt, connector_key, threads_n_processes, exit_boolean):
     if sys.platform == "linux":
         pyprctl.set_name("UDPHOLE")
 
     # Wait for iperf3 to start
     while iperf3_connector_obj_pnt.subproc is None:
+        if exit_boolean:
+            return
         time.sleep(1)
         if iperf3_connector_obj_pnt.subproc:
             break
@@ -46,12 +48,16 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_connector_obj_pnt, connector_key, th
 
     # Waiting for the READ_LOG thread to obtain the source port
     while iperf3_connector_obj_pnt.bidir_src_port == 0:
+        if exit_boolean:
+            return
         iperf3_connectors_log.debug(f"UDP_HOLE_PUNCH FOR {connector_key}, IPERF3 PROCESS ID: '{iperf3_pid}' IS WAITING FOR A PORT:{iperf3_connector_obj_pnt.bidir_src_port}")
         time.sleep(1)
 
     # Hostname resolution
     valid_ip = False
     while not valid_ip:
+        if exit_boolean:
+            return
         try:
             dst_ip = socket.gethostbyname(dst_ip)
             if validate_ipv4(dst_ip):
@@ -102,6 +108,9 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_connector_obj_pnt, connector_key, th
         dst_mac = getmac.get_mac_address(None, nexthop)
 
     while True:
+        if exit_boolean:
+            return
+
         if iperf3_connector_obj_pnt.bidir_src_port == 0:
             exit_message = "bidir_src_port became 0"
             break

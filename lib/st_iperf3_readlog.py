@@ -14,13 +14,15 @@ if sys.platform == "linux":
 #################################################################################
 ### FUNCTION TO READ LISTENERS LOGS
 #################################################################################
-def read_log_listener(listener_dict_key, _config, dict_data_to_send_to_server, threads_n_processes, iperf3_listener_thread):
+def read_log_listener(listener_dict_key, _config, dict_data_to_send_to_server, threads_n_processes, iperf3_listener_thread, exit_boolean):
     utime_last_event = time.time()
 
     lines = tail(_config, "LISTENERS", listener_dict_key, iperf3_listener_thread)
     log.info(f"READING LOGS FOR LISTENER {listener_dict_key}")
     try:
         while True:
+            if exit_boolean:
+                return
             line = next(lines, None)
             if line:
                 utime_last_event = time.time()
@@ -37,7 +39,7 @@ def read_log_listener(listener_dict_key, _config, dict_data_to_send_to_server, t
 #################################################################################
 ### FUNCTION TO READ CONNECTORS LOGS
 #################################################################################
-def read_log_connector(connector_key, config, dict_data_to_send_to_server, threads_n_processes, iperf3_connector_thread):
+def read_log_connector(connector_key, config, dict_data_to_send_to_server, threads_n_processes, iperf3_connector_thread, exit_boolean):
     if sys.platform == "linux":
         pyprctl.set_name("READLOG")
 
@@ -47,6 +49,8 @@ def read_log_connector(connector_key, config, dict_data_to_send_to_server, threa
     log.info(f"READING LOGS FOR CONNECTOR {connector_key}")
     try:
         while True:
+            if exit_boolean:
+                return
             line = next(lines, None)
 
             if line and config['CONNECTORS'][connector_key]['BIDIR']:
