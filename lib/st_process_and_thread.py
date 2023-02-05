@@ -188,7 +188,7 @@ def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, config_file_p
                     thread_run = threading.Thread(target=eval(mesh_type.lower()),
                                                   args=(config, threads_n_processes, stop_thread, _dict_by_node_generated_config, obj_stats, conn_db, dict_of_commands_for_network_clients, dict_of_clients, dict_of_client_pending_acceptance), daemon=True)
                 thread_run.daemon = True
-                thread_run.name = mesh_type
+                thread_run.name = "aaaaaaaaaaaaaaaaaaaa"
                 thread_run.start()
                 thread_or_process = st_obj_process_n_thread(thread_obj=thread_run, name=mesh_type, object_type="THREAD",
                                                             syntraf_instance_type=mesh_type, exit_boolean=stop_thread, starttime=datetime.now(), opposite_side="", group="", port="")
