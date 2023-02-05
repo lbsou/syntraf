@@ -11,6 +11,7 @@ import sys
 if sys.platform == "linux":
     import pyprctl
 
+
 #################################################################################
 ### FUNCTION TO READ LISTENERS LOGS
 #################################################################################
@@ -21,7 +22,7 @@ def read_log_listener(listener_dict_key, _config, dict_data_to_send_to_server, t
     log.info(f"READING LOGS FOR LISTENER {listener_dict_key}")
     try:
         while True:
-            if exit_boolean:
+            if exit_boolean[0]:
                 return
             line = next(lines, None)
             if line:
@@ -44,7 +45,7 @@ def read_log_connector(connector_key, config, dict_data_to_send_to_server, threa
         pyprctl.set_name("READLOG")
 
     utime_last_event = time.time()
-    lines = tail(config, "CONNECTORS", connector_key, iperf3_connector_thread)
+    lines = tail(config, "CONNECTORS", connector_key, iperf3_connector_thread, exit_boolean)
 
     log.info(f"READING LOGS FOR CONNECTOR {connector_key}")
     try:
@@ -69,7 +70,7 @@ def read_log_connector(connector_key, config, dict_data_to_send_to_server, threa
 #################################################################################
 ### YIELD LINE FROM IPERF3 OUTPUT FILE
 #################################################################################
-def tail(_config, edge_type, edge_key, thr_iperf3):
+def tail(_config, edge_type, edge_key, thr_iperf3, exit_boolean):
 
     # Wait for iperf3 to start
     while thr_iperf3.subproc is None:
@@ -85,13 +86,23 @@ def tail(_config, edge_type, edge_key, thr_iperf3):
     log.debug(f"READLOG THREAD ACQUIRED IPERF3 STDOUT FOR THE {edge_type} {edge_key} ")
 
     try:
-        for line in thr_iperf3.subproc.stdout:
-            # No valuable information in TX lines
-            if "TX-C" in line or "TX-S" in line:
-                continue
-            else:
-                log.debug(f"LINE FROM {edge_type} : {edge_key} - {line}")
-                yield line
+        while True:
+            line = next(thr_iperf3.subproc.stdout, None)
+            if line
+                if "TX-C" in line or "TX-S" in line:
+                    continue
+                else:
+                    log.debug(f"LINE FROM {edge_type} : {edge_key} - {line}")
+                    yield line
+            time.sleep(0.1)
+
+        # for line in thr_iperf3.subproc.stdout:
+        #     # No valuable information in TX lines
+        #     if "TX-C" in line or "TX-S" in line:
+        #         continue
+        #     else:
+        #         log.debug(f"LINE FROM {edge_type} : {edge_key} - {line}")
+        #         yield line
 
     except ValueError as exc:
         #I/O operation on closed file
