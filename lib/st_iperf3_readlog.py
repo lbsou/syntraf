@@ -16,6 +16,9 @@ if sys.platform == "linux":
 ### FUNCTION TO READ LISTENERS LOGS
 #################################################################################
 def read_log_listener(listener_dict_key, _config, dict_data_to_send_to_server, threads_n_processes, iperf3_listener_thread, exit_boolean):
+    if sys.platform == "linux":
+        pyprctl.set_name("READLOG_LISTENER")
+
     utime_last_event = time.time()
 
     lines = tail(_config, "LISTENERS", listener_dict_key, iperf3_listener_thread)
@@ -42,7 +45,7 @@ def read_log_listener(listener_dict_key, _config, dict_data_to_send_to_server, t
 #################################################################################
 def read_log_connector(connector_key, config, dict_data_to_send_to_server, threads_n_processes, iperf3_connector_thread, exit_boolean):
     if sys.platform == "linux":
-        pyprctl.set_name("READLOG")
+        pyprctl.set_name("READLOG_CONNECTOR")
 
     utime_last_event = time.time()
     lines = tail(config, "CONNECTORS", connector_key, iperf3_connector_thread, exit_boolean)
@@ -60,7 +63,6 @@ def read_log_connector(connector_key, config, dict_data_to_send_to_server, threa
                     break
             #else:
             #    outage_management(config, "CONNECTORS", connector_key, threads_n_processes, utime_last_event, dict_data_to_send_to_server)
-
             time.sleep(0.1)
 
     except Exception as exc:
