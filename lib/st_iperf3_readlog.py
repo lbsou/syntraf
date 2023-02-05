@@ -50,7 +50,7 @@ def read_log_connector(connector_key, config, dict_data_to_send_to_server, threa
     log.info(f"READING LOGS FOR CONNECTOR {connector_key}")
     try:
         while True:
-             if exit_boolean[0]:
+            if exit_boolean[0]:
                 return
             line = next(lines, None)
 
