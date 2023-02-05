@@ -271,6 +271,7 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
 
                 # MAKE SURE WE HAVE A READLOG FOR EACH LISTENER
                 for thr in threads_n_processes:
+                    stop_thread_read_log = [False]
                     if thr.syntraf_instance_type == "LISTENER":
                         got_a_readlog_instance = False
                         for thr2 in threads_n_processes:
@@ -280,7 +281,7 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                                 if not thr2.thread_obj.is_alive():
                                     threads_n_processes.remove(thr2)
 
-                                    stop_thread_read_log = [False]
+
                                     thread_run = threading.Thread(target=read_log_listener,
                                                                   args=(
                                                                   edge_key, config, dict_data_to_send_to_server, threads_n_processes, thr, stop_thread_read_log),
