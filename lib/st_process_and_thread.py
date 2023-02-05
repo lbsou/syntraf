@@ -481,6 +481,9 @@ def close_listeners_and_connectors(threads_n_processes, _config):
         if thr.syntraf_instance_type == "CONNECTOR":
             terminate_connector_and_childs(threads_n_processes, thr.name, thr, _config)
         elif thr.syntraf_instance_type == "LISTENER":
-            thr.subproc.kill()
-            thr.subproc.communicate()
+            try:
+                thr.subproc.communicate(timeout=1)
+            except subprocess.TimeoutExpired:
+                thr.subproc.kill()
+                thr.subproc.communicate()
             threads_n_processes.remove(thr)
