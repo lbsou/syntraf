@@ -238,7 +238,7 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                 # check if a st_obj_process_n_thread exist with LISTENER instance_type and the name corresponding the current listener config of the loop
                 # the goal is to see if it's already running
                 for thr in threads_n_processes:
-                    if thr.syntraf_instance_type == "LISTENER" and thr.name == f"LISTENER:{edge_key}":
+                    if thr.syntraf_instance_type == "LISTENER" and thr.name == edge_key:
                         if not thr.subproc:
                             threads_n_processes.remove(thr)
                             thr_temp = None
@@ -275,7 +275,7 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                         got_a_readlog_instance = False
                         for thr2 in threads_n_processes:
                             # There is already a thread, but is it running?
-                            if thr2.syntraf_instance_type == "READ_LOG" and thr2.name == f"READ_LOG:{edge_key}":
+                            if thr2.syntraf_instance_type == "READ_LOG" and thr2.name == edge_key:
                                 # Is the subproc running? If no, restart it
                                 if not thr2.thread_obj.is_alive():
                                     threads_n_processes.remove(thr2)
@@ -286,7 +286,7 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                                                                   edge_key, config, dict_data_to_send_to_server, threads_n_processes, thr),
                                                                   daemon=True)
                                     thread_run.daemon = True
-                                    thread_run.name = f"READ_LOG:{edge_key}"
+                                    thread_run.name = str(edge_key)
                                     thread_run.start()
                                     thread_or_process = st_obj_process_n_thread(thread_obj=thread_run, name=edge_key,
                                                                                 syntraf_instance_type="READ_LOG",
@@ -303,7 +303,7 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                                                           args=(edge_key, config, dict_data_to_send_to_server, threads_n_processes, thr),
                                                           daemon=True)
                             thread_run.daemon = True
-                            thread_run.name = f"READ_LOG:{edge_key}"
+                            thread_run.name = str(edge_key)
                             thread_run.start()
                             thread_or_process = st_obj_process_n_thread(thread_obj=thread_run, name=edge_key,
                                                                         syntraf_instance_type="READ_LOG",
@@ -325,7 +325,7 @@ def thread_read_log(config, connector_key, connector_value, threads_n_processes,
                                       threads_n_processes, iperf3_conn_thread),
                                   daemon=True)
     thread_run.daemon = True
-    thread_run.name = f"READ_LOG:{connector_key}"
+    thread_run.name = str(connector_key)
     thread_run.start()
     iperf_read_log_thread = st_obj_process_n_thread(thread_obj=thread_run, name=connector_key,
                                                     syntraf_instance_type="READ_LOG",
@@ -345,7 +345,7 @@ def thread_udp_hole(config, connector_key, connector_value, threads_n_processes,
                                       config['CONNECTORS'][connector_key]['PORT'], iperf3_conn_thread, connector_key, threads_n_processes),
                                   daemon=True)
     thread_run.daemon = True
-    thread_run.name = f"UDP_HOLE:{connector_key}"
+    thread_run.name = str(connector_key)
     thread_or_process = st_obj_process_n_thread(thread_obj=thread_run, name=connector_key,
                                                 syntraf_instance_type="UDP_HOLE",
                                                 exit_boolean=False,
@@ -359,7 +359,7 @@ def thread_udp_hole(config, connector_key, connector_value, threads_n_processes,
 # Validate if a st_obj_process_n_thread exist in the thread dict that correspond to the instance_type and the key provided
 def st_obj_process_n_thread_exist(threads_n_processes, instance_type, connector_key):
     for thr in threads_n_processes:
-        if thr.syntraf_instance_type == instance_type and thr.name == f"{instance_type}:{connector_key}":
+        if thr.syntraf_instance_type == instance_type and thr.name == connector_key:
             return thr
     return None
 
@@ -448,7 +448,7 @@ def kill_processes(subprocess_iperf_dict):
 def get_current_obj_proc_n_thread(threads_n_processes, key, type):
     # Find current thread to update packet sent in the st_obj_process_n_thread object
     for thr in threads_n_processes:
-        if thr.name == f"{type}:{key}" and thr.syntraf_instance_type == type:
+        if thr.name == key and thr.syntraf_instance_type == type:
             return thr
 
 
@@ -466,10 +466,10 @@ def terminate_connector_and_childs(threads_n_processes, connector_key, thr_temp,
     copy_threads_n_processes = copy(threads_n_processes)
     for thread_to_kill in copy_threads_n_processes:
         if config['CONNECTORS'][connector_key]['BIDIR']:
-            if thread_to_kill.syntraf_instance_type == "UDP_HOLE" and thread_to_kill.name == f"UDP_HOLE:{connector_key}":
+            if thread_to_kill.syntraf_instance_type == "UDP_HOLE" and thread_to_kill.name == connector_key:
                 thread_to_kill.close()
                 threads_n_processes.remove(thread_to_kill)
-        if thread_to_kill.syntraf_instance_type == "READ_LOG" and thread_to_kill.name == f"READ_LOG:{connector_key}":
+        if thread_to_kill.syntraf_instance_type == "READ_LOG" and thread_to_kill.name == connector_key:
             thread_to_kill.close()
             threads_n_processes.remove(thread_to_kill)
 
