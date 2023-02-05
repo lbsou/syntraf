@@ -469,6 +469,7 @@ def terminate_connector_and_childs(threads_n_processes, connector_key, thr_temp,
                 thread_to_kill.exit_boolean = [True]
                 threads_n_processes.remove(thread_to_kill)
         if thread_to_kill.syntraf_instance_type == "READ_LOG" and connector_key in thread_to_kill.name:
+            log.error("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
             thread_to_kill.exit_boolean = [True]
             threads_n_processes.remove(thread_to_kill)
 
