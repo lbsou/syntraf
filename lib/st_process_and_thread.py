@@ -299,7 +299,7 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                         if not got_a_readlog_instance:
                             # Was never launch, starting the new READLOG thread
                             thread_run = threading.Thread(target=read_log_listener,
-                                                          args=(edge_key, config, dict_data_to_send_to_server, threads_n_processes, thr),
+                                                          args=(edge_key, config, dict_data_to_send_to_server, threads_n_processes, thr, stop_thread_read_log),
                                                           daemon=True)
                             thread_run.daemon = True
                             thread_run.name = f"READ_LOG_LISTENER:{edge_key}"
