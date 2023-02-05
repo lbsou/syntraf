@@ -88,7 +88,7 @@ def tail(_config, edge_type, edge_key, thr_iperf3, exit_boolean):
     try:
         while True:
             line = next(thr_iperf3.subproc.stdout, None)
-            if line
+            if line:
                 if "TX-C" in line or "TX-S" in line:
                     continue
                 else:
