@@ -930,7 +930,7 @@ class Handler(StreamRequestHandler):
         sckt = self.connection
         _config = self.server._config
 
-        threading.current_thread().name = f"CLIENT:{address}"
+        threading.current_thread().name = f"CONTROL CHANNEL CLIENT:{address}"
 
         dict_of_commands_for_network_clients = self.server.dict_of_commands_for_network_clients
         dict_of_clients = self.server.dict_of_clients
