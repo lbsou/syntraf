@@ -484,6 +484,7 @@ def client_command_diffconfig(_config, received_data, threads_n_processes):
 ###  MESH CLIENT SOCKET
 #################################################################################
 def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processes, obj_stats, config_file_path, cli_parameters):
+
     if platform == "linux":
         pyprctl.set_name("CLIENT")
 
@@ -928,6 +929,9 @@ class Handler(StreamRequestHandler):
         address = self.client_address
         sckt = self.connection
         _config = self.server._config
+
+        threading.current_thread().name = f"CLIENT:{address}"
+
         dict_of_commands_for_network_clients = self.server.dict_of_commands_for_network_clients
         dict_of_clients = self.server.dict_of_clients
         conn_db = self.server.conn_db
