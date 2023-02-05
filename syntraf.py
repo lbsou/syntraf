@@ -207,8 +207,8 @@ def run():
         f.write("\n")
         f.close()
 
-        for thread in threading.enumerate():
-            log.error(f"{thread.name}---{thread.is_alive()}")
+        #for thread in threading.enumerate():
+        #    log.error(f"{thread.name}---{thread.is_alive()}")
 
         # # Validate if reload flag has been set by user with another instance of the script (-r)
         # try:
