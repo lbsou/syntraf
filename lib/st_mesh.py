@@ -470,7 +470,7 @@ def client_command_diffconfig(_config, received_data, threads_n_processes):
                         # If we are reverting to unknown dynamic IP client, we should terminate the associated CONNECTOR
                         if received_data['PAYLOAD']['IP_ADDRESS'] == "0.0.0.0":
                             for thr in threads_n_processes:
-                                if thr.syntraf_instance_type == "CONNECTOR" and thr.name == connector_key:
+                                if thr.syntraf_instance_type == "CONNECTOR" and connector_key in thr.name:
                                     client_log.info(
                                         f"CONNECTOR: '{connector_key}' TERMINATED BECAUSE IP ADDRESS IS NOW UNKNOWN (CLIENT IS NOT CONNECTED TO SERVER ANYMORE)'")
                                     thr.close()
