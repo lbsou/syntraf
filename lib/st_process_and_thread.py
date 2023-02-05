@@ -106,7 +106,6 @@ def launch_and_respawn_workers(config, cli_parameters, threads_n_processes,  obj
 
 def launch_webui(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server, config, cli_parameters, config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients):
     if platform == "linux":
-        log.error("SET_NAME")
         pyprctl.set_name("WEBUI")
     try:
         app = create_app(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server, config, config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients)
