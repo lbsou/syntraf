@@ -280,17 +280,17 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                                 if not thr2.thread_obj.is_alive():
                                     threads_n_processes.remove(thr2)
 
-                                    stop_thread = [False]
+                                    stop_thread_read_log = [False]
                                     thread_run = threading.Thread(target=read_log_listener,
                                                                   args=(
-                                                                  edge_key, config, dict_data_to_send_to_server, threads_n_processes, thr),
+                                                                  edge_key, config, dict_data_to_send_to_server, threads_n_processes, thr, stop_thread_read_log),
                                                                   daemon=True)
                                     thread_run.daemon = True
                                     thread_run.name = f"READ_LOG_LISTENER:{edge_key}"
                                     thread_run.start()
                                     thread_or_process = st_obj_process_n_thread(thread_obj=thread_run, name=edge_key,
                                                                                 syntraf_instance_type="READ_LOG",
-                                                                                exit_boolean=False,
+                                                                                exit_boolean=stop_thread_read_log,
                                                                                 starttime=datetime.now(), opposite_side=listener_v['UID_CLIENT'], group=listener_v['MESH_GROUP'], port="")
                                     threads_n_processes.append(thread_or_process)
                                     got_a_readlog_instance = True
@@ -307,7 +307,7 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                             thread_run.start()
                             thread_or_process = st_obj_process_n_thread(thread_obj=thread_run, name=edge_key,
                                                                         syntraf_instance_type="READ_LOG",
-                                                                        exit_boolean=stop_thread, starttime=datetime.now(), opposite_side=listener_v['UID_CLIENT'], group=listener_v['MESH_GROUP'], port="")
+                                                                        exit_boolean=stop_thread_read_log, starttime=datetime.now(), opposite_side=listener_v['UID_CLIENT'], group=listener_v['MESH_GROUP'], port="")
 
                             threads_n_processes.append(thread_or_process)
 
@@ -317,19 +317,19 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
 
 def thread_read_log(config, connector_key, connector_value, threads_n_processes, iperf3_conn_thread, dict_data_to_send_to_server):
     from lib.st_iperf3_readlog import read_log_connector
-
+    stop_thread_read_log = [False]
     thread_run = threading.Thread(target=read_log_connector,
                                   args=(
                                       connector_key, config,
                                       dict_data_to_send_to_server,
-                                      threads_n_processes, iperf3_conn_thread),
+                                      threads_n_processes, iperf3_conn_thread, stop_thread_read_log),
                                   daemon=True)
     thread_run.daemon = True
     thread_run.name = f"READ_LOG_CONNECTOR:{connector_key}"
     thread_run.start()
     iperf_read_log_thread = st_obj_process_n_thread(thread_obj=thread_run, name=connector_key,
                                                     syntraf_instance_type="READ_LOG",
-                                                    exit_boolean=False,
+                                                    exit_boolean=stop_thread_read_log,
                                                     starttime=datetime.now(),
                                                     opposite_side=connector_value['UID_CLIENT'],
                                                     group=connector_value['MESH_GROUP'], port="")
@@ -338,17 +338,17 @@ def thread_read_log(config, connector_key, connector_value, threads_n_processes,
 
 def thread_udp_hole(config, connector_key, connector_value, threads_n_processes, iperf3_conn_thread):
     from lib.st_iperf import udp_hole_punch
-
+    stop_thread_udp_hole = [False]
     thread_run = threading.Thread(target=udp_hole_punch,
                                   args=(
                                       config['CONNECTORS'][connector_key]['DESTINATION_ADDRESS'],
-                                      config['CONNECTORS'][connector_key]['PORT'], iperf3_conn_thread, connector_key, threads_n_processes),
+                                      config['CONNECTORS'][connector_key]['PORT'], iperf3_conn_thread, connector_key, threads_n_processes, stop_thread_udp_hole),
                                   daemon=True)
     thread_run.daemon = True
     thread_run.name = f"UDP_HOLE:{connector_key}"
     thread_or_process = st_obj_process_n_thread(thread_obj=thread_run, name=connector_key,
                                                 syntraf_instance_type="UDP_HOLE",
-                                                exit_boolean=False,
+                                                exit_boolean=stop_thread_udp_hole,
                                                 starttime=datetime.now(),
                                                 opposite_side=connector_value['UID_CLIENT'], group=connector_value['MESH_GROUP'],
                                                 port="")
@@ -467,10 +467,10 @@ def terminate_connector_and_childs(threads_n_processes, connector_key, thr_temp,
     for thread_to_kill in copy_threads_n_processes:
         if config['CONNECTORS'][connector_key]['BIDIR']:
             if thread_to_kill.syntraf_instance_type == "UDP_HOLE" and connector_key in thread_to_kill.name:
-                thread_to_kill.close()
+                thread_to_kill.exit_boolean = [True]
                 threads_n_processes.remove(thread_to_kill)
         if thread_to_kill.syntraf_instance_type == "READ_LOG" and connector_key in thread_to_kill.name:
-            thread_to_kill.close()
+            thread_to_kill.exit_boolean = [True]
             threads_n_processes.remove(thread_to_kill)
 
     # Print the last breath and remove from threads_n_processes dict
