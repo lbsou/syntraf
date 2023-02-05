@@ -74,11 +74,15 @@ def tail(_config, edge_type, edge_key, thr_iperf3, exit_boolean):
 
     # Wait for iperf3 to start
     while thr_iperf3.subproc is None:
+        if exit_boolean[0]:
+            return
         time.sleep(1)
         if thr_iperf3.subproc:
             break
 
     while thr_iperf3.subproc.stdout is None:
+        if exit_boolean[0]:
+            return
         time.sleep(1)
         if thr_iperf3.subproc.stdout:
             break
@@ -87,6 +91,9 @@ def tail(_config, edge_type, edge_key, thr_iperf3, exit_boolean):
 
     try:
         while True:
+            if exit_boolean[0]:
+                return
+
             line = next(thr_iperf3.subproc.stdout, None)
             if line:
                 if "TX-C" in line or "TX-S" in line:
