@@ -280,8 +280,6 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                                 # Is the subproc running? If no, restart it
                                 if not thr2.thread_obj.is_alive():
                                     threads_n_processes.remove(thr2)
-
-
                                     thread_run = threading.Thread(target=read_log_listener,
                                                                   args=(
                                                                   edge_key, config, dict_data_to_send_to_server, threads_n_processes, thr, stop_thread_read_log),
