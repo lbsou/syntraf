@@ -467,10 +467,12 @@ def terminate_connector_and_childs(threads_n_processes, connector_key, thr_temp,
     for thread_to_kill in copy_threads_n_processes:
         if config['CONNECTORS'][connector_key]['BIDIR']:
             if thread_to_kill.syntraf_instance_type == "UDP_HOLE" and connector_key in thread_to_kill.name:
-                thread_to_kill.close()
+                thread_to_kill.subproc.kill()
+                thread_to_kill.subproc.communicate()
                 threads_n_processes.remove(thread_to_kill)
         if thread_to_kill.syntraf_instance_type == "READ_LOG" and connector_key in thread_to_kill.name:
-            thread_to_kill.close()
+            thread_to_kill.subproc.kill()
+            thread_to_kill.subproc.communicate()
             threads_n_processes.remove(thread_to_kill)
 
     # Print the last breath and remove from threads_n_processes dict
@@ -482,6 +484,6 @@ def close_listeners_and_connectors(threads_n_processes, _config):
         if thr.syntraf_instance_type == "CONNECTOR":
             terminate_connector_and_childs(threads_n_processes, thr.name, thr, _config)
         elif thr.syntraf_instance_type == "LISTENER":
-            thr.close()
-            stdout, stderr = thr.subproc.communicate()
+            thr.subproc.kill()
+            thr.subproc.communicate()
             threads_n_processes.remove(thr)
