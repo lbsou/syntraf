@@ -33,7 +33,7 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_connector_obj_pnt, connector_key, th
 
     # Wait for iperf3 to start
     while iperf3_connector_obj_pnt.subproc is None:
-        if exit_boolean:
+        if exit_boolean[0]:
             return
         time.sleep(1)
         if iperf3_connector_obj_pnt.subproc:
@@ -48,7 +48,7 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_connector_obj_pnt, connector_key, th
 
     # Waiting for the READ_LOG thread to obtain the source port
     while iperf3_connector_obj_pnt.bidir_src_port == 0:
-        if exit_boolean:
+        if exit_boolean[0]:
             return
         iperf3_connectors_log.debug(f"UDP_HOLE_PUNCH FOR {connector_key}, IPERF3 PROCESS ID: '{iperf3_pid}' IS WAITING FOR A PORT:{iperf3_connector_obj_pnt.bidir_src_port}")
         time.sleep(1)
@@ -56,7 +56,7 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_connector_obj_pnt, connector_key, th
     # Hostname resolution
     valid_ip = False
     while not valid_ip:
-        if exit_boolean:
+        if exit_boolean[0]:
             return
         try:
             dst_ip = socket.gethostbyname(dst_ip)
@@ -108,7 +108,7 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_connector_obj_pnt, connector_key, th
         dst_mac = getmac.get_mac_address(None, nexthop)
 
     while True:
-        if exit_boolean:
+        if exit_boolean[0]:
             return
 
         if iperf3_connector_obj_pnt.bidir_src_port == 0:
