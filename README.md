@@ -1,3 +1,5 @@
+NON FUNCTIONAL AT THE MOMENT  
+
 # SYNTRAF
 Combining the power of IPERF3, INFLUXDB and GRAFANA to measure your network QoE by creating synthetic traffic.
 
