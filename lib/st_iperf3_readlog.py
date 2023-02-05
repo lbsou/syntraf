@@ -21,7 +21,7 @@ def read_log_listener(listener_dict_key, _config, dict_data_to_send_to_server, t
 
     utime_last_event = time.time()
 
-    lines = tail(_config, "LISTENERS", listener_dict_key, iperf3_listener_thread)
+    lines = tail(_config, "LISTENERS", listener_dict_key, iperf3_listener_thread, exit_boolean)
     log.info(f"READING LOGS FOR LISTENER {listener_dict_key}")
     try:
         while True:
