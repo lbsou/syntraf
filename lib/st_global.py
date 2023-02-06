@@ -60,7 +60,7 @@ class DefaultValues:
     DEFAULT_IPERF3_SERVER_IDLE_TIMEOUT = "300"
 
     # Handle one client connection then exit
-    DEFAULT_IPERF3_SERVER_ONE_OFF = False
+    DEFAULT_IPERF3_SERVER_ONE_OFF = True
 
     # Timeout for control connection setup (ms)
     DEFAULT_IPERF3_CLIENT_CONNECT_TIMEOUT = "5000"
