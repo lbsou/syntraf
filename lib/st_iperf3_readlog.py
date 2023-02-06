@@ -95,27 +95,31 @@ def tail(_config, edge_type, edge_key, thr_iperf3, exit_boolean):
         while True:
             if exit_boolean[0]:
                 break
-            try:
-                line = next(thr_iperf3.subproc.stdout, None)
-                if line:
-                    if "TX-C" in line or "TX-S" in line:
-                        continue
-                    else:
-                        log.debug(f"LINE FROM {edge_type} : {edge_key} - {line}")
-                        yield line
-                time.sleep(0.1)
-            except ValueError as exc:
-                # I/O operation on closed file
-                log.error(f"NO MORE LINE TO READ FROM STDOUT OF {edge_type} {edge_key}")
-        # for line in thr_iperf3.subproc.stdout:
-        #     # No valuable information in TX lines
-        #     if "TX-C" in line or "TX-S" in line:
-        #         continue
-        #     else:
-        #         log.debug(f"LINE FROM {edge_type} : {edge_key} - {line}")
-        #         yield line
 
+            #Sleep first, because if it throw an error
+            time.sleep(0.1)
+            line = next(thr_iperf3.subproc.stdout, None)
+            if line:
+                if "TX-C" in line or "TX-S" in line:
+                    continue
+                else:
+                    log.debug(f"LINE FROM {edge_type} : {edge_key} - {line}")
+                    yield line
 
+            # for line in thr_iperf3.subproc.stdout:
+            #     # No valuable information in TX lines
+            #     if "TX-C" in line or "TX-S" in line:
+            #         continue
+            #     else:
+            #         log.debug(f"LINE FROM {edge_type} : {edge_key} - {line}")
+            #         yield line
+
+    except ValueError as exc:
+        log.erro(exc)
+        # I/O operation on closed file
+        log.error(f"NO MORE LINE TO READ FROM STDOUT OF {edge_type} {edge_key}")
+        # If the stdout is not available anymore,
+        thr_iperf3.kill()
     except Exception as exc:
         log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
 
