@@ -89,7 +89,7 @@ def tail(_config, edge_type, edge_key, thr_iperf3, exit_boolean):
         if thr_iperf3.subproc.stdout:
             break
 
-    log.debug(f"READLOG THREAD ACQUIRED IPERF3 STDOUT FOR THE {edge_type} {edge_key} ")
+    log.debug(f"READLOG THREAD ACQUIRED IPERF3 STDOUT FOR {thr_iperf3.name} - {edge_type} {edge_key} ")
 
     try:
         while True:
