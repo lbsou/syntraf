@@ -8,21 +8,16 @@ import pytz
 import logging
 log = logging.getLogger("syntraf." + __name__)
 import sys
-if sys.platform == "linux":
-    import pyprctl
 
 
 #################################################################################
 ### FUNCTION TO READ LISTENERS LOGS
 #################################################################################
-def read_log_listener(listener_dict_key, _config, dict_data_to_send_to_server, threads_n_processes, iperf3_listener_thread, exit_boolean):
-    if sys.platform == "linux":
-        pyprctl.set_name("READLOG_LISTENER")
-
+def read_log(edge_key, edge_type, config, dict_data_to_send_to_server, threads_n_processes, iperf3_thread, exit_boolean):
     utime_last_event = time.time()
 
-    lines = tail(_config, "LISTENERS", listener_dict_key, iperf3_listener_thread, exit_boolean)
-    log.info(f"READING LOGS FOR LISTENER {listener_dict_key}")
+    lines = tail(config, edge_type, edge_key, iperf3_thread, exit_boolean)
+    log.info(f"READING LOGS FOR {edge_type} {edge_key}")
     try:
         while True:
             if exit_boolean[0]:
@@ -30,39 +25,10 @@ def read_log_listener(listener_dict_key, _config, dict_data_to_send_to_server, t
             line = next(lines, None)
             if line:
                 utime_last_event = time.time()
-                if not parse_line(line, _config, listener_dict_key, "LISTENERS", threads_n_processes, dict_data_to_send_to_server):
+                if not parse_line(line, config, edge_key, edge_type, threads_n_processes, dict_data_to_send_to_server):
                     break
             #else:
             #    outage_management(_config, "LISTENERS", listener_dict_key, threads_n_processes, utime_last_event, dict_data_to_send_to_server)
-            time.sleep(0.1)
-
-    except Exception as exc:
-        log.error(f"read_log:{type(exc).__name__}:{exc}", exc_info=True)
-
-
-#################################################################################
-### FUNCTION TO READ CONNECTORS LOGS
-#################################################################################
-def read_log_connector(connector_key, config, dict_data_to_send_to_server, threads_n_processes, iperf3_connector_thread, exit_boolean):
-    if sys.platform == "linux":
-        pyprctl.set_name("READLOG_CONNECTOR")
-
-    utime_last_event = time.time()
-    lines = tail(config, "CONNECTORS", connector_key, iperf3_connector_thread, exit_boolean)
-
-    log.info(f"READING LOGS FOR CONNECTOR {connector_key}")
-    try:
-        while True:
-            if exit_boolean[0]:
-                return
-            line = next(lines, None)
-
-            if line and config['CONNECTORS'][connector_key]['BIDIR']:
-                utime_last_event = time.time()
-                if not parse_line(line, config, connector_key, "CONNECTORS", threads_n_processes, dict_data_to_send_to_server, iperf3_connector_thread):
-                    break
-            #else:
-            #    outage_management(config, "CONNECTORS", connector_key, threads_n_processes, utime_last_event, dict_data_to_send_to_server)
             time.sleep(0.1)
 
     except Exception as exc:
@@ -128,6 +94,12 @@ def tail(_config, edge_type, edge_key, thr_iperf3, exit_boolean):
 def parse_line(line, _config, edge_key, edge_type, threads_n_processes, dict_data_to_send_to_server, iperf3_connector_thread=None):
     values = line.split(" ")
     thr_iperf3_readlog = None
+
+    #The edge_type is used not only as reference to the type but also as a key in the config. In config there is an "S", so replacing for the current function and the save_config
+    if edge_type == "CONNECTOR":
+        edge_type = "CONNECTORS"
+    else:
+        edge_type = "LISTENERS"
 
     # Get the current thread object to update counter and status
     for thr in threads_n_processes:

@@ -133,7 +133,7 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_connector_obj_pnt, connector_key, th
 #################################################################################
 def iperf3_client(config, connector_key, connector_value, threads_n_processes, dict_data_to_send_to_server):
     try:
-        iperf3_conn_thread = get_current_obj_proc_n_thread(threads_n_processes, connector_key, "CONNECTOR")
+        iperf3_thread = get_current_obj_proc_n_thread(threads_n_processes, connector_key, "CONNECTOR")
 
         env_var = os.environ
         env_var['IPERF3_PASSWORD'] = config['CLIENT']['IPERF3_PASSWORD']
@@ -182,15 +182,14 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
         if config['CONNECTORS'][connector_key]['BIDIR']:
             # Make sure we have udp_hole punching and read_log thread for each bidir connector
             thread_udp_hole(config, connector_key, connector_value, threads_n_processes, iperf3_conn_thread)
-            thread_read_log(config, connector_key, connector_value, threads_n_processes, iperf3_conn_thread, dict_data_to_send_to_server)
+            thread_read_log(config, connector_key, connector_value, "CONNECTOR", threads_n_processes, iperf3_conn_thread, dict_data_to_send_to_server)
             time.sleep(2)
         else:
-            thread_read_log(config, connector_key, connector_value, threads_n_processes, iperf3_conn_thread, dict_data_to_send_to_server)
+            thread_read_log(config, connector_key, connector_value, "CONNECTOR", threads_n_processes, iperf3_conn_thread, dict_data_to_send_to_server)
             time.sleep(2)
 
-        #p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, env=env_var)
         p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, stdin=None, text=True, env=env_var)
-        iperf3_conn_thread.subproc = p
+        iperf3_thread.subproc = p
 
         if p.poll() is None:
             iperf3_connectors_log.warning(f"IPERF3 CLIENT FOR CONNECTOR '{connector_key}' STARTED WITH SERVER {config['CONNECTORS'][connector_key]['DESTINATION_ADDRESS']}:{config['CONNECTORS'][connector_key]['PORT']} {arguments}")
@@ -211,17 +210,12 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
 #################################################################################
 ### START AN IPERF3 SERVER AS CHILD PROCESS
 #################################################################################
-def iperf3_server(listener_key, config):
-    global var_cfg_default_bind_arg
-
-    #if "BIND_ADDRESS" in _config['LISTENERS'][listener_dict_key]:
-    #    if not _config['LISTENERS'][listener_dict_key]['BIND_ADDRESS'] == "*":
-    #        var_cfg_default_bind_arg = ("-B", _config['LISTENERS'][listener_dict_key]['BIND_ADDRESS'])
+def iperf3_server(config, listener_key, listener_value, threads_n_processes, dict_data_to_send_to_server):
+    iperf3_thread = get_current_obj_proc_n_thread(threads_n_processes, listener_key, "LISTENER")
 
     if is_port_available(config['LISTENERS'][listener_key]['BIND_ADDRESS'], str(config['LISTENERS'][listener_key]['PORT'])):
         try:
             args = [config['GLOBAL']['IPERF3_BINARY_PATH'], "-s", "-i", config['LISTENERS'][listener_key]['INTERVAL'],
-                    #var_cfg_default_bind_arg[0], var_cfg_default_bind_arg[1],
                     "-f", "k", "--forceflush",
                     "--idle-timeout", DefaultValues.DEFAULT_IPERF3_SERVER_IDLE_TIMEOUT,
                     "--rcv-timeout", DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT,
@@ -240,15 +234,18 @@ def iperf3_server(listener_key, config):
             for i in args:
                 arguments += " " + i
 
+            thread_read_log(config, listener_key, listener_key, "LISTENER", threads_n_processes, iperf3_thread, dict_data_to_send_to_server)
+            time.sleep(2)
+
             p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, stdin=None, text=True)
+            iperf3_thread.subproc = p
 
             if p.poll() is None:
-                iperf3_listeners_log.warning(
-                    f"IPERF3 SERVER FOR LISTENER '{listener_key}' STARTED ON PORT {config['LISTENERS'][listener_key]['PORT']}")
+                iperf3_listeners_log.warning(f"IPERF3 SERVER FOR LISTENER '{listener_key}' STARTED ON PORT {config['LISTENERS'][listener_key]['PORT']}")
                 return p
             else:
-                iperf3_listeners_log.error(
-                    f"UNABLE TO START IPERF3 SERVER FOR LISTENER '{listener_key}'")
+                last_breath = p.communicate()[1]
+                iperf3_listeners_log.error(f"UNABLE TO START IPERF3 SERVER FOR LISTENER '{listener_key}' : IPERF3 LAST BREATH : {last_breath}")
 
         except Exception as exc:
             iperf3_listeners_log.error(f"iperf_server:{type(exc).__name__}:{exc}", exc_info=True)
