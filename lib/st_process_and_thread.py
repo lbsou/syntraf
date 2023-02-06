@@ -353,7 +353,7 @@ def thread_read_log(config, edge_key, edge_value, edge_type, threads_n_processes
     thread_run.daemon = True
     thread_run.name = f"READ_LOG_{edge_type}:{edge_key}"
     thread_run.start()
-    log.error(edge_value)
+    log.error(f"aaaaaaaaaaaaaaa{edge_value}")
     iperf_read_log_thread = st_obj_process_n_thread(thread_obj=thread_run, name=edge_key,
                                                     syntraf_instance_type="READ_LOG",
                                                     exit_boolean=stop_thread_read_log,
