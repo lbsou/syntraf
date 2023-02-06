@@ -181,11 +181,11 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
 
         if config['CONNECTORS'][connector_key]['BIDIR']:
             # Make sure we have udp_hole punching and read_log thread for each bidir connector
-            thread_udp_hole(config, connector_key, connector_value, threads_n_processes, iperf3_conn_thread)
-            thread_read_log(config, connector_key, connector_value, "CONNECTOR", threads_n_processes, iperf3_conn_thread, dict_data_to_send_to_server)
+            thread_udp_hole(config, connector_key, connector_value, threads_n_processes, iperf3_thread)
+            thread_read_log(config, connector_key, connector_value, "CONNECTOR", threads_n_processes, iperf3_thread, dict_data_to_send_to_server)
             time.sleep(2)
         else:
-            thread_read_log(config, connector_key, connector_value, "CONNECTOR", threads_n_processes, iperf3_conn_thread, dict_data_to_send_to_server)
+            thread_read_log(config, connector_key, connector_value, "CONNECTOR", threads_n_processes, iperf3_thread, dict_data_to_send_to_server)
             time.sleep(2)
 
         p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, stdin=None, text=True, env=env_var)
@@ -234,7 +234,7 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes, dic
             for i in args:
                 arguments += " " + i
 
-            thread_read_log(config, listener_key, listener_key, "LISTENER", threads_n_processes, iperf3_thread, dict_data_to_send_to_server)
+            thread_read_log(config, listener_key, listener_key, "LISTENER", threads_n_processes, iperf3_thread, dict_data_to_send_to_serve)
             time.sleep(2)
 
             p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, stdin=None, text=True)
