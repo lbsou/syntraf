@@ -115,7 +115,7 @@ def tail(_config, edge_type, edge_key, thr_iperf3, exit_boolean):
             #         yield line
 
     except ValueError as exc:
-        log.erro(exc)
+        log.error(exc)
         # I/O operation on closed file
         log.error(f"NO MORE LINE TO READ FROM STDOUT OF {edge_type} {edge_key}")
         # If the stdout is not available anymore,
