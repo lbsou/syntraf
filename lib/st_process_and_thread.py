@@ -464,7 +464,6 @@ def terminate_connector_and_childs(threads_n_processes, connector_key, thr_temp,
 
     copy_threads_n_processes = copy(threads_n_processes)
     for thread_to_kill in copy_threads_n_processes:
-        #if config['CONNECTORS'][connector_key]['BIDIR']:
         if thread_to_kill.syntraf_instance_type == "UDP_HOLE" and connector_key in thread_to_kill.name:
             thread_to_kill.exit_boolean[0] = [True]
             threads_n_processes.remove(thread_to_kill)
