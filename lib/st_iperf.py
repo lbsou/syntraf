@@ -234,7 +234,7 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes, dic
             for i in args:
                 arguments += " " + i
 
-            thread_read_log(config, listener_key, listener_key, "LISTENER", threads_n_processes, iperf3_thread, dict_data_to_send_to_serve)
+            thread_read_log(config, listener_key, listener_key, "LISTENER", threads_n_processes, iperf3_thread, dict_data_to_send_to_server)
             time.sleep(2)
 
             p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, stdin=None, text=True)
