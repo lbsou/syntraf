@@ -159,18 +159,18 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
                     logging.error(f"TEMPORARY FAILURE IN NAME RESOLUTION OF {ip_address}")
             time.sleep(1)
 
-        args = (
-            config['GLOBAL']['IPERF3_BINARY_PATH'], "-u", "-l",
-            config['CONNECTORS'][connector_key]['PACKET_SIZE'], "-c",
-            ip_address, "-t", "0", "-b",
-            config['CONNECTORS'][connector_key]['BANDWIDTH'],
-            "--udp-counters-64bit", "--connect-timeout=" + DefaultValues.DEFAULT_IPERF3_CONNECT_TIMEOUT, "--dscp", config['CONNECTORS'][connector_key]['DSCP'],
-            "--pacing-timer", "12000",
-            "--username", config['CLIENT']['IPERF3_USERNAME'],
-            "--rsa-public-key-path", os.path.join(config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'public_key_iperf_client.pem'),
-            "--connect-timeout", DefaultValues.DEFAULT_IPERF3_CLIENT_CONNECT_TIMEOUT,
-            "-f", "k", "-p", str(config['CONNECTORS'][connector_key]['PORT']), "--timestamps='%F %T '",
-            bidir_arg, "--forceflush")
+        args = [config['GLOBAL']['IPERF3_BINARY_PATH'], "-u", "-l", config['CONNECTORS'][connector_key]['PACKET_SIZE'],
+                "-c", ip_address, "-t", "0", "-b", config['CONNECTORS'][connector_key]['BANDWIDTH'],
+                "--udp-counters-64bit", "--connect-timeout=" + DefaultValues.DEFAULT_IPERF3_CONNECT_TIMEOUT, "--dscp",
+                config['CONNECTORS'][connector_key]['DSCP'], "--pacing-timer", "12000",
+                "--connect-timeout", DefaultValues.DEFAULT_IPERF3_CLIENT_CONNECT_TIMEOUT, "-f", "k", "-p",
+                str(config['CONNECTORS'][connector_key]['PORT']), "--timestamps='%F %T '", bidir_arg, "--forceflush"]
+
+        if config['GLOBAL']['IPERF3_AUTH']:
+            args.append("--username")
+            args.append(config['CLIENT']['IPERF3_USERNAME'])
+            args.append("--rsa-public-key-path")
+            args.append(os.path.join(config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'public_key_iperf_client.pem'))
 
         arguments = ""
         for i in args:
@@ -211,25 +211,30 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
 #################################################################################
 ### START AN IPERF3 SERVER AS CHILD PROCESS
 #################################################################################
-def iperf3_server(listener_key, _config):
+def iperf3_server(listener_key, config):
     global var_cfg_default_bind_arg
 
     #if "BIND_ADDRESS" in _config['LISTENERS'][listener_dict_key]:
     #    if not _config['LISTENERS'][listener_dict_key]['BIND_ADDRESS'] == "*":
     #        var_cfg_default_bind_arg = ("-B", _config['LISTENERS'][listener_dict_key]['BIND_ADDRESS'])
 
-    if is_port_available(_config['LISTENERS'][listener_key]['BIND_ADDRESS'], str(_config['LISTENERS'][listener_key]['PORT'])):
+    if is_port_available(config['LISTENERS'][listener_key]['BIND_ADDRESS'], str(config['LISTENERS'][listener_key]['PORT'])):
         try:
-            args = (_config['GLOBAL']['IPERF3_BINARY_PATH'], "-s", "-i", _config['LISTENERS'][listener_key]['INTERVAL'],
+            args = [config['GLOBAL']['IPERF3_BINARY_PATH'], "-s", "-i", config['LISTENERS'][listener_key]['INTERVAL'],
                     #var_cfg_default_bind_arg[0], var_cfg_default_bind_arg[1],
                     "-f", "k", "--forceflush",
-                    "--rsa-private-key-path", os.path.join(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'private_key_iperf_client.pem'),
-                    "--authorized-users-path", os.path.join(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'credentials.csv'),
-                    "--time-skew-threshold", _config['GLOBAL']['IPERF3_TIME_SKEW_THRESHOLD'],
                     "--idle-timeout", DefaultValues.DEFAULT_IPERF3_SERVER_IDLE_TIMEOUT,
                     "--rcv-timeout", DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT,
                     "--one-off",
-                    "-p", str(_config['LISTENERS'][listener_key]['PORT']), "--timestamps='%F %T '")
+                    "-p", str(config['LISTENERS'][listener_key]['PORT']), "--timestamps='%F %T '"]
+
+            if config['GLOBAL']['IPERF3_AUTH']:
+                args.append("--rsa-private-key-path")
+                args.append(os.path.join(config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'private_key_iperf_client.pem'))
+                args.append("--authorized-users-path")
+                args.append(os.path.join(config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'credentials.csv'))
+                args.append("--time-skew-threshold")
+                args.append(config['GLOBAL']['IPERF3_TIME_SKEW_THRESHOLD'])
 
             arguments = ""
             for i in args:
@@ -239,7 +244,7 @@ def iperf3_server(listener_key, _config):
 
             if p.poll() is None:
                 iperf3_listeners_log.warning(
-                    f"IPERF3 SERVER FOR LISTENER '{listener_key}' STARTED ON PORT {_config['LISTENERS'][listener_key]['PORT']}")
+                    f"IPERF3 SERVER FOR LISTENER '{listener_key}' STARTED ON PORT {config['LISTENERS'][listener_key]['PORT']}")
                 return p
             else:
                 iperf3_listeners_log.error(

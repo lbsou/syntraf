@@ -55,6 +55,7 @@ class DefaultValues:
     DEFAULT_IPERF3_TEMP_DIRECTORY = os.path.join(SYNTRAF_ROOT_DIR, "iperf3_temp")
     DEFAULT_IPERF3_TIME_SKEW_THRESHOLD = "10"
     DEFAULT_IPERF3_CONNECT_TIMEOUT = "2000"
+    DEFAULT_IPERF3_AUTH = True
 
     # Restart idle server after # seconds in case it got stuck
     DEFAULT_IPERF3_SERVER_IDLE_TIMEOUT = "300"
