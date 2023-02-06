@@ -13,8 +13,8 @@ from lib.st_mesh import client, server
 if not CompilationOptions.client_only:
     from lib.web_ui_kindafixed2 import create_app
 
-    #from gevent import monkey
-    #monkey.patch_all()
+    # from gevent import monkey
+    # monkey.patch_all()
     from gevent.pywsgi import WSGIServer
 
     from werkzeug.serving import run_simple
@@ -27,12 +27,12 @@ import time
 import os
 import threading
 
-
 # from lib.st_covariance import *
 log = logging.getLogger("syntraf." + __name__)
 platform = sys.platform
 if platform == "linux":
     import pyprctl
+
 
 ## Monkeypatch to catch gevent webserver events directed at stderr
 # class writer(object):
@@ -46,21 +46,26 @@ if platform == "linux":
 # sys.stderr = logger
 
 
-
 #################################################################################
 ### DO THE INITIAL LAUNCH AND WATCHDOG OF (LISTENERS, CONNECTORS, CLIENT AND SERVER)
 #################################################################################
-def launch_and_respawn_workers(config, cli_parameters, threads_n_processes,  obj_stats, dict_of_clients, dict_data_to_send_to_server, dict_of_commands_for_network_clients, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_of_client_pending_acceptance, config_file_path, conn_db, subprocess_iperf_dict=dict()):
+def launch_and_respawn_workers(config, cli_parameters, threads_n_processes, obj_stats, dict_of_clients,
+                               dict_data_to_send_to_server, dict_of_commands_for_network_clients,
+                               _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map,
+                               dict_of_client_pending_acceptance, config_file_path, conn_db,
+                               subprocess_iperf_dict=dict()):
     try:
         # STATS
         list = [thr for thr in threads_n_processes if getattr(thr, 'syntraf_instance_type') == "STATS"]
         if not list:
             thr_stats = threading.Thread(target=launch_stats,
-                                          args=(config, obj_stats),
-                                          daemon=True)
+                                         args=(config, obj_stats),
+                                         daemon=True)
             thr_stats.name = "STATS"
             thr_stats.start()
-            thread_or_process = st_obj_process_n_thread(thread_obj=thr_stats, name="STATS", syntraf_instance_type="STATS", exit_boolean=False, starttime=datetime.now(), opposite_side="", group="", port="")
+            thread_or_process = st_obj_process_n_thread(thread_obj=thr_stats, name="STATS",
+                                                        syntraf_instance_type="STATS", exit_boolean=False,
+                                                        starttime=datetime.now(), opposite_side="", group="", port="")
             threads_n_processes.append(thread_or_process)
 
         # LISTENERS
@@ -71,32 +76,44 @@ def launch_and_respawn_workers(config, cli_parameters, threads_n_processes,  obj
 
         # SERVER
         if "SERVER" in config:
-            manage_mesh(config, threads_n_processes, "SERVER", obj_stats, config_file_path, cli_parameters, dict_of_client_pending_acceptance=dict_of_client_pending_acceptance, dict_of_clients=dict_of_clients, conn_db=conn_db, _dict_by_node_generated_config=_dict_by_node_generated_config, dict_of_commands_for_network_clients=dict_of_commands_for_network_clients)
+            manage_mesh(config, threads_n_processes, "SERVER", obj_stats, config_file_path, cli_parameters,
+                        dict_of_client_pending_acceptance=dict_of_client_pending_acceptance,
+                        dict_of_clients=dict_of_clients, conn_db=conn_db,
+                        _dict_by_node_generated_config=_dict_by_node_generated_config,
+                        dict_of_commands_for_network_clients=dict_of_commands_for_network_clients)
 
             # WEBUI
             list = [thr for thr in threads_n_processes if getattr(thr, 'syntraf_instance_type') == "WEBUI"]
             if not list:
                 thr_webui = threading.Thread(target=launch_webui,
-                                              args=(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server, config, cli_parameters, config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients),
-                                              daemon=True)
+                                             args=(
+                                             threads_n_processes, subprocess_iperf_dict, _dict_by_node_generated_config,
+                                             _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server,
+                                             config, cli_parameters, config_file_path, conn_db,
+                                             dict_of_commands_for_network_clients, dict_of_clients),
+                                             daemon=True)
                 thr_webui.name = "WEBUI"
                 thr_webui.start()
-                thread_or_process = st_obj_process_n_thread(thread_obj=thr_webui, name="WEBUI", syntraf_instance_type="WEBUI", exit_boolean=False, starttime=datetime.now(), opposite_side="", group="", port="")
+                thread_or_process = st_obj_process_n_thread(thread_obj=thr_webui, name="WEBUI",
+                                                            syntraf_instance_type="WEBUI", exit_boolean=False,
+                                                            starttime=datetime.now(), opposite_side="", group="",
+                                                            port="")
                 threads_n_processes.append(thread_or_process)
 
             # COVARIANCE, ONLY IF SERVER
             list = [thr for thr in threads_n_processes if getattr(thr, 'syntraf_instance_type') == "COVARIANCE"]
-            #if not list:
-                #thr_covariance = threading.Thread(target=init_covar,
-                #                                  args=[config, conn_db],
-                #                                  daemon=True)
-                #thr_covariance.name = "COVARIANCE"
-                # thr_covariance.start()
-                # thread_or_process = st_obj_process_n_thread(thread_obj=thr_covariance, name="COVARIANCE", syntraf_instance_type="COVARIANCE", exit_boolean=False, starttime=datetime.now())
-                # threads_n_processes.append(thread_or_process)
+            # if not list:
+            # thr_covariance = threading.Thread(target=init_covar,
+            #                                  args=[config, conn_db],
+            #                                  daemon=True)
+            # thr_covariance.name = "COVARIANCE"
+            # thr_covariance.start()
+            # thread_or_process = st_obj_process_n_thread(thread_obj=thr_covariance, name="COVARIANCE", syntraf_instance_type="COVARIANCE", exit_boolean=False, starttime=datetime.now())
+            # threads_n_processes.append(thread_or_process)
 
         # CLIENT
-        manage_mesh(config, threads_n_processes, "CLIENT", obj_stats, config_file_path, cli_parameters, dict_data_to_send_to_server=dict_data_to_send_to_server)
+        manage_mesh(config, threads_n_processes, "CLIENT", obj_stats, config_file_path, cli_parameters,
+                    dict_data_to_send_to_server=dict_data_to_send_to_server)
 
 
     except Exception as exc:
@@ -104,23 +121,27 @@ def launch_and_respawn_workers(config, cli_parameters, threads_n_processes,  obj
     return threads_n_processes, subprocess_iperf_dict
 
 
-def launch_webui(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server, config, cli_parameters, config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients):
+def launch_webui(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generated_config,
+                 _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server, config, cli_parameters,
+                 config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients):
     if platform == "linux":
         pyprctl.set_name("WEBUI")
     try:
-        app = create_app(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server, config, config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients)
-        #app = ProfilerMiddleware(app)
+        app = create_app(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generated_config,
+                         _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server, config,
+                         config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients)
+        # app = ProfilerMiddleware(app)
         cert_path = os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, "crypto", "WEBUI_X509_SELFSIGNED_DIRECTORY")
         pool = Pool(100)
 
         try:
             http_server = WSGIServer(('0.0.0.0', DefaultValues.DEFAULT_WEBUI_PORT), app, error_log=log, log=log)
 
-        #try:
-        #    http_server = WSGIServer(('0.0.0.0', DefaultValues.DEFAULT_WEBUI_PORT), app,
-        #                             certfile=os.path.join(cert_path, 'certificate_webui.pem'),
-        #                             keyfile=os.path.join(cert_path, 'private_key_webui.pem'), server_side=True,
-        #                             cert_reqs=ssl.CERT_NONE, do_handshake_on_connect=True, spawn=pool, environ={'wsgi.multithread': True, 'wsgi.multiprocess': True,})
+            # try:
+            #    http_server = WSGIServer(('0.0.0.0', DefaultValues.DEFAULT_WEBUI_PORT), app,
+            #                             certfile=os.path.join(cert_path, 'certificate_webui.pem'),
+            #                             keyfile=os.path.join(cert_path, 'private_key_webui.pem'), server_side=True,
+            #                             cert_reqs=ssl.CERT_NONE, do_handshake_on_connect=True, spawn=pool, environ={'wsgi.multithread': True, 'wsgi.multiprocess': True,})
             http_server.serve_forever()
         except Exception as exc:
             log.error(exc)
@@ -143,8 +164,9 @@ def init_client_obj_dict(config, dict_of_clients):
     if "SERVER" in config and "SERVER_CLIENT" in config:
         # Initializing status dict
         for client in config['SERVER_CLIENT']:
-
-            dict_of_clients[client['UID']] = cc_client(status="UNKNOWN", status_since=datetime.now(),  status_explanation="NEVER CONNECTED", client_uid=client['UID'], bool_dynamic_client=False)
+            dict_of_clients[client['UID']] = cc_client(status="UNKNOWN", status_since=datetime.now(),
+                                                       status_explanation="NEVER CONNECTED", client_uid=client['UID'],
+                                                       bool_dynamic_client=False)
 
             list_stats_if_pct_usage_tx = []
             list_stats_if_pct_usage_rx = []
@@ -152,12 +174,14 @@ def init_client_obj_dict(config, dict_of_clients):
             list_stats_cpu_pct_usage = []
 
             dict_of_clients[client['UID']].system_stats = {'if_pct_usage_rx': list_stats_if_pct_usage_tx,
-                                                   'if_pct_usage_tx': list_stats_if_pct_usage_rx,
-                                                   'mem_pct_free': list_stats_mem_pct_free,
-                                                   'cpu_pct_usage': list_stats_cpu_pct_usage}
+                                                           'if_pct_usage_tx': list_stats_if_pct_usage_rx,
+                                                           'mem_pct_free': list_stats_mem_pct_free,
+                                                           'cpu_pct_usage': list_stats_cpu_pct_usage}
 
 
-def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, config_file_path, cli_parameters, dict_of_client_pending_acceptance={}, dict_of_clients={}, dict_data_to_send_to_server=[], conn_db=None, _dict_by_node_generated_config=dict(), dict_of_commands_for_network_clients=dict()):
+def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, config_file_path, cli_parameters,
+                dict_of_client_pending_acceptance={}, dict_of_clients={}, dict_data_to_send_to_server=[], conn_db=None,
+                _dict_by_node_generated_config=dict(), dict_of_commands_for_network_clients=dict()):
     # Variable to be able to stop thread. It is in a list to be mutable and will be assigned inside a st_obj_thread_n_process object
     stop_thread = [False]
 
@@ -174,29 +198,38 @@ def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, config_file_p
 
             # Thread already started, not a initial start. No need to do the validation, only restart if dead
             if thr_temp and not thr_temp.thread_obj.is_alive():
-                #log.error("WEBUI THREAD COULD NOT RUN OR DIED, PLEASE INVESTIGATE")
-                #sys.exit()
+                # log.error("WEBUI THREAD COULD NOT RUN OR DIED, PLEASE INVESTIGATE")
+                # sys.exit()
                 threads_n_processes.remove(thr_temp)
 
                 thread_run = None
                 # RESTART MESH INSTANCE
                 if mesh_type == "CLIENT":
-                    thread_run = threading.Thread(target=eval(mesh_type.lower()), args=(config, stop_thread, dict_data_to_send_to_server, threads_n_processes, obj_stats, config_file_path, cli_parameters),
+                    thread_run = threading.Thread(target=eval(mesh_type.lower()), args=(
+                    config, stop_thread, dict_data_to_send_to_server, threads_n_processes, obj_stats, config_file_path,
+                    cli_parameters),
                                                   daemon=True)
                 elif mesh_type == "SERVER":
                     init_client_obj_dict(config, dict_of_clients)
                     thread_run = threading.Thread(target=eval(mesh_type.lower()),
-                                                  args=(config, threads_n_processes, stop_thread, _dict_by_node_generated_config, obj_stats, conn_db, dict_of_commands_for_network_clients, dict_of_clients, dict_of_client_pending_acceptance), daemon=True)
+                                                  args=(config, threads_n_processes, stop_thread,
+                                                        _dict_by_node_generated_config, obj_stats, conn_db,
+                                                        dict_of_commands_for_network_clients, dict_of_clients,
+                                                        dict_of_client_pending_acceptance), daemon=True)
                 thread_run.daemon = True
                 thread_run.name = mesh_type
                 thread_run.start()
                 thread_or_process = st_obj_process_n_thread(thread_obj=thread_run, name=mesh_type, object_type="THREAD",
-                                                            syntraf_instance_type=mesh_type, exit_boolean=stop_thread, starttime=datetime.now(), opposite_side="", group="", port="")
+                                                            syntraf_instance_type=mesh_type, exit_boolean=stop_thread,
+                                                            starttime=datetime.now(), opposite_side="", group="",
+                                                            port="")
                 threads_n_processes.append(thread_or_process)
                 if mesh_type == "CLIENT":
-                    log.info(f"{mesh_type} RE-INITIATED : {config[mesh_type]['SERVER']}:{config[mesh_type]['SERVER_PORT']}")
+                    log.info(
+                        f"{mesh_type} RE-INITIATED : {config[mesh_type]['SERVER']}:{config[mesh_type]['SERVER_PORT']}")
                 elif mesh_type == "SERVER":
-                    log.info(f"{mesh_type} RE-INITIATED : {config[mesh_type]['BIND_ADDRESS']}:{config[mesh_type]['SERVER_PORT']}")
+                    log.info(
+                        f"{mesh_type} RE-INITIATED : {config[mesh_type]['BIND_ADDRESS']}:{config[mesh_type]['SERVER_PORT']}")
             # Validate MESH config and start the thread
             elif thr_temp is None:
                 log.info(f"VALIDATION OF {mesh_type} CONFIG SUCCESSFUL!")
@@ -204,24 +237,32 @@ def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, config_file_p
                 thread_run = None
                 # START MESH INSTANCE
                 if mesh_type == "CLIENT":
-                    thread_run = threading.Thread(target=eval(mesh_type.lower()), args=(config, stop_thread, dict_data_to_send_to_server, threads_n_processes, obj_stats, config_file_path, cli_parameters),
+                    thread_run = threading.Thread(target=eval(mesh_type.lower()), args=(
+                    config, stop_thread, dict_data_to_send_to_server, threads_n_processes, obj_stats, config_file_path,
+                    cli_parameters),
                                                   daemon=True)
                 elif mesh_type == "SERVER":
                     init_client_obj_dict(config, dict_of_clients)
                     thread_run = threading.Thread(target=eval(mesh_type.lower()),
-                                                  args=(config, threads_n_processes, stop_thread, _dict_by_node_generated_config, obj_stats, conn_db, dict_of_commands_for_network_clients, dict_of_clients, dict_of_client_pending_acceptance), daemon=True)
+                                                  args=(config, threads_n_processes, stop_thread,
+                                                        _dict_by_node_generated_config, obj_stats, conn_db,
+                                                        dict_of_commands_for_network_clients, dict_of_clients,
+                                                        dict_of_client_pending_acceptance), daemon=True)
                 thread_run.daemon = True
                 thread_run.name = mesh_type
                 thread_run.start()
                 thread_or_process = st_obj_process_n_thread(thread_obj=thread_run, name=mesh_type, object_type="THREAD",
-                                                            syntraf_instance_type=mesh_type, exit_boolean=stop_thread, starttime=datetime.now(), opposite_side="", group="", port="")
+                                                            syntraf_instance_type=mesh_type, exit_boolean=stop_thread,
+                                                            starttime=datetime.now(), opposite_side="", group="",
+                                                            port="")
 
                 threads_n_processes.append(thread_or_process)
                 if config[mesh_type] == "CLIENT":
                     log.info(
                         f"{mesh_type} INITIATED : {config[mesh_type]['SERVER']}:{config[mesh_type]['SERVER_PORT']}")
                 elif config[mesh_type] == "SERVER":
-                    log.info(f"{mesh_type} INITIATED : {config[mesh_type]['BIND_ADDRESS']}:{config[mesh_type]['SERVER_PORT']}")
+                    log.info(
+                        f"{mesh_type} INITIATED : {config[mesh_type]['BIND_ADDRESS']}:{config[mesh_type]['SERVER_PORT']}")
 
     except Exception as exc:
         log.error(f"manage_mesh:{type(exc).__name__}:{exc}", exc_info=True)
@@ -253,19 +294,25 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                     # starting the new iperf server
                     thread_or_process = st_obj_process_n_thread(subproc=iperf3_server(edge_key, config), name=edge_key,
                                                                 syntraf_instance_type="LISTENER",
-                                                                starttime=datetime.now(), opposite_side=listener_v['UID_CLIENT'], group=listener_v['MESH_GROUP'], port=listener_v['PORT'])
+                                                                starttime=datetime.now(),
+                                                                opposite_side=listener_v['UID_CLIENT'],
+                                                                group=listener_v['MESH_GROUP'], port=listener_v['PORT'])
                     threads_n_processes.append(thread_or_process)
                 # Was launch, but is it running?
                 else:
                     # The subproc is not running
                     if not thr_temp.subproc.poll() is None:
-
                         # Print the last breath and remove from threads_n_processes dict
                         iperf3_print_last_breath(edge_key, "LISTENER", threads_n_processes, thr_temp)
 
                         # starting the new iperf server
-                        thread_or_process = st_obj_process_n_thread(subproc=iperf3_server(edge_key, config), name=edge_key,
-                                                            syntraf_instance_type="LISTENER", starttime=datetime.now(), opposite_side=listener_v['UID_CLIENT'], group=listener_v['MESH_GROUP'], port=listener_v['PORT'])
+                        thread_or_process = st_obj_process_n_thread(subproc=iperf3_server(edge_key, config),
+                                                                    name=edge_key,
+                                                                    syntraf_instance_type="LISTENER",
+                                                                    starttime=datetime.now(),
+                                                                    opposite_side=listener_v['UID_CLIENT'],
+                                                                    group=listener_v['MESH_GROUP'],
+                                                                    port=listener_v['PORT'])
 
                         threads_n_processes.append(thread_or_process)
 
@@ -274,15 +321,16 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                     stop_thread_read_log = [False]
                     if thr.syntraf_instance_type == "LISTENER":
                         got_a_readlog_instance = False
-                        for thr2 in threads_n_processes:
+                        for thr2_read_log in threads_n_processes:
                             # There is already a thread, but is it running?
-                            if thr2.syntraf_instance_type == "READ_LOG" and edge_key in thr2.name:
+                            if thr2_read_log.syntraf_instance_type == "READ_LOG" and edge_key in thr2_read_log.name:
                                 # Is the subproc running? If no, restart it
-                                if not thr2.thread_obj.is_alive():
-                                    threads_n_processes.remove(thr2)
+                                if not thr2_read_log.thread_obj.is_alive():
+                                    threads_n_processes.remove(thr2_read_log)
                                     thread_run = threading.Thread(target=read_log_listener,
                                                                   args=(
-                                                                  edge_key, config, dict_data_to_send_to_server, threads_n_processes, thr, stop_thread_read_log),
+                                                                      thr.name, config, dict_data_to_send_to_server,
+                                                                      threads_n_processes, thr, stop_thread_read_log),
                                                                   daemon=True)
                                     thread_run.daemon = True
                                     thread_run.name = f"READ_LOG_LISTENER:{edge_key}"
@@ -290,7 +338,9 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                                     thread_or_process = st_obj_process_n_thread(thread_obj=thread_run, name=edge_key,
                                                                                 syntraf_instance_type="READ_LOG",
                                                                                 exit_boolean=stop_thread_read_log,
-                                                                                starttime=datetime.now(), opposite_side=listener_v['UID_CLIENT'], group=listener_v['MESH_GROUP'], port="")
+                                                                                starttime=datetime.now(),
+                                                                                opposite_side=listener_v['UID_CLIENT'],
+                                                                                group=listener_v['MESH_GROUP'], port="")
                                     threads_n_processes.append(thread_or_process)
                                     got_a_readlog_instance = True
                                 else:
@@ -299,14 +349,18 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
                         if not got_a_readlog_instance:
                             # Was never launch, starting the new READLOG thread
                             thread_run = threading.Thread(target=read_log_listener,
-                                                          args=(edge_key, config, dict_data_to_send_to_server, threads_n_processes, thr, stop_thread_read_log),
+                                                          args=(edge_key, config, dict_data_to_send_to_server,
+                                                                threads_n_processes, thr, stop_thread_read_log),
                                                           daemon=True)
                             thread_run.daemon = True
                             thread_run.name = f"READ_LOG_LISTENER:{edge_key}"
                             thread_run.start()
                             thread_or_process = st_obj_process_n_thread(thread_obj=thread_run, name=edge_key,
                                                                         syntraf_instance_type="READ_LOG",
-                                                                        exit_boolean=stop_thread_read_log, starttime=datetime.now(), opposite_side=listener_v['UID_CLIENT'], group=listener_v['MESH_GROUP'], port="")
+                                                                        exit_boolean=stop_thread_read_log,
+                                                                        starttime=datetime.now(),
+                                                                        opposite_side=listener_v['UID_CLIENT'],
+                                                                        group=listener_v['MESH_GROUP'], port="")
 
                             threads_n_processes.append(thread_or_process)
 
@@ -314,7 +368,8 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
         log.error(f"manage_listeners_process:{type(exc).__name__}:{exc}", exc_info=True)
 
 
-def thread_read_log(config, connector_key, connector_value, threads_n_processes, iperf3_conn_thread, dict_data_to_send_to_server):
+def thread_read_log(config, connector_key, connector_value, threads_n_processes, iperf3_conn_thread,
+                    dict_data_to_send_to_server):
     from lib.st_iperf3_readlog import read_log_connector
     stop_thread_read_log = [False]
     thread_run = threading.Thread(target=read_log_connector,
@@ -341,7 +396,8 @@ def thread_udp_hole(config, connector_key, connector_value, threads_n_processes,
     thread_run = threading.Thread(target=udp_hole_punch,
                                   args=(
                                       config['CONNECTORS'][connector_key]['DESTINATION_ADDRESS'],
-                                      config['CONNECTORS'][connector_key]['PORT'], iperf3_conn_thread, connector_key, threads_n_processes, stop_thread_udp_hole),
+                                      config['CONNECTORS'][connector_key]['PORT'], iperf3_conn_thread, connector_key,
+                                      threads_n_processes, stop_thread_udp_hole),
                                   daemon=True)
     thread_run.daemon = True
     thread_run.name = f"UDP_HOLE:{connector_key}"
@@ -349,7 +405,8 @@ def thread_udp_hole(config, connector_key, connector_value, threads_n_processes,
                                                 syntraf_instance_type="UDP_HOLE",
                                                 exit_boolean=stop_thread_udp_hole,
                                                 starttime=datetime.now(),
-                                                opposite_side=connector_value['UID_CLIENT'], group=connector_value['MESH_GROUP'],
+                                                opposite_side=connector_value['UID_CLIENT'],
+                                                group=connector_value['MESH_GROUP'],
                                                 port="")
     threads_n_processes.append(thread_or_process)
     thread_run.start()
@@ -370,11 +427,12 @@ def start_iperf3_client(config, connector_key, connector_value, threads_n_proces
         # If this is a dynamic IP client, do not start a connector until we have the IP address of the listener
         if config['CONNECTORS'][connector_key]['DESTINATION_ADDRESS'] != "0.0.0.0":
             iperf3_conn_thread = st_obj_process_n_thread(subproc=None, name=connector_key,
-                                                        syntraf_instance_type="CONNECTOR",
-                                                        starttime=datetime.now(),
-                                                        opposite_side=connector_value['UID_SERVER'],
-                                                        group=connector_value['MESH_GROUP'], port=connector_value['PORT'],
-                                                        bidir_src_port=0, bidir_local_addr="")
+                                                         syntraf_instance_type="CONNECTOR",
+                                                         starttime=datetime.now(),
+                                                         opposite_side=connector_value['UID_SERVER'],
+                                                         group=connector_value['MESH_GROUP'],
+                                                         port=connector_value['PORT'],
+                                                         bidir_src_port=0, bidir_local_addr="")
             threads_n_processes.append(iperf3_conn_thread)
             iperf3_client(config, connector_key, connector_value, threads_n_processes, dict_data_to_send_to_server)
 
@@ -391,7 +449,8 @@ def iperf3_print_last_breath(edge_key, edge_type, threads_n_processes, thr_temp)
     thr_temp.subproc.stderr.close()
     last_breath = last_breath.replace("\r", "")
     last_breath = last_breath.replace("\n", "")
-    log.warning(f"IPERF3 {edge_type} '{edge_key}' DIED OR NEVER START. LAST BREATH : '{last_breath.upper()} - {stderr_last_breath}'")
+    log.warning(
+        f"IPERF3 {edge_type} '{edge_key}' DIED OR NEVER START. LAST BREATH : '{last_breath.upper()} - {stderr_last_breath}'")
     thr_temp.subproc.kill()
     threads_n_processes.remove(thr_temp)
 
@@ -418,7 +477,8 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
                 # Was never launch or was removed (maybe a client reverted to dynamic IP)
                 if thr_temp is None:
                     # starting the new iperf3 connector. Also start udp_hole and read_log if this is a bidirectionnal connection
-                    start_iperf3_client(config, connector_key, connector_value, threads_n_processes, dict_data_to_send_to_server)
+                    start_iperf3_client(config, connector_key, connector_value, threads_n_processes,
+                                        dict_data_to_send_to_server)
                 # Iperf3 client was launch, but is it still running?
                 else:
                     # The subproc is not running
@@ -427,7 +487,8 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
                         terminate_connector_and_childs(threads_n_processes, connector_key, thr_temp, config)
 
                         # starting the new iperf3 connector. Also start udp_hole and read_log if this is a bidirectionnal connection
-                        start_iperf3_client(config, connector_key, connector_value, threads_n_processes, dict_data_to_send_to_server)
+                        start_iperf3_client(config, connector_key, connector_value, threads_n_processes,
+                                            dict_data_to_send_to_server)
     except Exception as exc:
         log.error(f"manage_connectors_process:{type(exc).__name__}:{exc}", exc_info=True)
 
