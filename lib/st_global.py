@@ -56,13 +56,16 @@ class DefaultValues:
     DEFAULT_IPERF3_TIME_SKEW_THRESHOLD = "10"
     DEFAULT_IPERF3_CONNECT_TIMEOUT = "2000"
 
-    # Non parametrizable in toml file for now
-
     # Restart idle server after # seconds in case it got stuck
     DEFAULT_IPERF3_SERVER_IDLE_TIMEOUT = "300"
+
+    # Handle one client connection then exit
     DEFAULT_IPERF3_SERVER_ONE_OFF = False
 
+    # Timeout for control connection setup (ms)
     DEFAULT_IPERF3_CLIENT_CONNECT_TIMEOUT = "5000"
+
+    # Set timeout for receiving data during active tests
     DEFAULT_IPERF3_RCV_TIMEOUT = "9999999"
 
     # LOGGING
