@@ -394,8 +394,9 @@ def st_obj_process_n_thread_exist(threads_n_processes, instance_type, connector_
 
 def iperf3_print_last_breath(edge_key, edge_type, threads_n_processes, thr_temp):
     stderr_last_breath = ""
-    for l in thr_temp.subproc.stderr:
-        stderr_last_breath = f"{stderr_last_breath} - {l}"
+    if thr_temp.subproc.stderr:
+        for l in thr_temp.subproc.stderr:
+            stderr_last_breath = f"{stderr_last_breath} - {l}"
 
     last_breath = thr_temp.subproc.communicate()[1]
     thr_temp.subproc.stderr.close()
