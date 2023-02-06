@@ -476,17 +476,36 @@ def terminate_connector_and_childs(threads_n_processes, connector_key, thr_temp,
     iperf3_print_last_breath(connector_key, "CONNECTOR", threads_n_processes, thr_temp)
 
 
+def terminate_listener_and_childs(threads_n_processes, listener_key, thr_temp, config):
+    """
+    This function is called when we need to remove a listener. i.e. When receiving new config
+    :param threads_n_processes: Dictionnary of st_obj_process_n_thread where we have all our thread and subproc
+    :param listener_key: The unique key of the connector
+    :param thr_temp : The actual thread we want to remove
+    :param config : The configuration of syntraf
+    """
+    # If the connector is dead, send signal to terminate udp_hole and readlog instances and remove them from threads_n_processes dict
+
+    copy_threads_n_processes = copy(threads_n_processes)
+    for thread_to_kill in copy_threads_n_processes:
+        if thread_to_kill.syntraf_instance_type == "READ_LOG" and listener_key in thread_to_kill.name:
+            thread_to_kill.exit_boolean[0] = [True]
+            threads_n_processes.remove(thread_to_kill)
+
+    try:
+        thr_temp.subproc.communicate(timeout=1)
+    except subprocess.TimeoutExpired:
+        log.error("subprocess.TimeoutExpired")
+        thr_temp.subproc.kill()
+        thr_temp.subproc.communicate()
+    except Exception as exc:
+        log.error(exc)
+    threads_n_processes.remove(thr_temp)
+
+
 def close_listeners_and_connectors(threads_n_processes, _config):
     for thr in threads_n_processes:
         if thr.syntraf_instance_type == "CONNECTOR":
             terminate_connector_and_childs(threads_n_processes, thr.name, thr, _config)
         elif thr.syntraf_instance_type == "LISTENER":
-            try:
-                thr.subproc.communicate(timeout=1)
-            except subprocess.TimeoutExpired:
-                log.error("subprocess.TimeoutExpired")
-                thr.subproc.kill()
-                thr.subproc.communicate()
-            except Exception as exc:
-                log.error(exc)
-            threads_n_processes.remove(thr)
+            terminate_listener_and_childs(threads_n_processes, thr.name, thr, _config)

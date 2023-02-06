@@ -471,8 +471,7 @@ def client_command_diffconfig(_config, received_data, threads_n_processes):
                         if received_data['PAYLOAD']['IP_ADDRESS'] == "0.0.0.0":
                             for thr in threads_n_processes:
                                 if thr.syntraf_instance_type == "CONNECTOR" and connector_key in thr.name:
-                                    client_log.info(
-                                        f"CONNECTOR: '{connector_key}' TERMINATED BECAUSE IP ADDRESS IS NOW UNKNOWN (CLIENT IS NOT CONNECTED TO SERVER ANYMORE)'")
+                                    client_log.info(f"CONNECTOR: '{connector_key}' TERMINATED BECAUSE IP ADDRESS IS NOW UNKNOWN (CLIENT IS NOT CONNECTED TO SERVER ANYMORE)'")
                                     thr.close()
                                     from lib.st_process_and_thread import terminate_connector_and_childs
                                     terminate_connector_and_childs(threads_n_processes, connector_key, thr, _config)
