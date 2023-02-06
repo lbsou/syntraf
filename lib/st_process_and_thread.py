@@ -484,14 +484,16 @@ def terminate_listener_and_childs(threads_n_processes, listener_key, thr_temp, c
     :param thr_temp : The actual thread we want to remove
     :param config : The configuration of syntraf
     """
-    # If the connector is dead, send signal to terminate udp_hole and readlog instances and remove them from threads_n_processes dict
 
+    # Kill the READ_LOG
     copy_threads_n_processes = copy(threads_n_processes)
     for thread_to_kill in copy_threads_n_processes:
         if thread_to_kill.syntraf_instance_type == "READ_LOG" and listener_key in thread_to_kill.name:
             thread_to_kill.exit_boolean[0] = [True]
             threads_n_processes.remove(thread_to_kill)
 
+    # Then kill the listener
+    log.error("HERE!")
     try:
         thr_temp.subproc.communicate(timeout=1)
     except subprocess.TimeoutExpired:
