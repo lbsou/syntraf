@@ -189,7 +189,7 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
             time.sleep(2)
 
         #p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, env=env_var)
-        p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, text=True, env=env_var)
+        p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, stdin=None, text=True, env=env_var)
         iperf3_conn_thread.subproc = p
 
         if p.poll() is None:
@@ -235,7 +235,7 @@ def iperf3_server(listener_key, _config):
             for i in args:
                 arguments += " " + i
 
-            p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+            p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, stdin=None, text=True)
 
             if p.poll() is None:
                 iperf3_listeners_log.warning(
