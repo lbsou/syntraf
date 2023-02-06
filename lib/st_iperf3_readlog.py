@@ -96,7 +96,6 @@ def tail(_config, edge_type, edge_key, thr_iperf3, exit_boolean):
             if exit_boolean[0]:
                 break
 
-            #Sleep first, because if it throw an error
             time.sleep(0.1)
             line = next(thr_iperf3.subproc.stdout, None)
             if line:
@@ -118,8 +117,7 @@ def tail(_config, edge_type, edge_key, thr_iperf3, exit_boolean):
         log.error(exc)
         # I/O operation on closed file
         log.error(f"NO MORE LINE TO READ FROM STDOUT OF {edge_type} {edge_key}")
-        thr_iperf3.subproc.kill()
-        thr_iperf3.subproc.communicate()
+        log.error(f"{thr_iperf3.subproc.poll()}{thr_iperf3.subproc.pid}")
     except Exception as exc:
         log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
 
