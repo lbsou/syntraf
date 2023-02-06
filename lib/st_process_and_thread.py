@@ -484,6 +484,9 @@ def close_listeners_and_connectors(threads_n_processes, _config):
             try:
                 thr.subproc.communicate(timeout=1)
             except subprocess.TimeoutExpired:
+                log.error("subprocess.TimeoutExpired")
                 thr.subproc.kill()
                 thr.subproc.communicate()
+            except Exception as exc:
+                log.error(exc)
             threads_n_processes.remove(thr)
