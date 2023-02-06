@@ -492,7 +492,7 @@ def terminate_listener_and_childs(threads_n_processes, listener_key, thr_temp, c
             thread_to_kill.exit_boolean[0] = [True]
             threads_n_processes.remove(thread_to_kill)
 
-    # Then kill the listener
+    # Then kill the LISTENER
     try:
         thr_temp.subproc.communicate(timeout=1)
     except subprocess.TimeoutExpired:

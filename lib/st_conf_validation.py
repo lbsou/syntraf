@@ -635,7 +635,6 @@ def config_validation_global(_config):
         valid_dir_rsa_keypair(_config)
         valid_dir_logs(_config)
 
-
         # When authenticating (credentials + rsa), iperf3 will refuse a connection between two host with a time skew bigger than 10 seconds. iperf3 have a parameter to change this threshold
         if 'IPERF3_TIME_SKEW_THRESHOLD' in _config['GLOBAL']:
             if _config['GLOBAL']['IPERF3_TIME_SKEW_THRESHOLD'].isdigit():
@@ -650,6 +649,12 @@ def config_validation_global(_config):
                 f"IS IPERF3_TIME_SKEW_THRESHOLD VALID : NO, APPLYING DEFAULT '{DefaultValues.DEFAULT_IPERF3_TIME_SKEW_THRESHOLD}'")
             _config['GLOBAL'][
                 'IPERF3_TIME_SKEW_THRESHOLD'] = DefaultValues.DEFAULT_IPERF3_TIME_SKEW_THRESHOLD
+
+        if 'IPERF3_AUTH' in _config['GLOBAL']:
+            if not isinstance(_config['GLOBAL']['IPERF3_AUTH'], bool):
+                _config['GLOBAL']['IPERF3_AUTH'] = DefaultValues.DEFAULT_IPERF3_AUTH
+        else:
+            _config['GLOBAL']['IPERF3_AUTH'] = DefaultValues.DEFAULT_IPERF3_AUTH
 
     except Exception as exc:
         log.error(f"config_validation_global:{type(exc).__name__}:{exc}", exc_info=True)
