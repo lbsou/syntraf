@@ -345,10 +345,11 @@ def thread_read_log(config, edge_key, edge_value, edge_type, threads_n_processes
     stop_thread_read_log = [False]
     thread_run = threading.Thread(target=read_log,
                                   args=(
-                                      edge_key, config,
+                                      edge_key, edge_type, config,
                                       dict_data_to_send_to_server,
                                       threads_n_processes, iperf3_thread, stop_thread_read_log),
                                   daemon=True)
+
     thread_run.daemon = True
     thread_run.name = f"READ_LOG_{edge_type}:{edge_key}"
     thread_run.start()
