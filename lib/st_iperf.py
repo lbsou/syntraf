@@ -161,9 +161,9 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
 
         args = [config['GLOBAL']['IPERF3_BINARY_PATH'], "-u", "-l", config['CONNECTORS'][connector_key]['PACKET_SIZE'],
                 "-c", ip_address, "-t", "0", "-b", config['CONNECTORS'][connector_key]['BANDWIDTH'],
-                "--udp-counters-64bit", "--connect-timeout=" + DefaultValues.DEFAULT_IPERF3_CONNECT_TIMEOUT, "--dscp",
+                "--udp-counters-64bit", "--connect-timeout" + DefaultValues.DEFAULT_IPERF3_CONNECT_TIMEOUT, "--dscp",
                 config['CONNECTORS'][connector_key]['DSCP'], "--pacing-timer", "12000",
-                "--connect-timeout", DefaultValues.DEFAULT_IPERF3_CLIENT_CONNECT_TIMEOUT, "-f", "k", "-p",
+                "-f", "k", "-p",
                 str(config['CONNECTORS'][connector_key]['PORT']), "--timestamps='%F %T '", bidir_arg, "--forceflush"]
 
         if config['GLOBAL']['IPERF3_AUTH']:
