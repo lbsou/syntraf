@@ -54,6 +54,7 @@ class DefaultValues:
     DEFAULT_IPERF3_RSA_KEY_DIRECTORY = os.path.join(SYNTRAF_ROOT_DIR, "crypto", "rsa_key_iperf3")
     DEFAULT_IPERF3_TEMP_DIRECTORY = os.path.join(SYNTRAF_ROOT_DIR, "iperf3_temp")
     DEFAULT_IPERF3_TIME_SKEW_THRESHOLD = "10"
+    # Timeout for control connection setup (ms)
     DEFAULT_IPERF3_CONNECT_TIMEOUT = "2000"
     DEFAULT_IPERF3_AUTH = True
 
@@ -63,11 +64,9 @@ class DefaultValues:
     # Handle one client connection then exit
     DEFAULT_IPERF3_SERVER_ONE_OFF = True
 
-    # Timeout for control connection setup (ms)
-    DEFAULT_IPERF3_CLIENT_CONNECT_TIMEOUT = "5000"
+
 
     # Set timeout for receiving data during active tests
-    #DEFAULT_IPERF3_RCV_TIMEOUT = "9999999"
     DEFAULT_IPERF3_RCV_TIMEOUT = "50000"
 
     # LOGGING
