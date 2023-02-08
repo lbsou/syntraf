@@ -68,7 +68,7 @@ class DefaultValues:
 
     # Set timeout for receiving data during active tests
     #DEFAULT_IPERF3_RCV_TIMEOUT = "9999999"
-    DEFAULT_IPERF3_RCV_TIMEOUT = "60"
+    DEFAULT_IPERF3_RCV_TIMEOUT = "60000"
 
     # LOGGING
     DEFAULT_LOG_MAX_SIZE_PER_FILE_MB = 20_485_760
