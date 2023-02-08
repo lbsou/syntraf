@@ -64,10 +64,8 @@ class DefaultValues:
     # Handle one client connection then exit
     DEFAULT_IPERF3_SERVER_ONE_OFF = True
 
-
-
     # Set timeout for receiving data during active tests
-    DEFAULT_IPERF3_RCV_TIMEOUT = "50000"
+    DEFAULT_IPERF3_RCV_TIMEOUT = "5000"
 
     # LOGGING
     DEFAULT_LOG_MAX_SIZE_PER_FILE_MB = 20_485_760
