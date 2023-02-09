@@ -73,7 +73,8 @@ class st_obj_process_n_thread:
 
     def close(self):
         if hasattr(self, 'subproc'):
-            self.subproc.kill()
+            if self.subproc:
+                self.subproc.kill()
         elif hasattr(self, 'thread_obj'):
             self.thread_obj.join(0.01)
 
