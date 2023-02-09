@@ -104,6 +104,8 @@ def parse_line(line, _config, edge_key, edge_type, threads_n_processes, dict_dat
     #The edge_type is used not only as reference to the type but also as a key in the config. In config there is an "S", so replacing for the current function and the save_config
     if edge_type == "CONNECTOR":
         edge_type = "CONNECTORS"
+        if not _config['CONNECTORS'][edge_key]['BIDIR']:
+            return
     else:
         edge_type = "LISTENERS"
 
