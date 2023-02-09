@@ -55,13 +55,14 @@ def tail(edge_type, edge_key, thr_iperf3, exit_boolean):
         while True:
             if exit_boolean[0]:
                 break
-
             time.sleep(0.1)
 
             try:
                 line = next(thr_iperf3.subproc.stdout, None)
             # I/O operation on closed file
             except ValueError:
+                if thr_iperf3.subproc is None:
+                    return
                 pass
             else:
                 if line:
