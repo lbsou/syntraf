@@ -163,7 +163,6 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
                 "-c", ip_address, "-t", "0", "-b", config['CONNECTORS'][connector_key]['BANDWIDTH'],
                 "--udp-counters-64bit", "--connect-timeout=" + DefaultValues.DEFAULT_IPERF3_CONNECT_TIMEOUT, "--dscp",
                 config['CONNECTORS'][connector_key]['DSCP'], "--pacing-timer", "12000",
-                "--rcv-timeout", DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT,
                 "-f", "k", "-p",
                 str(config['CONNECTORS'][connector_key]['PORT']), "--timestamps='%F %T '", bidir_arg, "--forceflush"]
 
@@ -172,6 +171,10 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
             args.append(config['CLIENT']['IPERF3_USERNAME'])
             args.append("--rsa-public-key-path")
             args.append(os.path.join(config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'public_key_iperf_client.pem'))
+
+        if config['CONNECTORS'][connector_key]['BIDIR']:
+            args.append("--rcv-timeout")
+            args.append(DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT)
 
         arguments = ""
         for i in args:
