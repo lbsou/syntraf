@@ -67,6 +67,7 @@ def tail(_config, edge_type, edge_key, thr_iperf3, exit_boolean):
             try:
                 line = next(thr_iperf3.subproc.stdout, None)
             except Exception:
+                log.error("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
                 pass
             else:
                 if line:
@@ -85,6 +86,7 @@ def tail(_config, edge_type, edge_key, thr_iperf3, exit_boolean):
             #         yield line
 
     except ValueError as exc:
+        log.error("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB")
         pass
         #log.error(exc)
         # I/O operation on closed file
