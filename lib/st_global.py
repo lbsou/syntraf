@@ -54,8 +54,9 @@ class DefaultValues:
     DEFAULT_IPERF3_RSA_KEY_DIRECTORY = os.path.join(SYNTRAF_ROOT_DIR, "crypto", "rsa_key_iperf3")
     DEFAULT_IPERF3_TEMP_DIRECTORY = os.path.join(SYNTRAF_ROOT_DIR, "iperf3_temp")
     DEFAULT_IPERF3_TIME_SKEW_THRESHOLD = "10"
+
     # Timeout for control connection setup (ms)
-    DEFAULT_IPERF3_CONNECT_TIMEOUT = "2000"
+    DEFAULT_IPERF3_CONNECT_TIMEOUT = "1000"
     DEFAULT_IPERF3_AUTH = True
 
     # Restart idle server after # seconds in case it got stuck
