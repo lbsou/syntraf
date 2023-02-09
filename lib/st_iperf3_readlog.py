@@ -13,7 +13,7 @@ log = logging.getLogger("syntraf." + __name__)
 ### FUNCTION TO READ LOGS
 #################################################################################
 def read_log(edge_key, edge_type, config, dict_data_to_send_to_server, threads_n_processes, iperf3_thread, exit_boolean):
-    lines = tail(config, edge_type, edge_key, iperf3_thread, exit_boolean)
+    lines = tail(edge_type, edge_key, iperf3_thread, exit_boolean)
     log.info(f"READING LOGS FOR {edge_type} {edge_key}")
     try:
         while True:
@@ -32,7 +32,7 @@ def read_log(edge_key, edge_type, config, dict_data_to_send_to_server, threads_n
 #################################################################################
 ### YIELD LINE FROM IPERF3 STDOUT
 #################################################################################
-def tail(_config, edge_type, edge_key, thr_iperf3, exit_boolean):
+def tail(edge_type, edge_key, thr_iperf3, exit_boolean):
 
     # Wait for iperf3 to start
     while thr_iperf3.subproc is None:
@@ -42,12 +42,12 @@ def tail(_config, edge_type, edge_key, thr_iperf3, exit_boolean):
         if thr_iperf3.subproc:
             break
 
-    while thr_iperf3.subproc.stdout is None:
-        if exit_boolean[0]:
-            break
-        time.sleep(1)
-        if thr_iperf3.subproc.stdout:
-            break
+    # while thr_iperf3.subproc.stdout is None:
+    #     if exit_boolean[0]:
+    #         break
+    #     time.sleep(1)
+    #     if thr_iperf3.subproc.stdout:
+    #         break
 
     log.debug(f"READLOG THREAD ACQUIRED IPERF3 STDOUT FOR {edge_type} - {thr_iperf3.name} -  {edge_key} ")
 

@@ -275,7 +275,6 @@ def client_receive_configuration(_config, ssl_conn, threads_n_processes, config_
                     else:
                         client_log.debug("DIFF DIFF DIFF DIFF")
 
-
                 # got new config, close all listeners and connectors because if the server has restarted, all the credentials has been re-initialized
                 client_log.debug(f"CLOSING LISTENERS AND CONNECTORS BEFORE APPLYING NEW CONFIG")
                 from lib.st_process_and_thread import close_listeners_and_connectors

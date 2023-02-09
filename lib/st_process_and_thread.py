@@ -398,15 +398,13 @@ def iperf3_print_last_breath(edge_key, edge_type, threads_n_processes, thr_temp)
         for l in thr_temp.subproc.stderr:
             stderr_last_breath = f"{stderr_last_breath} - {l}"
 
-    last_breath = thr_temp.subproc.communicate()[1]
-    thr_temp.subproc.stderr.close()
-    last_breath = last_breath.replace("\r", "")
-    last_breath = last_breath.replace("\n", "")
-    log.warning(
-        f"IPERF3 {edge_type} '{edge_key}' DIED OR NEVER START. LAST BREATH : '{last_breath.upper()} - {stderr_last_breath}'")
-
     try:
-        thr_temp.subproc.communicate(timeout=1)
+        outs, last_breath = thr_temp.subproc.communicate(timeout=1)
+
+        last_breath = last_breath.replace("\r", "")
+        last_breath = last_breath.replace("\n", "")
+        log.warning(f"IPERF3 {edge_type} '{edge_key}' DIED OR NEVER START. LAST BREATH : '{last_breath.upper()} - {stderr_last_breath}'")
+
     except subprocess.TimeoutExpired:
         thr_temp.subproc.kill()
         thr_temp.subproc.communicate()
