@@ -80,10 +80,11 @@ def tail(_config, edge_type, edge_key, thr_iperf3, exit_boolean):
             #         yield line
 
     except ValueError as exc:
-        log.error(exc)
+        pass
+        #log.error(exc)
         # I/O operation on closed file
-        log.error(f"NO MORE LINE TO READ FROM STDOUT OF {edge_type} {edge_key}")
-        log.error(f"{thr_iperf3.subproc.poll()}{thr_iperf3.subproc.pid}")
+        #log.error(f"NO MORE LINE TO READ FROM STDOUT OF {edge_type} {edge_key}")
+        #log.error(f"{thr_iperf3.subproc.poll()}{thr_iperf3.subproc.pid}")
     except Exception as exc:
         log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
 
