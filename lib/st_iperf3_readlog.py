@@ -7,15 +7,12 @@ from datetime import datetime
 import pytz
 import logging
 log = logging.getLogger("syntraf." + __name__)
-import sys
 
 
 #################################################################################
-### FUNCTION TO READ LISTENERS LOGS
+### FUNCTION TO READ LOGS
 #################################################################################
 def read_log(edge_key, edge_type, config, dict_data_to_send_to_server, threads_n_processes, iperf3_thread, exit_boolean):
-    utime_last_event = time.time()
-
     lines = tail(config, edge_type, edge_key, iperf3_thread, exit_boolean)
     log.info(f"READING LOGS FOR {edge_type} {edge_key}")
     try:
@@ -24,11 +21,8 @@ def read_log(edge_key, edge_type, config, dict_data_to_send_to_server, threads_n
                 return
             line = next(lines, None)
             if line:
-                utime_last_event = time.time()
                 if not parse_line(line, config, edge_key, edge_type, threads_n_processes, dict_data_to_send_to_server):
                     break
-            #else:
-            #    outage_management(_config, "LISTENERS", listener_dict_key, threads_n_processes, utime_last_event, dict_data_to_send_to_server)
             time.sleep(0.1)
 
     except Exception as exc:
@@ -36,7 +30,7 @@ def read_log(edge_key, edge_type, config, dict_data_to_send_to_server, threads_n
 
 
 #################################################################################
-### YIELD LINE FROM IPERF3 OUTPUT FILE
+### YIELD LINE FROM IPERF3 STDOUT
 #################################################################################
 def tail(_config, edge_type, edge_key, thr_iperf3, exit_boolean):
 
@@ -66,8 +60,8 @@ def tail(_config, edge_type, edge_key, thr_iperf3, exit_boolean):
 
             try:
                 line = next(thr_iperf3.subproc.stdout, None)
-            except Exception:
-                log.error("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+            # I/O operation on closed file
+            except ValueError:
                 pass
             else:
                 if line:
@@ -77,21 +71,8 @@ def tail(_config, edge_type, edge_key, thr_iperf3, exit_boolean):
                         log.debug(f"LINE FROM {edge_type} : {edge_key} - {line}")
                         yield line
 
-            # for line in thr_iperf3.subproc.stdout:
-            #     # No valuable information in TX lines
-            #     if "TX-C" in line or "TX-S" in line:
-            #         continue
-            #     else:
-            #         log.debug(f"LINE FROM {edge_type} : {edge_key} - {line}")
-            #         yield line
-
-    except ValueError as exc:
-        log.error("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB")
-        pass
-        #log.error(exc)
-        # I/O operation on closed file
-        #log.error(f"NO MORE LINE TO READ FROM STDOUT OF {edge_type} {edge_key}")
-        #log.error(f"{thr_iperf3.subproc.poll()}{thr_iperf3.subproc.pid}")
+    except Exception as exc:
+        log.error(exc)
     except Exception as exc:
         log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
 
@@ -107,7 +88,7 @@ def parse_line(line, _config, edge_key, edge_type, threads_n_processes, dict_dat
     if edge_type == "CONNECTOR":
         edge_type = "CONNECTORS"
         if not _config['CONNECTORS'][edge_key]['BIDIR']:
-            return
+            return True
     else:
         edge_type = "LISTENERS"
 
