@@ -63,13 +63,18 @@ def tail(_config, edge_type, edge_key, thr_iperf3, exit_boolean):
                 break
 
             time.sleep(0.1)
-            line = next(thr_iperf3.subproc.stdout, None)
-            if line:
-                if "TX-C" in line or "TX-S" in line:
-                    continue
-                else:
-                    log.debug(f"LINE FROM {edge_type} : {edge_key} - {line}")
-                    yield line
+
+            try:
+                line = next(thr_iperf3.subproc.stdout, None)
+            except Exception:
+                pass
+            else:
+                if line:
+                    if "TX-C" in line or "TX-S" in line:
+                        continue
+                    else:
+                        log.debug(f"LINE FROM {edge_type} : {edge_key} - {line}")
+                        yield line
 
             # for line in thr_iperf3.subproc.stdout:
             #     # No valuable information in TX lines
