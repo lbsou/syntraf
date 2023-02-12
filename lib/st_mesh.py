@@ -308,7 +308,7 @@ def client_send_metrics(_config, ssl_conn, dict_data_to_send_to_server):
         if len(dict_data_to_send_to_server) >= 1:
             # we need to extract hash and values as two different list.
             # the server will write as bulk, so once he confirmed everything is written, we can use the list of hash to remove thoses elements from "dict_data_to_send_to_server"
-            # We extract the from dictionnary at the same time so that there is no insertion of metrics in between
+            # We extract the dictionary at the same time so that there is no insertion of metrics in between
             dict_data_to_send_to_server_as_array = list(dict_data_to_send_to_server.items())
             keys_of_metrics_to_send_to_server = [x[0] for x in dict_data_to_send_to_server_as_array]
             values_of_metrics_to_send_to_server = [x[1] for x in dict_data_to_send_to_server_as_array]

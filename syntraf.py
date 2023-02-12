@@ -180,7 +180,7 @@ def run():
     thread_run.daemon = True
     thread_run.start()
     thread_run2 = threading.Thread(target=udp_client,
-                                   args=(),
+                                   args=(dict_data_to_send_to_server),
                                    daemon=True)
     thread_run2.daemon = True
     thread_run2.start()

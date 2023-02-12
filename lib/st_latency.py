@@ -22,11 +22,10 @@ def udp_server(port=17000, ip="127.0.0.1"):
             print("server", exc)
 
 
-def udp_client(port=17001, timeout=1000, ip="23.250.5.250", interval=1):
+def udp_client(dict_data_to_send_to_server, dst_ip="23.250.5.250", dst_port=17000, timeout=1000, interval=1):
     print("UDPCLIENT STARTED")
 
-    server_address = (ip, port)
-
+    server_address = (dst_ip, dst_port)
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.settimeout(timeout)
 
@@ -34,8 +33,8 @@ def udp_client(port=17001, timeout=1000, ip="23.250.5.250", interval=1):
     while True:
         sequence_number_bin = bytearray(struct.pack("f", sequence_number))
         try:
+            timestamp = time.time()
             timer_begin_monotonic = get_monotonic_time()
-
             s.sendto(sequence_number_bin, server_address)
             value, server_address_recv = s.recvfrom(buffersize)
             # Did we receive a datagram from the right IP?
@@ -48,11 +47,11 @@ def udp_client(port=17001, timeout=1000, ip="23.250.5.250", interval=1):
             else:
                 continue
         except socket.timeout as exc:
-            print("clientA", exc)
+            loss = True
         except OSError as exc:
-            print("clientB", exc)
+            loss = True
         except Exception as exc:
-            print("clientC", exc)
+            log.error(f"udp_client:{type(exc).__name__}:{exc}", exc_info=True)
         else:
             latency_monotonic = (timer_end_monotonic - timer_begin_monotonic)*1000
             print("%.0fms" % ((timer_end_monotonic - timer_begin_monotonic)*1000))
