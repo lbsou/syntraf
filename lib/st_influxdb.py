@@ -198,8 +198,8 @@ def generate_json_covariance(pair_a, pair_b, mesh_group, timestamp, covar):
     return json_body
 
 
-def save_to_server(values, _config, edge_type, edge_dict_key, packet_loss, packet_total, dict_data_to_send_to_server):
-    json_body = generate_json(values, _config, edge_type, edge_dict_key, packet_loss, packet_total)
+def save_to_server(values, config, edge_type, edge_dict_key, packet_loss, packet_total, dict_data_to_send_to_server):
+    json_body = generate_json(values, config, edge_type, edge_dict_key, packet_loss, packet_total)
 
     try:
         # Make sure that the CLIENT_METRICS_QUEUE does not get too big

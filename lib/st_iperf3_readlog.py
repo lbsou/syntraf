@@ -42,13 +42,6 @@ def tail(edge_type, edge_key, thr_iperf3, exit_boolean):
         if thr_iperf3.subproc:
             break
 
-    # while thr_iperf3.subproc.stdout is None:
-    #     if exit_boolean[0]:
-    #         break
-    #     time.sleep(1)
-    #     if thr_iperf3.subproc.stdout:
-    #         break
-
     log.debug(f"READLOG THREAD ACQUIRED IPERF3 STDOUT FOR {edge_type} - {thr_iperf3.name} -  {edge_key} ")
 
     try:

@@ -8,26 +8,28 @@
 
 # SYNTRAF GLOBAL IMPORT
 from lib.st_global import DefaultValues, CompilationOptions
-#from lib.st_class_winsvc import SMWinservice
+# from lib.st_class_winsvc import SMWinservice
 
 # BUILTIN IMPORT
 import sys
 import argparse
 import atexit
+from lib.st_latency import udp_server, udp_client
 from tabulate import tabulate
+import threading
 import queue
 import logging
 import os
 from multiprocessing import shared_memory
-
+from lib.st_latency import tcp_ping
 
 try:
     # SYNTRAF modules
-    #from lib.st_mesh import *
-    #from lib.st_global import *
+    # from lib.st_mesh import *
+    # from lib.st_global import *
     from lib.st_logging import *
-    #from lib.st_conf_validation import *
-    #from lib.st_iperf import *
+    # from lib.st_conf_validation import *
+    # from lib.st_iperf import *
     from lib.st_clean_close import *
     from lib.st_process_and_thread import *
     from lib.st_system_stats import system_stats
@@ -37,6 +39,7 @@ except Exception as exc:
     sys.exit()
 
 log = logging.getLogger("syntraf")
+
 
 #################################################################################
 ### MAIN
@@ -108,7 +111,8 @@ def run():
     log.addHandler(ch)
 
     # Validation of configuration
-    bool_config_valid, config, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map = validate_config(cli_parameters)
+    bool_config_valid, config, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map = validate_config(
+        cli_parameters)
 
     if bool_config_valid: config['GLOBAL']['LOGDIR'] = cli_parameters.log_dir
 
@@ -159,7 +163,7 @@ def run():
     # CLIENT, This object keep track of the local resources
     obj_stats = system_stats(config)
 
-    # CLIENT, Will contain the metric that will be send to the server
+    # CLIENT, Will contain the metric that will be sent to the server
     dict_data_to_send_to_server = {}
 
     # Use by webui to provide message to the server that will be transmitted to client: ie : restart
@@ -170,12 +174,32 @@ def run():
     # Using a public key mechanism, we have a list of client that are waiting acceptance
     dict_of_client_pending_acceptance = {}
 
+    thread_run = threading.Thread(target=udp_server,
+                                  args=(),
+                                  daemon=True)
+    thread_run.daemon = True
+    thread_run.start()
+    thread_run2 = threading.Thread(target=udp_client,
+                                   args=(),
+                                   daemon=True)
+    thread_run2.daemon = True
+    thread_run2.start()
+
     # WATCHDOG
     while True:
         reload_flag = False
 
         # launch iperf_listeners, iperf_connectors read_log, client, server
-        threads_n_processes, subprocess_iperf_dict = launch_and_respawn_workers(config, cli_parameters, threads_n_processes, obj_stats, dict_of_clients, dict_data_to_send_to_server, dict_of_commands_for_network_clients, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map, dict_of_client_pending_acceptance, cli_parameters.config_file, conn_db, subprocess_iperf_dict)
+        threads_n_processes, subprocess_iperf_dict = launch_and_respawn_workers(config, cli_parameters,
+                                                                                threads_n_processes, obj_stats,
+                                                                                dict_of_clients,
+                                                                                dict_data_to_send_to_server,
+                                                                                dict_of_commands_for_network_clients,
+                                                                                _dict_by_node_generated_config,
+                                                                                _dict_by_group_of_generated_tuple_for_map,
+                                                                                dict_of_client_pending_acceptance,
+                                                                                cli_parameters.config_file, conn_db,
+                                                                                subprocess_iperf_dict)
 
         # WHILE WEBUI DOWN, DUMP CLIENT STATUS TO FILE
         f = open(os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, "client_status.txt"), "w")
@@ -195,14 +219,20 @@ def run():
         f = open(os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, "thread_status.txt"), "w")
 
         lst_thread = []
-        lst_thread.append(["NAME", "TYPE", "PID", "RUNNING", "STARTTIME", "SINCE_START", "LAST_ACTIVITY", "SINCE_LAST", "PORT", "BIDIR_SRC_PORT", "BIDIR_LADDR", "LINE_READ", "PACKET_SENT"])
+        lst_thread.append(
+            ["NAME", "TYPE", "PID", "RUNNING", "STARTTIME", "SINCE_START", "LAST_ACTIVITY", "SINCE_LAST", "PORT",
+             "BIDIR_SRC_PORT", "BIDIR_LADDR", "LINE_READ", "PACKET_SENT"])
 
         for thr in threads_n_processes:
             since_start = datetime.now() - thr.starttime
             minutes_since_start = divmod(since_start.total_seconds(), 60)
             since_last = datetime.now() - thr.last_activity
             minutes_since_last = divmod(since_last.total_seconds(), 60)
-            lst_thread.append([thr.name, thr.syntraf_instance_type, thr.getpid(), thr.getstatus(), thr.starttime.strftime("%d/%m/%Y %H:%M:%S"), f"{minutes_since_start[0]}m {round(minutes_since_start[1])}s", thr.last_activity, f"{minutes_since_last[0]}m {round(minutes_since_last[1])}s", thr.port, thr.bidir_src_port, thr.bidir_local_addr, thr.line_read, thr.packet_sent])
+            lst_thread.append([thr.name, thr.syntraf_instance_type, thr.getpid(), thr.getstatus(),
+                               thr.starttime.strftime("%d/%m/%Y %H:%M:%S"),
+                               f"{minutes_since_start[0]}m {round(minutes_since_start[1])}s", thr.last_activity,
+                               f"{minutes_since_last[0]}m {round(minutes_since_last[1])}s", thr.port,
+                               thr.bidir_src_port, thr.bidir_local_addr, thr.line_read, thr.packet_sent])
         f.write(tabulate(lst_thread))
         f.write("\n")
         f.close()
@@ -220,6 +250,8 @@ def run():
         #     print("RELOAD WAS ASKED BY USER")
         #     shared_mem.buf[0] = 0
         #     reload_flag = True
+
+        # tcp_ping()
 
         time.sleep(int(config['GLOBAL']['WATCHDOG_CHECK_RATE']))
 
@@ -240,6 +272,6 @@ def run():
 if __name__ == '__main__':
     if sys.platform == "win32":
         run()
-        #windows_service.parse_command_line()
+        # windows_service.parse_command_line()
     else:
         run()

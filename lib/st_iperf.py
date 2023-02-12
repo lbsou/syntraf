@@ -14,8 +14,6 @@ import warnings
 import socket
 import getmac
 
-if sys.platform == "linux":
-    import pyprctl
 
 from cryptography.utils import CryptographyDeprecationWarning
 warnings.filterwarnings("ignore", category=CryptographyDeprecationWarning)
@@ -28,8 +26,6 @@ iperf3_listeners_log = logging.getLogger("syntraf." + "lib.st_iperf3_listeners")
 # Find the ephemeral port iperf3 is using for the incoming connection in bidirectional mode then send a packet
 # to the other side with the right src and dst port to keep alive the udp hole punch.
 def udp_hole_punch(dst_ip, dst_port, iperf3_connector_obj_pnt, connector_key, threads_n_processes, exit_boolean):
-    if sys.platform == "linux":
-        pyprctl.set_name("UDPHOLE")
 
     # Wait for iperf3 to start
     while iperf3_connector_obj_pnt.subproc is None:
