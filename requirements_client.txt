@@ -5,3 +5,5 @@ cryptography
 pytz
 py-cpuinfo
 fqdn
+getmac
+scapy

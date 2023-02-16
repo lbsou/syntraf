@@ -33,7 +33,7 @@ def udp_client(dict_data_to_send_to_server, dst_ip="23.250.5.250", dst_port=1700
     while True:
         sequence_number_bin = bytearray(struct.pack("f", sequence_number))
         try:
-            timestamp = time.time()
+            latency_unix_timestamp = time.time()
             timer_begin_monotonic = get_monotonic_time()
             s.sendto(sequence_number_bin, server_address)
             value, server_address_recv = s.recvfrom(buffersize)
