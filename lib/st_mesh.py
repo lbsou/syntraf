@@ -256,7 +256,7 @@ def client_receive_configuration(_config, ssl_conn, threads_n_processes, config_
                 if read_success:
                     update_config(received_data, disk_config)
                     valid_dir_rsa_keypair(disk_config)
-                    valid_dir_logs(disk_config)
+                    #valid_dir_logs(disk_config)
                     disk_config['GLOBAL']['LOGDIR'] = cli_parameters.log_dir
 
                     client_log.debug(_config)

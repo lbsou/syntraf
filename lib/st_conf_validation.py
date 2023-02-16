@@ -633,7 +633,6 @@ def config_validation_global(_config):
                 return False
 
         valid_dir_rsa_keypair(_config)
-        valid_dir_logs(_config)
 
         # When authenticating (credentials + rsa), iperf3 will refuse a connection between two host with a time skew bigger than 10 seconds. iperf3 have a parameter to change this threshold
         if 'IPERF3_TIME_SKEW_THRESHOLD' in _config['GLOBAL']:
@@ -679,25 +678,25 @@ def validate_purge_logs(_config):
         sys.exit()
 
 
-def valid_dir_logs(_config):
-    # validating directory for iperf3 logs
-    if 'IPERF3_TEMP_DIRECTORY' in _config['GLOBAL']:
-        if len(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY']) <= 0:
-            _config['GLOBAL']['IPERF3_TEMP_DIRECTORY'] = DefaultValues.DEFAULT_IPERF3_TEMP_DIRECTORY
-
-        # If directory does not exist, create it. If an error like permission denied, return False to terminate SYNTRAF
-        if not is_dir_create_on_fail(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "IPERF3_TEMP_DIRECTORY"):
-            return False
-
-    else:
-        log.warning(
-            f"IS IPERF3_TEMP_DIRECTORY DEFINED : NO, APPLYING DEFAULT: '{DefaultValues.DEFAULT_IPERF3_TEMP_DIRECTORY}'")
-
-        _config['GLOBAL']['IPERF3_TEMP_DIRECTORY'] = DefaultValues.DEFAULT_IPERF3_TEMP_DIRECTORY
-
-        # If directory does not exist, create it. If an error like permission denied, return False to terminate SYNTRAF
-        if not is_dir_create_on_fail(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "IPERF3_TEMP_DIRECTORY"):
-            return False
+# def valid_dir_logs(_config):
+#     # validating directory for iperf3 logs
+#     if 'IPERF3_TEMP_DIRECTORY' in _config['GLOBAL']:
+#         if len(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY']) <= 0:
+#             _config['GLOBAL']['IPERF3_TEMP_DIRECTORY'] = DefaultValues.DEFAULT_IPERF3_TEMP_DIRECTORY
+#
+#         # If directory does not exist, create it. If an error like permission denied, return False to terminate SYNTRAF
+#         if not is_dir_create_on_fail(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "IPERF3_TEMP_DIRECTORY"):
+#             return False
+#
+#     else:
+#         log.warning(
+#             f"IS IPERF3_TEMP_DIRECTORY DEFINED : NO, APPLYING DEFAULT: '{DefaultValues.DEFAULT_IPERF3_TEMP_DIRECTORY}'")
+#
+#         _config['GLOBAL']['IPERF3_TEMP_DIRECTORY'] = DefaultValues.DEFAULT_IPERF3_TEMP_DIRECTORY
+#
+#         # If directory does not exist, create it. If an error like permission denied, return False to terminate SYNTRAF
+#         if not is_dir_create_on_fail(_config['GLOBAL']['IPERF3_TEMP_DIRECTORY'], "IPERF3_TEMP_DIRECTORY"):
+#             return False
 
 def valid_dir_rsa_keypair(_config):
     # validating directory for RSA keypair

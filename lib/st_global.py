@@ -52,7 +52,7 @@ class DefaultValues:
     DEFAULT_BANDWIDTH = "100k"
     DEFAULT_PORT_RANGE = "15000-16000"
     DEFAULT_IPERF3_RSA_KEY_DIRECTORY = os.path.join(SYNTRAF_ROOT_DIR, "crypto", "rsa_key_iperf3")
-    DEFAULT_IPERF3_TEMP_DIRECTORY = os.path.join(SYNTRAF_ROOT_DIR, "iperf3_temp")
+    #DEFAULT_IPERF3_TEMP_DIRECTORY = os.path.join(SYNTRAF_ROOT_DIR, "iperf3_temp")
     DEFAULT_IPERF3_TIME_SKEW_THRESHOLD = "10"
 
     # Timeout for control connection setup (ms)
