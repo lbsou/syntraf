@@ -20,7 +20,6 @@ import threading
 import queue
 import logging
 import os
-from multiprocessing import shared_memory
 from lib.st_latency import tcp_ping
 
 try:

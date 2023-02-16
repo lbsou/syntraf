@@ -279,7 +279,7 @@ Description=SYNTRAF
 After=syslog.target network.target auditd.service
 
 [Service]
-ExecStart=/usr/bin/python3 /opt/syntraf/syntraf.py -c /etc/syntraf.toml -l /tmp/iperf_tmp
+ExecStart=/usr/bin/python3 /opt/syntraf/syntraf.py -c /etc/syntraf.conf -l /opt/syntraf/logs/
 
 [Install]
 WantedBy=multi-user.target
@@ -290,6 +290,9 @@ Automatically open the service on boot, and start it right now.
 ```
 chkconfig syntraf on
 systemctl start syntraf
+systemctl status syntraf
+journalctl -u syntraf -f
+tail -f /opt/syntraf/logs/syntraf.log
 ```
 
 #### Windows
@@ -306,7 +309,7 @@ Let's say we store data at the following downsampling :
   - 30sec interval for 6month
   - 60sec interval for 1year
 
-That would gives us 1year, 7month and 2 weeks of data.
+That would give us 1 year, 7 month and 2 weeks of data.
 
 
 ```
