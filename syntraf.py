@@ -174,16 +174,16 @@ def run():
     # Using a public key mechanism, we have a list of client that are waiting acceptance
     dict_of_client_pending_acceptance = {}
 
-    thread_run = threading.Thread(target=udp_server,
-                                  args=(),
-                                  daemon=True)
-    thread_run.daemon = True
-    thread_run.start()
-    thread_run2 = threading.Thread(target=udp_client,
-                                   args=(dict_data_to_send_to_server),
-                                   daemon=True)
-    thread_run2.daemon = True
-    thread_run2.start()
+    # thread_run = threading.Thread(target=udp_server,
+    #                               args=(),
+    #                               daemon=True)
+    # thread_run.daemon = True
+    # thread_run.start()
+    # thread_run2 = threading.Thread(target=udp_client,
+    #                                args=(dict_data_to_send_to_server),
+    #                                daemon=True)
+    # thread_run2.daemon = True
+    # thread_run2.start()
 
     # WATCHDOG
     while True:
