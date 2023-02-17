@@ -17,7 +17,6 @@ import atexit
 from lib.st_latency import udp_server, udp_client
 from tabulate import tabulate
 import threading
-import queue
 import logging
 import os
 from lib.st_latency import tcp_ping
