@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 ########################################
-# Version 2021-06-15
+# Version 2023-02-16
 # Louis-Berthier Soullière
 # shadow131@hotmail.com
 # Indentation of 4 spaces
@@ -53,7 +53,7 @@ def run():
     parser.add_argument('-l', "--log-dir", action='store', dest='log_dir',
                         help='You  must provide a directory for logging', required=True)
     # parser.add_argument('-r', "--reload", action='store_true',
-    #                     help='Trigger a reload of configuration on already running SYNTRAF instance', required=False)
+    #                     help='Trigger the reload of configuration on already running SYNTRAF instance', required=False)
     parser.add_argument('-v', action='version', version=f'%(prog)s {DefaultValues.SYNTRAF_VERSION}')
     cli_parameters = parser.parse_args()
 
