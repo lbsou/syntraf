@@ -1,9 +1,12 @@
 # BUILTIN IMPORT
 import os
 import pathlib
+import logging
+
+log = logging.getLogger("syntraf." + __name__)
 
 try:
-    from tzlocal import get_localzone
+    from tzlocal import get_localzone, ZoneInfoNotFoundError
 except Exception as ex:
     print("MISSING MODULE: no module named 'tzlocal'")
     exit()
@@ -19,7 +22,11 @@ class DefaultValues:
     SYNTRAF_VERSION = "0.45"
     SYNTRAF_ROOT_DIR = pathlib.Path(__file__).parent.parent.absolute()
     SYNTRAF_PID_FILE = os.path.join(SYNTRAF_ROOT_DIR, 'syntraf.pid')
-    TIMEZONE = str(get_localzone())
+
+    try:
+        TIMEZONE = str(get_localzone())
+    except Exception as exc:
+        log.error(f"st_global:{type(exc).__name__}:{exc}", exc_info=True)
 
     # DATABASE
     DEFAULT_INFLUXDB_USE_SSL = True
