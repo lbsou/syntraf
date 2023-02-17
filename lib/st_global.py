@@ -6,7 +6,7 @@ import logging
 log = logging.getLogger("syntraf." + __name__)
 
 try:
-    from tzlocal import get_localzone, ZoneInfoNotFoundError
+    from tzlocal import get_localzone
 except Exception as ex:
     print("MISSING MODULE: no module named 'tzlocal'")
     exit()
