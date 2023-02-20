@@ -9,11 +9,10 @@ import logging
 import os
 import time
 import psutil
-import shlex
 import warnings
 import socket
 import getmac
-
+import shlex
 
 from cryptography.utils import CryptographyDeprecationWarning
 warnings.filterwarnings("ignore", category=CryptographyDeprecationWarning)
@@ -155,14 +154,22 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
                     logging.error(f"TEMPORARY FAILURE IN NAME RESOLUTION OF {ip_address}")
             time.sleep(1)
 
-        args = [config['GLOBAL']['IPERF3_BINARY_PATH'], "-u", "-l", config['CONNECTORS'][connector_key]['PACKET_SIZE'],
-                "-c", ip_address, "-t", "0", "-b", config['CONNECTORS'][connector_key]['BANDWIDTH'],
-                "--udp-counters-64bit", "--connect-timeout=" + DefaultValues.DEFAULT_IPERF3_CONNECT_TIMEOUT, "--dscp",
-                config['CONNECTORS'][connector_key]['DSCP'], "--pacing-timer", "12000",
-                "-f", "k", "-p",
-                str(config['CONNECTORS'][connector_key]['PORT']), "--timestamps='%F %T '", bidir_arg, "--forceflush"]
-
-        args.append('--cntl-ka=30/5/5')
+        args = []
+        args.append(config['GLOBAL']['IPERF3_BINARY_PATH'])
+        args.append("-u")
+        args.extend(["-l", config['CONNECTORS'][connector_key]['PACKET_SIZE']])
+        args.extend(["-c", ip_address])
+        args.extend(["-t", "0"])
+        args.extend(["-b", config['CONNECTORS'][connector_key]['BANDWIDTH']])
+        args.append("--udp-counters-64bit")
+        args.extend(["--connect-timeout=" + DefaultValues.DEFAULT_IPERF3_CONNECT_TIMEOUT])
+        args.extend(["--dscp", config['CONNECTORS'][connector_key]['DSCP']])
+        args.extend(["--pacing-timer", "12000"])
+        args.extend(["-f", "k"])
+        args.extend(["-p", str(config['CONNECTORS'][connector_key]['PORT'])])
+        args.append("--timestamps='%F %T '")
+        args.extend([bidir_arg, "--forceflush"])
+        args.append("--cntl-ka=30/5/5")
 
         if config['GLOBAL']['IPERF3_AUTH']:
             args.append("--username")
@@ -174,9 +181,11 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
             args.append("--rcv-timeout")
             args.append(DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT)
 
+        print(args)
         arguments = " "
         arguments = arguments.join(args)
-        print(arguments)
+        args = shlex.split(arguments, posix=False)
+        print(args)
 
         #print(args)
         #print(_config['CLIENT']['IPERF3_PASSWORD'])
@@ -234,9 +243,11 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes, dic
 
             args.append('--cntl-ka=30/5/5')
 
+            print(args)
             arguments = " "
             arguments = arguments.join(args)
-            print(arguments)
+            args = shlex.split(arguments, posix=False)
+            print(args)
 
             thread_read_log(config, listener_key, listener_value, "LISTENER", threads_n_processes, iperf3_obj_proc_n_thread, dict_data_to_send_to_server)
             time.sleep(2)
