@@ -184,6 +184,7 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
         print(args)
         arguments = " "
         arguments = arguments.join(args)
+        arguments = shlex.quote(arguments)
         args = shlex.split(arguments, posix=False)
         print(args)
 
@@ -246,6 +247,7 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes, dic
             print(args)
             arguments = " "
             arguments = arguments.join(args)
+            arguments = shlex.quote(arguments)
             args = shlex.split(arguments, posix=False)
             print(args)
 
