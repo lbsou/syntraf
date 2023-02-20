@@ -224,7 +224,7 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes, dic
                     "--one-off",
                     "-p", str(config['LISTENERS'][listener_key]['PORT']), "--timestamps='%F %T '"]
 
-            args.append("--cntl-ka=30\/5\/5")
+            args.append('--cntl-ka=30\/5\/5')
 
             if config['GLOBAL']['IPERF3_AUTH']:
                 args.append("--rsa-private-key-path")
