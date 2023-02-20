@@ -197,7 +197,7 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
             thread_read_log(config, connector_key, connector_value, "CONNECTOR", threads_n_processes, iperf3_obj_proc_n_thread, dict_data_to_send_to_server)
             time.sleep(2)
 
-        p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, stdin=None, text=True, env=env_var)
+        p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, stdin=None, text=True, env=env_var, startupinfo=subprocess.HIGH_PRIORITY_CLASS)
         iperf3_obj_proc_n_thread.subproc = p
 
         if p.poll() is None:
@@ -248,7 +248,7 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes, dic
             thread_read_log(config, listener_key, listener_value, "LISTENER", threads_n_processes, iperf3_obj_proc_n_thread, dict_data_to_send_to_server)
             time.sleep(2)
 
-            p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, stdin=None, text=True)
+            p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, stdin=None, text=True, startupinfo=subprocess.HIGH_PRIORITY_CLASS)
             iperf3_obj_proc_n_thread.subproc = p
 
             if p.poll() is None:
