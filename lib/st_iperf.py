@@ -184,7 +184,7 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
 
         arguments = " "
         arguments = arguments.join(args)
-        print(arguments)
+        iperf3_listeners_log.error(arguments)
 
         #print(args)
         #print(_config['CLIENT']['IPERF3_PASSWORD'])
@@ -244,7 +244,7 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes, dic
 
             arguments = " "
             arguments = arguments.join(args)
-            print(arguments)
+            iperf3_listeners_log.error(arguments)
 
             thread_read_log(config, listener_key, listener_value, "LISTENER", threads_n_processes, iperf3_obj_proc_n_thread, dict_data_to_send_to_server)
             time.sleep(2)
