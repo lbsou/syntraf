@@ -232,7 +232,7 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes, dic
                 args.append("--time-skew-threshold")
                 args.append(config['GLOBAL']['IPERF3_TIME_SKEW_THRESHOLD'])
 
-            args.append(r"--cntl-ka=30/5/5")
+            args.append(r"--cntl-ka=30///5//5/")
 
             arguments = ""
             for i in args:
