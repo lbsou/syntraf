@@ -182,6 +182,7 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
             args.append("--rcv-timeout")
             args.append(DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT)
 
+        iperf3_listeners_log.error(args)
         arguments = " "
         arguments = arguments.join(args)
         iperf3_listeners_log.error(arguments)
