@@ -181,11 +181,9 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
             args.append("--rcv-timeout")
             args.append(DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT)
 
-        print(args)
         arguments = " "
         arguments = arguments.join(args)
-        args = shlex.split(arguments, posix=False)
-        print(args)
+        print(arguments)
 
         #print(args)
         #print(_config['CLIENT']['IPERF3_PASSWORD'])
