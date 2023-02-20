@@ -243,11 +243,9 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes, dic
 
             args.append('--cntl-ka=30/5/5')
 
-            print(args)
             arguments = " "
             arguments = arguments.join(args)
-            args = shlex.split(arguments, posix=False)
-            print(args)
+            print(arguments)
 
             thread_read_log(config, listener_key, listener_value, "LISTENER", threads_n_processes, iperf3_obj_proc_n_thread, dict_data_to_send_to_server)
             time.sleep(2)
