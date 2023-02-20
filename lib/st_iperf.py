@@ -174,9 +174,9 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
             args.append("--rcv-timeout")
             args.append(DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT)
 
-        arguments = ""
-        for i in args:
-            arguments += " " + i
+        arguments = " "
+        arguments = arguments.join(args)
+        print(arguments)
 
         #print(args)
         #print(_config['CLIENT']['IPERF3_PASSWORD'])
@@ -224,8 +224,6 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes, dic
                     "--one-off",
                     "-p", str(config['LISTENERS'][listener_key]['PORT']), "--timestamps='%F %T '"]
 
-            args.append('--cntl-ka=30/5/5')
-
             if config['GLOBAL']['IPERF3_AUTH']:
                 args.append("--rsa-private-key-path")
                 args.append(os.path.join(config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'private_key_iperf_client.pem'))
@@ -234,11 +232,10 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes, dic
                 args.append("--time-skew-threshold")
                 args.append(config['GLOBAL']['IPERF3_TIME_SKEW_THRESHOLD'])
 
+            args.append('--cntl-ka=30/5/5')
 
-            arguments = ""
-            for i in args:
-                arguments += " " + i
-
+            arguments = " "
+            arguments = arguments.join(args)
             print(arguments)
 
             thread_read_log(config, listener_key, listener_value, "LISTENER", threads_n_processes, iperf3_obj_proc_n_thread, dict_data_to_send_to_server)
