@@ -167,7 +167,7 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
         args.extend(["--pacing-timer", "12000"])
         args.extend(["-f", "k"])
         args.extend(["-p", str(config['CONNECTORS'][connector_key]['PORT'])])
-        args.append("--timestamps=\\'%F %T \\'")
+        args.append("--timestamps='%F %T '")
         args.extend([bidir_arg, "--forceflush"])
         args.append("--cntl-ka=30/5/5")
 
@@ -184,7 +184,6 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
         print(args)
         arguments = " "
         arguments = arguments.join(args)
-        arguments = shlex.quote(arguments)
         args = shlex.split(arguments, posix=False)
         print(args)
 
@@ -232,7 +231,7 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes, dic
                     "--idle-timeout", DefaultValues.DEFAULT_IPERF3_SERVER_IDLE_TIMEOUT,
                     "--rcv-timeout", DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT,
                     "--one-off",
-                    "-p", str(config['LISTENERS'][listener_key]['PORT']), "--timestamps=\\'%F %T \\'"]
+                    "-p", str(config['LISTENERS'][listener_key]['PORT']), "--timestamps='%F %T '"]
 
             if config['GLOBAL']['IPERF3_AUTH']:
                 args.append("--rsa-private-key-path")
@@ -247,7 +246,6 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes, dic
             print(args)
             arguments = " "
             arguments = arguments.join(args)
-            arguments = shlex.quote(arguments)
             args = shlex.split(arguments, posix=False)
             print(args)
 
