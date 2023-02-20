@@ -20,14 +20,7 @@ import re
 import logging
 import os
 
-# PACKAGE IMPORT
-import pytz
-import psutil
-
 log = logging.getLogger("syntraf." + __name__)
-
-var_cfg_default_bind_arg = ("", "")
-var_cfg_default_bind_add = "*"
 
 
 #################################################################################
@@ -400,42 +393,6 @@ def config_validation_listeners(_config, listener_dict_key, reload=False):
                     f"IS LEN OF DESCRIPTION_CLIENT AND DESCRIPTION_SERVER <= 50 CHAR : NO")
                 return False
 
-        # Validation BIND_ADDRESS, MUST BE A LOCAL IP
-        #local_IP = [netifaces.ifaddresses(iface)[netifaces.AF_INET][0]['addr'] for iface in netifaces.interfaces() if
-        #            netifaces.AF_INET in netifaces.ifaddresses(iface)]
-
-        #print(psutil.net_if_addrs())
-
-
-
-        # global var_cfg_default_bind_add
-        # # DO WE HAVE A BIND ADDRESS DEFINED?
-        # if "BIND_ADDRESS" in _config['LISTENERS'][listener_dict_key]:
-        #     # YES, IF ALL INTERFACE DEFINED, VALIDATE ALL, ELSE VALIDATE ONLY THE ONE SPECIFIED
-        #     if _config['LISTENERS'][listener_dict_key]['BIND_ADDRESS'] == "*":
-        #         for ip in local_IP:
-        #             if not reload:
-        #                 if not is_port_available(ip, _config['LISTENERS'][listener_dict_key]['PORT']):
-        #                     log.error(
-        #                         f"IS PORT {_config['LISTENERS'][listener_dict_key]['PORT']} AVAILABLE ON ALL INTERFACES : NO")
-        #                     return False
-        #     # If we are not reloading, check if port is available
-        #     elif not reload:
-        #         if not is_port_available(_config['LISTENERS'][listener_dict_key]['BIND_ADDRESS'],
-        #                                  _config['LISTENERS'][listener_dict_key]['PORT']):
-        #             return False
-        #     else:
-        #         log.debug(
-        #             f"IS BIND_ADDRESS {_config['LISTENERS'][listener_dict_key]['BIND_ADDRESS']} IN LOCAL INTERFACES : YES")
-        #         var_cfg_default_bind_add = _config['LISTENERS'][listener_dict_key]['BIND_ADDRESS']
-        # # WE SHOULD USE THE DEFAULT "*"
-        # else:
-        #     _config['LISTENERS'][listener_dict_key]['BIND_ADDRESS'] = var_cfg_default_bind_add
-        #     for ip in local_IP:
-        #         if not reload:
-        #             if not is_port_available(ip, _config['LISTENERS'][listener_dict_key]['PORT']):
-        #                 return False
-
         # VALIDATING INTERVAL
         if "INTERVAL" in _config['LISTENERS'][listener_dict_key]:
             if not validate_interval(_config['LISTENERS'][listener_dict_key]['INTERVAL']):
@@ -601,6 +558,9 @@ def config_validation_global(_config):
                 f"IS WATCHDOG_CHECK_RATE DECLARED IN CONFIG FILE : NO, USING DEFAULT (10sec)")
             _config['GLOBAL']['WATCHDOG_CHECK_RATE'] = "10"
 
+
+        # to validate : https://github.com/esnet/iperf/issues/812 (--cntl-ka)
+        # https://github.com/dotnet/runtime/issues/24041
         # validation du binaire iperf3
         if 'IPERF3_BINARY_PATH' in _config['GLOBAL']:
             if _config['GLOBAL']['IPERF3_BINARY_PATH'] == "DISABLE":

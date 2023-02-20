@@ -296,7 +296,8 @@ tail -f /opt/syntraf/logs/syntraf.log
 ```
 
 #### Windows
-TODO
+
+Run SYNTRAF in task scheduler
 
 ## Data retention
 It's quite common that the more recent the data, the more value is attached to high resolution. This value tend to decrease over time, so we can do some downsampling to save some disk space.

@@ -129,7 +129,7 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_connector_obj_pnt, connector_key, th
 #################################################################################
 def iperf3_client(config, connector_key, connector_value, threads_n_processes, dict_data_to_send_to_server):
     try:
-        iperf3_thread = get_current_obj_proc_n_thread(threads_n_processes, connector_key, "CONNECTOR")
+        iperf3_obj_proc_n_thread = get_current_obj_proc_n_thread(threads_n_processes, connector_key, "CONNECTOR")
 
         env_var = os.environ
         env_var['IPERF3_PASSWORD'] = config['CLIENT']['IPERF3_PASSWORD']
@@ -167,6 +167,7 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
             args.append(config['CLIENT']['IPERF3_USERNAME'])
             args.append("--rsa-public-key-path")
             args.append(os.path.join(config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'public_key_iperf_client.pem'))
+            args.append("--cntl-ka=30/5/5")
 
         if config['CONNECTORS'][connector_key]['BIDIR']:
             args.append("--rcv-timeout")
@@ -181,15 +182,15 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
 
         if config['CONNECTORS'][connector_key]['BIDIR']:
             # Make sure we have udp_hole punching and read_log thread for each bidir connector
-            thread_udp_hole(config, connector_key, connector_value, threads_n_processes, iperf3_thread)
-            thread_read_log(config, connector_key, connector_value, "CONNECTOR", threads_n_processes, iperf3_thread, dict_data_to_send_to_server)
+            thread_udp_hole(config, connector_key, connector_value, threads_n_processes, iperf3_obj_proc_n_thread)
+            thread_read_log(config, connector_key, connector_value, "CONNECTOR", threads_n_processes, iperf3_obj_proc_n_thread, dict_data_to_send_to_server)
             time.sleep(2)
         else:
-            thread_read_log(config, connector_key, connector_value, "CONNECTOR", threads_n_processes, iperf3_thread, dict_data_to_send_to_server)
+            thread_read_log(config, connector_key, connector_value, "CONNECTOR", threads_n_processes, iperf3_obj_proc_n_thread, dict_data_to_send_to_server)
             time.sleep(2)
 
         p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, stdin=None, text=True, env=env_var)
-        iperf3_thread.subproc = p
+        iperf3_obj_proc_n_thread.subproc = p
 
         if p.poll() is None:
             iperf3_connectors_log.warning(f"IPERF3 CLIENT FOR CONNECTOR '{connector_key}' STARTED WITH SERVER {config['CONNECTORS'][connector_key]['DESTINATION_ADDRESS']}:{config['CONNECTORS'][connector_key]['PORT']} {arguments}")
@@ -211,7 +212,7 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
 ### START AN IPERF3 SERVER AS CHILD PROCESS
 #################################################################################
 def iperf3_server(config, listener_key, listener_value, threads_n_processes, dict_data_to_send_to_server):
-    iperf3_thread = get_current_obj_proc_n_thread(threads_n_processes, listener_key, "LISTENER")
+    iperf3_obj_proc_n_thread = get_current_obj_proc_n_thread(threads_n_processes, listener_key, "LISTENER")
 
     if is_port_available(config['LISTENERS'][listener_key]['BIND_ADDRESS'], str(config['LISTENERS'][listener_key]['PORT'])):
         try:
@@ -229,16 +230,17 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes, dic
                 args.append(os.path.join(config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'credentials.csv'))
                 args.append("--time-skew-threshold")
                 args.append(config['GLOBAL']['IPERF3_TIME_SKEW_THRESHOLD'])
+                args.append("--cntl-ka=30/5/5")
 
             arguments = ""
             for i in args:
                 arguments += " " + i
 
-            thread_read_log(config, listener_key, listener_value, "LISTENER", threads_n_processes, iperf3_thread, dict_data_to_send_to_server)
+            thread_read_log(config, listener_key, listener_value, "LISTENER", threads_n_processes, iperf3_obj_proc_n_thread, dict_data_to_send_to_server)
             time.sleep(2)
 
             p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, stdin=None, text=True)
-            iperf3_thread.subproc = p
+            iperf3_obj_proc_n_thread.subproc = p
 
             if p.poll() is None:
                 iperf3_listeners_log.warning(f"IPERF3 SERVER FOR LISTENER '{listener_key}' STARTED ON PORT {config['LISTENERS'][listener_key]['PORT']}")
