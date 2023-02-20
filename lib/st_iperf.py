@@ -20,6 +20,7 @@ from scapy import all as scapy
 
 iperf3_connectors_log = logging.getLogger("syntraf." + "lib.st_iperf3_connectors")
 iperf3_listeners_log = logging.getLogger("syntraf." + "lib.st_iperf3_listeners")
+HIGH_PRIORITY_CLASS = 0x00000080
 
 
 # Find the ephemeral port iperf3 is using for the incoming connection in bidirectional mode then send a packet
@@ -197,7 +198,7 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
             thread_read_log(config, connector_key, connector_value, "CONNECTOR", threads_n_processes, iperf3_obj_proc_n_thread, dict_data_to_send_to_server)
             time.sleep(2)
 
-        p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, stdin=None, text=True, env=env_var, startupinfo=subprocess.HIGH_PRIORITY_CLASS)
+        p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, stdin=None, text=True, env=env_var, startupinfo=HIGH_PRIORITY_CLASS)
         iperf3_obj_proc_n_thread.subproc = p
 
         if p.poll() is None:
@@ -248,7 +249,7 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes, dic
             thread_read_log(config, listener_key, listener_value, "LISTENER", threads_n_processes, iperf3_obj_proc_n_thread, dict_data_to_send_to_server)
             time.sleep(2)
 
-            p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, stdin=None, text=True, startupinfo=subprocess.HIGH_PRIORITY_CLASS)
+            p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, stdin=None, text=True, startupinfo=HIGH_PRIORITY_CLASS)
             iperf3_obj_proc_n_thread.subproc = p
 
             if p.poll() is None:
