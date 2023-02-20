@@ -224,6 +224,8 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes, dic
                     "--one-off",
                     "-p", str(config['LISTENERS'][listener_key]['PORT']), "--timestamps='%F %T '"]
 
+            args.append("--cntl-ka=30\/5\/5")
+
             if config['GLOBAL']['IPERF3_AUTH']:
                 args.append("--rsa-private-key-path")
                 args.append(os.path.join(config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'private_key_iperf_client.pem'))
@@ -232,7 +234,7 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes, dic
                 args.append("--time-skew-threshold")
                 args.append(config['GLOBAL']['IPERF3_TIME_SKEW_THRESHOLD'])
 
-            args.append("/ / --cntl-ka=30/5/5")
+
 
 
 
