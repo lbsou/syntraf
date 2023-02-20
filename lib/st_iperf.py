@@ -167,7 +167,8 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
             args.append(config['CLIENT']['IPERF3_USERNAME'])
             args.append("--rsa-public-key-path")
             args.append(os.path.join(config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'public_key_iperf_client.pem'))
-            args.append("--cntl-ka=30/5/5")
+
+        args.append("--cntl-ka=30/5/5")
 
         if config['CONNECTORS'][connector_key]['BIDIR']:
             args.append("--rcv-timeout")
@@ -230,7 +231,8 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes, dic
                 args.append(os.path.join(config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'credentials.csv'))
                 args.append("--time-skew-threshold")
                 args.append(config['GLOBAL']['IPERF3_TIME_SKEW_THRESHOLD'])
-                args.append("--cntl-ka=30/5/5")
+
+            args.append("--cntl-ka=30/5/5")
 
             arguments = ""
             for i in args:
