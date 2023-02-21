@@ -2,7 +2,6 @@ import sys
 import signal
 import psutil
 import time
-#from multiprocessing import shared_memory
 import threading
 from lib.st_global import *
 from lib.st_logging import *
@@ -46,35 +45,6 @@ def check_pid(pid):
 #     sys.exit()
 
 
-
-
-
-
-
-    '''
-    try:
-        shared_mem = shared_memory.SharedMemory("syntraf_reload_signal")
-        shared_mem.buf[0] = 1
-        print("RELOAD FLAG SET. SYNTRAF WILL RELOAD ON NEXT WATCHDOG_CHECK_RATE")
-    except Exception as exc:
-        print("CANNOT SEND A RELOAD SIGNAL, SYNTRAF IS NOT RUNNING")
-        sys.exit()
-    '''
-
-    #return shared_mem
-
-
-# def pid_and_reload_flag_init(pid_file, pid_file_path):
-#     try:
-#         # if pid file, still a probable unclean shutdown or running
-#         if pid_file.is_file():
-#             # open pid file and check if pid is running
-#             with open(pid_file_path, 'r') as f:
-#                 pid = int(f.readline())
-#                 is_running = check_pid(pid)
-#     except Exception as exc:
-#         log.error(f"pid_and_reload_flag_init:{type(exc).__name__}:{exc}", exc_info=True)
-
 def signal_handler_init():
     signal.signal(signal.SIGINT, handler)
     signal.signal(signal.SIGTERM, handler)
@@ -85,17 +55,13 @@ def signal_handler_init():
 def handler(signum, frame):
     if sys.platform == 'win32':
         if signum == signal.SIGBREAK:
-            print("")
-            print("SIGBREAK RECEIVED!")
+            print_sys("SIGBREAK RECEIVED: ")
     if signum == signal.SIGINT:
-        print("")
-        print("SIGINT RECEIVED!")
+        print_sys("SIGINT RECEIVED: ")
     elif signum == signal.SIGKILL:
-        print("")
-        print("SIGKILL RECEIVED!")
+        print_sys("SIGKILL RECEIVED: ")
     elif signum == signal.SIGTERM:
-        print("")
-        print("SIGTERM RECEIVED!")
+        print_sys("SIGTERM RECEIVED: ")
     sys.exit()
 
 
@@ -108,40 +74,14 @@ def start_loading_thread(text):
 
 def onclose(p, threads_n_processes, config):
     config['GLOBAL']['LOG_LEVEL'] = "CRITICAL"
-    #set_log_level(config)
+    print_sys("SHUTTING DOWN SYNTRAF NOW!")
     try:
-        text = "REMOVING RELOAD_FLAG"
-        thr_animation = start_loading_thread(text)
-
-        time.sleep(0.01)
-        thr_animation.join(0.01)
-        print_sys("\r")
-        print_sys("[X] " + text)
-        print_sys("\n\r")
-
-        text = "REMOVING PID_FILE"
-        thr_animation = start_loading_thread(text)
         try:
             p.unlink()
         except Exception as exc:
             pass
-        time.sleep(0.01)
-        thr_animation.join(0.01)
-        print_sys("\r")
-        print_sys("[X] " + text)
-        print_sys("\n\r")
-
         for thr in threads_n_processes:
-            text = "TERMINATING " + thr.syntraf_instance_type + " '" + thr.name + "'"
-            thr_animation = start_loading_thread(text)
-            time.sleep(0.01)
-            # TO REPLACE WITH EXIT_BOOLEAN = TRUE + JOIN
-            # CANT DO THAT RIGHT NOW BECAUSE MESH SERVER SOCKET ACCEPT IS BLOCKING. WILL HAVE TO WAIT FOR IMPLEMENTING SELECTORS
             thr.close()
-            thr_animation.join(0.00001)
-            print_sys("\r")
-            print_sys("[X] " + text)
-            print_sys("\n\r")
     except Exception as exc:
         log.critical(f"onclose:{type(exc).__name__}:{exc}", exc_info=True)
 
