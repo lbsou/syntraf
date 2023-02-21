@@ -76,7 +76,7 @@ def tail(edge_type, edge_key, thr_iperf3, exit_boolean):
 #################################################################################
 ###
 #################################################################################
-def parse_line(line, _config, edge_key, edge_type, threads_n_processes, dict_data_to_send_to_server, iperf3_connector_thread=None):
+def parse_line(line, _config, edge_key, edge_type, threads_n_processes, dict_data_to_send_to_server, thr_iperf3_readlog, iperf3_connector_thread=None):
     values = line.split(" ")
     thr_iperf3_readlog = None
 
@@ -89,9 +89,11 @@ def parse_line(line, _config, edge_key, edge_type, threads_n_processes, dict_dat
         edge_type = "LISTENERS"
 
     # Get the current thread object to update counter and status
-    for thr in threads_n_processes:
-        if thr.name == edge_key and thr.syntraf_instance_type == "READ_LOG":
-            thr_iperf3_readlog = thr
+    while thr_iperf3_readlog is None:
+        for thr in threads_n_processes:
+            if thr.name == edge_key and thr.syntraf_instance_type == "READ_LOG":
+                thr_iperf3_readlog = thr
+        time.sleep(2)
 
     line = format_line(line)
 
