@@ -170,7 +170,7 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
         args.extend(["-p", str(config['CONNECTORS'][connector_key]['PORT'])])
         args.append("--timestamps='%F %T '")
         args.extend([bidir_arg, "--forceflush"])
-        args.append("--cntl-ka=30/5/5")
+       # args.append("--cntl-ka=30/5/5")
 
         if config['GLOBAL']['IPERF3_AUTH']:
             args.append("--username")
@@ -226,12 +226,18 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes, dic
 
     if is_port_available(config['LISTENERS'][listener_key]['BIND_ADDRESS'], str(config['LISTENERS'][listener_key]['PORT'])):
         try:
-            args = [config['GLOBAL']['IPERF3_BINARY_PATH'], "-s", "-i", config['LISTENERS'][listener_key]['INTERVAL'],
-                    "-f", "k", "--forceflush",
-                    "--idle-timeout", DefaultValues.DEFAULT_IPERF3_SERVER_IDLE_TIMEOUT,
-                    "--rcv-timeout", DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT,
-                    "--one-off",
-                    "-p", str(config['LISTENERS'][listener_key]['PORT']), "--timestamps='%F %T '"]
+
+            args = []
+            args.append(config['GLOBAL']['IPERF3_BINARY_PATH'])
+            args.append("-s")
+
+            args.extend(["-i", config['LISTENERS'][listener_key]['INTERVAL']])
+            args.extend(["-f", "k"])
+            args.append("--forceflush")
+            args.extend(["--idle-timeout", DefaultValues.DEFAULT_IPERF3_SERVER_IDLE_TIMEOUT])
+            args.extend(["--rcv-timeout", DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT])
+            args.append("--one-off")
+            args.extend(["-p", str(config['LISTENERS'][listener_key]['PORT'])])
 
             if config['GLOBAL']['IPERF3_AUTH']:
                 args.append("--rsa-private-key-path")
@@ -240,8 +246,9 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes, dic
                 args.append(os.path.join(config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'credentials.csv'))
                 args.append("--time-skew-threshold")
                 args.append(config['GLOBAL']['IPERF3_TIME_SKEW_THRESHOLD'])
+                args.append("--timestamps='%F %T '")
 
-            args.append('--cntl-ka=30/5/5')
+            #args.append('--cntl-ka=30/5/5')
 
             arguments = " "
             arguments = arguments.join(args)
