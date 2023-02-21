@@ -174,6 +174,9 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
         ''' 
         --cntl-ka[=#/#/#] use control connection TCP keepalive - KEEPIDLE/KEEPINTV/KEEPCNT
         control connection Keepalive period should be larger than retry period (interval * count) 
+        TCP_KEEPIDLE = Interval of Keepalive
+        TCP_KEEPINTV = Interval of Retry
+        TCP_KEEPCNT = Drop connection after that amount of lost keepalive
         '''
         args.append('--cntl-ka=10/1/5')
 
