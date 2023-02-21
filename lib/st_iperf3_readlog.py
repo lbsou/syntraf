@@ -94,6 +94,7 @@ def parse_line(line, _config, edge_key, edge_type, threads_n_processes, dict_dat
     line = format_line(line)
 
     try:
+        log.debug(line)
         #Grab src port if bidir conection
         if "connected to" in line and "local" in line:
             if edge_key in _config['CONNECTORS']:
