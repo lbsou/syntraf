@@ -242,6 +242,7 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes, dic
             args.extend(["--rcv-timeout", DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT])
             args.append("--one-off")
             args.extend(["-p", str(config['LISTENERS'][listener_key]['PORT'])])
+            args.append("--timestamps='%F %T '")
 
             ''' 
             --cntl-ka[=#/#/#] use control connection TCP keepalive - KEEPIDLE/KEEPINTV/KEEPCNT
