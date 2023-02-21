@@ -36,6 +36,7 @@ def tail(edge_type, edge_key, thr_iperf3, exit_boolean):
 
     # Wait for iperf3 to start
     while thr_iperf3.subproc is None:
+        log.debug("MOMMY!!")
         if exit_boolean[0]:
             break
         time.sleep(1)
@@ -94,7 +95,6 @@ def parse_line(line, _config, edge_key, edge_type, threads_n_processes, dict_dat
     line = format_line(line)
 
     try:
-        log.debug(f"HHHHHHHHH{line}")
         #Grab src port if bidir conection
         if "connected to" in line and "local" in line:
             if edge_key in _config['CONNECTORS']:
