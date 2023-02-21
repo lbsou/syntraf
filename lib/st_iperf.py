@@ -175,7 +175,7 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
         --cntl-ka[=#/#/#] use control connection TCP keepalive - KEEPIDLE/KEEPINTV/KEEPCNT
         control connection Keepalive period should be larger than retry period (interval * count) 
         '''
-        args.append('--cntl-ka=5/1/5')
+        args.append('--cntl-ka=10/1/5')
 
         if config['GLOBAL']['IPERF3_AUTH']:
             args.append("--username")
@@ -245,7 +245,7 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes, dic
             --cntl-ka[=#/#/#] use control connection TCP keepalive - KEEPIDLE/KEEPINTV/KEEPCNT
             control connection Keepalive period should be larger than retry period (interval * count) 
             '''
-            args.append('--cntl-ka=5/1/5')
+            args.append('--cntl-ka=10/1/5')
 
 
             if config['GLOBAL']['IPERF3_AUTH']:
