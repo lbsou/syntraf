@@ -17,10 +17,11 @@ def read_log(edge_key, edge_type, config, dict_data_to_send_to_server, threads_n
         lines = tail(edge_type, edge_key, iperf3_thread, exit_boolean)
         log.info(f"READING LOGS FOR {edge_type} {edge_key}")
         while True:
+            log.debug("PARSING LOG")
             if exit_boolean[0]:
                 return
             line = next(lines, None)
-            log.debug(line)
+            log.debug(f"line{edge_type}")
             if line:
                 if not parse_line(line, config, edge_key, edge_type, threads_n_processes, dict_data_to_send_to_server):
                     break
