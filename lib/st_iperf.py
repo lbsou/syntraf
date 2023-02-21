@@ -200,10 +200,8 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
             # Make sure we have udp_hole punching and read_log thread for each bidir connector
             thread_udp_hole(config, connector_key, connector_value, threads_n_processes, iperf3_obj_proc_n_thread)
             thread_read_log(config, connector_key, connector_value, "CONNECTOR", threads_n_processes, iperf3_obj_proc_n_thread, dict_data_to_send_to_server)
-            time.sleep(2)
         else:
             thread_read_log(config, connector_key, connector_value, "CONNECTOR", threads_n_processes, iperf3_obj_proc_n_thread, dict_data_to_send_to_server)
-            time.sleep(2)
 
         p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, stdin=None, text=True, env=env_var)
         iperf3_obj_proc_n_thread.subproc = p
@@ -247,9 +245,11 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes, dic
             ''' 
             --cntl-ka[=#/#/#] use control connection TCP keepalive - KEEPIDLE/KEEPINTV/KEEPCNT
             control connection Keepalive period should be larger than retry period (interval * count) 
+            TCP_KEEPIDLE = Interval of Keepalive
+            TCP_KEEPINTV = Interval of Retry
+            TCP_KEEPCNT = Drop connection after that amount of lost keepalive
             '''
             args.append('--cntl-ka=10/1/5')
-
 
             if config['GLOBAL']['IPERF3_AUTH']:
                 args.append("--rsa-private-key-path")
@@ -265,7 +265,6 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes, dic
             iperf3_listeners_log.error(arguments)
 
             thread_read_log(config, listener_key, listener_value, "LISTENER", threads_n_processes, iperf3_obj_proc_n_thread, dict_data_to_send_to_server)
-            time.sleep(2)
 
             p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, stdin=None, text=True)
             iperf3_obj_proc_n_thread.subproc = p
