@@ -36,7 +36,7 @@ def tail(edge_type, edge_key, thr_iperf3, exit_boolean):
 
     # Wait for iperf3 to start
     while thr_iperf3.subproc is None:
-        log.debug("MOMMY!!")
+        log.debug(f"MOMMY!! {edge_type}")
         if exit_boolean[0]:
             break
         time.sleep(1)
