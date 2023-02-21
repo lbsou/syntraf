@@ -170,7 +170,7 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
         args.extend(["-p", str(config['CONNECTORS'][connector_key]['PORT'])])
         args.append("--timestamps='%F %T '")
         args.extend([bidir_arg, "--forceflush"])
-        args.append("--cntl-ka=30/5/5")
+        args.append('--cntl-ka=5/2/5')
 
         if config['GLOBAL']['IPERF3_AUTH']:
             args.append("--username")
@@ -235,7 +235,7 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes, dic
             args.extend(["--rcv-timeout", DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT])
             args.append("--one-off")
             args.extend(["-p", str(config['LISTENERS'][listener_key]['PORT'])])
-            args.append('--cntl-ka=30/5/5')
+            args.append('--cntl-ka=5/2/5')
 
             if config['GLOBAL']['IPERF3_AUTH']:
                 args.append("--rsa-private-key-path")
