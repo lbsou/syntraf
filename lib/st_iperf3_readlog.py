@@ -20,6 +20,7 @@ def read_log(edge_key, edge_type, config, dict_data_to_send_to_server, threads_n
             if exit_boolean[0]:
                 return
             line = next(lines, None)
+            log.debug(line)
             if line:
                 if not parse_line(line, config, edge_key, edge_type, threads_n_processes, dict_data_to_send_to_server):
                     break
@@ -36,7 +37,6 @@ def tail(edge_type, edge_key, thr_iperf3, exit_boolean):
 
     # Wait for iperf3 to start
     while thr_iperf3.subproc is None:
-        log.debug(f"MOMMY!! {edge_type}")
         if exit_boolean[0]:
             break
         time.sleep(1)
