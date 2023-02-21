@@ -76,7 +76,7 @@ def tail(edge_type, edge_key, thr_iperf3, exit_boolean):
 #################################################################################
 ###
 #################################################################################
-def parse_line(line, _config, edge_key, edge_type, threads_n_processes, dict_data_to_send_to_server, thr_iperf3_readlog, iperf3_connector_thread=None):
+def parse_line(line, _config, edge_key, edge_type, threads_n_processes, dict_data_to_send_to_server, iperf3_connector_thread=None):
     values = line.split(" ")
     thr_iperf3_readlog = None
 
