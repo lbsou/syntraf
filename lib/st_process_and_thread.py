@@ -309,7 +309,7 @@ def start_iperf3_server(config, listener_key, listener_value, threads_n_processe
         iperf3_server(config, listener_key, listener_value, threads_n_processes, dict_data_to_send_to_server)
 
         # If no readlog exist for this iperf3 client
-        if get_obj_proc_n_thread(threads_n_processes, listener_key, "LISTENER"):
+        if get_obj_proc_n_thread(threads_n_processes, listener_key, "LISTENER") is None:
             thread_read_log(config, listener_key, listener_value, "LISTENER", threads_n_processes, iperf3_server_obj_process_n_thread, dict_data_to_send_to_server)
 
     except Exception as exc:
@@ -333,7 +333,7 @@ def start_iperf3_client(config, connector_key, connector_value, threads_n_proces
             iperf3_client(config, connector_key, connector_value, threads_n_processes, dict_data_to_send_to_server)
 
             # If no readlog exist for this iperf3 client
-            if get_obj_proc_n_thread(threads_n_processes, connector_key, "CONNECTOR"):
+            if get_obj_proc_n_thread(threads_n_processes, connector_key, "CONNECTOR") is None:
                 thread_read_log(config, connector_key, connector_value, "CONNECTOR", threads_n_processes, iperf3_client_obj_process_n_thread, dict_data_to_send_to_server)
 
     except Exception as exc:
