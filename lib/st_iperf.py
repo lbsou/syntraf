@@ -127,7 +127,7 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_connector_obj_pnt, connector_key, th
 #################################################################################
 ### START AN IPERF3 CLIENT AS CHILD PROCESS
 #################################################################################
-def iperf3_client(config, connector_key, connector_value, threads_n_processes, dict_data_to_send_to_server):
+def iperf3_client(config, connector_key, connector_value, threads_n_processes):
     try:
         iperf3_obj_proc_n_thread = get_obj_process_n_thread(threads_n_processes, connector_key, "CONNECTOR")
 
@@ -223,7 +223,7 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
 #################################################################################
 ### START AN IPERF3 SERVER AS CHILD PROCESS
 #################################################################################
-def iperf3_server(config, listener_key, listener_value, threads_n_processes, dict_data_to_send_to_server):
+def iperf3_server(config, listener_key, listener_value, threads_n_processes):
     iperf3_obj_proc_n_thread = get_obj_process_n_thread(threads_n_processes, listener_key, "LISTENER")
 
     if is_port_available(config['LISTENERS'][listener_key]['BIND_ADDRESS'], str(config['LISTENERS'][listener_key]['PORT'])):

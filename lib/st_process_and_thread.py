@@ -306,7 +306,7 @@ def start_iperf3_server(config, listener_key, listener_value, threads_n_processe
                                                     opposite_side=listener_value['UID_CLIENT'],
                                                     group=listener_value['MESH_GROUP'], port=listener_value['PORT'])
         threads_n_processes.append(iperf3_server_obj_process_n_thread)
-        iperf3_server(config, listener_key, listener_value, threads_n_processes, dict_data_to_send_to_server)
+        iperf3_server(config, listener_key, listener_value, threads_n_processes)
 
         # If no readlog exist for this iperf3 client
         if get_obj_process_n_thread(threads_n_processes, listener_key, "READ_LOG") is None:
@@ -330,7 +330,7 @@ def start_iperf3_client(config, connector_key, connector_value, threads_n_proces
                                                          port=connector_value['PORT'],
                                                          bidir_src_port=0, bidir_local_addr="")
             threads_n_processes.append(iperf3_client_obj_process_n_thread)
-            iperf3_client(config, connector_key, connector_value, threads_n_processes, dict_data_to_send_to_server)
+            iperf3_client(config, connector_key, connector_value, threads_n_processes)
 
             # If no readlog exist for this iperf3 client
             if get_obj_process_n_thread(threads_n_processes, connector_key, "READ_LOG") is None:
