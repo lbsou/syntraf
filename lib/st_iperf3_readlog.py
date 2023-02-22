@@ -62,7 +62,7 @@ def tail(edge_type, edge_key, thr_iperf3, exit_boolean):
                     if "TX-C" in line or "TX-S" in line:
                         continue
                     else:
-                        log.debug(f"LINE FROM {edge_type} : {edge_key} - {line} - {datetime.now()}")
+                        log.debug(f"LINE FROM A {edge_type} : {edge_key} - {line} - {datetime.now()}")
                         yield line
 
     except Exception as exc:
