@@ -35,8 +35,9 @@ def read_log(edge_key, edge_type, config, dict_data_to_send_to_server, threads_n
 def tail(config, edge_type, edge_key, exit_boolean, threads_n_processes):
     while True:
         try:
-            #find thread
+            #find corresponding iperf3 thread
             iperf3_obj_process_n_thread = get_obj_proc_n_thread(threads_n_processes, edge_key, edge_type)
+            log.debug(f"{iperf3_obj_process_n_thread}")
 
             # Wait for iperf3 to start
             while iperf3_obj_process_n_thread.subproc is None:
