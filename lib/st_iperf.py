@@ -178,7 +178,7 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
         TCP_KEEPINTV = Interval of Retry
         TCP_KEEPCNT = Drop connection after that amount of lost keepalive
         '''
-       # args.append('--cntl-ka=10/1/5')
+        args.append('--cntl-ka=10/1/5')
 
         if config['GLOBAL']['IPERF3_AUTH']:
             args.append("--username")
@@ -251,7 +251,7 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes, dic
             TCP_KEEPINTV = Interval of Retry
             TCP_KEEPCNT = Drop connection after that amount of lost keepalive
             '''
-            #args.append('--cntl-ka=10/1/5')
+            args.append('--cntl-ka=10/1/5')
 
             if config['GLOBAL']['IPERF3_AUTH']:
                 args.append("--rsa-private-key-path")
