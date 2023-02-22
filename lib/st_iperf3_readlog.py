@@ -21,7 +21,7 @@ def read_log(edge_key, edge_type, config, dict_data_to_send_to_server, threads_n
                 return
             line = next(lines, None)
             if line:
-                if not parse_line(line, config, edge_key, edge_type, threads_n_processes, dict_data_to_send_to_server, iperf3_obj_process_n_thread):
+                if not parse_line(line, config, edge_key, edge_type, threads_n_processes, dict_data_to_send_to_server):
                     break
             time.sleep(int(config['LISTENERS'][edge_key]['INTERVAL']) / 2)
 
@@ -78,7 +78,7 @@ def tail(config, edge_type, edge_key, exit_boolean, threads_n_processes):
 #################################################################################
 ###
 #################################################################################
-def parse_line(line, _config, edge_key, edge_type, threads_n_processes, dict_data_to_send_to_server, iperf3_obj_process_n_thread):
+def parse_line(line, _config, edge_key, edge_type, threads_n_processes, dict_data_to_send_to_server, iperf3_obj_process_n_thread=None):
     values = line.split(" ")
     thr_iperf3_readlog = None
 
