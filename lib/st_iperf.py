@@ -2,7 +2,7 @@ from lib.st_global import DefaultValues
 from lib.st_crypto import *
 from lib.st_conf_validation import is_port_available, validate_ipv4
 from lib.st_global import DefaultValues
-from lib.st_process_and_thread import thread_read_log, thread_udp_hole, get_obj_proc_n_thread
+from lib.st_process_and_thread import thread_read_log, thread_udp_hole, get_obj_process_n_thread
 import subprocess
 import sys
 import logging
@@ -38,7 +38,7 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_connector_obj_pnt, connector_key, th
     iperf3_pid = iperf3_connector_obj_pnt.subproc.pid
 
     # Find current thread to update packet sent in the st_obj_process_n_thread object
-    curr_thread = get_obj_proc_n_thread(threads_n_processes, connector_key, "UDP_HOLE")
+    curr_thread = get_obj_process_n_thread(threads_n_processes, connector_key, "UDP_HOLE")
     curr_thread.packet_sent = 0
     curr_thread.pid = curr_thread.thread_obj.native_id
 
@@ -129,7 +129,7 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_connector_obj_pnt, connector_key, th
 #################################################################################
 def iperf3_client(config, connector_key, connector_value, threads_n_processes, dict_data_to_send_to_server):
     try:
-        iperf3_obj_proc_n_thread = get_obj_proc_n_thread(threads_n_processes, connector_key, "CONNECTOR")
+        iperf3_obj_proc_n_thread = get_obj_process_n_thread(threads_n_processes, connector_key, "CONNECTOR")
 
         env_var = os.environ
         env_var['IPERF3_PASSWORD'] = config['CLIENT']['IPERF3_PASSWORD']
@@ -224,7 +224,7 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
 ### START AN IPERF3 SERVER AS CHILD PROCESS
 #################################################################################
 def iperf3_server(config, listener_key, listener_value, threads_n_processes, dict_data_to_send_to_server):
-    iperf3_obj_proc_n_thread = get_obj_proc_n_thread(threads_n_processes, listener_key, "LISTENER")
+    iperf3_obj_proc_n_thread = get_obj_process_n_thread(threads_n_processes, listener_key, "LISTENER")
 
     if is_port_available(config['LISTENERS'][listener_key]['BIND_ADDRESS'], str(config['LISTENERS'][listener_key]['PORT'])):
         try:
