@@ -47,29 +47,29 @@ def tail(config, edge_type, edge_key, exit_boolean, threads_n_processes):
 
         while True:
             if exit_boolean[0]:
-                line.debug("AAAA - EXIT_BOOL_TRUE")
+                log.debug("AAAA - EXIT_BOOL_TRUE")
                 return
             try:
-                line.debug("AAAA - NEXT")
+                log.debug("AAAA - NEXT")
                 line = next(iperf3_obj_process_n_thread.subproc.stdout, None)
             # I/O operation on closed file
             except ValueError:
-                line.debug("AAAA - ValueError")
+                log.debug("AAAA - ValueError")
                 pass
             except Exception as exc:
-                line.debug("AAAA - UnknownException")
+                log.debug("AAAA - UnknownException")
                 log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
             else:
                 if line:
                     if "TX-C" in line or "TX-S" in line:
-                        line.debug("AAAA - TX")
+                        log.debug("AAAA - TX")
                         continue
                     else:
                         log.debug(f"LINE FROM A {edge_type} : {edge_key} - {line} - {datetime.now()}")
                         line.debug("AAAA - YIELD")
                         yield line
             time.sleep(0.1)
-            line.debug("AAAA - SLEEP")
+            log.debug("AAAA - SLEEP")
 
     except Exception as exc:
         log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
