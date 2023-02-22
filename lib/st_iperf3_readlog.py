@@ -59,6 +59,8 @@ def tail(config, edge_type, edge_key, exit_boolean, threads_n_processes):
                     # if thr_iperf3.subproc is None:
                     #     return
                     pass
+                except Exception as exc:
+                    log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
                 else:
                     if line:
                         if "TX-C" in line or "TX-S" in line:
