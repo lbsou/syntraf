@@ -269,7 +269,7 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
             for listener_key, listener_value in config['LISTENERS'].items():
 
                 # Do we already have a LISTENER in the threads_n_processes dict
-                thr_temp = st_obj_process_n_thread_exist(threads_n_processes, "LISTENER", listener_key)
+                thr_temp = get_obj_process_n_thread(threads_n_processes, "LISTENER", listener_key)
 
                 # # Dead, remove from dict
                 # if not thr_temp.subproc:
@@ -309,7 +309,7 @@ def start_iperf3_server(config, listener_key, listener_value, threads_n_processe
         iperf3_server(config, listener_key, listener_value, threads_n_processes, dict_data_to_send_to_server)
 
         # If no readlog exist for this iperf3 client
-        if get_obj_proc_n_thread(threads_n_processes, listener_key, "READ_LOG") is None:
+        if get_obj_process_n_thread(threads_n_processes, listener_key, "READ_LOG") is None:
             thread_read_log(config, listener_key, listener_value, "LISTENER", threads_n_processes, iperf3_server_obj_process_n_thread, dict_data_to_send_to_server)
 
     except Exception as exc:
@@ -333,7 +333,7 @@ def start_iperf3_client(config, connector_key, connector_value, threads_n_proces
             iperf3_client(config, connector_key, connector_value, threads_n_processes, dict_data_to_send_to_server)
 
             # If no readlog exist for this iperf3 client
-            if get_obj_proc_n_thread(threads_n_processes, connector_key, "READ_LOG") is None:
+            if get_obj_process_n_thread(threads_n_processes, connector_key, "READ_LOG") is None:
                 thread_read_log(config, connector_key, connector_value, "CONNECTOR", threads_n_processes, iperf3_client_obj_process_n_thread, dict_data_to_send_to_server)
 
     except Exception as exc:
@@ -386,14 +386,6 @@ def thread_udp_hole(config, connector_key, connector_value, threads_n_processes,
     thread_run.start()
 
 
-# Validate if a st_obj_process_n_thread exist in the thread dict that correspond to the instance_type and the key provided
-def st_obj_process_n_thread_exist(threads_n_processes, instance_type, connector_key):
-    for thr in threads_n_processes:
-        if thr.syntraf_instance_type == instance_type and connector_key in thr.name:
-            return thr
-    return None
-
-
 def iperf3_print_last_breath(edge_key, edge_type, threads_n_processes, thr_temp):
     stderr_last_breath = ""
     if thr_temp.subproc:
@@ -422,7 +414,7 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
             for connector_key, connector_value in config['CONNECTORS'].items():
 
                 # Do we already have a CONNECTOR in the threads_n_processes dict
-                thr_temp = st_obj_process_n_thread_exist(threads_n_processes, "CONNECTOR", connector_key)
+                thr_temp = get_obj_process_n_thread(threads_n_processes, "CONNECTOR", connector_key)
 
                 # Was never launch or was removed (maybe a client reverted to dynamic IP)
                 if thr_temp is None:
@@ -455,7 +447,7 @@ def kill_processes(subprocess_iperf_dict):
 #################################################################################
 ### RETURN THE st_obj_process_n_thread FROM THE threads_n_processes dict
 #################################################################################
-def get_obj_proc_n_thread(threads_n_processes, edge_key, edge_type):
+def get_obj_process_n_thread(threads_n_processes, edge_key, edge_type):
     # Find current thread to update packet sent in the st_obj_process_n_thread object
     for thr in threads_n_processes:
         if edge_key in thr.name and thr.syntraf_instance_type == edge_type:
