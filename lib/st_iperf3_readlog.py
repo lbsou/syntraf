@@ -50,20 +50,24 @@ def tail(edge_type, edge_key, thr_iperf3, exit_boolean):
                 break
             time.sleep(0.1)
 
-            try:
-                line = next(thr_iperf3.subproc.stdout, None)
-            # I/O operation on closed file
-            except ValueError:
-                if thr_iperf3.subproc is None:
-                    return
-                pass
-            else:
-                if line:
-                    if "TX-C" in line or "TX-S" in line:
-                        continue
+            end_of_stream = False
+            while not end_of_stream:
+                try:
+                    line = next(thr_iperf3.subproc.stdout, None)
+                # I/O operation on closed file
+                except ValueError:
+                    # if thr_iperf3.subproc is None:
+                    #     return
+                    pass
+                else:
+                    if line:
+                        if "TX-C" in line or "TX-S" in line:
+                            continue
+                        else:
+                            log.debug(f"LINE FROM A {edge_type} : {edge_key} - {line} - {datetime.now()}")
+                            yield line
                     else:
-                        log.debug(f"LINE FROM A {edge_type} : {edge_key} - {line} - {datetime.now()}")
-                        yield line
+                        end_of_stream = True
 
     except Exception as exc:
         log.error(exc)
