@@ -51,8 +51,9 @@ def tail(config, edge_type, edge_key, exit_boolean, threads_n_processes):
                 log.debug(f"AAAA - EXIT_BOOL_TRUE - {edge_type} - {edge_key}")
                 return
             try:
-                log.debug(f"AAAA - NEXT - {edge_type} - {edge_key}")
+                log.debug(f"AAAA - NEXT-A - {edge_type} - {edge_key}")
                 line = next(iperf3_obj_process_n_thread.subproc.stdout, None)
+                log.debug(f"AAAA - NEXT-B - {edge_type} - {edge_key}")
             # I/O operation on closed file
             except ValueError:
                 log.debug(f"AAAA - ValueError - {edge_type} - {edge_key}")
