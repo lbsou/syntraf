@@ -44,12 +44,7 @@ def tail(config, edge_type, edge_key, exit_boolean, threads_n_processes):
                     break
                 time.sleep(config['LISTENERS'][edge_key]['INTERVAL'])
 
-
             log.debug(f"READLOG THREAD ACQUIRED IPERF3 STDOUT FOR {edge_type} - {iperf3_obj_process_n_thread.name} -  {edge_key}")
-
-
-            log.debug(f"EXIT_BOOL:{exit_boolean[0]}")
-            log.debug(iperf3_obj_process_n_thread.subproc)
 
             while True:
                 if exit_boolean[0]:
