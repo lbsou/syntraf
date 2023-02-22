@@ -93,7 +93,7 @@ def parse_line(line, _config, edge_key, edge_type, threads_n_processes, dict_dat
         for thr in threads_n_processes:
             if thr.name == edge_key and thr.syntraf_instance_type == "READ_LOG":
                 thr_iperf3_readlog = thr
-        time.sleep(2)
+    #    time.sleep(0.1)
 
     line = format_line(line)
 
