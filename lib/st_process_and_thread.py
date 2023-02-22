@@ -269,7 +269,7 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
             for listener_key, listener_value in config['LISTENERS'].items():
 
                 # Do we already have a LISTENER in the threads_n_processes dict
-                thr_temp = get_obj_process_n_thread(threads_n_processes, "LISTENER", listener_key)
+                thr_temp = get_obj_process_n_thread(threads_n_processes, listener_key, "LISTENER")
 
                 # # Dead, remove from dict
                 # if not thr_temp.subproc:
@@ -415,7 +415,7 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
             for connector_key, connector_value in config['CONNECTORS'].items():
 
                 # Do we already have a CONNECTOR in the threads_n_processes dict
-                thr_temp = get_obj_process_n_thread(threads_n_processes, "CONNECTOR", connector_key)
+                thr_temp = get_obj_process_n_thread(threads_n_processes, connector_key, "CONNECTOR")
 
                 # Was never launch or was removed (maybe a client reverted to dynamic IP)
                 if thr_temp is None:
@@ -454,6 +454,7 @@ def get_obj_process_n_thread(threads_n_processes, edge_key, edge_type):
         if edge_key in thr.name and thr.syntraf_instance_type == edge_type:
             return thr
     return None
+
 
 
 def terminate_connector_and_childs(threads_n_processes, connector_key, thr_temp, config):
