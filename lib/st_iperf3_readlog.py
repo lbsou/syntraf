@@ -33,43 +33,46 @@ def read_log(edge_key, edge_type, config, dict_data_to_send_to_server, threads_n
 ### YIELD LINE FROM IPERF3 STDOUT
 #################################################################################
 def tail(config, edge_type, edge_key, exit_boolean, threads_n_processes):
-    while True:
-        try:
-            #find corresponding iperf3 thread
-            iperf3_obj_process_n_thread = get_obj_process_n_thread(threads_n_processes, edge_key, edge_type)
+    try:
+        #find corresponding iperf3 thread
+        iperf3_obj_process_n_thread = get_obj_process_n_thread(threads_n_processes, edge_key, edge_type)
 
-            # Wait for iperf3 to start
-            while iperf3_obj_process_n_thread.subproc is None:
-                if exit_boolean[0]:
-                    return
-                time.sleep(config['LISTENERS'][edge_key]['INTERVAL'])
+        # Wait for iperf3 to start
+        while iperf3_obj_process_n_thread.subproc is None:
+            if exit_boolean[0]:
+                return
+            time.sleep(config['LISTENERS'][edge_key]['INTERVAL'])
 
-            log.debug(f"READLOG THREAD ACQUIRED IPERF3 STDOUT FOR {edge_type} - {iperf3_obj_process_n_thread.name} -  {edge_key}")
+        log.debug(f"READLOG THREAD ACQUIRED IPERF3 STDOUT FOR {edge_type} - {iperf3_obj_process_n_thread.name} -  {edge_key}")
 
-            while True:
-                if exit_boolean[0]:
-                    return
-                try:
-                    line = next(iperf3_obj_process_n_thread.subproc.stdout, None)
-                # I/O operation on closed file
-                except ValueError:
-                    # if thr_iperf3.subproc is None:
-                    #     return
-                    pass
-                except Exception as exc:
-                    log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
-                else:
-                    if line:
-                        if "TX-C" in line or "TX-S" in line:
-                            continue
-                        else:
-                            log.debug(f"LINE FROM A {edge_type} : {edge_key} - {line} - {datetime.now()}")
-                            yield line, iperf3_obj_process_n_thread
-                time.sleep(0.1)
+        while True:
+            if exit_boolean[0]:
+                line.debug("AAAA - EXITBOOLTRUE")
+                return
+            try:
+                line.debug("AAAA - NEXT")
+                line = next(iperf3_obj_process_n_thread.subproc.stdout, None)
+            # I/O operation on closed file
+            except ValueError:
+                line.debug("AAAA - ValueError")
+                pass
+            except Exception as exc:
+                line.debug("AAAA - UnknownException")
+                log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
+            else:
+                if line:
+                    if "TX-C" in line or "TX-S" in line:
+                        line.debug("AAAA - TX")
+                        continue
+                    else:
+                        log.debug(f"LINE FROM A {edge_type} : {edge_key} - {line} - {datetime.now()}")
+                        line.debug("AAAA - YIELD")
+                        yield line
+            time.sleep(0.1)
+            line.debug("AAAA - SLEEP")
 
-        except Exception as exc:
-            log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
-        time.sleep(1)
+    except Exception as exc:
+        log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
 
 
 #################################################################################
