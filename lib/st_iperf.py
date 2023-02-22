@@ -190,8 +190,8 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes, d
             args.append("--rcv-timeout")
             args.append(DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT)
 
-        # arguments = " "
-        # arguments = arguments.join(args)
+        arguments = " "
+        arguments = arguments.join(args)
         # iperf3_listeners_log.error(arguments)
 
         #print(_config['CLIENT']['IPERF3_PASSWORD'])
@@ -258,8 +258,8 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes, dic
                 args.append(config['GLOBAL']['IPERF3_TIME_SKEW_THRESHOLD'])
                 args.append("--timestamps='%F %T '")
 
-            # arguments = " "
-            # arguments = arguments.join(args)
+            arguments = " "
+            arguments = arguments.join(args)
             # iperf3_listeners_log.error(arguments)
 
             p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, stdin=None, text=True, bufsize=1)
