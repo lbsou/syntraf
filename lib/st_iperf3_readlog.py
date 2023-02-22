@@ -24,7 +24,7 @@ def read_log(edge_key, edge_type, config, dict_data_to_send_to_server, threads_n
                 if not parse_line(line, config, edge_key, edge_type, threads_n_processes, dict_data_to_send_to_server):
                     log.debug("BREAK parse_line")
                     break
-            time.sleep(int(config['LISTENERS'][edge_key]['INTERVAL']) / 2)
+            time.sleep(int(config[f"{edge_type}s"][edge_key]['INTERVAL']) / 2)
 
     except Exception as exc:
         log.error(f"read_log:{type(exc).__name__}:{exc}", exc_info=True)
