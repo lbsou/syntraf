@@ -47,7 +47,7 @@ def tail(config, edge_type, edge_key, exit_boolean, threads_n_processes):
 
         while True:
             if exit_boolean[0]:
-                line.debug("AAAA - EXITBOOLTRUE")
+                line.debug("AAAA - EXIT_BOOL_TRUE")
                 return
             try:
                 line.debug("AAAA - NEXT")

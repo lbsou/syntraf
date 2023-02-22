@@ -362,6 +362,7 @@ def thread_read_log(config, edge_key, edge_value, edge_type, threads_n_processes
                                                     opposite_side=edge_value['UID_CLIENT'],
                                                     group=edge_value['MESH_GROUP'], port="")
     threads_n_processes.append(iperf3_readlog_obj_process_n_thread)
+    log.debug(f"READ_LOG THREAD STARTED FOR {edge_type} {edge_key}")
 
 
 def thread_udp_hole(config, connector_key, connector_value, threads_n_processes, iperf3_conn_thread):
