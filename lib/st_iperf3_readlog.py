@@ -12,9 +12,9 @@ log = logging.getLogger("syntraf." + __name__)
 #################################################################################
 ### FUNCTION TO READ LOGS
 #################################################################################
-def read_log(edge_key, edge_type, config, dict_data_to_send_to_server, threads_n_processes, iperf3_thread, exit_boolean):
+def read_log(edge_key, edge_type, config, dict_data_to_send_to_server, threads_n_processes, exit_boolean):
     try:
-        lines = tail(edge_type, edge_key, iperf3_thread, exit_boolean)
+        lines = tail(edge_type, edge_key, exit_boolean, threads_n_processes)
         log.info(f"READING LOGS FOR {edge_type} {edge_key}")
         while True:
             if exit_boolean[0]:
@@ -32,45 +32,53 @@ def read_log(edge_key, edge_type, config, dict_data_to_send_to_server, threads_n
 #################################################################################
 ### YIELD LINE FROM IPERF3 STDOUT
 #################################################################################
-def tail(edge_type, edge_key, thr_iperf3, exit_boolean):
+def tail(edge_type, edge_key, exit_boolean, threads_n_processes):
 
-    # Wait for iperf3 to start
-    while thr_iperf3.subproc is None:
-        if exit_boolean[0]:
-            break
-        time.sleep(1)
-        if thr_iperf3.subproc:
-            break
+    while True:
+        try:
+            #find thread
+            iperf3_obj_process_n_thread = get_obj_proc_n_thread(threads_n_processes, edge_key, edge_type)
 
-    log.debug(f"READLOG THREAD ACQUIRED IPERF3 STDOUT FOR {edge_type} - {thr_iperf3.name} -  {edge_key} ")
+            # Wait for iperf3 to start
+            while iperf3_obj_process_n_thread.subproc is None:
+                if iperf3_obj_process_n_thread.subproc:
+                    break
+                if exit_boolean[0]:
+                    break
+                time.sleep(1)
 
-    try:
-        while True:
-            if exit_boolean[0]:
-                break
-            time.sleep(0.1)
+            log.debug(f"READLOG THREAD ACQUIRED IPERF3 STDOUT FOR {edge_type} - {iperf3_obj_process_n_thread.name} -  {edge_key}")
+
+            while True:
+                if exit_boolean[0]:
+                    break
+                try:
+                    line = next(iperf3_obj_process_n_thread.subproc.stdout, None)
+                # I/O operation on closed file
+                except ValueError:
+                    # if thr_iperf3.subproc is None:
+                    #     return
+                    break
+                else:
+                    if line:
+                        if "TX-C" in line or "TX-S" in line:
+                            continue
+                        else:
+                            log.debug(f"LINE FROM A {edge_type} : {edge_key} - {line} - {datetime.now()}")
+                            yield line
+                time.sleep(0.1)
+
+        except Exception as exc:
+            log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
 
 
-            try:
-                line = next(thr_iperf3.subproc.stdout, None)
-            # I/O operation on closed file
-            except ValueError:
-                # if thr_iperf3.subproc is None:
-                #     return
-                pass
-            else:
-                if line:
-                    if "TX-C" in line or "TX-S" in line:
-                        continue
-                    else:
-                        log.debug(f"LINE FROM A {edge_type} : {edge_key} - {line} - {datetime.now()}")
-                        yield line
 
 
-    except Exception as exc:
-        log.error(exc)
-    except Exception as exc:
-        log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
+
+
+
+
+
 
 
 #################################################################################
