@@ -14,7 +14,7 @@ log = logging.getLogger("syntraf." + __name__)
 #################################################################################
 def read_log(edge_key, edge_type, config, dict_data_to_send_to_server, threads_n_processes, exit_boolean):
     try:
-        lines, iperf3_obj_process_n_thread = tail(config, edge_type, edge_key, exit_boolean, threads_n_processes)
+        lines = tail(config, edge_type, edge_key, exit_boolean, threads_n_processes)
         log.info(f"READING LOGS FOR {edge_type} {edge_key}")
         while True:
             if exit_boolean[0]:
