@@ -237,8 +237,8 @@ def run():
 
         f = open(os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, "real_thread_status.txt"), "w")
         for thread in threading.enumerate():
-            f.write(f"{thread.name}---{thread.is_alive()}")
-        f.write("\n")
+            f.write(f"{thread.name}")
+            f.write("\n")
         f.close()
 
         # # Validate if reload flag has been set by user with another instance of the script (-r)
