@@ -72,6 +72,7 @@ def tail(config, edge_type, edge_key, exit_boolean, threads_n_processes):
 
         except Exception as exc:
             log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
+    time.sleep(1)
 
 
 
