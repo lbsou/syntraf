@@ -14,7 +14,7 @@ log = logging.getLogger("syntraf." + __name__)
 #################################################################################
 def read_log(edge_key, edge_type, config, dict_data_to_send_to_server, threads_n_processes, exit_boolean):
     try:
-        lines = tail(edge_type, edge_key, exit_boolean, threads_n_processes)
+        lines = tail(config, edge_type, edge_key, exit_boolean, threads_n_processes)
         log.info(f"READING LOGS FOR {edge_type} {edge_key}")
         while True:
             if exit_boolean[0]:
@@ -32,8 +32,7 @@ def read_log(edge_key, edge_type, config, dict_data_to_send_to_server, threads_n
 #################################################################################
 ### YIELD LINE FROM IPERF3 STDOUT
 #################################################################################
-def tail(edge_type, edge_key, exit_boolean, threads_n_processes):
-
+def tail(config, edge_type, edge_key, exit_boolean, threads_n_processes):
     while True:
         try:
             #find thread
@@ -45,7 +44,8 @@ def tail(edge_type, edge_key, exit_boolean, threads_n_processes):
                     break
                 if exit_boolean[0]:
                     break
-                time.sleep(1)
+                time.sleep(config['LISTENERS'][edge_key]['INTERVAL'])
+
 
             log.debug(f"READLOG THREAD ACQUIRED IPERF3 STDOUT FOR {edge_type} - {iperf3_obj_process_n_thread.name} -  {edge_key}")
 
@@ -58,7 +58,7 @@ def tail(edge_type, edge_key, exit_boolean, threads_n_processes):
                 except ValueError:
                     # if thr_iperf3.subproc is None:
                     #     return
-                    break
+                    pass
                 else:
                     if line:
                         if "TX-C" in line or "TX-S" in line:
