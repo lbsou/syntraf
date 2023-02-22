@@ -300,13 +300,14 @@ def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_s
 def start_iperf3_server(config, listener_key, listener_value, threads_n_processes, dict_data_to_send_to_server):
     from lib.st_iperf import iperf3_server
     try:
-        thread_or_process = st_obj_process_n_thread(subproc=None, name=listener_key,
+        iperf3_server_obj_process_n_thread = st_obj_process_n_thread(subproc=None, name=listener_key,
                                                     syntraf_instance_type="LISTENER",
                                                     starttime=datetime.now(),
                                                     opposite_side=listener_value['UID_CLIENT'],
                                                     group=listener_value['MESH_GROUP'], port=listener_value['PORT'])
-        threads_n_processes.append(thread_or_process)
+        threads_n_processes.append(iperf3_server_obj_process_n_thread)
         iperf3_server(config, listener_key, listener_value, threads_n_processes, dict_data_to_send_to_server)
+        thread_read_log(config, listener_key, listener_value, "LISTENER", threads_n_processes, iperf3_server_obj_process_n_thread, dict_data_to_send_to_server)
 
     except Exception as exc:
         log.error(f"{type(exc).__name__}:{exc}", exc_info=True)
@@ -318,15 +319,18 @@ def start_iperf3_client(config, connector_key, connector_value, threads_n_proces
     try:
         # If this is a dynamic IP client, do not start a connector until we have the IP address of the listener
         if config['CONNECTORS'][connector_key]['DESTINATION_ADDRESS'] != "0.0.0.0":
-            iperf3_conn_thread = st_obj_process_n_thread(subproc=None, name=connector_key,
+            iperf3_client_obj_process_n_thread = st_obj_process_n_thread(subproc=None, name=connector_key,
                                                          syntraf_instance_type="CONNECTOR",
                                                          starttime=datetime.now(),
                                                          opposite_side=connector_value['UID_SERVER'],
                                                          group=connector_value['MESH_GROUP'],
                                                          port=connector_value['PORT'],
                                                          bidir_src_port=0, bidir_local_addr="")
-            threads_n_processes.append(iperf3_conn_thread)
+            threads_n_processes.append(iperf3_client_obj_process_n_thread)
             iperf3_client(config, connector_key, connector_value, threads_n_processes, dict_data_to_send_to_server)
+
+            # If does not already exist
+            thread_read_log(config, connector_key, connector_value, "CONNECTOR", threads_n_processes, iperf3_client_obj_process_n_thread, dict_data_to_send_to_server)
 
     except Exception as exc:
         log.error(f"{type(exc).__name__}:{exc}", exc_info=True)
@@ -341,19 +345,19 @@ def thread_read_log(config, edge_key, edge_value, edge_type, threads_n_processes
                                   args=(
                                       edge_key, edge_type, config,
                                       dict_data_to_send_to_server,
-                                      threads_n_processes, iperf3_thread, stop_thread_read_log),
+                                      threads_n_processes, stop_thread_read_log),
                                   daemon=True)
 
     thread_run.daemon = True
     thread_run.name = f"READ_LOG_{edge_type}:{edge_key}"
     thread_run.start()
-    iperf_read_log_thread = st_obj_process_n_thread(thread_obj=thread_run, name=edge_key,
+    iperf3_readlog_obj_process_n_thread = st_obj_process_n_thread(thread_obj=thread_run, name=edge_key,
                                                     syntraf_instance_type="READ_LOG",
                                                     exit_boolean=stop_thread_read_log,
                                                     starttime=datetime.now(),
                                                     opposite_side=edge_value['UID_CLIENT'],
                                                     group=edge_value['MESH_GROUP'], port="")
-    threads_n_processes.append(iperf_read_log_thread)
+    threads_n_processes.append(iperf3_readlog_obj_process_n_thread)
 
 
 def thread_udp_hole(config, connector_key, connector_value, threads_n_processes, iperf3_conn_thread):
@@ -447,7 +451,7 @@ def kill_processes(subprocess_iperf_dict):
 #################################################################################
 ### RETURN THE st_obj_process_n_thread FROM THE threads_n_processes dict
 #################################################################################
-def get_current_obj_proc_n_thread(threads_n_processes, key, type):
+def get_obj_proc_n_thread(threads_n_processes, key, type):
     # Find current thread to update packet sent in the st_obj_process_n_thread object
     for thr in threads_n_processes:
         if key in thr.name and thr.syntraf_instance_type == type:
