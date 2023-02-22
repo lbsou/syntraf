@@ -66,7 +66,7 @@ def tail(config, edge_type, edge_key, exit_boolean, threads_n_processes):
                         continue
                     else:
                         log.debug(f"LINE FROM A {edge_type} : {edge_key} - {line} - {datetime.now()}")
-                        line.debug("AAAA - YIELD")
+                        log.debug("AAAA - YIELD")
                         yield line
             time.sleep(0.1)
             log.debug("AAAA - SLEEP")
