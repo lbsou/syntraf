@@ -41,7 +41,7 @@ def tail(config, edge_type, edge_key, exit_boolean, threads_n_processes, current
 
     try:
         iperf3_obj_process_n_thread = wait_iperf3(config, edge_type, edge_key, exit_boolean, threads_n_processes)
-        current_obj_process_n_thread.iperf3_subproc = iperf3_obj_process_n_thread
+        current_obj_process_n_thread.iperf3_obj_process_n_thread = iperf3_obj_process_n_thread
 
         log.debug(f"READLOG THREAD ACQUIRED IPERF3 STDOUT FOR {edge_type} - {iperf3_obj_process_n_thread.name} -  {edge_key}")
 
@@ -55,7 +55,7 @@ def tail(config, edge_type, edge_key, exit_boolean, threads_n_processes, current
                 pass
             except Exception as exc:
                 iperf3_obj_process_n_thread = wait_iperf3(config, edge_type, edge_key, exit_boolean, threads_n_processes)
-                current_obj_process_n_thread.iperf3_subproc = iperf3_obj_process_n_thread
+                current_obj_process_n_thread.iperf3_obj_process_n_thread = iperf3_obj_process_n_thread
                 #log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
             else:
                 if line:
@@ -91,7 +91,7 @@ def parse_line(line, _config, edge_key, edge_type, dict_data_to_send_to_server, 
         if "connected to" in line and "local" in line:
             if edge_key in _config['CONNECTORS']:
                 if _config['CONNECTORS'][edge_key]['BIDIR']:
-                    grab_bidir_src_port(_config, line, current_obj_process_n_thread.subproc)
+                    grab_bidir_src_port(_config, line, current_obj_process_n_thread.iperf3_obj_process_n_thread)
         elif (len(values) >= 20 and ("omitted" not in line) and ("terminated" not in line) and (
                 "Interval" not in line) and ("receiver" not in line) and ("------------" not in line) and (
                 "- - - - - - - - -" not in line) and "TX-C" not in line and "TX-S" not in line):
@@ -200,7 +200,7 @@ def extract_values_from_iperf3_result_line(line):
     return timestamp, utime, bitrate, jitter, loss, packet_loss, packet_total
 
 
-def grab_bidir_src_port(_config, line, iperf3_connector_thread):
+def grab_bidir_src_port(_config, line, iperf3_obj_process_n_thread):
 
     # When we have a bidir connection, iperf will open two port to destination. We want to grab the second source port, as it will allow us to keepalive the udp hole with scapy in another thread.
     # local 192.168.2.41 port 58743 connected to 192.168.6.100 port 15999
@@ -210,14 +210,14 @@ def grab_bidir_src_port(_config, line, iperf3_connector_thread):
     m_laddr = re.search(r"local ((?:[0-9]{1,3}.){3}[0-9]{1,3}) port \d{1,10} connected to (?:[0-9]{1,3}.){3}[0-9]{1,3} port \d{1,10}", line)
 
     # Grab only the port from the second line, which is the RX
-    if m_lport and iperf3_connector_thread.bidir_src_port_cpt >= 0 and hasattr(iperf3_connector_thread, 'bidir_src_port'):
-        if iperf3_connector_thread.bidir_src_port_cpt == 0:
-            iperf3_connector_thread.bidir_src_port_cpt += 1
-        elif iperf3_connector_thread.bidir_src_port_cpt == 1:
-            iperf3_connector_thread.bidir_src_port = int(m_lport.groups()[0])
-            iperf3_connector_thread.bidir_local_addr = m_laddr.groups()[0]
+    if m_lport and iperf3_obj_process_n_thread.bidir_src_port_cpt >= 0 and hasattr(iperf3_obj_process_n_thread, 'bidir_src_port'):
+        if iperf3_obj_process_n_thread.bidir_src_port_cpt == 0:
+            iperf3_obj_process_n_thread.bidir_src_port_cpt += 1
+        elif iperf3_obj_process_n_thread.bidir_src_port_cpt == 1:
+            iperf3_obj_process_n_thread.bidir_src_port = int(m_lport.groups()[0])
+            iperf3_obj_process_n_thread.bidir_local_addr = m_laddr.groups()[0]
             log.info(f"GOT A SRC_IP AND SRC_PORT FOR UDP_HOLE_PUNCH:{m_laddr.groups()[0]}/{m_lport.groups()[0]}")
-            iperf3_connector_thread.bidir_src_port_cpt = -1
+            iperf3_obj_process_n_thread.bidir_src_port_cpt = -1
 
 
 def outage_management(config, edge_type, edge_key, threads_n_processes, utime_last_event, dict_data_to_send_to_server):

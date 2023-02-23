@@ -35,7 +35,7 @@ class st_obj_process_n_thread:
             self.packet_sent = None
 
         if kwargs['syntraf_instance_type'] == "READ_LOG":
-            self.iperf3_subproc = None
+            self.iperf3_obj_process_n_thread = None
 
         if kwargs['syntraf_instance_type'] == "CONNECTOR":
             self.bidir_src_port = kwargs['bidir_src_port']
