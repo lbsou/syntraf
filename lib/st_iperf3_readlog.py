@@ -39,9 +39,14 @@ def tail(config, edge_type, edge_key, exit_boolean, threads_n_processes):
         iperf3_obj_process_n_thread = get_obj_process_n_thread(threads_n_processes, edge_key, edge_type)
 
         # Wait for iperf3 to start
-        while iperf3_obj_process_n_thread.subproc is None:
+        while True:
             if exit_boolean[0]:
                 return
+            try:
+                if iperf3_obj_process_n_thread.subproc is not None:
+                    break
+            except Exception as exc:
+                pass
             time.sleep(int(config[f"{edge_type}S"][edge_key]['INTERVAL']) / 2)
 
         log.debug(f"READLOG THREAD ACQUIRED IPERF3 STDOUT FOR {edge_type} - {iperf3_obj_process_n_thread.name} -  {edge_key}")
