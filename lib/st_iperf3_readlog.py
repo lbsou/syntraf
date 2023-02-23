@@ -1,4 +1,5 @@
 from lib.st_global import DefaultValues
+from lib.st_process_and_thread import st_obj_process_n_thread
 from lib.st_iperf import *
 from lib.st_influxdb import *
 import time
@@ -14,15 +15,18 @@ log = logging.getLogger("syntraf." + __name__)
 #################################################################################
 def read_log(edge_key, edge_type, config, dict_data_to_send_to_server, threads_n_processes, exit_boolean):
     try:
-        lines = tail(config, edge_type, edge_key, exit_boolean, threads_n_processes)
+        current_obj_process_n_thread: st_obj_process_n_thread
+        current_obj_process_n_thread = get_obj_process_n_thread(threads_n_processes, edge_key, edge_type)
+
+        lines = tail(config, edge_type, edge_key, exit_boolean, threads_n_processes, current_obj_process_n_thread)
         log.info(f"READING LOGS FOR {edge_type} {edge_key}")
+
         while True:
             if exit_boolean[0]:
                 return
             line = next(lines, None)
             if line:
-                if not parse_line(line, config, edge_key, edge_type, threads_n_processes, dict_data_to_send_to_server):
-                    log.debug("BREAK parse_line")
+                if not parse_line(line, config, edge_key, edge_type, dict_data_to_send_to_server, current_obj_process_n_thread):
                     break
             time.sleep(int(config[f"{edge_type}S"][edge_key]['INTERVAL']) / 2)
 
@@ -33,50 +37,34 @@ def read_log(edge_key, edge_type, config, dict_data_to_send_to_server, threads_n
 #################################################################################
 ### YIELD LINE FROM IPERF3 STDOUT
 #################################################################################
-def tail(config, edge_type, edge_key, exit_boolean, threads_n_processes):
-    try:
-        #find corresponding iperf3 thread
-        iperf3_obj_process_n_thread = get_obj_process_n_thread(threads_n_processes, edge_key, edge_type)
+def tail(config, edge_type, edge_key, exit_boolean, threads_n_processes, current_obj_process_n_thread):
 
-        # Wait for iperf3 to start
-        while True:
-            if exit_boolean[0]:
-                return
-            try:
-                if iperf3_obj_process_n_thread.subproc is not None:
-                    break
-            except Exception as exc:
-                pass
-            time.sleep(int(config[f"{edge_type}S"][edge_key]['INTERVAL']) / 2)
+    try:
+        iperf3_obj_process_n_thread = wait_iperf3(config, edge_type, edge_key, exit_boolean, threads_n_processes)
+        current_obj_process_n_thread.iperf3_subproc = iperf3_obj_process_n_thread
 
         log.debug(f"READLOG THREAD ACQUIRED IPERF3 STDOUT FOR {edge_type} - {iperf3_obj_process_n_thread.name} -  {edge_key}")
 
         while True:
             if exit_boolean[0]:
-                log.debug(f"AAAA - EXIT_BOOL_TRUE - {edge_type} - {edge_key}")
                 return
             try:
-                log.debug(f"AAAA - NEXT-A - {edge_type} - {edge_key}")
                 line = next(iperf3_obj_process_n_thread.subproc.stdout, None)
-                log.debug(f"AAAA - NEXT-B - {edge_type} - {edge_key}")
             # I/O operation on closed file
             except ValueError:
-                log.debug(f"AAAA - ValueError - {edge_type} - {edge_key}")
                 pass
             except Exception as exc:
-                log.debug(f"AAAA - UnknownException - {edge_type} - {edge_key}")
-                log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
+                iperf3_obj_process_n_thread = wait_iperf3(config, edge_type, edge_key, exit_boolean, threads_n_processes)
+                current_obj_process_n_thread.iperf3_subproc = iperf3_obj_process_n_thread
+                #log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
             else:
                 if line:
                     if "TX-C" in line or "TX-S" in line:
-                        log.debug(f"AAAA - TX - {edge_type} - {edge_key}")
                         continue
                     else:
                         log.debug(f"LINE FROM A {edge_type} : {edge_key} - {line} - {datetime.now()}")
-                        log.debug(f"AAAA - YIELD - {edge_type} - {edge_key}")
                         yield line
-            time.sleep(0.1)
-            log.debug(f"AAAA - SLEEP - {edge_type} - {edge_key}")
+            time.sleep(int(config[f"{edge_type}S"][edge_key]['INTERVAL']) / 2)
 
     except Exception as exc:
         log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
@@ -85,9 +73,8 @@ def tail(config, edge_type, edge_key, exit_boolean, threads_n_processes):
 #################################################################################
 ###
 #################################################################################
-def parse_line(line, _config, edge_key, edge_type, threads_n_processes, dict_data_to_send_to_server, iperf3_obj_process_n_thread=None):
+def parse_line(line, _config, edge_key, edge_type, dict_data_to_send_to_server, current_obj_process_n_thread: st_obj_process_n_thread):
     values = line.split(" ")
-    thr_iperf3_readlog = None
 
     #The edge_type is used not only as reference to the type but also as a key in the config. In config there is an "S", so replacing for the current function and the save_config
     if edge_type == "CONNECTOR":
@@ -97,12 +84,6 @@ def parse_line(line, _config, edge_key, edge_type, threads_n_processes, dict_dat
     else:
         edge_type = "LISTENERS"
 
-    # Get the current thread object to update counter and status
-    while thr_iperf3_readlog is None:
-        for thr in threads_n_processes:
-            if thr.name == edge_key and thr.syntraf_instance_type == "READ_LOG":
-                thr_iperf3_readlog = thr
-
     line = format_line(line)
 
     try:
@@ -110,7 +91,7 @@ def parse_line(line, _config, edge_key, edge_type, threads_n_processes, dict_dat
         if "connected to" in line and "local" in line:
             if edge_key in _config['CONNECTORS']:
                 if _config['CONNECTORS'][edge_key]['BIDIR']:
-                    grab_bidir_src_port(_config, line, iperf3_obj_process_n_thread)
+                    grab_bidir_src_port(_config, line, current_obj_process_n_thread.subproc)
         elif (len(values) >= 20 and ("omitted" not in line) and ("terminated" not in line) and (
                 "Interval" not in line) and ("receiver" not in line) and ("------------" not in line) and (
                 "- - - - - - - - -" not in line) and "TX-C" not in line and "TX-S" not in line):
@@ -119,13 +100,13 @@ def parse_line(line, _config, edge_key, edge_type, threads_n_processes, dict_dat
             # OK : ["'2021-04-06", '15:10:04', "'[", '', '6]', '', '', '1.00-2.00', '', '', 'sec', '', '10.6', 'KBytes', '','87.2', 'Kbits/sec', '', '0.011', 'ms', '', '0/50', '(0%)', '', '\n']
 
             # increment the counter of line read
-            if not thr_iperf3_readlog.line_read:
-                thr_iperf3_readlog.line_read = 1
+            if not current_obj_process_n_thread.line_read:
+                current_obj_process_n_thread.line_read = 1
             else:
-                thr_iperf3_readlog.line_read += 1
+                current_obj_process_n_thread.line_read += 1
 
             # Update last activity var
-            thr_iperf3_readlog.last_activity = datetime.now()
+            current_obj_process_n_thread.last_activity = datetime.now()
 
             timestamp, utime, bitrate, jitter, loss, packet_loss, packet_total = extract_values_from_iperf3_result_line(line)
 
@@ -159,6 +140,23 @@ def parse_line(line, _config, edge_key, edge_type, threads_n_processes, dict_dat
         return False
 
     return True
+
+
+# Wait for iperf3 to start
+def wait_iperf3(config, edge_type, edge_key, exit_boolean, threads_n_processes):
+
+    # find corresponding iperf3 thread
+    iperf3_obj_process_n_thread = get_obj_process_n_thread(threads_n_processes, edge_key, edge_type)
+
+    while True:
+        if exit_boolean[0]:
+            return None
+        try:
+            if iperf3_obj_process_n_thread.subproc is not None:
+                return iperf3_obj_process_n_thread
+        except Exception as exc:
+            pass
+        time.sleep(int(config[f"{edge_type}S"][edge_key]['INTERVAL']) / 2)
 
 
 def format_line(line):

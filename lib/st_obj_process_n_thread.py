@@ -34,6 +34,9 @@ class st_obj_process_n_thread:
             self.line_read = None
             self.packet_sent = None
 
+        if kwargs['syntraf_instance_type'] == "READ_LOG":
+            self.iperf3_subproc = None
+
         if kwargs['syntraf_instance_type'] == "CONNECTOR":
             self.bidir_src_port = kwargs['bidir_src_port']
             self.bidir_local_addr = kwargs['bidir_local_addr']
