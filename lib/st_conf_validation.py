@@ -676,6 +676,7 @@ def valid_dir_rsa_keypair(_config):
         if not is_dir_create_on_fail(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], "IPERF3_RSA_KEY_DIRECTORY"):
             return False
 
+
 def is_dir_create_on_fail(str_path, str_key):
     pl_path = pathlib.Path(str_path)
     try:
