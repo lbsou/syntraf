@@ -492,6 +492,7 @@ def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processe
 
         current_obj_process_n_thread = st_obj_process_n_thread()
         while not current_obj_process_n_thread:
+            if stop_thread[0]: break
             current_obj_process_n_thread = lib.st_process_and_thread.get_obj_process_n_thread(threads_n_processes, "CLIENT")
             time.sleep(1)
 
