@@ -60,6 +60,7 @@ def tail(config: {}, edge_type: string, edge_key: string, exit_boolean: [], thre
                 #log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
             else:
                 if line:
+                    # Transmitter does not include the metrics
                     if "TX-C" in line or "TX-S" in line:
                         continue
                     else:
@@ -240,6 +241,7 @@ def outage_management(config: {}, edge_type: string, edge_key: string,  utime_la
     # log.debug(f"OUTAGE_MECHANISM DEBUG utime_last_event:{utime_last_event}")
     # log.debug(f"{utime_last_event}{line}{listener_just_started_or_absent}")
 
+    log.debug(utime_last_event)
     if utime_last_event:
         log.debug(f"OUTAGE_MECHANISM DEBUG utime_now:{utime_now} utime_last_event:{utime_last_event} utime_now - utime_last_event: {(utime_now - utime_last_event)}")
 
