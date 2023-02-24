@@ -38,7 +38,7 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_connector_obj_pnt, connector_key, th
     iperf3_pid = iperf3_connector_obj_pnt.subproc.pid
 
     # Find current thread to update packet sent in the st_obj_process_n_thread object
-    curr_thread = get_obj_process_n_thread(threads_n_processes, connector_key, "UDP_HOLE")
+    curr_thread = get_obj_process_n_thread(threads_n_processes, "UDP_HOLE", connector_key)
     curr_thread.packet_sent = 0
     curr_thread.pid = curr_thread.thread_obj.native_id
 
@@ -129,7 +129,7 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_connector_obj_pnt, connector_key, th
 #################################################################################
 def iperf3_client(config, connector_key, connector_value, threads_n_processes):
     try:
-        iperf3_obj_proc_n_thread = get_obj_process_n_thread(threads_n_processes, connector_key, "CONNECTOR")
+        iperf3_obj_proc_n_thread = get_obj_process_n_thread(threads_n_processes, "CONNECTOR", connector_key)
 
         env_var = os.environ
         env_var['IPERF3_PASSWORD'] = config['CLIENT']['IPERF3_PASSWORD']
@@ -224,7 +224,7 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes):
 ### START AN IPERF3 SERVER AS CHILD PROCESS
 #################################################################################
 def iperf3_server(config, listener_key, listener_value, threads_n_processes):
-    iperf3_obj_proc_n_thread = get_obj_process_n_thread(threads_n_processes, listener_key, "LISTENER")
+    iperf3_obj_proc_n_thread = get_obj_process_n_thread(threads_n_processes, "LISTENER", listener_key)
 
     if is_port_available(config['LISTENERS'][listener_key]['BIND_ADDRESS'], str(config['LISTENERS'][listener_key]['PORT'])):
         try:
