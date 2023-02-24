@@ -63,7 +63,7 @@ def run():
     pid_file_path = DefaultValues.SYNTRAF_PID_FILE
     pid_file = pathlib.Path(pid_file_path)
 
-    is_dir_create_on_fail(cli_parameters.log_dir, "LOG_DIR")
+    is_dir_create_on_fail(cli_parameters.log_dir, "LOG_DIR", False)
 
     print(f"SYNTRAF v{DefaultValues.SYNTRAF_VERSION}")
 
@@ -203,7 +203,7 @@ def run():
 
 
 def proc_dump(threads_n_processes, dict_of_clients, config):
-    if is_dir_create_on_fail(DefaultValues.SYNTRAF_PROC_DIR, "PROC_DIR"):
+    if is_dir_create_on_fail(DefaultValues.SYNTRAF_PROC_DIR, "PROC_DIR", True):
 
         # Dump client status
         with open(os.path.join(DefaultValues.SYNTRAF_PROC_DIR, "client.txt"), "w") as f:
