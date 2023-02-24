@@ -259,8 +259,8 @@ def client_receive_configuration(_config, ssl_conn, threads_n_processes, config_
                     #valid_dir_logs(disk_config)
                     disk_config['GLOBAL']['LOGDIR'] = cli_parameters.log_dir
 
-                    client_log.debug(_config)
-                    client_log.debug(disk_config)
+                    #client_log.debug(_config)
+                    #client_log.debug(disk_config)
 
                     if disk_config == _config:
                         client_log.debug("SAME SAME SAME SAME")
