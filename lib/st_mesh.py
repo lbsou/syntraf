@@ -1,4 +1,5 @@
 # SYNTRAF GLOBAL IMPORT
+import lib.st_process_and_thread
 from lib.st_crypto import *
 from lib.st_struct import cl_ifreq
 from lib.st_process_and_thread import *
@@ -489,7 +490,10 @@ def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processe
         client_receive_configuration(_config, ssl_conn, threads_n_processes, config_file_path, cli_parameters)
         client_send_system_infos(ssl_conn)
 
-        current_obj_process_n_thread = get_obj_process_n_thread(threads_n_processes, "CLIENT")
+        current_obj_process_n_thread = st_obj_process_n_thread()
+        while not current_obj_process_n_thread:
+            current_obj_process_n_thread = lib.st_process_and_thread.get_obj_process_n_thread(threads_n_processes, "CLIENT")
+            time.sleep(1)
 
         while True:
             # Update last activity
