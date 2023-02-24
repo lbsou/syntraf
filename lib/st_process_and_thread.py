@@ -147,7 +147,7 @@ def launch_webui(threads_n_processes, subprocess_iperf_dict, _dict_by_node_gener
 
 
 def launch_stats(config, obj_stats, threads_n_processes):
-    current_obj_process_n_thread = st_obj_process_n_thread()
+    current_obj_process_n_thread = None
 
     while not current_obj_process_n_thread:
         current_obj_process_n_thread = get_obj_process_n_thread(threads_n_processes, "STATS")
