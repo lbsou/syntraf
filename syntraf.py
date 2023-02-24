@@ -222,7 +222,7 @@ def proc_dump(threads_n_processes, dict_of_clients, config):
             lst_thread = []
             lst_thread.append(
                 ["NAME", "TYPE", "PID", "RUNNING", "STARTTIME", "SINCE_START", "LAST_ACTIVITY", "SINCE_LAST", "PORT",
-                 "BIDIR_SRC_PORT", "BIDIR_LADDR", "LINE_READ", "PACKET_SENT"])
+                 "BIDIR_SRC_PORT", "BIDIR_LADDR", "LINE_READ", "KA_PACKET_SENT"])
 
             for thr in threads_n_processes:
                 since_start = datetime.now() - thr.starttime

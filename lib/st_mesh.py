@@ -490,7 +490,7 @@ def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processe
         client_receive_configuration(_config, ssl_conn, threads_n_processes, config_file_path, cli_parameters)
         client_send_system_infos(ssl_conn)
 
-        current_obj_process_n_thread = st_obj_process_n_thread()
+        current_obj_process_n_thread = None
         while not current_obj_process_n_thread:
             if stop_thread[0]: break
             current_obj_process_n_thread = lib.st_process_and_thread.get_obj_process_n_thread(threads_n_processes, "CLIENT")
