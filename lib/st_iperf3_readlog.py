@@ -18,7 +18,7 @@ def read_log(edge_key, edge_type, config, dict_data_to_send_to_server, threads_n
         current_obj_process_n_thread: st_obj_process_n_thread
         current_obj_process_n_thread = get_obj_process_n_thread(threads_n_processes, edge_key, edge_type)
 
-        lines = tail(config, edge_type, edge_key, exit_boolean, threads_n_processes, current_obj_process_n_thread)
+        lines = tail(config, edge_type, edge_key, exit_boolean, threads_n_processes, current_obj_process_n_thread, dict_data_to_send_to_server)
         log.info(f"READING LOGS FOR {edge_type} {edge_key}")
 
         while True:
@@ -37,9 +37,10 @@ def read_log(edge_key, edge_type, config, dict_data_to_send_to_server, threads_n
 #################################################################################
 ### YIELD LINE FROM IPERF3 STDOUT
 #################################################################################
-def tail(config, edge_type, edge_key, exit_boolean, threads_n_processes, current_obj_process_n_thread):
+def tail(config: {}, edge_type: string, edge_key: string, exit_boolean: [], threads_n_processes: [], current_obj_process_n_thread, dict_data_to_send_to_server: {}):
 
     try:
+        utime_last_event = None
         iperf3_obj_process_n_thread = wait_iperf3(config, edge_type, edge_key, exit_boolean, threads_n_processes)
         current_obj_process_n_thread.iperf3_obj_process_n_thread = iperf3_obj_process_n_thread
 
@@ -63,7 +64,11 @@ def tail(config, edge_type, edge_key, exit_boolean, threads_n_processes, current
                         continue
                     else:
                         log.debug(f"LINE FROM A {edge_type} : {edge_key} - {line} - {datetime.now()}")
+                        utime_last_event = time.time()
                         yield line
+                else:
+                    #Possible outage
+                    utime_last_event = outage_management(config, edge_type, edge_key, utime_last_event, dict_data_to_send_to_server)
             time.sleep(int(config[f"{edge_type}S"][edge_key]['INTERVAL']) / 2)
 
     except Exception as exc:
@@ -73,7 +78,7 @@ def tail(config, edge_type, edge_key, exit_boolean, threads_n_processes, current
 #################################################################################
 ###
 #################################################################################
-def parse_line(line, _config, edge_key, edge_type, dict_data_to_send_to_server, current_obj_process_n_thread: st_obj_process_n_thread):
+def parse_line(line: string, _config: {}, edge_key: string, edge_type: string, dict_data_to_send_to_server: {}, current_obj_process_n_thread: st_obj_process_n_thread):
     values = line.split(" ")
 
     #The edge_type is used not only as reference to the type but also as a key in the config. In config there is an "S", so replacing for the current function and the save_config
@@ -105,7 +110,7 @@ def parse_line(line, _config, edge_key, edge_type, dict_data_to_send_to_server, 
             else:
                 current_obj_process_n_thread.line_read += 1
 
-            # Update last activity var
+            # Update last activity
             current_obj_process_n_thread.last_activity = datetime.now()
 
             timestamp, utime, bitrate, jitter, loss, packet_loss, packet_total = extract_values_from_iperf3_result_line(line)
@@ -114,6 +119,7 @@ def parse_line(line, _config, edge_key, edge_type, dict_data_to_send_to_server, 
             # ie: [  5]   4.00-5.00   sec  0.00 Bytes  0.00 bits/sec  0.024 ms  0/0 (0%)
             if bitrate == "0.00" and loss == "0" and packet_loss == "0" and packet_total == "0":
                 loss = "100"
+                jitter = "0"
 
             # When we have bidir activated, the server will transmit
             if edge_type == "CONNECTORS":
@@ -143,7 +149,7 @@ def parse_line(line, _config, edge_key, edge_type, dict_data_to_send_to_server, 
 
 
 # Wait for iperf3 to start
-def wait_iperf3(config, edge_type, edge_key, exit_boolean, threads_n_processes):
+def wait_iperf3(config: {}, edge_type: string, edge_key: string, exit_boolean: [], threads_n_processes: []):
 
     # find corresponding iperf3 thread
     iperf3_obj_process_n_thread = get_obj_process_n_thread(threads_n_processes, edge_key, edge_type)
@@ -159,7 +165,7 @@ def wait_iperf3(config, edge_type, edge_key, exit_boolean, threads_n_processes):
         time.sleep(int(config[f"{edge_type}S"][edge_key]['INTERVAL']) / 2)
 
 
-def format_line(line):
+def format_line(line: string):
     # When using bidir, we get RX and TX. TX is discarded by previous condition, and RX need to be remove from the line for proper parsing
     if "[RX-C]" in line:
         line = line.replace("[RX-C]", "")
@@ -168,7 +174,7 @@ def format_line(line):
     return line
 
 
-def extract_values_from_iperf3_result_line(line):
+def extract_values_from_iperf3_result_line(line: string):
     # timestamp
     x = re.findall(r"(\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d)", line)
     dt = datetime.strptime(str(x[0]), "%Y-%m-%d %H:%M:%S")
@@ -200,7 +206,7 @@ def extract_values_from_iperf3_result_line(line):
     return timestamp, utime, bitrate, jitter, loss, packet_loss, packet_total
 
 
-def grab_bidir_src_port(_config, line, iperf3_obj_process_n_thread):
+def grab_bidir_src_port(_config: {}, line: string, iperf3_obj_process_n_thread: st_obj_process_n_thread):
 
     # When we have a bidir connection, iperf will open two port to destination. We want to grab the second source port, as it will allow us to keepalive the udp hole with scapy in another thread.
     # local 192.168.2.41 port 58743 connected to 192.168.6.100 port 15999
@@ -220,32 +226,21 @@ def grab_bidir_src_port(_config, line, iperf3_obj_process_n_thread):
             iperf3_obj_process_n_thread.bidir_src_port_cpt = -1
 
 
-def outage_management(config, edge_type, edge_key, threads_n_processes, utime_last_event, dict_data_to_send_to_server):
+def outage_management(config: {}, edge_type: string, edge_key: string,  utime_last_event, dict_data_to_send_to_server):
     utime_now = time.time()
-    listener_just_started_or_absent = False
+
     interval = int(config[edge_type][edge_key]['INTERVAL'])
     uid_client = config[edge_type][edge_key]['UID_CLIENT']
     uid_server = config[edge_type][edge_key]['UID_SERVER']
 
-    # Get the infos of the starttime of the current listener, if it has just started or does not exist, do no log an outage, it's just iperf that is not running.
-    flag_no_thread_found = True
-    for obj_thread_n_process in threads_n_processes:
-        if obj_thread_n_process.name == edge_key and (
-                obj_thread_n_process.syntraf_instance_type == "LISTENER" or obj_thread_n_process.syntraf_instance_type == "CONNECTOR"):
-            flag_no_thread_found = False
-            dt_delta = datetime.now() - obj_thread_n_process.starttime
-            if dt_delta.total_seconds() <= 60:
-                listener_just_started_or_absent = True
-    if flag_no_thread_found: listener_just_started_or_absent = True
-
     '''
-    Iperf3 stop generating events when the connection is lost for too long [how much exactly?], but we still want to report the losses
-    For that, we need to already have received a log in the past (utime_last_event != 0) and the current log file of iperf3 must not yield line (not line)
+    When iperf3 stop generating logs, we want to record 100% losses
+    For that, we need to already have received a log in the past (utime_last_event != None) and the current log file of iperf3 must not yield line (not line)
     '''
     # log.debug(f"OUTAGE_MECHANISM DEBUG utime_last_event:{utime_last_event}")
     # log.debug(f"{utime_last_event}{line}{listener_just_started_or_absent}")
 
-    if utime_last_event != 0:
+    if utime_last_event:
         log.debug(f"OUTAGE_MECHANISM DEBUG utime_now:{utime_now} utime_last_event:{utime_last_event} utime_now - utime_last_event: {(utime_now - utime_last_event)}")
 
         # If iperf3 did not write any events for the double of the interval he's supposed to
@@ -267,6 +262,6 @@ def outage_management(config, edge_type, edge_key, threads_n_processes, utime_la
                 log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - {edge_key}")
                 log.debug(f"timestamp:{timestamp_generated}, bitrate: 0, jitter: 0, loss: 100, packet_loss: 0, packet_total: 0")
 
-            utime_last_event = utime_now
+            return utime_now
 
 

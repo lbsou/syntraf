@@ -19,6 +19,8 @@ from tabulate import tabulate
 import threading
 import logging
 import os
+from copy import deepcopy
+import json
 from lib.st_latency import tcp_ping
 
 try:
@@ -185,8 +187,6 @@ def run():
 
     # WATCHDOG
     while True:
-        reload_flag = False
-
         # launch iperf_listeners, iperf_connectors read_log, client, server
         threads_n_processes, subprocess_iperf_dict = launch_and_respawn_workers(config, cli_parameters,
                                                                                 threads_n_processes, obj_stats,
@@ -198,63 +198,62 @@ def run():
                                                                                 dict_of_client_pending_acceptance,
                                                                                 cli_parameters.config_file, conn_db,
                                                                                 subprocess_iperf_dict)
-
-        # WHILE WEBUI DOWN, DUMP CLIENT STATUS TO FILE
-        f = open(os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, "client_status.txt"), "w")
-
-        lst_client = []
-        lst_client.append(
-            ["CLIENT", "STATUS", "STATUS_SINCE", "STATUS_EXPLANATION", "CLIENT_UID", "CLIENT_DYNAMIC_IP", "CLIENT_PORT",
-             "CLIENT_IP"])
-        for k, v in dict_of_clients.items():
-            lst_client.append(
-                [k, v.status, v.status_since, v.status_explanation, v.client_uid, v.bool_dynamic_client, v.tcp_port,
-                 v.ip_address])
-        f.write(tabulate(lst_client))
-        f.close()
-
-        # WHILE WEBUI DOWN, DUMP THREAD STATUS TO FILE
-        f = open(os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, "thread_status.txt"), "w")
-
-        lst_thread = []
-        lst_thread.append(
-            ["NAME", "TYPE", "PID", "RUNNING", "STARTTIME", "SINCE_START", "LAST_ACTIVITY", "SINCE_LAST", "PORT",
-             "BIDIR_SRC_PORT", "BIDIR_LADDR", "LINE_READ", "PACKET_SENT"])
-
-        for thr in threads_n_processes:
-            since_start = datetime.now() - thr.starttime
-            minutes_since_start = divmod(since_start.total_seconds(), 60)
-            since_last = datetime.now() - thr.last_activity
-            minutes_since_last = divmod(since_last.total_seconds(), 60)
-            lst_thread.append([thr.name, thr.syntraf_instance_type, thr.getpid(), thr.getstatus(),
-                               thr.starttime.strftime("%d/%m/%Y %H:%M:%S"),
-                               f"{minutes_since_start[0]}m {round(minutes_since_start[1])}s", thr.last_activity,
-                               f"{minutes_since_last[0]}m {round(minutes_since_last[1])}s", thr.port,
-                               thr.bidir_src_port, thr.bidir_local_addr, thr.line_read, thr.packet_sent])
-        f.write(tabulate(lst_thread))
-        f.write("\n")
-        f.close()
-
-        f = open(os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, "real_thread_status.txt"), "w")
-        for thread in threading.enumerate():
-            f.write(f"{thread.name}")
-            f.write("\n")
-        f.close()
-
-        # # Validate if reload flag has been set by user with another instance of the script (-r)
-        # try:
-        #     shared_mem = shared_memory.SharedMemory("syntraf_reload_signal")
-        # except Exception as e:
-        #     pass
-        #
-        # if shared_mem.buf[0] == 1:
-        #     print("RELOAD WAS ASKED BY USER")
-        #     shared_mem.buf[0] = 0
-        #     reload_flag = True
-
-        # tcp_ping()
-
+        proc_dump(threads_n_processes, dict_of_clients, config)
         time.sleep(int(config['GLOBAL']['WATCHDOG_CHECK_RATE']))
+
+
+def proc_dump(threads_n_processes, dict_of_clients, config):
+    if is_dir_create_on_fail(DefaultValues.SYNTRAF_PROC_DIR, "PROC_DIR"):
+
+        # Dump client status
+        with open(os.path.join(DefaultValues.SYNTRAF_PROC_DIR, "client.txt"), "w") as f:
+            lst_client = []
+            lst_client.append(
+                ["CLIENT", "STATUS", "STATUS_SINCE", "STATUS_EXPLANATION", "CLIENT_UID", "CLIENT_DYNAMIC_IP", "CLIENT_PORT",
+                 "CLIENT_IP"])
+            for k, v in dict_of_clients.items():
+                lst_client.append(
+                    [k, v.status, v.status_since, v.status_explanation, v.client_uid, v.bool_dynamic_client, v.tcp_port,
+                     v.ip_address])
+            f.write(tabulate(lst_client))
+
+        # Dump threads_n_processes content
+        with open(os.path.join(DefaultValues.SYNTRAF_PROC_DIR, "obj_process_n_thread.txt"), "w") as f:
+            lst_thread = []
+            lst_thread.append(
+                ["NAME", "TYPE", "PID", "RUNNING", "STARTTIME", "SINCE_START", "LAST_ACTIVITY", "SINCE_LAST", "PORT",
+                 "BIDIR_SRC_PORT", "BIDIR_LADDR", "LINE_READ", "PACKET_SENT"])
+
+            for thr in threads_n_processes:
+                since_start = datetime.now() - thr.starttime
+                minutes_since_start = divmod(since_start.total_seconds(), 60)
+                since_last = datetime.now() - thr.last_activity
+                minutes_since_last = divmod(since_last.total_seconds(), 60)
+                lst_thread.append([thr.name, thr.syntraf_instance_type, thr.getpid(), thr.getstatus(),
+                                   thr.starttime.strftime("%d/%m/%Y %H:%M:%S"),
+                                   f"{minutes_since_start[0]}m {round(minutes_since_start[1])}s", thr.last_activity,
+                                   f"{minutes_since_last[0]}m {round(minutes_since_last[1])}s", thr.port,
+                                   thr.bidir_src_port, thr.bidir_local_addr, thr.line_read, thr.packet_sent])
+            f.write(tabulate(lst_thread))
+            f.write("\n")
+
+        # Dump python threads
+        with open(os.path.join(DefaultValues.SYNTRAF_PROC_DIR, "threads.txt"), "w") as f:
+            for thread in threading.enumerate():
+                f.write(f"{thread.name}")
+                f.write("\n")
+
+        # Dump config
+        config_copy: {}
+        config_copy = deepcopy(config)
+        if 'RSA_KEY_LISTENERS' in config_copy['SERVER']:
+            del config_copy['SERVER']['RSA_KEY_LISTENERS']
+        if 'RSA_KEY_CONNECTORS' in config_copy['SERVER']:
+            del config_copy['SERVER']['RSA_KEY_CONNECTORS']
+        config_json = json.dumps(config_copy, indent=4)
+        with open(os.path.join(DefaultValues.SYNTRAF_PROC_DIR, "config.txt"), "w") as f:
+            f.write(config_json)
+
 
 
 # class windows_service(SMWinservice):
@@ -266,6 +265,7 @@ def run():
 #
 #     def main(self):
 #         run()
+
 
 #################################################################################
 ### RUN

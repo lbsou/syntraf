@@ -22,6 +22,7 @@ class DefaultValues:
     SYNTRAF_VERSION = "0.45"
     SYNTRAF_ROOT_DIR = pathlib.Path(__file__).parent.parent.absolute()
     SYNTRAF_PID_FILE = os.path.join(SYNTRAF_ROOT_DIR, 'syntraf.pid')
+    SYNTRAF_PROC_DIR = os.path.join(SYNTRAF_ROOT_DIR, "proc")
 
     #tzlocal.utils.ZoneInfoNotFoundError: 'Multiple conflicting time zone configurations found:\n/etc/sysconfig/clock: Etc/UTC\n/etc/localtime is a symlink to: America/New_York\nFix the configuration, or set the time zone in a TZ environment variable.\n'
     try:
