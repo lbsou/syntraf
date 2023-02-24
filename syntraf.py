@@ -246,10 +246,11 @@ def proc_dump(threads_n_processes, dict_of_clients, config):
         # Dump config
         config_copy: {}
         config_copy = deepcopy(config)
-        if 'RSA_KEY_LISTENERS' in config_copy['SERVER']:
-            del config_copy['SERVER']['RSA_KEY_LISTENERS']
-        if 'RSA_KEY_CONNECTORS' in config_copy['SERVER']:
-            del config_copy['SERVER']['RSA_KEY_CONNECTORS']
+        if 'SERVER' in config_copy:
+            if 'RSA_KEY_LISTENERS' in config_copy['SERVER']:
+                del config_copy['SERVER']['RSA_KEY_LISTENERS']
+            if 'RSA_KEY_CONNECTORS' in config_copy['SERVER']:
+                del config_copy['SERVER']['RSA_KEY_CONNECTORS']
         config_json = json.dumps(config_copy, indent=4)
         with open(os.path.join(DefaultValues.SYNTRAF_PROC_DIR, "config.txt"), "w") as f:
             f.write(config_json)
