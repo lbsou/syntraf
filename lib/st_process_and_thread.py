@@ -1,6 +1,7 @@
 # SYNTRAF GLOBAL IMPORT
 from copy import copy
 
+import lib.st_obj_process_n_thread
 from lib.st_global import DefaultValues
 
 from lib.st_obj_process_n_thread import *
@@ -146,7 +147,11 @@ def launch_webui(threads_n_processes, subprocess_iperf_dict, _dict_by_node_gener
 
 
 def launch_stats(config, obj_stats, threads_n_processes):
-    current_obj_process_n_thread = get_obj_process_n_thread(threads_n_processes, "STATS")
+    current_obj_process_n_thread = st_obj_process_n_thread()
+
+    while not current_obj_process_n_thread:
+        current_obj_process_n_thread = get_obj_process_n_thread(threads_n_processes, "STATS")
+        time.sleep(1)
 
     while True:
         # Update last activity
