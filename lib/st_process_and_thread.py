@@ -57,7 +57,7 @@ def launch_and_respawn_workers(config, cli_parameters, threads_n_processes, obj_
         list = [thr for thr in threads_n_processes if getattr(thr, 'syntraf_instance_type') == "STATS"]
         if not list:
             thr_stats = threading.Thread(target=launch_stats,
-                                         args=(config, obj_stats),
+                                         args=(config, obj_stats, threads_n_processes),
                                          daemon=True)
             thr_stats.name = "STATS"
             thr_stats.start()
@@ -145,8 +145,13 @@ def launch_webui(threads_n_processes, subprocess_iperf_dict, _dict_by_node_gener
         log.error(msg)
 
 
-def launch_stats(config, obj_stats):
+def launch_stats(config, obj_stats, threads_n_processes):
+    current_obj_process_n_thread = get_obj_process_n_thread(threads_n_processes, "STATS")
+
     while True:
+        # Update last activity
+        current_obj_process_n_thread.last_activity = datetime.now()
+
         # Client only code
         if 'CLIENT' in config:
             obj_stats.update_stats()
