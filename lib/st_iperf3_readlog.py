@@ -229,9 +229,9 @@ def grab_bidir_src_port(_config: {}, line: string, iperf3_obj_process_n_thread: 
 def outage_management(config: {}, edge_type: string, edge_key: string,  utime_last_event, dict_data_to_send_to_server):
     utime_now = time.time()
 
-    interval = int(config[edge_type][f"{edge_key}S"]['INTERVAL'])
-    uid_client = config[edge_type][f"{edge_key}S"]['UID_CLIENT']
-    uid_server = config[edge_type][f"{edge_key}S"]['UID_SERVER']
+    interval = int(config[f"{edge_type}S"][edge_key]['INTERVAL'])
+    uid_client = config[f"{edge_type}S"][edge_key]['UID_CLIENT']
+    uid_server = config[f"{edge_type}S"][edge_key]['UID_SERVER']
 
     '''
     When iperf3 stop generating logs, we want to record 100% losses
