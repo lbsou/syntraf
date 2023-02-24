@@ -161,7 +161,7 @@ def config_validation_certificate(_config, type_of_service, parameters):
     # If directory does not exist, create it. If an error like permission denied, return False to terminate SYNTRAF
     pl_path = pathlib.Path(cert_path)
     if not pl_path.is_dir():
-        if is_dir_create_on_fail(cert_path, f"{type_of_service.upper()}_X509_SELFSIGNED_DIRECTORY"):
+        if is_dir_create_on_fail(cert_path, f"{type_of_service.upper()}_X509_SELFSIGNED_DIRECTORY", False):
             ss_valid_directory = True
         else:
             log.error(f"UNABLE TO CREATE {type_of_service.upper()}_X509_SELFSIGNED_DIRECTORY")
@@ -665,7 +665,7 @@ def valid_dir_rsa_keypair(_config):
             _config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'] = DefaultValues.DEFAULT_IPERF3_RSA_KEY_DIRECTORY
 
         # If directory does not exist, create it. If an error like permission denied, return False to terminate SYNTRAF
-        if not is_dir_create_on_fail(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], "IPERF3_RSA_KEY_DIRECTORY"):
+        if not is_dir_create_on_fail(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], "IPERF3_RSA_KEY_DIRECTORY", False):
             return False
     else:
         log.debug(
@@ -673,11 +673,11 @@ def valid_dir_rsa_keypair(_config):
         _config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'] = DefaultValues.DEFAULT_IPERF3_RSA_KEY_DIRECTORY
 
         # If directory does not exist, create it. If an error like permission denied, return False to terminate SYNTRAF
-        if not is_dir_create_on_fail(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], "IPERF3_RSA_KEY_DIRECTORY"):
+        if not is_dir_create_on_fail(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], "IPERF3_RSA_KEY_DIRECTORY", False):
             return False
 
 
-def is_dir_create_on_fail(str_path, str_key):
+def is_dir_create_on_fail(str_path, str_key, silent: bool):
     pl_path = pathlib.Path(str_path)
     try:
         if not pl_path.is_dir():
@@ -685,7 +685,8 @@ def is_dir_create_on_fail(str_path, str_key):
             pathlib.Path(str_path).mkdir(parents=True, exist_ok=True)
             log.debug(f"'{str_path}' CREATION COMPLETED")
         else:
-            log.debug(f"DOES {str_key}: '{str_path}' EXIST : YES")
+            if not silent:
+                log.debug(f"DOES {str_key}: '{str_path}' EXIST : YES")
     except OSError:
         log.error(f"AN ERROR OCCURRED WHILE CREATING DIRECTORY '{str_path}'")
         return False
