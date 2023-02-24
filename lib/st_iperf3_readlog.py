@@ -51,13 +51,14 @@ def tail(config: {}, edge_type: string, edge_key: string, exit_boolean: [], thre
                 return
             try:
                 line = next(iperf3_obj_process_n_thread.subproc.stdout, None)
-
             # I/O operation on closed file
             except ValueError:
+                log.debug("11111111111111111111111111111111111111111111111")
+                pass
                 # Possible outage
-                utime_last_event = outage_management(config, edge_type, edge_key, utime_last_event, dict_data_to_send_to_server)
-
+                #utime_last_event = outage_management(config, edge_type, edge_key, utime_last_event, dict_data_to_send_to_server)
             except Exception as exc:
+                log.debug("22222222222222222222222222222222222222222222222")
                 iperf3_obj_process_n_thread = wait_iperf3(config, edge_type, edge_key, exit_boolean, threads_n_processes)
                 current_obj_process_n_thread.iperf3_obj_process_n_thread = iperf3_obj_process_n_thread
                 #log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
