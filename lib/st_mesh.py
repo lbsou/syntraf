@@ -489,7 +489,12 @@ def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processe
         client_receive_configuration(_config, ssl_conn, threads_n_processes, config_file_path, cli_parameters)
         client_send_system_infos(ssl_conn)
 
+        current_obj_process_n_thread = get_obj_process_n_thread(threads_n_processes, "CLIENT")
+
         while True:
+            # Update last activity
+            current_obj_process_n_thread.last_activity = datetime.now()
+
             if stop_thread[0]: break
 
             client_send_heartbeat(ssl_conn)

@@ -16,7 +16,7 @@ log = logging.getLogger("syntraf." + __name__)
 def read_log(edge_key, edge_type, config, dict_data_to_send_to_server, threads_n_processes, exit_boolean):
     try:
         current_obj_process_n_thread: st_obj_process_n_thread
-        current_obj_process_n_thread = get_obj_process_n_thread(threads_n_processes, edge_key, edge_type)
+        current_obj_process_n_thread = get_obj_process_n_thread(threads_n_processes, edge_type, edge_key)
 
         lines = tail(config, edge_type, edge_key, exit_boolean, threads_n_processes, current_obj_process_n_thread, dict_data_to_send_to_server)
         log.info(f"READING LOGS FOR {edge_type} {edge_key}")
@@ -71,6 +71,7 @@ def tail(config: {}, edge_type: string, edge_key: string, exit_boolean: [], thre
                         log.debug(f"LINE FROM A {edge_type} : {edge_key} - {line} - {datetime.now()}")
                         utime_last_event = time.time()
                         yield line
+
             time.sleep(int(config[f"{edge_type}S"][edge_key]['INTERVAL']) / 2)
 
     except Exception as exc:
@@ -154,7 +155,7 @@ def parse_line(line: string, _config: {}, edge_key: string, edge_type: string, d
 def wait_iperf3(config: {}, edge_type: string, edge_key: string, exit_boolean: [], threads_n_processes: []):
 
     # find corresponding iperf3 thread
-    iperf3_obj_process_n_thread = get_obj_process_n_thread(threads_n_processes, edge_key, edge_type)
+    iperf3_obj_process_n_thread = get_obj_process_n_thread(threads_n_processes, edge_type, edge_key)
 
     while True:
         if exit_boolean[0]:
