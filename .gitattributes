@@ -1,8 +1,18 @@
-*.py    linguist-language=Python
-crypto/* linguist-vendored
-doc/* linguist-vendored
-etc/* linguist-vendored
-lib/web_ui/static/* linguist-vendored
-lib/web_ui_kindafixed2/static/* linguist-vendored
-lib/webui_kindafixed/static/* linguist-vendored
-*.html linguist-detectable=false
+* text=auto
+*.sh text eol=lf
+*.pxd    text diff=python
+*.py     text diff=python
+*.py3    text diff=python
+*.pyw    text diff=python
+*.pyx    text diff=python
+*.pyz    text diff=python
+
+
+*.py linguist-language=Python
+crypto/* -linguist-detectable
+doc/* -linguist-detectable
+etc/* -linguist-detectable
+lib/web_ui/static/* -linguist-detectable
+lib/web_ui_kindafixed2/static/* -linguist-detectable
+lib/webui_kindafixed/static/* -linguist-detectable
+*.html -linguist-detectable
