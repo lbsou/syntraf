@@ -35,7 +35,7 @@ The tool is :
 - developed with Python >= 3.8
 - compatible with Linux, MacOSX and Windows
 - compatible with influxdb >= 2.0  
-- compatible with iperf3 >= 3.9
+- compatible with iperf3 >= 3.9 (and ideally with the version 3.12+ Keepalive)
 
 ## Terminology
 You will see references to 'CONNECTORS' and 'LISTENERS'. Those are basically substitute words for IPERF CLIENT (CONNECTORS) and IPERF SERVER (LISTENERS) when handled by SYNTRAF.
@@ -170,6 +170,10 @@ pip3 install -r requirements_server.txt
 
 ### Install latest version of Iperf
 SYNTRAF use the timestamp functionality of iperf3, and as it was recently added to the tool (july 2020), make sure your version is up to date.  
+
+A keepalive function which enhance the stability of iperf3 and SYNTRAF is recommended. It is still at the stage of Pull Request, but you can get it here:  
+``git clone https://github.com/davidBar-On/iperf.git --branch issue-812-835-control-connection-keepalive``  
+More information in the Wiki pages  
 
 Ref :  
 https://github.com/esnet/iperf/commit/15281f6ad77522c1c790b7535a1e673e05ca9170  
