@@ -1,5 +1,3 @@
-NON FUNCTIONAL AT THE MOMENT  
-
 # SYNTRAF
 Combining the power of IPERF3, INFLUXDB and GRAFANA to measure your network QoE by creating synthetic traffic.
 
@@ -13,7 +11,7 @@ Table of contents
 * [Setup](#setup)
 * [Todo](#todo)
 
-SYNTRAF WEBUI IS STILL UNDER HEAVY DEVELOPMENT!
+SYNTRAF WEBUI IS STILL UNDER HEAVY DEVELOPMENT AND NON FUNCTIONAL AT THE MOMENT!
 LOOKING FOR COLLABORATORS!  
 Email me at shadow131 @ hotmail [dot] com  
 
