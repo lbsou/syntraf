@@ -412,7 +412,7 @@ def iperf3_print_last_breath(edge_key, edge_type, threads_n_processes, thr_temp)
 
     except subprocess.TimeoutExpired:
         thr_temp.subproc.kill()
-        thr_temp.subproc.communicate()
+        thr_temp.subproc.communicate(timeout=1)
     except Exception as exc:
         pass
     threads_n_processes.remove(thr_temp)
