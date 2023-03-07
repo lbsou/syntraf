@@ -411,6 +411,7 @@ def iperf3_print_last_breath(edge_key, edge_type, threads_n_processes, thr_temp)
         log.warning(f"IPERF3 {edge_type} '{edge_key}' DIED OR NEVER START. LAST BREATH : '{last_breath.upper()} - {stderr_last_breath}'")
 
     except subprocess.TimeoutExpired:
+        log.warning("TIMEOUTEXPIRED")
         thr_temp.subproc.kill()
         thr_temp.subproc.communicate(timeout=1)
     except Exception as exc:
