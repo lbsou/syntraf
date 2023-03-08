@@ -105,13 +105,16 @@ Here is a description of every variable of the config file.
 
 This clause is a server config that represent a profile for testing in which multiple SERVER_CLIENT can later be made member of. The result is a mesh of iperf3 connection, hence his name.
 
-|VAR|DESCRIPTION|DEFAULT|
-| :------------- | :---------- | :----------: |
-|UID|Unique identification (A-Za-z0-9_-) |NONE|
-|BANDWIDTH|Amount of traffic to exchange between two nodes in one direction in Kbps (end with a 'k') or Mbps (end with a 'm')|100k|
-|DSCP|Integer value between 0 and 63.<br/>QoS RFC2474|0|
-|PACKET_SIZE|Size of the UDP packets in bytes (16-65507)|32|
-|INTERVAL|The interval, in seconds, at which iperf3 will report the metrics. This will be the granularity of the data in the graphics in the end.|10|
+| VAR               | DESCRIPTION                                                                                                                             |DEFAULT|
+|:------------------|:----------------------------------------------------------------------------------------------------------------------------------------| :----------: |
+| UID               | Unique identification (A-Za-z0-9_-)                                                                                                     |NONE|
+| DSCP              | Integer value between 0 and 63.<br/>QoS RFC2474                                                                                         |0|
+| INTERVAL          | The interval, in seconds, at which iperf3 will report the metrics. This will be the granularity of the data in the graphics in the end. |10|
+| PACKET_PER_SECOND | The amount of packet that will be sent every second.                                                                                   |NONE|
+| PACKET_SIZE       | Size of the UDP packets in bytes (16-65507)                                                                                             |32|
+| BANDWIDTH         | Amount of traffic to exchange between two nodes in one direction in Kbps (end with a 'k') or Mbps (end with a 'm')                      |100k|
+
+Of the last three parameters, only two should be defined, as the third one will be automatically calculated.
 
 #### [[SERVER_CLIENT]] <-- Notice the double bracket (you can create multiple instance of this)
 

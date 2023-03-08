@@ -26,6 +26,7 @@ class st_obj_mesh:
             self.dscp = kwargs['DSCP']
             self.packet_size = kwargs['PACKET_SIZE']
             self.mesh_group = kwargs['MESH_GROUP']
+            self.packet_pacing = kwargs['PACKET_PACING']
             self.bidir = kwargs['BIDIR']
             self.hash = hashlib.sha1(f"{self.syntraf_instance_type}{self.uid_client}{self.uid_server}{self.port}{self.destination_address}{self.dscp}{self.packet_size}{self.mesh_group}{self.bandwidth}".encode('utf-8')).hexdigest()
 
@@ -33,7 +34,7 @@ class st_obj_mesh:
         if self.syntraf_instance_type == "LISTENER":
             return str({self.hash + "_MEMBER_OF_GROUP_" + self.mesh_group + "_SERVING_" + self.uid_client: {'UID_CLIENT': self.uid_client, 'UID_SERVER': self.uid_server, 'PORT': self.port, 'INTERVAL': self.interval, 'BIND_ADDRESS': self.bind_address, 'DSCP': self.dscp, 'PACKET_SIZE': self.packet_size, 'MESH_GROUP': self.mesh_group}})
         elif self.syntraf_instance_type == "CONNECTOR":
-            return str({self.hash + "_MEMBER_OF_GROUP_" + self.mesh_group + "_CONNECTING_TO_" + self.uid_server: {'DESTINATION_ADDRESS': self.destination_address, 'PORT': self.port, 'BANDWIDTH': self.bandwidth, 'DSCP': self.dscp, 'PACKET_SIZE': self.packet_size, 'MESH_GROUP': self.mesh_group}})
+            return str({self.hash + "_MEMBER_OF_GROUP_" + self.mesh_group + "_CONNECTING_TO_" + self.uid_server: {'DESTINATION_ADDRESS': self.destination_address, 'PORT': self.port, 'BANDWIDTH': self.bandwidth, 'DSCP': self.dscp, 'PACKET_SIZE': self.packet_size, 'PACKET_PACING': self.packet_pacing, 'MESH_GROUP': self.mesh_group}})
 
     def asdict(self):
         if self.syntraf_instance_type == "LISTENER":
