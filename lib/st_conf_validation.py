@@ -1139,11 +1139,27 @@ def validate_uid(uid):
     regex_allowed_char = re.compile(r'^[A-Za-z0-9_-]{4,50}$')
     return bool(regex_allowed_char.search(uid))
 
+
+def explode_profile(group, _config):
+    for iperf3_profile in _config['IPERF3_PROFILE']:
+        if 'UID' in iperf3_profile:
+            if group['IPERF3_PROFILE'] == iperf3_profile['UID']:
+                if 'BANDWIDTH' in iperf3_profile: group['BANDWIDTH'] = iperf3_profile['BANDWIDTH']
+                if 'DSCP' in iperf3_profile: group['DSCP'] = iperf3_profile['DSCP']
+                if 'PACKET_SIZE' in iperf3_profile: group['PACKET_SIZE'] = iperf3_profile['PACKET_SIZE']
+                if 'PACKET_PER_SECOND' in iperf3_profile: group['PACKET_PER_SECOND'] = iperf3_profile['PACKET_PER_SECOND']
+                if 'INTERVAL' in iperf3_profile: group['INTERVAL'] = iperf3_profile['INTERVAL']
+    print(group)
+
+
 #################################################################################
 ### Validation of MESH_GROUP
 #################################################################################
 def validate_group(_config, group_type):
     for group in _config[group_type]:
+
+        if 'IPERF3_PROFILE' in group:
+            explode_profile(group, _config)
 
         # Validation of the UID, mandatory config and must be A-Za-z0-9_-
         if 'UID' in group:
