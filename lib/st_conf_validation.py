@@ -1149,7 +1149,6 @@ def explode_profile(group, _config):
                 if 'PACKET_SIZE' in iperf3_profile: group['PACKET_SIZE'] = iperf3_profile['PACKET_SIZE']
                 if 'PACKET_PER_SECOND' in iperf3_profile: group['PACKET_PER_SECOND'] = iperf3_profile['PACKET_PER_SECOND']
                 if 'INTERVAL' in iperf3_profile: group['INTERVAL'] = iperf3_profile['INTERVAL']
-    print(group)
 
 
 #################################################################################
