@@ -364,6 +364,25 @@ def validate_bandwidth(bandwidth):
 
 
 #################################################################################
+### VALIDATE THE PACKET PER SECOND
+#################################################################################
+def is_packet_per_second_valid(packet_per_second):
+    try:
+        # is it an integer?
+        try:
+            val = int(packet_per_second)
+
+            # is it positive?
+            if val >= 1:
+                return True
+        except ValueError:
+            return False
+
+    except Exception as exc:
+        log.error(f"validate_packet_per_second:{type(exc).__name__}:{exc}", exc_info=True)
+        return False
+
+#################################################################################
 ### VALIDATE THE LISTENERS IN THE CONFIG FILE [DEPRECATED, REPLACED BY AUTOMATIC CONFIG GENERATION]
 #################################################################################
 def config_validation_listeners(_config, listener_dict_key, reload=False):
@@ -1133,13 +1152,6 @@ def validate_group(_config, group_type):
                     f"IS UID VALUE '{group['UID']}' VALID : NO    (ONLY A-Za-z0-9_- ALLOWED)")
                 return False
 
-        # Validation of the BANDWIDTH
-        if 'BANDWIDTH' in group:
-            if not validate_bandwidth(group['BANDWIDTH']) >= 0:
-                log.error(
-                    f"IS BANDWIDTH VALUE '{group['BANDWIDTH']}' VALID FOR SERVER GROUP '{group['UID']}' : NO")
-                return False
-
         # Validation of the TOS
         if 'DSCP' in group:
             if not validate_dscp(group['DSCP']):
@@ -1151,16 +1163,62 @@ def validate_group(_config, group_type):
             log.warning(
                 f"DSCP PARAMETER NOT FOUND FOR SERVER GROUP '{group['UID']}': APPLYING DEFAULT OF {DefaultValues.DEFAULT_DSCP}")
 
+
+        # We need two of the next three parameter for the mesh_group to be valid
+        packet_size_flag = False
+        bandwidth_flag = False
+        packet_per_second_flag = False
+
         # Validation of the PACKET_SIZE
         if "PACKET_SIZE" in group:
+            packet_size_flag = True
             if not validate_packet_size(group['PACKET_SIZE']):
                 group['PACKET_SIZE'] = DefaultValues.DEFAULT_PACKET_SIZE
-                log.warning(
-                    f"PACKET_SIZE PARAMETER INVALID FOR SERVER GROUP '{group['UID']}': APPLYING DEFAULT OF '{DefaultValues.DEFAULT_PACKET_SIZE}'")
-        else:
-            group['PACKET_SIZE'] = DefaultValues.DEFAULT_PACKET_SIZE
-            log.warning(
-                f"PACKET_SIZE PARAMETER NOT FOUND FOR SERVER GROUP '{group['UID']}': APPLYING DEFAULT OF '{DefaultValues.DEFAULT_PACKET_SIZE}'")
+                log.warning(f"PACKET_SIZE PARAMETER INVALID FOR SERVER GROUP '{group['UID']}': APPLYING DEFAULT OF '{DefaultValues.DEFAULT_PACKET_SIZE}'")
+
+        # Validation of the BANDWIDTH
+        if 'BANDWIDTH' in group:
+            bandwidth_flag = True
+            if not validate_bandwidth(group['BANDWIDTH']) >= 0:
+                group['BANDWIDTH'] = DefaultValues.DEFAULT_BANDWIDTH
+                log.warning(f"BANDWIDTH PARAMETER INVALID FOR SERVER GROUP '{group['UID']}': APPLYING DEFAULT OF '{DefaultValues.DEFAULT_BANDWIDTH}'")
+
+        # Validation of the packet per second
+        if 'PACKET_PER_SECOND' in group:
+            if is_packet_per_second_valid(group['PACKET_PER_SECOND']):
+                packet_per_second_flag = True
+
+        # Calculate BANDWIDTH FROM PACKET_PER_SECOND AND PACKET_SIZE
+        if packet_per_second_flag and packet_size_flag:
+            group['BANDWIDTH'] = int(group['PACKET_SIZE']) * int(group['PACKET_PER_SECOND'])
+            log.debug(f"CALCULATED BANDWITH ({group['BANDWIDTH']}), FROM PACKET_SIZE ({group['PACKET_SIZE']}) AND PACKET_PER_SECOND ({group['PACKET_PER_SECOND']})")
+
+        # Calculate PACKET_PER_SECOND FROM BANDWIDTH AND PACKET_SIZE
+        elif packet_size_flag and bandwidth_flag:
+            bandwidth_bytes_per_seconds = get_bandwidth_bytes(group['BANDWIDTH'])
+            group['PACKET_PER_SECOND'] = int(bandwidth_bytes_per_seconds / int(group['PACKET_SIZE']))
+            log.debug(f"CALCULATED PACKET_PER_SECOND ({group['PACKET_PER_SECOND']}), FROM BANDWIDTH ({group['BANDWIDTH']}) AND PACKET_SIZE ({group['PACKET_SIZE']})")
+
+        # Calculate PACKET_SIZE FROM BANDWIDTH AND PACKET_PER_SECOND
+        elif bandwidth_flag and packet_per_second_flag:
+            bandwidth_bytes_per_seconds = get_bandwidth_bytes(group['BANDWIDTH'])
+            group['PACKET_SIZE'] = int(bandwidth_bytes_per_seconds / int(group['PACKET_PER_SECOND']))
+            log.debug(f"CALCULATED PACKET_SIZE ({group['PACKET_SIZE']}), FROM PACKET_PER_SECOND ({group['PACKET_PER_SECOND']}) AND BANDWIDTH ({group['BANDWIDTH']})")
+
+        elif packet_per_second_flag and bandwidth_flag and packet_size_flag:
+            # Too many parameters
+            log.error(f"TOO MANY PARAMETERS IN MESH GROUP '{group['UID']}', YOU SHOULD SPECIFY ONLY TWO OF THE FOLLOWING PARAMETERS, THIRD ONE IS CALCULATED AUTOMATICALLY : PACKET_SIZE: {group['PACKET_SIZE']}, BANDWIDTH: {group['BANDWIDTH']}, PACKET_PER_SECOND: {group['PACKET_PER_SECOND']}")
+            return False
+
+        if [packet_per_second_flag, bandwidth_flag, packet_size_flag].count(True) <= 1:
+            log.error(f"NOT ENOUGH PARAMETER IN MESH_GROUP '{group['UID']}', YOU NEED TO DEFINE 2 OUT OF THREE PARAMETERS. CURRENT DEFINED PARAMETERS STATE IS = PACKET_PER_SECOND: {packet_per_second_flag}, BANDWIDTH: {bandwidth_flag}, PACKET_SIZE: {packet_size_flag}")
+            return False
+
+        # CALCULATING PACING
+        # DISTANCE BETWEEN PACKET IN A SECOND
+        usec_in_a_sec = 1000000
+        group['PACKET_PACING'] = int(usec_in_a_sec / int(group['PACKET_PER_SECOND']))
+        log.debug(f"PACKET_PACING FOR MESH_GROUP '{group['UID']}' CALCULATED AND DEFINED AS '{group['PACKET_PACING']}'")
 
         # VALIDATING INTERVAL
         if "INTERVAL" in group:
@@ -1174,6 +1232,35 @@ def validate_group(_config, group_type):
                 f"BANDWIDTH PARAMETER NOT FOUND FOR SERVER GROUP '{group['UID']}': APPLYING DEFAULT OF '{DefaultValues.DEFAULT_INTERVAL}'")
 
     return True
+
+
+def get_bandwidth_bytes(bandwidth):
+    data = "0"
+    multiplier = 1
+
+    try:
+        # If end with K, extract what precede, multiplier is 1000
+        if bandwidth[-1].lower() == "k":
+            multiplier = 1000
+            data = bandwidth[0:-1]
+
+        # If end with M, extract what precede, then multiply it by 1000**2 to get bits
+        elif bandwidth[-1].lower() == "m":
+            multiplier = 1000000
+            data = bandwidth[0:-1]
+
+        else:
+            data = bandwidth
+
+        try:
+            float(data)
+            return float(data) * multiplier / 8
+        except ValueError:
+            return -1
+
+    except Exception as exc:
+        log.error(f"get_bandwidth_bytes:{type(exc).__name__}:{exc}", exc_info=True)
+        return -1
 
 
 #################################################################################
@@ -1311,6 +1398,7 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
                                                                                             DSCP=mesh_group['DSCP'],
                                                                                             MESH_GROUP=mesh_group['UID'],
                                                                                             PACKET_SIZE=mesh_group['PACKET_SIZE'],
+                                                                                            PACKET_PACING=mesh_group['PACKET_PACING'],
                                                                                             BIDIR=client_behind_nat)
 
                                         # if this client can receive a connection, open a listener
@@ -1338,6 +1426,7 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
                                                                                             DSCP=mesh_group['DSCP'],
                                                                                             MESH_GROUP=mesh_group['UID'],
                                                                                             PACKET_SIZE=mesh_group['PACKET_SIZE'],
+                                                                                            PACKET_PACING=mesh_group['PACKET_PACING'],
                                                                                             BIDIR=client2_behind_nat)
 
                                         # Creating array inside dictionary before appending the objects
