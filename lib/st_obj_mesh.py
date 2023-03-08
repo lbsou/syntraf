@@ -40,7 +40,7 @@ class st_obj_mesh:
         if self.syntraf_instance_type == "LISTENER":
             return {'UID_CLIENT': self.uid_client, 'UID_SERVER': self.uid_server, 'PORT': self.port, 'INTERVAL': self.interval, 'BIND_ADDRESS': self.bind_address, 'DSCP': self.dscp, 'PACKET_SIZE': self.packet_size, 'MESH_GROUP': self.mesh_group}
         elif self.syntraf_instance_type == "CONNECTOR":
-            return {'UID_CLIENT': self.uid_client, 'UID_SERVER': self.uid_server, 'DESTINATION_ADDRESS': self.destination_address, 'PORT': self.port, 'BANDWIDTH': self.bandwidth, 'DSCP': self.dscp, 'PACKET_SIZE': self.packet_size, 'MESH_GROUP': self.mesh_group, 'BIDIR': self.bidir, 'INTERVAL': self.interval}
+            return {'UID_CLIENT': self.uid_client, 'UID_SERVER': self.uid_server, 'DESTINATION_ADDRESS': self.destination_address, 'PORT': self.port, 'BANDWIDTH': self.bandwidth, 'DSCP': self.dscp, 'PACKET_SIZE': self.packet_size, 'PACKET_PACING': self.packet_pacing, 'MESH_GROUP': self.mesh_group, 'BIDIR': self.bidir, 'INTERVAL': self.interval}
 
     def theindexname(self):
         if self.syntraf_instance_type == "LISTENER":
