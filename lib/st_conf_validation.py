@@ -1140,6 +1140,9 @@ def validate_uid(uid):
     return bool(regex_allowed_char.search(uid))
 
 
+#################################################################################
+### Apply a IPERF3_PROFILE to a MESH_GROUP
+#################################################################################
 def explode_profile(group, _config):
     for iperf3_profile in _config['IPERF3_PROFILE']:
         if 'UID' in iperf3_profile:
@@ -1159,7 +1162,7 @@ def explode_profile(group, _config):
 def validate_group(_config, group_type):
     for group in _config[group_type]:
 
-        # Apply profile if there is one
+        # Apply iperf3_profile if there is one specified
         if 'IPERF3_PROFILE' in group:
             explode_profile(group, _config)
 
