@@ -1149,6 +1149,8 @@ def explode_profile(group, _config):
                 if 'PACKET_SIZE' in iperf3_profile: group['PACKET_SIZE'] = iperf3_profile['PACKET_SIZE']
                 if 'PACKET_PER_SECOND' in iperf3_profile: group['PACKET_PER_SECOND'] = iperf3_profile['PACKET_PER_SECOND']
                 if 'INTERVAL' in iperf3_profile: group['INTERVAL'] = iperf3_profile['INTERVAL']
+            else:
+                log.warning(f"IPERF3_PROFILE '{group['IPERF3_PROFILE']}' NOT FOUND, UNABLE TO APPLY PROFILE TO GROUP '{group['UID']}'")
 
 
 #################################################################################
@@ -1157,6 +1159,7 @@ def explode_profile(group, _config):
 def validate_group(_config, group_type):
     for group in _config[group_type]:
 
+        # Apply profile if there is one
         if 'IPERF3_PROFILE' in group:
             explode_profile(group, _config)
 

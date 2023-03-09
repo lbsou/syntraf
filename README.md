@@ -108,9 +108,23 @@ This clause is a server config that represent a profile for testing in which mul
 | VAR               | DESCRIPTION                                                                                                                             |DEFAULT|
 |:------------------|:----------------------------------------------------------------------------------------------------------------------------------------| :----------: |
 | UID               | Unique identification (A-Za-z0-9_-)                                                                                                     |NONE|
+| IPERF3_PROFILE    | A profile can be specified, in which case, it will overwrite the values of DSCP, INTERVAL, PACKET_PER_SECOND, PACKET_SIZE AND BANDWIDTH | NONE|
 | DSCP              | Integer value between 0 and 63.<br/>QoS RFC2474                                                                                         |0|
 | INTERVAL          | The interval, in seconds, at which iperf3 will report the metrics. This will be the granularity of the data in the graphics in the end. |10|
-| PACKET_PER_SECOND | The amount of packet that will be sent every second.                                                                                   |NONE|
+| PACKET_PER_SECOND | The amount of packet that will be sent every second.                                                                                    |NONE|
+| PACKET_SIZE       | Size of the UDP packets in bytes (16-65507)                                                                                             |32|
+| BANDWIDTH         | Amount of traffic to exchange between two nodes in one direction in Kbps (end with a 'k') or Mbps (end with a 'm')                      |100k|
+
+Of the last three parameters, only two should be defined, as the third one will be automatically calculated.
+
+#### [[IPERF3_PROFILE]] <-- Notice the double bracket (you can create multiple instance of this)
+
+| VAR               | DESCRIPTION                                                                                                                             |DEFAULT|
+|:------------------|:----------------------------------------------------------------------------------------------------------------------------------------| :----------: |
+| UID               | Unique identification (A-Za-z0-9_-)                                                                                                     |NONE|
+| DSCP              | Integer value between 0 and 63.<br/>QoS RFC2474                                                                                         |0|
+| INTERVAL          | The interval, in seconds, at which iperf3 will report the metrics. This will be the granularity of the data in the graphics in the end. |10|
+| PACKET_PER_SECOND | The amount of packet that will be sent every second.                                                                                    |NONE|
 | PACKET_SIZE       | Size of the UDP packets in bytes (16-65507)                                                                                             |32|
 | BANDWIDTH         | Amount of traffic to exchange between two nodes in one direction in Kbps (end with a 'k') or Mbps (end with a 'm')                      |100k|
 
