@@ -558,9 +558,6 @@ def config_validation_database(_config):
 def config_validation_global(_config):
     try:
 
-
-
-
         # validating WATCHDOG_CHECK_RATE
         if "WATCHDOG_CHECK_RATE" in _config['GLOBAL']:
             log.debug(f"IS WATCHDOG_CHECK_RATE DECLARED IN CONFIG FILE : YES")
@@ -1246,7 +1243,7 @@ def validate_group(_config, group_type):
         # CALCULATING PACING
         # DISTANCE BETWEEN PACKET IN A SECOND
         usec_in_a_sec = 1000000
-        group['PACKET_PACING'] = int(usec_in_a_sec / int(group['PACKET_PER_SECOND']))
+        group['PACKET_PACING'] = int(usec_in_a_sec / int(group['PACKET_PER_SECOND'])) * 1000
         log.debug(f"PACKET_PACING FOR MESH_GROUP '{group['UID']}' CALCULATED AND DEFINED AS '{group['PACKET_PACING']}'")
 
         # VALIDATING INTERVAL
