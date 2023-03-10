@@ -557,21 +557,29 @@ def config_validation_database(_config):
 #################################################################################
 def config_validation_global(_config):
     try:
+
+
+
+
         # validating WATCHDOG_CHECK_RATE
         if "WATCHDOG_CHECK_RATE" in _config['GLOBAL']:
             log.debug(f"IS WATCHDOG_CHECK_RATE DECLARED IN CONFIG FILE : YES")
-            if _config['GLOBAL']['WATCHDOG_CHECK_RATE'].isdigit():
-                if 1 <= int(_config['GLOBAL']['WATCHDOG_CHECK_RATE']) <= 86400:
-                    log.debug(
-                        f"IS A WATCHDOG_CHECK_RATE OF '{_config['GLOBAL']['WATCHDOG_CHECK_RATE'].upper()} seconds' VALID : YES")
-                else:
-                    log.error(
-                        f"IS A WATCHDOG_CHECK_RATE OF '{_config['GLOBAL']['WATCHDOG_CHECK_RATE'].upper()} seconds' VALID : NO")
-                    return False
+
+            try:
+                x = float(_config['GLOBAL']['WATCHDOG_CHECK_RATE'])
+            except ValueError:
+                log.error(f"IS A WATCHDOG_CHECK_RATE OF '{_config['GLOBAL']['WATCHDOG_CHECK_RATE'].upper()} seconds' VALID : NO")
+                return False
+
+            if 0.1 <= float(_config['GLOBAL']['WATCHDOG_CHECK_RATE']) <= 86400:
+                log.debug(
+                    f"IS A WATCHDOG_CHECK_RATE OF '{_config['GLOBAL']['WATCHDOG_CHECK_RATE'].upper()} seconds' VALID : YES")
             else:
                 log.error(
                     f"IS A WATCHDOG_CHECK_RATE OF '{_config['GLOBAL']['WATCHDOG_CHECK_RATE'].upper()} seconds' VALID : NO")
                 return False
+
+
         else:
             log.debug(
                 f"IS WATCHDOG_CHECK_RATE DECLARED IN CONFIG FILE : NO, USING DEFAULT (10sec)")

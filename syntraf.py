@@ -199,7 +199,7 @@ def run():
                                                                                 cli_parameters.config_file, conn_db,
                                                                                 subprocess_iperf_dict)
         proc_dump(threads_n_processes, dict_of_clients, config)
-        time.sleep(int(config['GLOBAL']['WATCHDOG_CHECK_RATE']))
+        time.sleep(float(config['GLOBAL']['WATCHDOG_CHECK_RATE']))
 
 
 def proc_dump(threads_n_processes, dict_of_clients, config):

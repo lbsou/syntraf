@@ -617,17 +617,17 @@ def authenticate_server_client(_config, data, obj_client, sckt):
     elif valid_token and not valid_server_client:
         # Temporary, testing dynamic IP
         server_log.error(
-            f"AUTHENTICATION FAILED FROM IP '{ip_addr}' WITH CLIENT UID '{obj_client.client_uid}. CLIENT UID INVALID.")
+            f"AUTHENTICATION FAILED FROM IP '{ip_addr}' WITH CLIENT UID '{obj_client.client_uid}' CLIENT UID INVALID.")
         rejection_explanation = "UNKNOWN CLIENT"
 
     elif not valid_token and valid_server_client:
         server_log.error(
-            f"AUTHENTICATION FAILED FROM IP '{ip_addr}' WITH CLIENT UID '{obj_client.client_uid}. TOKEN INVALID.")
+            f"AUTHENTICATION FAILED FROM IP '{ip_addr}' WITH CLIENT UID '{obj_client.client_uid}' TOKEN INVALID.")
         rejection_explanation = "INVALID TOKEN"
 
     elif not valid_token and not valid_server_client:
         server_log.error(
-            f"AUTHENTICATION FAILED FROM IP '{ip_addr}' WITH CLIENT UID '{obj_client.client_uid}. CLIENT UID AND TOKEN INVALID.")
+            f"AUTHENTICATION FAILED FROM IP '{ip_addr}' WITH CLIENT UID '{obj_client.client_uid}' CLIENT UID AND TOKEN INVALID.")
         rejection_explanation = "UNKNOWN CLIENT AND INVALID TOKEN"
 
     return False, rejection_explanation
