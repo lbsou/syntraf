@@ -73,6 +73,7 @@ def tail(config: {}, edge_type: string, edge_key: string, exit_boolean: [], thre
                         yield line
 
             time.sleep(int(config[f"{edge_type}S"][edge_key]['INTERVAL']) / 2)
+            log.debug(f"TAIL SLEEPING")
 
     except Exception as exc:
         log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
