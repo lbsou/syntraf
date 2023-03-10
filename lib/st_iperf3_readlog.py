@@ -47,6 +47,7 @@ def tail(config: {}, edge_type: string, edge_key: string, exit_boolean: [], thre
         log.debug(f"READLOG THREAD ACQUIRED IPERF3 STDOUT FOR {edge_type} - {iperf3_obj_process_n_thread.name} -  {edge_key}")
 
         while True:
+            log.debug("LOOPING")
             if exit_boolean[0]:
                 return
             try:
