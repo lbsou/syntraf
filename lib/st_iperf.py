@@ -232,13 +232,13 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes):
             args.append(config['GLOBAL']['IPERF3_BINARY_PATH'])
             args.append("-s")
             args.extend(["-i", config['LISTENERS'][listener_key]['INTERVAL']])
-            args.extend(["-f", "k"])
-            args.append("--forceflush")
-            args.extend(["--idle-timeout", DefaultValues.DEFAULT_IPERF3_SERVER_IDLE_TIMEOUT])
-            args.extend(["--rcv-timeout", DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT])
-            args.append("--one-off")
+            #args.extend(["-f", "k"])
+            #args.append("--forceflush")
+            #args.extend(["--idle-timeout", DefaultValues.DEFAULT_IPERF3_SERVER_IDLE_TIMEOUT])
+            #args.extend(["--rcv-timeout", DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT])
+            #args.append("--one-off")
             args.extend(["-p", str(config['LISTENERS'][listener_key]['PORT'])])
-            args.append("--timestamps='%F %T '")
+            #args.append("--timestamps='%F %T '")
 
             ''' 
             --cntl-ka[=#/#/#] use control connection TCP keepalive - KEEPIDLE/KEEPINTV/KEEPCNT
@@ -247,7 +247,7 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes):
             TCP_KEEPINTV = Interval of Retry
             TCP_KEEPCNT = Drop connection after that amount of lost keepalive
             '''
-            args.append('--cntl-ka=10/1/5')
+            #args.append('--cntl-ka=10/1/5')
 
             if config['GLOBAL']['IPERF3_AUTH']:
                 args.append("--rsa-private-key-path")
