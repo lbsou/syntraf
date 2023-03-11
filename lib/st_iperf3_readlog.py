@@ -52,7 +52,7 @@ def tail(config: {}, edge_type: string, edge_key: string, exit_boolean: [], thre
                 return
             try:
                 #line = next(iperf3_obj_process_n_thread.subproc.stdout, None)
-                pass
+                line = None
             # I/O operation on closed file
             except ValueError:
                 #log.debug("11111111111111111111111111111111111111111111111")
