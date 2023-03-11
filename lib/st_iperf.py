@@ -170,7 +170,7 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes):
         args.extend(["-p", str(config['CONNECTORS'][connector_key]['PORT'])])
         args.append("--timestamps='%F %T '")
         #args.extend([bidir_arg, "--forceflush"])
-
+#
         ''' 
         --cntl-ka[=#/#/#] use control connection TCP keepalive - KEEPIDLE/KEEPINTV/KEEPCNT
         control connection Keepalive period should be larger than retry period (interval * count) 
