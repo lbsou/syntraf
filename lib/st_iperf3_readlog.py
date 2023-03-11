@@ -52,7 +52,6 @@ def tail(config: {}, edge_type: string, edge_key: string, exit_boolean: [], thre
                 return
             try:
                 line = next(iperf3_obj_process_n_thread.subproc.stdout, None)
-                #line = None
             # I/O operation on closed file
             except ValueError:
                 #log.debug("11111111111111111111111111111111111111111111111")
@@ -74,7 +73,7 @@ def tail(config: {}, edge_type: string, edge_key: string, exit_boolean: [], thre
                         utime_last_event = time.time()
                         yield line
 
-            time.sleep(int(config[f"{edge_type}S"][edge_key]['INTERVAL']) * 2)
+            time.sleep(int(config[f"{edge_type}S"][edge_key]['INTERVAL']))
             log.debug(f"TAIL SLEEPING")
 
     except Exception as exc:
