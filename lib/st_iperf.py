@@ -186,9 +186,9 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes):
             args.append("--rsa-public-key-path")
             args.append(os.path.join(config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'public_key_iperf_client.pem'))
 
-        #if config['CONNECTORS'][connector_key]['BIDIR']:
-        #    args.append("--rcv-timeout")
-        #    args.append(DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT)
+        if config['CONNECTORS'][connector_key]['BIDIR']:
+            args.append("--rcv-timeout")
+            args.append(DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT)
 
         arguments = " "
         arguments = arguments.join(args)
