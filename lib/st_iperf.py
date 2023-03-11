@@ -231,7 +231,7 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes):
             args = []
             args.append(config['GLOBAL']['IPERF3_BINARY_PATH'])
             args.append("-s")
-            args.extend(["-i", config['LISTENERS'][listener_key]['INTERVAL']])
+            #args.extend(["-i", config['LISTENERS'][listener_key]['INTERVAL']])
             #args.extend(["-f", "k"])
             #args.append("--forceflush")
             #args.extend(["--idle-timeout", DefaultValues.DEFAULT_IPERF3_SERVER_IDLE_TIMEOUT])
