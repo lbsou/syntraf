@@ -61,18 +61,32 @@ class InfluxObj(object):
                         self.DB_PORT = database['DB_PORT']
                         self.prefix = prefix
 
-                        alive = self._connection.ping()
+                        cpt_failed = 0
 
-                        if alive == "pass":
-                            log.info(
-                                f"CONNECTION TO DATABASE '{database['DB_UID']}', '{prefix}://{database['DB_SERVER']}:{database['DB_PORT']}' SUCCESSFUL")
+                        health = self._connection.health()
+
+                        if health.status == "pass":
                             self.status = "ONLINE"
-
                         else:
+                            cpt_failed += 1
+                        self.status_time = datetime.now()
+
+                        try:
+                            test = self._connection.query_api().query(f'from(bucket:"{self.DB_BUCKET}") |> range(start: -10m)')
+                            self.status = "ONLINE"
+                        #ApiException
+                        except Exception as e:
+                            cpt_failed += 1
+
+                        if cpt_failed ==2:
                             log.error(
                                 f"CONNECTION TO DATABASE '{database['DB_UID']}', '{prefix}://{database['DB_SERVER']}:{database['DB_PORT']}' FAILED")
                             self.status = "OFFLINE"
-                        self.status_time = datetime.now()
+                        else:
+                            log.info(
+                                f"CONNECTION TO DATABASE '{database['DB_UID']}', '{prefix}://{database['DB_SERVER']}:{database['DB_PORT']}' SUCCESSFUL")
+
+
         except Exception as exc:
             # log.error(f"get_connection_influxdb2:{type(exc).__name__}:{exc}", exc_info=True)
             log.error(

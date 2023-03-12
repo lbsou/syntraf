@@ -235,6 +235,7 @@ def proc_dump(threads_n_processes, dict_of_clients, config):
             for key in set_key:
                 # INSERT KEY
                 if key not in lst_key_with_no_childs:
+                    lst_thread.append("\001")
                     lst_thread.append([key, "", "", "", "", "", "", "", "", "", "", "", ""])
 
                 # READY TO ADD CHILDS
@@ -252,6 +253,7 @@ def proc_dump(threads_n_processes, dict_of_clients, config):
 
             for thr in threads_n_processes:
                 if thr.name in lst_key_with_no_childs:
+                    lst_thread.append("\001")
                     since_start = datetime.now() - thr.starttime
                     minutes_since_start = divmod(since_start.total_seconds(), 60)
                     since_last = datetime.now() - thr.last_activity
@@ -262,7 +264,7 @@ def proc_dump(threads_n_processes, dict_of_clients, config):
                                        f"{minutes_since_last[0]}m {round(minutes_since_last[1])}s", thr.port,
                                        thr.bidir_src_port, thr.bidir_local_addr, thr.line_read, thr.packet_sent])
 
-            f.write(tabulate(lst_thread))
+            f.write(tabulate(lst_thread, tablefmt="simple"))
             f.write("\n")
 
         # Dump python threads
