@@ -61,9 +61,9 @@ class InfluxObj(object):
                         self.DB_PORT = database['DB_PORT']
                         self.prefix = prefix
 
-                        health = self._connection.health()
+                        alive = self._connection.ping()
 
-                        if health.status == "pass":
+                        if alive == "pass":
                             log.info(
                                 f"CONNECTION TO DATABASE '{database['DB_UID']}', '{prefix}://{database['DB_SERVER']}:{database['DB_PORT']}' SUCCESSFUL")
                             self.status = "ONLINE"
