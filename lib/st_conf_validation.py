@@ -1243,7 +1243,7 @@ def validate_group(_config, group_type):
         # CALCULATING PACING
         # DISTANCE BETWEEN PACKET IN A SECOND
         usec_in_a_sec = 1000000
-        group['PACKET_PACING'] = int(usec_in_a_sec / int(group['PACKET_PER_SECOND'])) * 1000
+        group['PACKET_PACING'] = int(usec_in_a_sec / int(group['PACKET_PER_SECOND']))
         log.debug(f"PACKET_PACING FOR MESH_GROUP '{group['UID']}' CALCULATED AND DEFINED AS '{group['PACKET_PACING']}'")
 
         # VALIDATING INTERVAL
