@@ -1314,7 +1314,12 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
 
     # iterate over all mesh_group and generate config for every client
     for mesh_group in _config['MESH_GROUP']:
-        # This list is use to fill a dictionnary (_dict_by_group_of_generated_tuple_for_map) in which the keys are the mesh_group. We need to reinitalize it at each loop so that it contain only the nodes of the current group
+
+        if "DISABLED" in mesh_group:
+            if mesh_group["DISABLED"]:
+                continue
+
+        # This list is used to fill a dictionary (_dict_by_group_of_generated_tuple_for_map) in which the keys are the mesh_group. We need to reinitialize it at each loop so that it contain only the nodes of the current group
         _list_tuple_for_map_gen = []
 
         # Loop over all client
@@ -1396,7 +1401,7 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
 
                                         # Two client behind NAT, do not create connector/listener
                                         if client_behind_nat and client2_behind_nat:
-                                            log.error(f"CLIENT {client['UID']} AND {client2['UID']} ARE BEHIND A NAT, NOT COMMUNICATION POSSIBLE BETWEEN THOSE TWO CLIENT")
+                                            log.error(f"CLIENT {client['UID']} AND {client2['UID']} ARE BEHIND A NAT, NO COMMUNICATION IS POSSIBLE BETWEEN THOSE TWO CLIENT")
                                             continue
 
                                         # if this client can receive a connection, open a listener
