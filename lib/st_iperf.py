@@ -165,7 +165,7 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes):
         args.append("--udp-counters-64bit")
         args.extend(["--connect-timeout=" + DefaultValues.DEFAULT_IPERF3_CONNECT_TIMEOUT])
         args.extend(["--dscp", config['CONNECTORS'][connector_key]['DSCP']])
-        #args.extend(["--pacing-timer", str(config['CONNECTORS'][connector_key]['PACKET_PACING'])])
+        args.extend(["--pacing-timer", str(config['CONNECTORS'][connector_key]['PACKET_PACING'])])
         args.extend(["-f", "k"])
         args.extend(["-p", str(config['CONNECTORS'][connector_key]['PORT'])])
         args.append("--timestamps='%F %T '")
