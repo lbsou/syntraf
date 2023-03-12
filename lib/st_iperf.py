@@ -228,55 +228,55 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes):
 
     iperf3_listeners_log.debug(config['LISTENERS'][listener_key]['BIND_ADDRESS'])
 
-    if is_port_available(config['LISTENERS'][listener_key]['BIND_ADDRESS'], str(config['LISTENERS'][listener_key]['PORT'])):
-        try:
-            args = []
-            args.append(config['GLOBAL']['IPERF3_BINARY_PATH'])
-            args.append("-s")
-            args.extend(["-i", config['LISTENERS'][listener_key]['INTERVAL']])
-            args.extend(["-f", "k"])
-            args.append("--forceflush")
-            #args.extend(["--idle-timeout", DefaultValues.DEFAULT_IPERF3_SERVER_IDLE_TIMEOUT])
-            #args.extend(["--rcv-timeout", DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT])
-            args.append("--one-off")
-            args.extend(["-p", str(config['LISTENERS'][listener_key]['PORT'])])
+    #if is_port_available(config['LISTENERS'][listener_key]['BIND_ADDRESS'], str(config['LISTENERS'][listener_key]['PORT'])):
+    try:
+        args = []
+        args.append(config['GLOBAL']['IPERF3_BINARY_PATH'])
+        args.append("-s")
+        args.extend(["-i", config['LISTENERS'][listener_key]['INTERVAL']])
+        args.extend(["-f", "k"])
+        args.append("--forceflush")
+        #args.extend(["--idle-timeout", DefaultValues.DEFAULT_IPERF3_SERVER_IDLE_TIMEOUT])
+        #args.extend(["--rcv-timeout", DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT])
+        args.append("--one-off")
+        args.extend(["-p", str(config['LISTENERS'][listener_key]['PORT'])])
+        args.append("--timestamps='%F %T '")
+
+        ''' 
+        --cntl-ka[=#/#/#] use control connection TCP keepalive - KEEPIDLE/KEEPINTV/KEEPCNT
+        control connection Keepalive period should be larger than retry period (interval * count) 
+        TCP_KEEPIDLE = Interval of Keepalive
+        TCP_KEEPINTV = Interval of Retry
+        TCP_KEEPCNT = Drop connection after that amount of lost keepalive
+        '''
+        args.append('--cntl-ka=10/1/5')
+
+        if config['GLOBAL']['IPERF3_AUTH']:
+            args.append("--rsa-private-key-path")
+            args.append(os.path.join(config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'private_key_iperf_client.pem'))
+            args.append("--authorized-users-path")
+            args.append(os.path.join(config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'credentials.csv'))
+            args.append("--time-skew-threshold")
+            args.append(config['GLOBAL']['IPERF3_TIME_SKEW_THRESHOLD'])
             args.append("--timestamps='%F %T '")
 
-            ''' 
-            --cntl-ka[=#/#/#] use control connection TCP keepalive - KEEPIDLE/KEEPINTV/KEEPCNT
-            control connection Keepalive period should be larger than retry period (interval * count) 
-            TCP_KEEPIDLE = Interval of Keepalive
-            TCP_KEEPINTV = Interval of Retry
-            TCP_KEEPCNT = Drop connection after that amount of lost keepalive
-            '''
-            args.append('--cntl-ka=10/1/5')
+        arguments = " "
+        arguments = arguments.join(args)
+        # iperf3_listeners_log.error(arguments)
 
-            if config['GLOBAL']['IPERF3_AUTH']:
-                args.append("--rsa-private-key-path")
-                args.append(os.path.join(config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'private_key_iperf_client.pem'))
-                args.append("--authorized-users-path")
-                args.append(os.path.join(config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'credentials.csv'))
-                args.append("--time-skew-threshold")
-                args.append(config['GLOBAL']['IPERF3_TIME_SKEW_THRESHOLD'])
-                args.append("--timestamps='%F %T '")
+        p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, stdin=None, text=True, bufsize=1)
+        iperf3_obj_proc_n_thread.subproc = p
 
-            arguments = " "
-            arguments = arguments.join(args)
-            # iperf3_listeners_log.error(arguments)
+        if p.poll() is None:
+            iperf3_listeners_log.warning(f"IPERF3 SERVER FOR LISTENER '{listener_key}' STARTED ON PORT {config['LISTENERS'][listener_key]['PORT']}")
+            return p
+        else:
+            last_breath = p.communicate()[1]
+            iperf3_listeners_log.error(f"UNABLE TO START IPERF3 SERVER FOR LISTENER '{listener_key}' : IPERF3 LAST BREATH : {last_breath}")
 
-            p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, stdin=None, text=True, bufsize=1)
-            iperf3_obj_proc_n_thread.subproc = p
-
-            if p.poll() is None:
-                iperf3_listeners_log.warning(f"IPERF3 SERVER FOR LISTENER '{listener_key}' STARTED ON PORT {config['LISTENERS'][listener_key]['PORT']}")
-                return p
-            else:
-                last_breath = p.communicate()[1]
-                iperf3_listeners_log.error(f"UNABLE TO START IPERF3 SERVER FOR LISTENER '{listener_key}' : IPERF3 LAST BREATH : {last_breath}")
-
-        except Exception as exc:
-            iperf3_listeners_log.error(f"iperf_server:{type(exc).__name__}:{exc}", exc_info=True)
-    else:
-        iperf3_listeners_log.error(f"iperf_server: port unavailable")
-        sys.exit()
+    except Exception as exc:
+        iperf3_listeners_log.error(f"iperf_server:{type(exc).__name__}:{exc}", exc_info=True)
+    # else:
+    #     iperf3_listeners_log.error(f"iperf_server: port unavailable")
+    #     sys.exit()
 
