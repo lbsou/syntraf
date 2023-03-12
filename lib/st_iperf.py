@@ -226,6 +226,8 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes):
 def iperf3_server(config, listener_key, listener_value, threads_n_processes):
     iperf3_obj_proc_n_thread = get_obj_process_n_thread(threads_n_processes, "LISTENER", listener_key)
 
+    iperf3_listeners_log.debug(config['LISTENERS'][listener_key]['BIND_ADDRESS'])
+
     if is_port_available(config['LISTENERS'][listener_key]['BIND_ADDRESS'], str(config['LISTENERS'][listener_key]['PORT'])):
         try:
             args = []
