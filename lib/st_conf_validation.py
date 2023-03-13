@@ -464,10 +464,22 @@ def config_validation_database(_config):
             if 'DB_SERVER_USE_SSL' in database:
                 log.debug(
                     f"IS DB_SERVER_USE_SSL DECLARED FOR DATABASE '{database['DB_UID']}' : YES")
+                if not isinstance(database['DB_SERVER_USE_SSL'], bool):
+                    log.warning(f"DB_SERVER_USE_SSL DECLARED FOR DATABASE '{database['DB_UID']}' BUT INVALID: APPLYING DEFAULT: {DefaultValues.DEFAULT_INFLUXDB_USE_SSL}")
+                    database['DB_SERVER_USE_SSL'] = DefaultValues.DEFAULT_INFLUXDB_USE_SSL
             else:
                 log.warning(
                     f"IS DB_SERVER_USE_SSL DECLARED FOR DATABASE '{database['DB_UID']}' : NO, APPLYING DEFAULT: {DefaultValues.DEFAULT_INFLUXDB_USE_SSL}")
                 database['DB_SERVER_USE_SSL'] = DefaultValues.DEFAULT_INFLUXDB_USE_SSL
+
+            if 'DB_MODE' in database:
+                log.debug(f"IS DB_MODE DECLARED FOR DATABASE '{database['DB_UID']}' : YES")
+                if not database['DB_MODE'] in ["OSS", "CLOUD"]:
+                    log.warning(f"DB_MODE DECLARED FOR DATABASE '{database['DB_UID']}' BUT INVALID : APPLYING DEFAULT: {DefaultValues.DEFAULT_INFLUXDB_DB_MODE}")
+                    database['DB_MODE'] = DefaultValues.DEFAULT_INFLUXDB_DB_MODE
+            else:
+                log.warning(f"IS DB_MODE DECLARED FOR DATABASE '{database['DB_UID']}' : NO, APPLYING DEFAULT: {DefaultValues.DEFAULT_INFLUXDB_DB_MODE}")
+                database['DB_MODE'] = DefaultValues.DEFAULT_INFLUXDB_DB_MODE
 
             if database['DB_ENGINE'].upper() == "INFLUXDB2":
                 log.debug(
