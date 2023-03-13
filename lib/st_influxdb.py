@@ -74,6 +74,7 @@ class InfluxObj(object):
                         elif self.DB_MODE == "CLOUD":
                             try:
                                 conn_healthy = self.query_api.query(f'from(bucket:"{self.DB_BUCKET}") |> range(start: -10m)')
+                                log.info(f"CONNECTION TO DATABASE '{database['DB_UID']}', '{prefix}://{database['DB_SERVER']}:{database['DB_PORT']}' SUCCESSFUL")
                                 self.status = "ONLINE"
                             except rest.ApiException as e:
                                 self.status = "OFFLINE"
@@ -82,6 +83,9 @@ class InfluxObj(object):
                                 self.status = "OFFLINE"
                                 log.error(f"ERROR WHILE TESTING THE HEALTH OF INFLUXDB CONNECTION '{database_uid}': {type(e).__name__}:{e}")
                         self.status_time = datetime.now()
+
+                        if self.status == "ONLINE":
+                            log.debug(f"INFLUXDB DATABASE '{database['DB_UID']}', '{prefix}://{database['DB_SERVER']}:{database['DB_PORT']}' VERSION IS : {self._connection.version()}, BUILD TYPE IS '{self._connection.build()}'")
 
         except Exception as e:
             # log.error(f"get_connection_influxdb2:{type(exc).__name__}:{exc}", exc_info=True)
