@@ -3,7 +3,7 @@ from lib.st_global import CompilationOptions, DefaultValues
 
 # SYNTRAF SERVER IMPORT
 if not CompilationOptions.client_only:
-    from influxdb_client import InfluxDBClient, Point, WritePrecision, WriteOptions
+    from influxdb_client import InfluxDBClient, Point, WritePrecision, WriteOptions, rest
     from influxdb_client.client.write_api import SYNCHRONOUS
 
 # BUILTIN IMPORT
@@ -54,49 +54,43 @@ class InfluxObj(object):
                                 org=database['DB_ORG'],
                                 connection_pool_maxsize=int(database['DB_CONNECTION_POOL_MAXSIZE']))
 
+                        self.write_api = self._connection.write_api(write_options=SYNCHRONOUS)
+                        self.query_api = self._connection.query_api()
                         self.DB_ORG = database['DB_ORG']
                         self.DB_BUCKET = database['DB_BUCKET']
                         self.DB_UID = database_uid
                         self.DB_SERVER = database['DB_SERVER']
                         self.DB_PORT = database['DB_PORT']
                         self.prefix = prefix
+                        self.DB_MODE = database['DB_MODE']
 
-                        cpt_failed = 0
-
-                        health = self._connection.health()
-
-                        if health.status == "pass":
-                            self.status = "ONLINE"
-                        else:
-                            cpt_failed += 1
+                        if self.DB_MODE == "OSS":
+                            conn_healthy = self._connection.ping()
+                            if conn_healthy:
+                                log.info(f"CONNECTION TO DATABASE '{database['DB_UID']}', '{prefix}://{database['DB_SERVER']}:{database['DB_PORT']}' SUCCESSFUL")
+                                self.status = "ONLINE"
+                            else:
+                                self.status = "OFFLINE"
+                        elif self.DB_MODE == "CLOUD":
+                            try:
+                                conn_healthy = self.query_api.query(f'from(bucket:"{self.DB_BUCKET}") |> range(start: -10m)')
+                                self.status = "ONLINE"
+                            except rest.ApiException as e:
+                                self.status = "OFFLINE"
+                                log.error(f"ERROR WHILE TESTING THE HEALTH OF INFLUXDB CONNECTION '{database_uid}': {e.message}")
+                            except Exception as e:
+                                self.status = "OFFLINE"
+                                log.error(f"ERROR WHILE TESTING THE HEALTH OF INFLUXDB CONNECTION '{database_uid}': {type(e).__name__}:{e}")
                         self.status_time = datetime.now()
 
-                        try:
-                            test = self._connection.query_api().query(f'from(bucket:"{self.DB_BUCKET}") |> range(start: -10m)')
-                            self.status = "ONLINE"
-                        #ApiException
-                        except Exception as e:
-                            cpt_failed += 1
-
-                        if cpt_failed ==2:
-                            log.error(
-                                f"CONNECTION TO DATABASE '{database['DB_UID']}', '{prefix}://{database['DB_SERVER']}:{database['DB_PORT']}' FAILED")
-                            self.status = "OFFLINE"
-                        else:
-                            log.info(
-                                f"CONNECTION TO DATABASE '{database['DB_UID']}', '{prefix}://{database['DB_SERVER']}:{database['DB_PORT']}' SUCCESSFUL")
-
-
-        except Exception as exc:
+        except Exception as e:
             # log.error(f"get_connection_influxdb2:{type(exc).__name__}:{exc}", exc_info=True)
-            log.error(
-                f"CONNECTION TO DATABASE '{database['DB_UID']}', '{prefix}://{database['DB_SERVER']}:{database['DB_PORT']}' FAILED")
+            log.error(f"CONNECTION TO DATABASE '{database['DB_UID']}', '{prefix}://{database['DB_SERVER']}:{database['DB_PORT']}' FAILED: {type(e).__name__}:{e}")
             self._connection.__del__()
             self.status = "FAIL"
             self.status_time = datetime.now()
 
-        self.write_api = self._connection.write_api(write_options=SYNCHRONOUS)
-        self.query_api = self._connection.query_api()
+
 
     def force_status_check(self):
         health = self._connection.health()
