@@ -119,7 +119,7 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_connector_obj_pnt, connector_key, th
         except Exception as ex:
             iperf3_connectors_log.error(ex)
 
-        time.sleep(1)
+        time.sleep(15)
 
     iperf3_connectors_log.error(f"UDP_HOLE FOR {connector_key}, IPERF3 PROCESS ID: '{iperf3_pid}' TERMINATED. EXIT MESSAGE: {exit_message}")
 
@@ -198,7 +198,7 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes):
 
         if config['CONNECTORS'][connector_key]['BIDIR']:
             # Make sure we have udp_hole punching and read_log thread for each bidir connector
-            #thread_udp_hole(config, connector_key, connector_value, threads_n_processes, iperf3_obj_proc_n_thread)
+            thread_udp_hole(config, connector_key, connector_value, threads_n_processes, iperf3_obj_proc_n_thread)
             time.sleep(2)
 
         p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, stdin=None, text=True, env=env_var, bufsize=1)
