@@ -198,7 +198,7 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes):
 
         if config['CONNECTORS'][connector_key]['BIDIR']:
             # Make sure we have udp_hole punching and read_log thread for each bidir connector
-            thread_udp_hole(config, connector_key, connector_value, threads_n_processes, iperf3_obj_proc_n_thread)
+            #thread_udp_hole(config, connector_key, connector_value, threads_n_processes, iperf3_obj_proc_n_thread)
             time.sleep(2)
 
         p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, stdin=None, text=True, env=env_var, bufsize=1)

@@ -1179,6 +1179,12 @@ def explode_profile(group, _config):
 def validate_group(_config, group_type):
     for group in _config[group_type]:
 
+        # Validate the disabled parameter
+        if "DISABLED" in group:
+            if not isinstance(group['DISABLED'], bool):
+                log.warning(f"DISABLED PARAMETER INVALID (NOT A BOOLEAN) FOR MESH GROUP '{group['UID']}' : APPLYING DEFAULT OF : False")
+                group['DISABLED'] = False
+
         # Apply iperf3_profile if there is one specified
         if 'IPERF3_PROFILE' in group:
             explode_profile(group, _config)
@@ -1195,11 +1201,11 @@ def validate_group(_config, group_type):
             if not validate_dscp(group['DSCP']):
                 group['DSCP'] = DefaultValues.DEFAULT_DSCP
                 log.warning(
-                    f"DSCP PARAMETER INVALID FOR SERVER GROUP '{group['UID']}': APPLYING DEFAULT OF {DefaultValues.DEFAULT_DSCP}")
+                    f"DSCP PARAMETER INVALID FOR MESH GROUP '{group['UID']}': APPLYING DEFAULT OF {DefaultValues.DEFAULT_DSCP}")
         else:
             group['DSCP'] = DefaultValues.DEFAULT_DSCP
             log.warning(
-                f"DSCP PARAMETER NOT FOUND FOR SERVER GROUP '{group['UID']}': APPLYING DEFAULT OF {DefaultValues.DEFAULT_DSCP}")
+                f"DSCP PARAMETER NOT FOUND FOR MESH GROUP '{group['UID']}': APPLYING DEFAULT OF {DefaultValues.DEFAULT_DSCP}")
 
 
         # We need two of the next three parameter for the mesh_group to be valid
