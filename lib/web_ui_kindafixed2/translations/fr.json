@@ -297,13 +297,22 @@
     "copied": "Jeton copié dans le presse-papiers"
   },
   "queue": {
-    "title": "File d'attente - Données à envoyer au serveur",
+    "title": "Files d'attente",
+    "client_queue_title": "File d'attente client - Données à envoyer au serveur",
+    "client_queue_desc": "Données collectées par les clients en attente d'envoi au serveur mesh via le canal de contrôle.",
+    "db_queue_title": "Files d'attente d'écriture des bases de données",
+    "db_queue_desc": "Métriques en attente d'écriture vers chaque base de données configurée. Chaque base de données a sa propre file d'attente indépendante.",
     "items_in_queue": "élément(s) en file d'attente",
     "empty": "File d'attente vide - toutes les données ont été envoyées au serveur",
+    "db_empty": "Toutes les files d'attente des bases de données sont vides",
     "col_measurement": "Mesure",
     "col_time": "Heure",
     "col_tags": "Tags",
     "col_fields": "Champs",
+    "col_database": "Base de données",
+    "col_engine": "Moteur",
+    "col_status": "État",
+    "col_queue_size": "Taille de la file",
     "clear_queue": "Vider la file d'attente",
     "confirm_clear": "Êtes-vous sûr de vouloir vider la file d'attente ?"
   },
