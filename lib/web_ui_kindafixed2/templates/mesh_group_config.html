@@ -1,6 +1,12 @@
 {% extends "base.html" %}
 {% block title %}{{ _('mesh_group.title') }}{% endblock %}
 {% block content %}
+<style>
+.calculated-field {
+    background-color: rgba(13, 110, 253, 0.15) !important;
+    border-color: #0d6efd !important;
+}
+</style>
   <div class="container"><br>
     <div class="table-responsive">
       <h2>{{ _('mesh_group.title') }}</h2>
@@ -104,29 +110,84 @@
                         <div id="mg_description-feedback" class="invalid-feedback">
                         </div>
 
-                        <div style="display: inline-block;">
-                            <label for="mg_bandwidth" class="form-label mt-4">{{ _('mesh_group.bandwidth') }}</label>
-                            <input class="form-control"  id="mg_bandwidth" type="text" placeholder="200" name="mg_bandwidth" required>
-                        </div>
-                        <div id="mg_bandwidth-feedback" class="invalid-feedback">
-                        </div>
-                        <div style="display: inline-block;">
-                          <select class="form-select" id="select_bw">
-                            <option>bps</option>
-                            <option selected>Kbps</option>
-                            <option>Mbps</option>
-                          </select>
-                        </div>
-                        <br>
+                        <label for="mg_profile" class="form-label mt-4">{{ _('mesh_group.iperf3_profile') }}</label>
+                        <select class="form-select" id="mg_profile" name="mg_profile">
+                            <option value="">{{ _('mesh_group.no_profile') }}</option>
+                            {% for profile in profiles %}
+                            <option value="{{ profile.UID }}"
+                                    data-bandwidth="{{ profile.BANDWIDTH|default('') }}"
+                                    data-dscp="{{ profile.DSCP|default('') }}"
+                                    data-packet-size="{{ profile.PACKET_SIZE|default('') }}"
+                                    data-interval="{{ profile.INTERVAL|default('') }}">
+                                {{ profile.UID }}{% if profile.DESCRIPTION %} - {{ profile.DESCRIPTION }}{% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted d-block">{{ _('mesh_group.profile_help') }}</small>
 
                         <label for="mg_dscp" class="form-label mt-4">{{ _('mesh_group.dscp') }}</label>
                         <input class="form-control" id="mg_dscp" type="text" placeholder="0" name="mg_dscp" required>
                         <div class="invalid-feedback">
                         </div>
 
-                        <label for="mg_packet_size" class="form-label mt-4">{{ _('mesh_group.packet_size') }}</label>
-                        <input class="form-control" id="mg_packet_size" type="text" placeholder="32" name="mg_packet_size" required>
-                        <div class="invalid-feedback">
+                        <!-- Calculated Fields Box -->
+                        <div class="card mt-4" id="calc_fields_box">
+                            <div class="card-header py-2">
+                                <i class="fas fa-calculator me-1"></i> {{ _('mesh_group.calc_fields_title') }}
+                                <small class="text-muted ms-2">{{ _('mesh_group.calc_fields_help') }}</small>
+                            </div>
+                            <div class="card-body">
+                                <!-- Bandwidth -->
+                                <div class="row align-items-end mb-3">
+                                    <div class="col">
+                                        <label for="mg_bandwidth" class="form-label mb-1">{{ _('mesh_group.bandwidth') }}</label>
+                                        <div class="input-group">
+                                            <input class="form-control" id="mg_bandwidth" type="text" placeholder="200" name="mg_bandwidth">
+                                            <select class="form-select" id="select_bw" style="max-width: 90px;">
+                                                <option>bps</option>
+                                                <option selected>Kbps</option>
+                                                <option>Mbps</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <button type="button" class="btn btn-outline-secondary lock-btn" id="lock_bandwidth" data-field="bandwidth" title="{{ _('mesh_group.lock_to_calculate') }}">
+                                            <i class="fas fa-lock-open"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Packet Size -->
+                                <div class="row align-items-end mb-3">
+                                    <div class="col">
+                                        <label for="mg_packet_size" class="form-label mb-1">{{ _('mesh_group.packet_size') }}</label>
+                                        <input class="form-control" id="mg_packet_size" type="text" placeholder="32" name="mg_packet_size">
+                                    </div>
+                                    <div class="col-auto">
+                                        <button type="button" class="btn btn-outline-secondary lock-btn" id="lock_packet_size" data-field="packet_size" title="{{ _('mesh_group.lock_to_calculate') }}">
+                                            <i class="fas fa-lock-open"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Packets per Second -->
+                                <div class="row align-items-end mb-3">
+                                    <div class="col">
+                                        <label for="mg_packet_per_second" class="form-label mb-1">{{ _('mesh_group.packet_per_second') }}</label>
+                                        <input class="form-control" id="mg_packet_per_second" type="text" placeholder="50" name="mg_packet_per_second">
+                                    </div>
+                                    <div class="col-auto">
+                                        <button type="button" class="btn btn-warning lock-btn active" id="lock_pps" data-field="pps" title="{{ _('mesh_group.locked_calculated') }}">
+                                            <i class="fas fa-lock"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div id="values_warning" class="alert alert-warning mb-0" style="display:none; font-size:0.85em;">
+                                    <i class="fas fa-exclamation-triangle me-1"></i>
+                                    <span id="values_warning_text">{{ _('mesh_group.values_inconsistent') }}</span>
+                                </div>
+                            </div>
                         </div>
 
                         <label for="mg_interval" class="form-label mt-4">{{ _('mesh_group.metric_interval') }}</label>
@@ -170,7 +231,194 @@
     var editingUid = null; // Track which mesh group we're editing
     let form = document.querySelector('.needs-validation')
 
+    // Track which field is locked (will be calculated)
+    var lockedField = 'pps'; // Default: PPS is calculated from bandwidth and packet_size
 
+    // Convert bandwidth value to bits per second
+    function parseBandwidthToBps(bwValue, bwUnit) {
+        let bw = parseFloat(bwValue);
+        if (isNaN(bw) || bw <= 0) return null;
+        if (bwUnit === 'Kbps') bw *= 1000;
+        else if (bwUnit === 'Mbps') bw *= 1000000;
+        return bw; // Returns bps
+    }
+
+    // Format bandwidth for display
+    function formatBandwidth(bwBps, targetUnit) {
+        if (targetUnit === 'Mbps') return (bwBps / 1000000).toFixed(3);
+        if (targetUnit === 'Kbps') return (bwBps / 1000).toFixed(3);
+        return bwBps.toFixed(0); // bps
+    }
+
+    // Calculate the locked field based on the other two
+    // Formula: BANDWIDTH (bps) = PACKET_SIZE (bytes) * PPS * 8
+    function calculateLockedField() {
+        let bwValue = $('#mg_bandwidth').val().trim();
+        let bwUnit = $('#select_bw').val();
+        let packetSize = $('#mg_packet_size').val().trim();
+        let pps = $('#mg_packet_per_second').val().trim();
+
+        let bwBps = parseBandwidthToBps(bwValue, bwUnit);
+        let psBytes = parseFloat(packetSize);
+        let ppsValue = parseFloat(pps);
+
+        // Clear warning
+        $('#values_warning').hide();
+
+        // Calculate based on which field is locked
+        if (lockedField === 'pps') {
+            // Calculate PPS from bandwidth and packet_size
+            if (bwBps !== null && bwBps > 0 && !isNaN(psBytes) && psBytes > 0) {
+                let calculatedPps = bwBps / (psBytes * 8);
+                $('#mg_packet_per_second').val(calculatedPps.toFixed(2));
+            }
+        } else if (lockedField === 'packet_size') {
+            // Calculate packet_size from bandwidth and PPS
+            if (bwBps !== null && bwBps > 0 && !isNaN(ppsValue) && ppsValue > 0) {
+                let calculatedPs = bwBps / (ppsValue * 8);
+                $('#mg_packet_size').val(calculatedPs.toFixed(0));
+            }
+        } else if (lockedField === 'bandwidth') {
+            // Calculate bandwidth from packet_size and PPS
+            if (!isNaN(psBytes) && psBytes > 0 && !isNaN(ppsValue) && ppsValue > 0) {
+                let calculatedBwBps = psBytes * ppsValue * 8;
+                $('#mg_bandwidth').val(formatBandwidth(calculatedBwBps, bwUnit));
+            }
+        }
+    }
+
+    // Update lock button states
+    function updateLockButtons() {
+        $('.lock-btn').each(function() {
+            var field = $(this).data('field');
+            if (field === lockedField) {
+                $(this).removeClass('btn-outline-secondary').addClass('btn-warning active');
+                $(this).find('i').removeClass('fa-lock-open').addClass('fa-lock');
+                $(this).attr('title', '{{ _("mesh_group.locked_calculated") }}');
+            } else {
+                $(this).removeClass('btn-warning active').addClass('btn-outline-secondary');
+                $(this).find('i').removeClass('fa-lock').addClass('fa-lock-open');
+                $(this).attr('title', '{{ _("mesh_group.lock_to_calculate") }}');
+            }
+        });
+
+        // Disable the locked field input, enable others
+        $('#mg_bandwidth').prop('readonly', lockedField === 'bandwidth');
+        $('#select_bw').prop('disabled', lockedField === 'bandwidth');
+        $('#mg_packet_size').prop('readonly', lockedField === 'packet_size');
+        $('#mg_packet_per_second').prop('readonly', lockedField === 'pps');
+    }
+
+    // Handle lock button clicks
+    function onLockClick(field) {
+        lockedField = field;
+        updateLockButtons();
+        calculateLockedField();
+    }
+
+    // Attach event handlers for real-time calculation
+    $(document).ready(function() {
+        // Input events for calculation (only recalculate if not the locked field)
+        $('#mg_bandwidth').on('input', function() {
+            if (lockedField !== 'bandwidth') calculateLockedField();
+        });
+
+        $('#mg_packet_size').on('input', function() {
+            if (lockedField !== 'packet_size') calculateLockedField();
+        });
+
+        $('#mg_packet_per_second').on('input', function() {
+            if (lockedField !== 'pps') calculateLockedField();
+        });
+
+        $('#select_bw').on('change', function() {
+            calculateLockedField();
+        });
+
+        // Lock button click handlers
+        $('.lock-btn').on('click', function() {
+            var field = $(this).data('field');
+            onLockClick(field);
+        });
+
+        // Recalculate when modal is fully shown
+        $('#modal_new_mesh_group').on('shown.bs.modal', function() {
+            updateLockButtons();
+            calculateLockedField();
+        });
+
+        // Profile selection handler - auto-populate fields from profile
+        $('#mg_profile').on('change', function() {
+            var selectedOption = $(this).find('option:selected');
+            var profileUid = $(this).val();
+
+            if (profileUid) {
+                // Get values from data attributes
+                var bandwidth = selectedOption.data('bandwidth');
+                var dscp = selectedOption.data('dscp');
+                var packetSize = selectedOption.data('packet-size');
+                var interval = selectedOption.data('interval');
+
+                // Parse bandwidth and set unit
+                if (bandwidth) {
+                    var bwStr = String(bandwidth);
+                    if (bwStr.toUpperCase().endsWith('M')) {
+                        $('#mg_bandwidth').val(parseFloat(bwStr));
+                        $('#select_bw').val('Mbps');
+                    } else if (bwStr.toUpperCase().endsWith('K')) {
+                        $('#mg_bandwidth').val(parseFloat(bwStr));
+                        $('#select_bw').val('Kbps');
+                    } else {
+                        $('#mg_bandwidth').val(parseFloat(bwStr));
+                        $('#select_bw').val('bps');
+                    }
+                }
+
+                if (dscp) $('#mg_dscp').val(dscp);
+                if (packetSize) $('#mg_packet_size').val(packetSize);
+                if (interval) $('#mg_interval').val(interval);
+
+                // Reset lock to PPS and calculate
+                lockedField = 'pps';
+                $('#mg_packet_per_second').val('');
+                updateLockButtons();
+                calculateLockedField();
+
+                // Disable fields when profile is selected
+                setProfileFieldsDisabled(true);
+            } else {
+                // Enable fields when no profile selected
+                setProfileFieldsDisabled(false);
+                updateLockButtons();
+            }
+        });
+    });
+
+    // Function to enable/disable profile-related fields
+    function setProfileFieldsDisabled(disabled) {
+        $('#mg_dscp').prop('disabled', disabled);
+        $('#mg_interval').prop('disabled', disabled);
+
+        // Hide/show the calculation box lock buttons
+        if (disabled) {
+            $('#mg_bandwidth').prop('disabled', true).prop('readonly', false);
+            $('#select_bw').prop('disabled', true);
+            $('#mg_packet_size').prop('disabled', true).prop('readonly', false);
+            $('#mg_packet_per_second').prop('disabled', true).prop('readonly', false);
+            $('.lock-btn').prop('disabled', true).addClass('d-none');
+            $('#mg_bandwidth, #mg_dscp, #mg_packet_size, #mg_packet_per_second, #mg_interval, #select_bw').addClass('bg-secondary text-light');
+            $('#calc_fields_box').addClass('opacity-75');
+        } else {
+            $('#mg_bandwidth').prop('disabled', false);
+            $('#select_bw').prop('disabled', false);
+            $('#mg_packet_size').prop('disabled', false);
+            $('#mg_packet_per_second').prop('disabled', false);
+            $('.lock-btn').prop('disabled', false).removeClass('d-none');
+            $('#mg_bandwidth, #mg_dscp, #mg_packet_size, #mg_packet_per_second, #mg_interval, #select_bw').removeClass('bg-secondary text-light');
+            $('#calc_fields_box').removeClass('opacity-75');
+            updateLockButtons();
+        }
+    }
 
     function check_validity_uid(){
         let mg_uid = $('#mg_name').val()
@@ -224,13 +472,21 @@
         $('#modal_new_mesh_group_label').text('Create mesh group');
         $('#mg_name').val('').prop('readonly', false);
         $('#mg_description').val('');
+        $('#mg_profile').val(''); // Reset profile dropdown
         $('#mg_bandwidth').val('');
         $('#mg_dscp').val('');
         $('#mg_packet_size').val('');
+        $('#mg_packet_per_second').val('');
         $('#mg_interval').val('');
         $('#select_bw').val('Kbps');
         $('#mg_disabled').prop('checked', false);
         $('#mg_disabled_container').hide(); // Hide disabled checkbox for new groups
+        // Reset lock to default (PPS calculated)
+        lockedField = 'pps';
+        $('#values_warning').hide();
+        $('#values_warning').hide();
+        // Enable fields since no profile is selected
+        setProfileFieldsDisabled(false);
         $modal_new_mesh_group.modal('show');
     });
 
@@ -269,9 +525,19 @@
 
         $('#mg_dscp').val(row.DSCP || '');
         $('#mg_packet_size').val(row.PACKET_SIZE || '');
+        $('#mg_packet_per_second').val(row.PACKET_PER_SECOND || '');
         $('#mg_interval').val(row.INTERVAL || '');
+        $('#mg_profile').val(row.IPERF3_PROFILE || ''); // Set profile dropdown
         $('#mg_disabled').prop('checked', row.DISABLED || false);
         $('#mg_disabled_container').show(); // Show disabled checkbox in edit mode
+
+        // Reset lock state
+        lockedField = 'pps';
+        $('#values_warning').hide();
+        $('#values_warning').hide();
+
+        // Disable fields if a profile is assigned
+        setProfileFieldsDisabled(!!row.IPERF3_PROFILE);
 
         $modal_new_mesh_group.modal('show');
     });
@@ -296,6 +562,13 @@
 
         const fd = new FormData();
 
+        // Get packet per second value (only if not calculated)
+        var ppsValue = $('#mg_packet_per_second').val();
+        var ppsIsCalculated = $('#pps_calc_indicator').is(':visible');
+
+        // Get profile value
+        var profileValue = $('#mg_profile').val();
+
         if (editMode) {
             // Edit existing mesh group
             fd.append('ACTION', 'EDIT_MESH_GROUP');
@@ -306,8 +579,13 @@
             fd.append('INTERVAL', $('#mg_interval').val());
             fd.append('DESCRIPTION', $('#mg_description').val());
             fd.append('DISABLED', $('#mg_disabled').is(':checked') ? 'true' : 'false');
+            fd.append('IPERF3_PROFILE', profileValue);
+            // Only send PACKET_PER_SECOND if it was manually entered
+            if (ppsValue && !ppsIsCalculated) {
+                fd.append('PACKET_PER_SECOND', ppsValue);
+            }
         } else {
-            // Create new mesh group - needs implementation
+            // Create new mesh group
             fd.append('ACTION', 'CREATE_MESH_GROUP');
             fd.append('UID', $('#mg_name').val());
             fd.append('BANDWIDTH', bandwidth);
@@ -315,6 +593,11 @@
             fd.append('PACKET_SIZE', $('#mg_packet_size').val());
             fd.append('INTERVAL', $('#mg_interval').val());
             fd.append('DESCRIPTION', $('#mg_description').val());
+            fd.append('IPERF3_PROFILE', profileValue);
+            // Only send PACKET_PER_SECOND if it was manually entered
+            if (ppsValue && !ppsIsCalculated) {
+                fd.append('PACKET_PER_SECOND', ppsValue);
+            }
         }
 
         try {
@@ -572,8 +855,17 @@
                         },
                         { field: 'BANDWIDTH', title: 'Bandwidth', align: 'center', sortable: false},
                         { field: 'PACKET_SIZE', title: 'Packet size', align: 'center', sortable: true},
+                        { field: 'PACKET_PER_SECOND', title: 'Packets/sec', align: 'center', sortable: true},
                         { field: 'DSCP', title: 'DSCP', align: 'center', sortable: false},
                         { field: 'INTERVAL', title: 'Interval', align: 'center', sortable: true},
+                        { field: 'IPERF3_PROFILE', title: 'Profile', align: 'center', sortable: true,
+                          formatter: function(value, row) {
+                            if (value) {
+                              return '<span class="badge bg-info">' + value + '</span>';
+                            }
+                            return '<span class="text-muted">-</span>';
+                          }
+                        },
                         { field: 'MEMBERS', title: 'Members', align: 'center', sortable: true},
                         { field: 'BW_PER_NODE_KBPS', title: 'Bandwidth per node (Kbps)*', align: 'center', sortable: true}
                        ],

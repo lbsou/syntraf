@@ -1,0 +1,614 @@
+{% extends "base.html" %}
+{% block title %}{{ _('iperf3_profile.title') }}{% endblock %}
+{% block content %}
+<div class="container"><br>
+    <div class="table-responsive">
+        <h2>{{ _('iperf3_profile.title') }}</h2>
+
+        <!-- Alert Container -->
+        <div id="alert_container"></div>
+
+        <!-- Toolbar -->
+        <div id="toolbar">
+            <button id="btn_new" type="button" class="btn btn-primary" style="width:120px;">
+                <i class="fas fa-plus"></i>&nbsp;&nbsp;&nbsp;{{ _('iperf3_profile.new_profile') }}
+            </button>
+            <button id="btn_edit" type="button" class="btn btn-primary" style="width:120px;" disabled>
+                <i class="fa fa-edit"></i>&nbsp;&nbsp;&nbsp;{{ _('common.edit') }}
+            </button>
+            <button id="btn_delete" class="btn btn-danger" style="width:120px;" disabled>
+                <i class="fa fa-trash"></i>&nbsp;&nbsp;&nbsp;{{ _('common.delete') }}
+            </button>
+            <button id="btn_duplicate" class="btn btn-primary" style="width:120px;" disabled>
+                <i class="far fa-clone"></i>&nbsp;&nbsp;&nbsp;{{ _('common.duplicate') }}
+            </button>
+        </div>
+
+        <table id="table" class="table-dark table-striped thead-dark table-hover table-sm vertical-align" style="width:100%"
+            data-toolbar="#toolbar"
+            data-search="true"
+            data-show-toggle="true"
+            data-show-columns="true"
+            data-show-export="true"
+            data-click-to-select="true"
+            data-minimum-count-columns="2"
+            data-show-search-clear-button="true"
+            data-pagination="true"
+            data-id-field="UID"
+            data-page-list="[10, 25, 50, 100, all]"
+            data-show-footer="true">
+        </table>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div aria-labelledby="modal_confirmation" class="modal fade" id="modal_confirmation" role="dialog" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="modal_confirmation_title_text">{{ _('iperf3_profile.delete_profile') }}</h4>
+            </div>
+            <div class="modal-body">
+                <p id="modal_confirmationText">{{ _('iperf3_profile.confirm_delete') }}</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-default" data-bs-dismiss="modal" type="button">{{ _('common.no') }}</button>
+                <button class="btn btn-danger" id="btn_yes_modal_confirmation" type="button">{{ _('common.yes') }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Error Modal -->
+<div class="modal fade" id="modal_error" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content text-center">
+            <br>
+            <i class="fa fa-exclamation-triangle fa-2x" style="color:yellow" aria-hidden="true"></i>
+            <br>
+            <div id="error_modal_text"></div>
+            <br>
+            <div><button type="button" class="btn btn-light" data-bs-dismiss="modal">{{ _('common.close') }}</button></div>
+            <br>
+        </div>
+    </div>
+</div>
+
+<!-- Success Modal -->
+<div class="modal fade" id="modal_success" tabindex="-1" role="dialog" data-keyboard="false" data-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content text-center">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modal_success_label">{{ _('common.result') }}</h5>
+            </div>
+            <div id="success_modal_text" style="margin-right:15px; margin-left:15px; margin-top:15px;">
+            </div>
+            <br>
+            <div><button type="button" class="btn btn-light" id="btn_close_modal_success" data-bs-dismiss="modal">{{ _('common.close') }}</button></div>
+            <br>
+        </div>
+    </div>
+</div>
+
+<!-- New/Edit Profile Modal -->
+<div class="modal fade" id="modal_profile" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modal_profile_label">{{ _('iperf3_profile.new_profile') }}</h5>
+            </div>
+            <form id="profile_form">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
+                                <label for="profile_uid" class="form-label">{{ _('iperf3_profile.profile_uid') }} <span class="text-danger">*</span></label>
+                                <input class="form-control" id="profile_uid" type="text" placeholder="VoIP_G711" name="profile_uid" required pattern="^[A-Za-z0-9_\-]{1,50}$">
+                                <small class="text-muted">A-Z, a-z, 0-9, _, -</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
+                                <label for="profile_dscp" class="form-label">{{ _('iperf3_profile.dscp') }}</label>
+                                <input class="form-control" id="profile_dscp" type="number" min="0" max="63" value="0" name="profile_dscp">
+                                <small class="text-muted">0-63 (QoS RFC2474)</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Calculated Fields Box -->
+                    <div class="card mb-3" id="profile_calc_fields_box">
+                        <div class="card-header py-2">
+                            <i class="fas fa-calculator me-1"></i> {{ _('mesh_group.calc_fields_title') }}
+                            <small class="text-muted ms-2">{{ _('mesh_group.calc_fields_help') }}</small>
+                        </div>
+                        <div class="card-body">
+                            <!-- Bandwidth -->
+                            <div class="row align-items-end mb-3">
+                                <div class="col">
+                                    <label for="profile_bandwidth" class="form-label mb-1">{{ _('iperf3_profile.bandwidth') }}</label>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="profile_bandwidth" placeholder="87.2">
+                                        <select class="form-select" id="profile_bw_unit" style="max-width: 90px;">
+                                            <option value="K" selected>Kbps</option>
+                                            <option value="M">Mbps</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-auto">
+                                    <button type="button" class="btn btn-outline-secondary profile-lock-btn" id="lock_profile_bandwidth" data-field="bandwidth" title="{{ _('mesh_group.lock_to_calculate') }}">
+                                        <i class="fas fa-lock-open"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Packet Size -->
+                            <div class="row align-items-end mb-3">
+                                <div class="col">
+                                    <label for="profile_packet_size" class="form-label mb-1">{{ _('iperf3_profile.packet_size') }}</label>
+                                    <input type="text" class="form-control" id="profile_packet_size" placeholder="32">
+                                    <small class="text-muted">16-65507 bytes</small>
+                                </div>
+                                <div class="col-auto">
+                                    <button type="button" class="btn btn-outline-secondary profile-lock-btn" id="lock_profile_packet_size" data-field="packet_size" title="{{ _('mesh_group.lock_to_calculate') }}">
+                                        <i class="fas fa-lock-open"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Packets per Second -->
+                            <div class="row align-items-end mb-3">
+                                <div class="col">
+                                    <label for="profile_pps" class="form-label mb-1">{{ _('iperf3_profile.packet_per_second') }}</label>
+                                    <input type="text" class="form-control" id="profile_pps" placeholder="50">
+                                </div>
+                                <div class="col-auto">
+                                    <button type="button" class="btn btn-warning profile-lock-btn active" id="lock_profile_pps" data-field="pps" title="{{ _('mesh_group.locked_calculated') }}">
+                                        <i class="fas fa-lock"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group mb-3">
+                        <label for="profile_interval" class="form-label">{{ _('iperf3_profile.interval') }}</label>
+                        <input class="form-control" id="profile_interval" type="number" min="1" max="60" value="10" name="profile_interval">
+                        <small class="text-muted">1-60 seconds</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="width:100px;">{{ _('common.cancel') }}</button>
+                    <button class="btn btn-primary" id="btn_save_profile" style="width:100px;" type="button">{{ _('common.save') }}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+var $table = $("#table");
+var $modal_confirmation = $("#modal_confirmation");
+var $modal_confirmationText = $("#modal_confirmationText");
+var $modal_profile = $("#modal_profile");
+var $success_modal_text = $("#success_modal_text");
+var $btn_delete = $("#btn_delete");
+var $btn_new = $("#btn_new");
+var $btn_edit = $("#btn_edit");
+var $btn_duplicate = $("#btn_duplicate");
+var editMode = false;
+var editingUid = null;
+var profileLockedField = 'pps'; // Default: PPS is calculated
+
+const profileI18n = {
+    newProfile: "{{ _('iperf3_profile.new_profile') }}",
+    editProfile: "{{ _('iperf3_profile.edit_profile') }}",
+    saveSuccess: "{{ _('iperf3_profile.save_success') }}",
+    deleteSuccess: "{{ _('iperf3_profile.delete_success') }}",
+    error: "{{ _('common.error') }}",
+    lockToCalculate: "{{ _('mesh_group.lock_to_calculate') }}",
+    lockedCalculated: "{{ _('mesh_group.locked_calculated') }}"
+};
+
+// Load profiles on page load
+get_profiles();
+
+$(document).ready(function(){
+    $("#modal_confirmation").modal({backdrop: 'static', keyboard: false});
+    $("#modal_profile").modal({backdrop: 'static', keyboard: false});
+    $("#modal_error").modal({backdrop: 'static', keyboard: false});
+    $("#modal_success").modal({backdrop: 'static', keyboard: false});
+
+    // Lock button click handlers
+    $('.profile-lock-btn').click(function() {
+        onProfileLockClick($(this).data('field'));
+    });
+
+    // Input event handlers for calculation
+    $('#profile_bandwidth').on('input', function() {
+        if (profileLockedField !== 'bandwidth') calculateProfileLockedField();
+    });
+    $('#profile_packet_size').on('input', function() {
+        if (profileLockedField !== 'packet_size') calculateProfileLockedField();
+    });
+    $('#profile_pps').on('input', function() {
+        if (profileLockedField !== 'pps') calculateProfileLockedField();
+    });
+    $('#profile_bw_unit').on('change', function() {
+        calculateProfileLockedField();
+    });
+
+    // Update lock buttons when modal opens
+    $('#modal_profile').on('shown.bs.modal', function() {
+        updateProfileLockButtons();
+        calculateProfileLockedField();
+    });
+});
+
+function getUidSelections() {
+    return $.map($table.bootstrapTable("getSelections"), function (row) {
+        return row.UID;
+    });
+}
+
+// Convert bandwidth value to bits per second
+function parseProfileBandwidthToBps(bwValue, bwUnit) {
+    let bw = parseFloat(bwValue);
+    if (isNaN(bw) || bw <= 0) return null;
+    if (bwUnit === 'K') bw *= 1000;
+    else if (bwUnit === 'M') bw *= 1000000;
+    return bw;
+}
+
+// Format bandwidth for display
+function formatProfileBandwidth(bwBps, targetUnit) {
+    if (targetUnit === 'M') return (bwBps / 1000000).toFixed(3);
+    if (targetUnit === 'K') return (bwBps / 1000).toFixed(3);
+    return bwBps.toFixed(0);
+}
+
+// Calculate the locked field based on the other two
+function calculateProfileLockedField() {
+    let bwValue = $('#profile_bandwidth').val().trim();
+    let bwUnit = $('#profile_bw_unit').val();
+    let packetSize = $('#profile_packet_size').val().trim();
+    let pps = $('#profile_pps').val().trim();
+
+    let bwBps = parseProfileBandwidthToBps(bwValue, bwUnit);
+    let psBytes = parseFloat(packetSize);
+    let ppsValue = parseFloat(pps);
+
+    if (profileLockedField === 'pps') {
+        if (bwBps !== null && bwBps > 0 && !isNaN(psBytes) && psBytes > 0) {
+            let calculatedPps = bwBps / (psBytes * 8);
+            $('#profile_pps').val(calculatedPps.toFixed(2));
+        }
+    } else if (profileLockedField === 'packet_size') {
+        if (bwBps !== null && bwBps > 0 && !isNaN(ppsValue) && ppsValue > 0) {
+            let calculatedPs = bwBps / (ppsValue * 8);
+            $('#profile_packet_size').val(calculatedPs.toFixed(0));
+        }
+    } else if (profileLockedField === 'bandwidth') {
+        if (!isNaN(psBytes) && psBytes > 0 && !isNaN(ppsValue) && ppsValue > 0) {
+            let calculatedBwBps = psBytes * ppsValue * 8;
+            $('#profile_bandwidth').val(formatProfileBandwidth(calculatedBwBps, bwUnit));
+        }
+    }
+}
+
+// Update lock button states
+function updateProfileLockButtons() {
+    $('.profile-lock-btn').each(function() {
+        var field = $(this).data('field');
+        if (field === profileLockedField) {
+            $(this).removeClass('btn-outline-secondary').addClass('btn-warning active');
+            $(this).find('i').removeClass('fa-lock-open').addClass('fa-lock');
+            $(this).attr('title', profileI18n.lockedCalculated);
+        } else {
+            $(this).removeClass('btn-warning active').addClass('btn-outline-secondary');
+            $(this).find('i').removeClass('fa-lock').addClass('fa-lock-open');
+            $(this).attr('title', profileI18n.lockToCalculate);
+        }
+    });
+
+    // Set readonly on locked field
+    $('#profile_bandwidth').prop('readonly', profileLockedField === 'bandwidth');
+    $('#profile_bw_unit').prop('disabled', profileLockedField === 'bandwidth');
+    $('#profile_packet_size').prop('readonly', profileLockedField === 'packet_size');
+    $('#profile_pps').prop('readonly', profileLockedField === 'pps');
+}
+
+// Handle lock button clicks
+function onProfileLockClick(field) {
+    profileLockedField = field;
+    updateProfileLockButtons();
+    calculateProfileLockedField();
+}
+
+// New profile button
+$("#btn_new").click(function() {
+    editMode = false;
+    editingUid = null;
+    $('#modal_profile_label').text(profileI18n.newProfile);
+    $('#profile_uid').val('').prop('readonly', false);
+    $('#profile_dscp').val('0');
+    $('#profile_bandwidth').val('');
+    $('#profile_bw_unit').val('K');
+    $('#profile_packet_size').val('32');
+    $('#profile_pps').val('');
+    $('#profile_interval').val('10');
+    // Reset lock to default (PPS calculated)
+    profileLockedField = 'pps';
+    $modal_profile.modal('show');
+});
+
+// Edit profile button
+$("#btn_edit").click(function() {
+    var selectedRows = $table.bootstrapTable('getSelections');
+    if (selectedRows.length !== 1) {
+        alert('Please select exactly one profile to edit');
+        return;
+    }
+
+    var row = selectedRows[0];
+    editMode = true;
+    editingUid = row.UID;
+
+    $('#modal_profile_label').text(profileI18n.editProfile + ': ' + row.UID);
+    $('#profile_uid').val(row.UID).prop('readonly', true);
+    $('#profile_dscp').val(row.DSCP || '0');
+    $('#profile_interval').val(row.INTERVAL || '10');
+    $('#profile_packet_size').val(row.PACKET_SIZE || '32');
+
+    // Parse bandwidth
+    var bw = row.BANDWIDTH || '';
+    if (bw) {
+        var match = bw.match(/^([\d.]+)\s*(K|M)?/i);
+        if (match) {
+            $('#profile_bandwidth').val(match[1]);
+            $('#profile_bw_unit').val((match[2] || 'K').toUpperCase());
+        }
+    } else {
+        $('#profile_bandwidth').val('');
+        $('#profile_bw_unit').val('K');
+    }
+
+    // Set PPS
+    $('#profile_pps').val(row.PACKET_PER_SECOND || '');
+
+    // Reset lock to default (PPS calculated)
+    profileLockedField = 'pps';
+
+    $modal_profile.modal('show');
+});
+
+// Enable/disable buttons based on selection
+$table.on('check.bs.table uncheck.bs.table check-all.bs.table uncheck-all.bs.table', function() {
+    var selections = $table.bootstrapTable('getSelections');
+    $btn_edit.prop('disabled', selections.length !== 1);
+    $btn_delete.prop('disabled', !selections.length);
+    $btn_duplicate.prop('disabled', selections.length !== 1);
+});
+
+// Save button handler
+$("#btn_save_profile").click(async function() {
+    const fd = new FormData();
+
+    const uid = $('#profile_uid').val().trim();
+    if (!uid) {
+        document.getElementById("error_modal_text").innerHTML = 'UID is required';
+        $('#modal_error').modal('show');
+        return;
+    }
+
+    const bandwidth = $('#profile_bandwidth').val().trim();
+    const bwUnit = $('#profile_bw_unit').val();
+    const pps = $('#profile_pps').val().trim();
+
+    if (editMode) {
+        fd.append('ACTION', 'UPDATE_IPERF3_PROFILE');
+        fd.append('ORIGINAL_UID', editingUid);
+    } else {
+        fd.append('ACTION', 'ADD_IPERF3_PROFILE');
+    }
+
+    fd.append('UID', uid);
+    if (bandwidth) {
+        fd.append('BANDWIDTH', bandwidth + bwUnit);
+    }
+    fd.append('DSCP', $('#profile_dscp').val());
+    fd.append('PACKET_SIZE', $('#profile_packet_size').val());
+    fd.append('INTERVAL', $('#profile_interval').val());
+    // Only send PPS if it was manually entered (not calculated)
+    if (pps && profileLockedField !== 'pps') {
+        fd.append('PACKET_PER_SECOND', pps);
+    }
+
+    try {
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        });
+        const result = await response.json();
+
+        if (result.status === 'OK') {
+            $modal_profile.modal('hide');
+            $success_modal_text.html('<p><i class="fas fa-check-circle text-success"></i> ' + result.message + '</p>');
+            $('#modal_success').modal('show');
+        } else {
+            $modal_profile.modal('hide');
+            document.getElementById("error_modal_text").innerHTML = result.message;
+            $('#modal_error').modal('show');
+        }
+    } catch (error) {
+        console.error('Error saving profile:', error);
+        document.getElementById("error_modal_text").innerHTML = 'Error saving profile';
+        $('#modal_error').modal('show');
+    }
+});
+
+// Delete button handler
+$btn_delete.click(function () {
+    $('#btn_yes_modal_confirmation').unbind('click');
+    $("#btn_yes_modal_confirmation").click(function() {
+        delete_profiles(getUidSelections());
+        $btn_delete.prop('disabled', true);
+        $modal_confirmation.modal('hide');
+    });
+
+    var uids_to_delete = getUidSelections();
+    $('#modal_confirmation_title_text').text("{{ _('iperf3_profile.delete_profile') }}");
+
+    if (uids_to_delete.length == 1){
+        $modal_confirmationText.text("{{ _('iperf3_profile.confirm_delete') }} '" + uids_to_delete + "'?");
+    } else {
+        $modal_confirmationText.text("{{ _('iperf3_profile.confirm_delete_multiple') }} " + uids_to_delete.length + " profiles?");
+    }
+
+    $modal_confirmation.modal('show');
+});
+
+// Duplicate button handler
+$btn_duplicate.click(function () {
+    $('#btn_yes_modal_confirmation').unbind('click');
+    $("#btn_yes_modal_confirmation").click(function() {
+        duplicate_profile(getUidSelections()[0]);
+        $btn_duplicate.prop('disabled', true);
+        $modal_confirmation.modal('hide');
+    });
+
+    var profile_uid = getUidSelections()[0];
+    $('#modal_confirmation_title_text').text("{{ _('common.duplicate') }}");
+    $modal_confirmationText.text("{{ _('iperf3_profile.confirm_duplicate') }} '" + profile_uid + "'?");
+    $modal_confirmation.modal('show');
+});
+
+// Refresh table on modal close
+$("#btn_close_modal_success").click(get_profiles);
+
+async function duplicate_profile(profile_uid) {
+    const fd = new FormData();
+    fd.append("ACTION", "DUPLICATE_IPERF3_PROFILE");
+    fd.append("UID", profile_uid);
+
+    try {
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        });
+        const result = await response.json();
+
+        if (result.status === 'OK') {
+            $success_modal_text.html('<p><i class="fas fa-check-circle text-success"></i> ' + result.message + '</p>');
+            $('#modal_success').modal('show');
+        } else {
+            document.getElementById("error_modal_text").innerHTML = result.message;
+            $('#modal_error').modal('show');
+        }
+    } catch (error) {
+        console.error('Error duplicating profile:', error);
+        document.getElementById("error_modal_text").innerHTML = 'Error duplicating profile';
+        $('#modal_error').modal('show');
+    }
+    $btn_duplicate.prop('disabled', false);
+}
+
+async function delete_profiles(profile_uids) {
+    const fd = new FormData();
+    fd.append("ACTION", "DELETE_IPERF3_PROFILES");
+    fd.append("UIDS", profile_uids);
+
+    try {
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        });
+        const result = await response.json();
+
+        if (result.status === 'OK') {
+            $success_modal_text.html('<p><i class="fas fa-check-circle text-success"></i> ' + result.message + '</p>');
+            $('#modal_success').modal('show');
+        } else {
+            document.getElementById("error_modal_text").innerHTML = result.message;
+            $('#modal_error').modal('show');
+        }
+    } catch (error) {
+        console.error('Error deleting profile:', error);
+        document.getElementById("error_modal_text").innerHTML = 'Error deleting profile';
+        $('#modal_error').modal('show');
+    }
+}
+
+async function get_profiles() {
+    console.log("get_profiles");
+    const fd = new FormData();
+    fd.append("ACTION", "GET_IPERF3_PROFILES");
+
+    try {
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        });
+        const profiles = await response.json();
+
+        if (profiles.status === 'ERROR') {
+            showAlert('Error loading profiles: ' + profiles.message, 'danger');
+            return;
+        }
+
+        $table.bootstrapTable('destroy');
+        $table.bootstrapTable({
+            pagination: true,
+            search: true,
+            columns: [
+                { field: 'state', checkbox: true, align: 'center', valign: 'middle'},
+                { field: 'UID', title: "{{ _('iperf3_profile.profile_uid') }}", align: 'center', sortable: true,
+                  formatter: function(value) {
+                    return '<strong>' + value + '</strong>';
+                  }
+                },
+                { field: 'BANDWIDTH', title: "{{ _('iperf3_profile.bandwidth') }}", align: 'center', sortable: true,
+                  formatter: function(value) {
+                    return value || '<span class="text-muted">-</span>';
+                  }
+                },
+                { field: 'DSCP', title: "{{ _('iperf3_profile.dscp') }}", align: 'center', sortable: true,
+                  formatter: function(value) {
+                    return value || '0';
+                  }
+                },
+                { field: 'PACKET_SIZE', title: "{{ _('iperf3_profile.packet_size') }}", align: 'center', sortable: true,
+                  formatter: function(value) {
+                    return (value || '32') + ' bytes';
+                  }
+                },
+                { field: 'PACKET_PER_SECOND', title: "{{ _('iperf3_profile.packet_per_second') }}", align: 'center', sortable: true,
+                  formatter: function(value) {
+                    return value || '<span class="text-muted">-</span>';
+                  }
+                },
+                { field: 'INTERVAL', title: "{{ _('iperf3_profile.interval') }}", align: 'center', sortable: true,
+                  formatter: function(value) {
+                    return (value || '10') + 's';
+                  }
+                },
+                { field: 'USED_BY', title: "{{ _('iperf3_profile.used_by') }}", align: 'center', sortable: false,
+                  formatter: function(value, row) {
+                    var usedCount = row.used_by_groups ? row.used_by_groups.length : 0;
+                    if (usedCount > 0) {
+                        return '<span class="badge bg-info">' + usedCount + " {{ _('nav.groups') }}</span>";
+                    }
+                    return '<span class="badge bg-secondary">{{ _("common.none") }}</span>';
+                  }
+                }
+            ],
+            data: profiles
+        });
+    } catch (error) {
+        console.error('Error fetching profiles:', error);
+        showAlert('Error loading profile configurations', 'danger');
+    }
+}
+</script>
+
+{% endblock %}

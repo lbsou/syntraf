@@ -407,8 +407,10 @@ def mesh_group_config():
     if session.get('user_role') != user_mgmt.ROLE_ADMIN:
         flash('Admin access required to manage mesh groups')
         return redirect('/home.html')
+    # Get iperf3 profiles for the dropdown
+    profiles = app.config['config'].get('IPERF3_PROFILE', [])
     return render_template('mesh_group_config.html', title='SYNTRAF WEBUI', config=app.config['config'],
-                           syntraf_version=DefaultValues.SYNTRAF_VERSION)
+                           profiles=profiles, syntraf_version=DefaultValues.SYNTRAF_VERSION)
 
 
 @st_home_bp.route('/client_config.html')
@@ -430,9 +432,128 @@ def server():
     if session.get('user_role') != user_mgmt.ROLE_ADMIN:
         flash('Admin access required to manage server configuration')
         return redirect('/home.html')
+
+    # Read X509 certificate contents - either from config or from file paths (migration)
+    x509_private_key_content = ''
+    x509_certificate_content = ''
+
+    config = app.config['config']
+    if 'SERVER' in config:
+        # Check for direct content first (new format)
+        x509_private_key_content = config['SERVER'].get('SERVER_X509_PRIVATE_KEY_CONTENT', '')
+        x509_certificate_content = config['SERVER'].get('SERVER_X509_CERTIFICATE_CONTENT', '')
+
+        # If no content, try to read from file paths (migration from old format)
+        if not x509_private_key_content:
+            key_path = config['SERVER'].get('SERVER_X509_PRIVATE_KEY', '')
+            if key_path and os.path.isfile(key_path):
+                try:
+                    with open(key_path, 'r') as f:
+                        x509_private_key_content = f.read()
+                except Exception as e:
+                    log.warning(f"Could not read X509 private key from {key_path}: {e}")
+
+        if not x509_certificate_content:
+            cert_path = config['SERVER'].get('SERVER_X509_CERTIFICATE', '')
+            if cert_path and os.path.isfile(cert_path):
+                try:
+                    with open(cert_path, 'r') as f:
+                        x509_certificate_content = f.read()
+                except Exception as e:
+                    log.warning(f"Could not read X509 certificate from {cert_path}: {e}")
+
     return render_template('server.html', title='SYNTRAF WEBUI', config=app.config['config'],
+                           syntraf_version=DefaultValues.SYNTRAF_VERSION,
+                           x509_private_key_content=x509_private_key_content,
+                           x509_certificate_content=x509_certificate_content)
+
+
+@st_home_bp.route('/server_network.html')
+def server_network():
+    if not session.get('logged_in'):
+        return redirect(url_for('st_home_bp.index'))
+    # Only admins can modify server config
+    if session.get('user_role') != user_mgmt.ROLE_ADMIN:
+        flash('Admin access required to manage server configuration')
+        return redirect('/home.html')
+    return render_template('server_network.html', title='SYNTRAF WEBUI', config=app.config['config'],
                            syntraf_version=DefaultValues.SYNTRAF_VERSION)
 
+
+@st_home_bp.route('/server_auth.html')
+def server_auth():
+    if not session.get('logged_in'):
+        return redirect(url_for('st_home_bp.index'))
+    # Only admins can modify server config
+    if session.get('user_role') != user_mgmt.ROLE_ADMIN:
+        flash('Admin access required to manage server configuration')
+        return redirect('/home.html')
+
+    # Read X509 certificate contents from config
+    config = app.config['config']
+    x509_private_key_content = config['SERVER'].get('SERVER_X509_PRIVATE_KEY_CONTENT', '')
+    x509_certificate_content = config['SERVER'].get('SERVER_X509_CERTIFICATE_CONTENT', '')
+
+    return render_template('server_auth.html', title='SYNTRAF WEBUI', config=config,
+                           x509_private_key_content=x509_private_key_content,
+                           x509_certificate_content=x509_certificate_content,
+                           syntraf_version=DefaultValues.SYNTRAF_VERSION)
+
+
+@st_home_bp.route('/webui_service.html')
+def webui_service():
+    if not session.get('logged_in'):
+        return redirect(url_for('st_home_bp.index'))
+    # Only admins can modify WebUI config
+    if session.get('user_role') != user_mgmt.ROLE_ADMIN:
+        flash('Admin access required to manage WebUI configuration')
+        return redirect('/home.html')
+    return render_template('webui_service.html', title='SYNTRAF WEBUI', config=app.config['config'],
+                           syntraf_version=DefaultValues.SYNTRAF_VERSION,
+                           start_time=app.config.get('start_time'))
+
+
+@st_home_bp.route('/webui_tls.html')
+def webui_tls():
+    if not session.get('logged_in'):
+        return redirect(url_for('st_home_bp.index'))
+    # Only admins can modify TLS config
+    if session.get('user_role') != user_mgmt.ROLE_ADMIN:
+        flash('Admin access required to manage TLS configuration')
+        return redirect('/home.html')
+
+    # Read X509 certificate contents
+    x509_private_key_content = ''
+    x509_certificate_content = ''
+
+    config = app.config['config']
+    if 'SERVER' in config:
+        x509_private_key_content = config['SERVER'].get('SERVER_X509_PRIVATE_KEY_CONTENT', '')
+        x509_certificate_content = config['SERVER'].get('SERVER_X509_CERTIFICATE_CONTENT', '')
+
+        # If no content, try to read from file paths (migration from old format)
+        if not x509_private_key_content:
+            key_path = config['SERVER'].get('SERVER_X509_PRIVATE_KEY', '')
+            if key_path and os.path.isfile(key_path):
+                try:
+                    with open(key_path, 'r') as f:
+                        x509_private_key_content = f.read()
+                except Exception as e:
+                    log.warning(f"Could not read X509 private key from {key_path}: {e}")
+
+        if not x509_certificate_content:
+            cert_path = config['SERVER'].get('SERVER_X509_CERTIFICATE', '')
+            if cert_path and os.path.isfile(cert_path):
+                try:
+                    with open(cert_path, 'r') as f:
+                        x509_certificate_content = f.read()
+                except Exception as e:
+                    log.warning(f"Could not read X509 certificate from {cert_path}: {e}")
+
+    return render_template('webui_tls.html', title='SYNTRAF WEBUI', config=app.config['config'],
+                           syntraf_version=DefaultValues.SYNTRAF_VERSION,
+                           x509_private_key_content=x509_private_key_content,
+                           x509_certificate_content=x509_certificate_content)
 
 
 @st_home_bp.route('/stats.html')
@@ -471,6 +592,72 @@ def clients_configurations():
                            _dict_by_node_generated_config=app.config['_dict_by_node_generated_config'])
 
 
+@st_home_bp.route('/iperf3_profile_config.html')
+def iperf3_profile_config():
+    if not session.get('logged_in'):
+        return redirect(url_for('st_home_bp.index'))
+    if session.get('user_role') != user_mgmt.ROLE_ADMIN:
+        flash('Admin access required to manage iperf3 profiles')
+        return redirect('/home.html')
+
+    config = app.config.get('config', {})
+    profiles = config.get('IPERF3_PROFILE', [])
+
+    # Find which mesh groups use each profile
+    mesh_groups = config.get('MESH_GROUP', [])
+    for profile in profiles:
+        profile['used_by_groups'] = [
+            mg['UID'] for mg in mesh_groups
+            if mg.get('IPERF3_PROFILE') == profile.get('UID')
+        ]
+
+    return render_template('iperf3_profile_config.html',
+                           title='SYNTRAF WEBUI',
+                           profiles=profiles,
+                           syntraf_version=DefaultValues.SYNTRAF_VERSION)
+
+
+@st_home_bp.route('/bandwidth_calc.html')
+def bandwidth_calc():
+    if not session.get('logged_in'):
+        return redirect(url_for('st_home_bp.index'))
+    return render_template('bandwidth_calc.html',
+                           title='SYNTRAF WEBUI',
+                           syntraf_version=DefaultValues.SYNTRAF_VERSION)
+
+
+@st_home_bp.route('/config_export.html')
+def config_export():
+    if not session.get('logged_in'):
+        return redirect(url_for('st_home_bp.index'))
+    if session.get('user_role') != user_mgmt.ROLE_ADMIN:
+        flash('Admin access required to export/import configuration')
+        return redirect('/home.html')
+    return render_template('config_export.html',
+                           title='SYNTRAF WEBUI',
+                           syntraf_version=DefaultValues.SYNTRAF_VERSION)
+
+
+@st_home_bp.route('/diagnostics.html')
+def diagnostics():
+    if not session.get('logged_in'):
+        return redirect(url_for('st_home_bp.index'))
+    return render_template('diagnostics.html',
+                           title='SYNTRAF WEBUI',
+                           syntraf_version=DefaultValues.SYNTRAF_VERSION,
+                           conn_db=app.config.get('conn_db', []),
+                           dict_of_clients=app.config.get('dict_of_clients', {}))
+
+
+@st_home_bp.route('/help.html')
+def help_page():
+    if not session.get('logged_in'):
+        return redirect(url_for('st_home_bp.index'))
+    return render_template('help.html',
+                           title='SYNTRAF WEBUI',
+                           syntraf_version=DefaultValues.SYNTRAF_VERSION)
+
+
 @st_home_bp.route('/api', methods=['GET', 'POST'])
 @csrf.exempt  # API uses session auth; AJAX calls include session cookie
 def api():
@@ -484,7 +671,8 @@ def api():
             'GET_LIST_OF_DATABASES_INFOS', 'GET_CLIENTS', 'GET_CLIENT',
             'GET_MESH_GROUPS', 'GET_THREAD_STATUS', 'GET_MAP', 'GET_TOKENS',
             'GET_LOG_FILES', 'GET_LOG_CONTENT', 'TAIL_LOG', 'DOWNLOAD_LOG',
-            'GET_DATABASES', 'GET_SERVER_CONFIG', 'GET_GLOBAL_CONFIG'
+            'GET_DATABASES', 'GET_SERVER_CONFIG', 'GET_GLOBAL_CONFIG',
+            'GET_DIAGNOSTICS', 'GET_CONFIG_TOML', 'EXPORT_DIAGNOSTICS_REPORT'
         ]
 
         # Actions that require admin privileges
@@ -497,7 +685,11 @@ def api():
             'CREATE_DATABASE', 'EDIT_DATABASE', 'DELETE_DATABASE', 'TOGGLE_DISABLE_DATABASE',
             'SAVE_SERVER_CONFIG', 'SAVE_GLOBAL_CONFIG', 'EXPORT_SERVER_FILE',
             'CREATE_USER', 'UPDATE_USER', 'DELETE_USER', 'RESET_USER_PASSWORD',
-            'TOGGLE_USER_ACTIVE'
+            'TOGGLE_USER_ACTIVE', 'RESTART_SYNTRAF',
+            'ADD_IPERF3_PROFILE', 'UPDATE_IPERF3_PROFILE', 'DELETE_IPERF3_PROFILE',
+            'EXPORT_CONFIG_TOML', 'VALIDATE_CONFIG_TOML', 'IMPORT_CONFIG_TOML',
+            'GENERATE_IPERF3_RSA_KEYS', 'GENERATE_X509_CERTIFICATES',
+            'SAVE_SERVER_NETWORK', 'SAVE_SERVER_AUTH', 'SAVE_WEBUI_CONFIG', 'SAVE_TLS_CONFIG'
         ]
 
         # Check if user is logged in for all API actions
@@ -688,6 +880,8 @@ def api():
             new_interval = request.values.get('INTERVAL', '')
             new_description = request.values.get('DESCRIPTION', '')
             new_disabled = request.values.get('DISABLED', None)
+            new_packet_per_second = request.values.get('PACKET_PER_SECOND', '')
+            new_iperf3_profile = request.values.get('IPERF3_PROFILE', '')
 
             read_success, config = read_conf(app.config['config_file_path'])
             result = {"status": "ERROR", "message": "Mesh group not found"}
@@ -709,6 +903,15 @@ def api():
                                 mg['DESCRIPTION'] = new_description
                             if new_disabled is not None:
                                 mg['DISABLED'] = (new_disabled.lower() == 'true')
+                            if new_packet_per_second:
+                                mg['PACKET_PER_SECOND'] = new_packet_per_second
+                            elif 'PACKET_PER_SECOND' in mg and not new_packet_per_second:
+                                del mg['PACKET_PER_SECOND']
+                            # Handle IPERF3_PROFILE: set if provided, remove if cleared
+                            if new_iperf3_profile:
+                                mg['IPERF3_PROFILE'] = new_iperf3_profile
+                            elif 'IPERF3_PROFILE' in mg:
+                                del mg['IPERF3_PROFILE']
 
                             # Validate configuration before saving
                             validation_result = validate_config_for_webui(config)
@@ -748,6 +951,8 @@ def api():
             new_packet_size = request.values.get('PACKET_SIZE', '')
             new_interval = request.values.get('INTERVAL', '')
             new_description = request.values.get('DESCRIPTION', '')
+            new_packet_per_second = request.values.get('PACKET_PER_SECOND', '')
+            new_iperf3_profile = request.values.get('IPERF3_PROFILE', '')
 
             if not new_uid:
                 return jsonify({"status": "ERROR", "message": "UID is required"})
@@ -772,6 +977,10 @@ def api():
                     }
                     if new_description:
                         new_mesh_group['DESCRIPTION'] = new_description
+                    if new_packet_per_second:
+                        new_mesh_group['PACKET_PER_SECOND'] = new_packet_per_second
+                    if new_iperf3_profile:
+                        new_mesh_group['IPERF3_PROFILE'] = new_iperf3_profile
 
                     config['MESH_GROUP'].append(new_mesh_group)
 
@@ -1132,6 +1341,11 @@ def api():
                 'DB_SERVER_USE_SSL': request.values.get('DB_SERVER_USE_SSL', 'false').lower() == 'true'
             }
 
+            # Add DB_TENANT for VictoriaMetrics if provided
+            db_tenant = request.values.get('DB_TENANT', '').strip()
+            if db_tenant:
+                new_database['DB_TENANT'] = db_tenant
+
             if 'DATABASE' not in config:
                 config['DATABASE'] = []
             config['DATABASE'].append(new_database)
@@ -1173,6 +1387,14 @@ def api():
                         db['DB_TOKEN'] = new_token
 
                     db['DB_SERVER_USE_SSL'] = request.values.get('DB_SERVER_USE_SSL', 'false').lower() == 'true'
+
+                    # Handle DB_TENANT for VictoriaMetrics
+                    db_tenant = request.values.get('DB_TENANT', '').strip()
+                    if db_tenant:
+                        db['DB_TENANT'] = db_tenant
+                    elif 'DB_TENANT' in db and not db_tenant:
+                        # Remove tenant if cleared
+                        del db['DB_TENANT']
 
                     # Handle disabled flag
                     disabled = request.values.get('DISABLED', None)
@@ -1751,8 +1973,8 @@ def api():
                 bind_address = request.form.get('BIND_ADDRESS')
                 server_port = request.form.get('SERVER_PORT')
                 mesh_port_range = request.form.get('MESH_LISTENERS_PORT_RANGE')
-                x509_private_key = request.form.get('SERVER_X509_PRIVATE_KEY')
-                x509_certificate = request.form.get('SERVER_X509_CERTIFICATE')
+                x509_private_key_content = request.form.get('SERVER_X509_PRIVATE_KEY_CONTENT')
+                x509_certificate_content = request.form.get('SERVER_X509_CERTIFICATE_CONTENT')
 
                 if bind_address:
                     config['SERVER']['BIND_ADDRESS'] = bind_address
@@ -1766,13 +1988,26 @@ def api():
                     config['SERVER']['MESH_LISTENERS_PORT_RANGE'] = mesh_port_range
                     app.config['config']['SERVER']['MESH_LISTENERS_PORT_RANGE'] = mesh_port_range
 
-                if x509_private_key:
-                    config['SERVER']['SERVER_X509_PRIVATE_KEY'] = x509_private_key
-                    app.config['config']['SERVER']['SERVER_X509_PRIVATE_KEY'] = x509_private_key
+                # Save X509 certificate content directly (not paths)
+                if x509_private_key_content is not None:
+                    config['SERVER']['SERVER_X509_PRIVATE_KEY_CONTENT'] = x509_private_key_content
+                    app.config['config']['SERVER']['SERVER_X509_PRIVATE_KEY_CONTENT'] = x509_private_key_content
+                    # Remove old path-based keys if present
+                    config['SERVER'].pop('SERVER_X509_PRIVATE_KEY', None)
+                    app.config['config']['SERVER'].pop('SERVER_X509_PRIVATE_KEY', None)
 
-                if x509_certificate:
-                    config['SERVER']['SERVER_X509_CERTIFICATE'] = x509_certificate
-                    app.config['config']['SERVER']['SERVER_X509_CERTIFICATE'] = x509_certificate
+                if x509_certificate_content is not None:
+                    config['SERVER']['SERVER_X509_CERTIFICATE_CONTENT'] = x509_certificate_content
+                    app.config['config']['SERVER']['SERVER_X509_CERTIFICATE_CONTENT'] = x509_certificate_content
+                    # Remove old path-based keys if present
+                    config['SERVER'].pop('SERVER_X509_CERTIFICATE', None)
+                    app.config['config']['SERVER'].pop('SERVER_X509_CERTIFICATE', None)
+
+                # Save public key (extracted from X509 certificate)
+                public_key = request.form.get('PUBLIC_KEY')
+                if public_key is not None:
+                    config['SERVER']['PUBLIC_KEY'] = public_key
+                    app.config['config']['SERVER']['PUBLIC_KEY'] = public_key
 
                 # iperf3 Authentication Settings
                 rsa_key_listeners = request.form.get('RSA_KEY_LISTENERS')
@@ -1826,6 +2061,335 @@ def api():
                 log.error(f"Error saving server config: {e}")
                 import traceback
                 log.error(traceback.format_exc())
+                return jsonify({"status": "ERROR", "message": str(e)})
+
+        elif requested_action == "GENERATE_IPERF3_RSA_KEYS":
+            ''' Generate new RSA key pair for iperf3 authentication '''
+            if session.get('user_role') != user_mgmt.ROLE_ADMIN:
+                return jsonify({"status": "ERROR", "message": "Admin access required"})
+
+            try:
+                from cryptography.hazmat.primitives import serialization
+                from cryptography.hazmat.primitives.asymmetric import rsa
+                from cryptography.hazmat.backends import default_backend
+
+                # Generate new RSA key pair
+                private_key = rsa.generate_private_key(
+                    public_exponent=65537,
+                    key_size=2048,
+                    backend=default_backend()
+                )
+                public_key = private_key.public_key()
+
+                # Serialize private key (for listeners)
+                private_pem = private_key.private_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PrivateFormat.PKCS8,
+                    encryption_algorithm=serialization.NoEncryption()
+                ).decode('utf-8')
+
+                # Serialize public key (for connectors)
+                public_pem = public_key.public_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PublicFormat.SubjectPublicKeyInfo
+                ).decode('utf-8')
+
+                log.info("Generated new RSA key pair for iperf3 authentication")
+
+                return jsonify({
+                    "status": "OK",
+                    "message": "RSA keys generated successfully",
+                    "private_key": private_pem,
+                    "public_key": public_pem
+                })
+
+            except Exception as e:
+                log.error(f"Error generating RSA keys: {e}")
+                import traceback
+                log.error(traceback.format_exc())
+                return jsonify({"status": "ERROR", "message": str(e)})
+
+        elif requested_action == "GENERATE_X509_CERTIFICATES":
+            ''' Generate new X509 self-signed certificate for TLS '''
+            if session.get('user_role') != user_mgmt.ROLE_ADMIN:
+                return jsonify({"status": "ERROR", "message": "Admin access required"})
+
+            try:
+                from cryptography import x509
+                from cryptography.x509.oid import NameOID
+                from cryptography.hazmat.primitives import hashes, serialization
+                from cryptography.hazmat.primitives.asymmetric import rsa
+                from cryptography.hazmat.backends import default_backend
+                import datetime
+                import socket
+
+                # Generate private key
+                private_key = rsa.generate_private_key(
+                    public_exponent=65537,
+                    key_size=2048,
+                    backend=default_backend()
+                )
+
+                # Get hostname for certificate
+                hostname = socket.gethostname()
+
+                # Generate self-signed certificate
+                subject = issuer = x509.Name([
+                    x509.NameAttribute(NameOID.COUNTRY_NAME, "US"),
+                    x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, "Network"),
+                    x509.NameAttribute(NameOID.LOCALITY_NAME, "SYNTRAF"),
+                    x509.NameAttribute(NameOID.ORGANIZATION_NAME, "SYNTRAF Server"),
+                    x509.NameAttribute(NameOID.COMMON_NAME, hostname),
+                ])
+
+                certificate = (
+                    x509.CertificateBuilder()
+                    .subject_name(subject)
+                    .issuer_name(issuer)
+                    .public_key(private_key.public_key())
+                    .serial_number(x509.random_serial_number())
+                    .not_valid_before(datetime.datetime.utcnow())
+                    .not_valid_after(datetime.datetime.utcnow() + datetime.timedelta(days=3650))  # 10 years
+                    .add_extension(
+                        x509.SubjectAlternativeName([
+                            x509.DNSName(hostname),
+                            x509.DNSName("localhost"),
+                        ]),
+                        critical=False,
+                    )
+                    .sign(private_key, hashes.SHA256(), default_backend())
+                )
+
+                # Serialize private key
+                private_pem = private_key.private_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PrivateFormat.TraditionalOpenSSL,
+                    encryption_algorithm=serialization.NoEncryption()
+                ).decode('utf-8')
+
+                # Serialize certificate
+                cert_pem = certificate.public_bytes(serialization.Encoding.PEM).decode('utf-8')
+
+                # Serialize public key (extracted from the private key)
+                public_pem = private_key.public_key().public_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PublicFormat.SubjectPublicKeyInfo
+                ).decode('utf-8')
+
+                log.info("Generated new X509 self-signed certificate for TLS")
+
+                return jsonify({
+                    "status": "OK",
+                    "message": "X509 certificates generated successfully",
+                    "private_key": private_pem,
+                    "certificate": cert_pem,
+                    "public_key": public_pem
+                })
+
+            except Exception as e:
+                log.error(f"Error generating X509 certificates: {e}")
+                import traceback
+                log.error(traceback.format_exc())
+                return jsonify({"status": "ERROR", "message": str(e)})
+
+        elif requested_action == "SAVE_SERVER_NETWORK":
+            ''' Save server network configuration '''
+            if session.get('user_role') != user_mgmt.ROLE_ADMIN:
+                return jsonify({"status": "ERROR", "message": "Admin access required"})
+
+            try:
+                config_path = app.config.get('config_file_path')
+                if not config_path:
+                    return jsonify({"status": "ERROR", "message": "Config file path not set"})
+
+                with open(config_path, 'r') as f:
+                    config = toml.load(f)
+
+                if 'SERVER' not in config:
+                    config['SERVER'] = {}
+
+                bind_address = request.form.get('BIND_ADDRESS')
+                server_port = request.form.get('SERVER_PORT')
+                mesh_port_range = request.form.get('MESH_LISTENERS_PORT_RANGE')
+                pool_size = request.form.get('SERVER_POOL_SIZE')
+                key_size = request.form.get('KEY_SIZE')
+
+                if bind_address:
+                    config['SERVER']['BIND_ADDRESS'] = bind_address
+                    app.config['config']['SERVER']['BIND_ADDRESS'] = bind_address
+                if server_port:
+                    config['SERVER']['SERVER_PORT'] = server_port
+                    app.config['config']['SERVER']['SERVER_PORT'] = server_port
+                if mesh_port_range:
+                    config['SERVER']['MESH_LISTENERS_PORT_RANGE'] = mesh_port_range
+                    app.config['config']['SERVER']['MESH_LISTENERS_PORT_RANGE'] = mesh_port_range
+                if pool_size:
+                    config['SERVER']['SERVER_POOL_SIZE'] = int(pool_size)
+                    app.config['config']['SERVER']['SERVER_POOL_SIZE'] = int(pool_size)
+                if key_size:
+                    config['SERVER']['KEY_SIZE'] = int(key_size)
+                    app.config['config']['SERVER']['KEY_SIZE'] = int(key_size)
+
+                with open(config_path, 'w') as f:
+                    toml.dump(config, f)
+
+                log.info("Server network configuration saved")
+                return jsonify({"status": "OK", "message": "Server network configuration saved"})
+
+            except Exception as e:
+                log.error(f"Error saving server network config: {e}")
+                return jsonify({"status": "ERROR", "message": str(e)})
+
+        elif requested_action == "SAVE_SERVER_AUTH":
+            ''' Save server authentication configuration '''
+            if session.get('user_role') != user_mgmt.ROLE_ADMIN:
+                return jsonify({"status": "ERROR", "message": "Admin access required"})
+
+            try:
+                config_path = app.config.get('config_file_path')
+                if not config_path:
+                    return jsonify({"status": "ERROR", "message": "Config file path not set"})
+
+                with open(config_path, 'r') as f:
+                    config = toml.load(f)
+
+                if 'SERVER' not in config:
+                    config['SERVER'] = {}
+
+                # TLS Certificate fields
+                x509_private_key = request.form.get('SERVER_X509_PRIVATE_KEY_CONTENT')
+                x509_certificate = request.form.get('SERVER_X509_CERTIFICATE_CONTENT')
+                public_key = request.form.get('PUBLIC_KEY')
+
+                if x509_private_key is not None:
+                    config['SERVER']['SERVER_X509_PRIVATE_KEY_CONTENT'] = x509_private_key
+                    app.config['config']['SERVER']['SERVER_X509_PRIVATE_KEY_CONTENT'] = x509_private_key
+                if x509_certificate is not None:
+                    config['SERVER']['SERVER_X509_CERTIFICATE_CONTENT'] = x509_certificate
+                    app.config['config']['SERVER']['SERVER_X509_CERTIFICATE_CONTENT'] = x509_certificate
+                if public_key is not None:
+                    config['SERVER']['PUBLIC_KEY'] = public_key
+                    app.config['config']['SERVER']['PUBLIC_KEY'] = public_key
+
+                # iperf3 RSA Authentication fields
+                rsa_key_listeners = request.form.get('RSA_KEY_LISTENERS')
+                rsa_key_connectors = request.form.get('RSA_KEY_CONNECTORS')
+                iperf3_username = request.form.get('IPERF3_USERNAME')
+                iperf3_password = request.form.get('IPERF3_PASSWORD')
+
+                if rsa_key_listeners is not None:
+                    config['SERVER']['RSA_KEY_LISTENERS'] = rsa_key_listeners
+                    app.config['config']['SERVER']['RSA_KEY_LISTENERS'] = rsa_key_listeners
+                if rsa_key_connectors is not None:
+                    config['SERVER']['RSA_KEY_CONNECTORS'] = rsa_key_connectors
+                    app.config['config']['SERVER']['RSA_KEY_CONNECTORS'] = rsa_key_connectors
+                if iperf3_username is not None:
+                    config['SERVER']['IPERF3_USERNAME'] = iperf3_username
+                    app.config['config']['SERVER']['IPERF3_USERNAME'] = iperf3_username
+                if iperf3_password:
+                    config['SERVER']['IPERF3_PASSWORD'] = iperf3_password
+                    app.config['config']['SERVER']['IPERF3_PASSWORD'] = iperf3_password
+                    import hashlib
+                    password_hash = hashlib.sha256(iperf3_password.encode()).hexdigest()
+                    config['SERVER']['IPERF3_PASSWORD_HASH'] = password_hash
+                    app.config['config']['SERVER']['IPERF3_PASSWORD_HASH'] = password_hash
+
+                with open(config_path, 'w') as f:
+                    toml.dump(config, f)
+
+                log.info("Server authentication configuration saved")
+                return jsonify({"status": "OK", "message": "Server authentication configuration saved"})
+
+            except Exception as e:
+                log.error(f"Error saving server auth config: {e}")
+                return jsonify({"status": "ERROR", "message": str(e)})
+
+        elif requested_action == "SAVE_WEBUI_CONFIG":
+            ''' Save WebUI configuration '''
+            if session.get('user_role') != user_mgmt.ROLE_ADMIN:
+                return jsonify({"status": "ERROR", "message": "Admin access required"})
+
+            try:
+                config_path = app.config.get('config_file_path')
+                if not config_path:
+                    return jsonify({"status": "ERROR", "message": "Config file path not set"})
+
+                with open(config_path, 'r') as f:
+                    config = toml.load(f)
+
+                if 'WEBUI' not in config:
+                    config['WEBUI'] = {}
+
+                bind_address = request.form.get('WEBUI_BIND_ADDRESS')
+                port = request.form.get('WEBUI_PORT')
+                use_ssl = request.form.get('WEBUI_USE_SSL') == 'true'
+                debug = request.form.get('WEBUI_DEBUG') == 'true'
+                session_timeout = request.form.get('WEBUI_SESSION_TIMEOUT')
+
+                if bind_address:
+                    config['WEBUI']['BIND_ADDRESS'] = bind_address
+                if port:
+                    config['WEBUI']['PORT'] = int(port)
+                config['WEBUI']['USE_SSL'] = use_ssl
+                config['WEBUI']['DEBUG'] = debug
+                if session_timeout:
+                    config['WEBUI']['SESSION_TIMEOUT'] = int(session_timeout)
+
+                # Update app config
+                if 'WEBUI' not in app.config['config']:
+                    app.config['config']['WEBUI'] = {}
+                app.config['config']['WEBUI'].update(config['WEBUI'])
+
+                with open(config_path, 'w') as f:
+                    toml.dump(config, f)
+
+                log.info("WebUI configuration saved")
+                return jsonify({"status": "OK", "message": "WebUI configuration saved"})
+
+            except Exception as e:
+                log.error(f"Error saving WebUI config: {e}")
+                return jsonify({"status": "ERROR", "message": str(e)})
+
+        elif requested_action == "SAVE_TLS_CONFIG":
+            ''' Save TLS certificate configuration '''
+            if session.get('user_role') != user_mgmt.ROLE_ADMIN:
+                return jsonify({"status": "ERROR", "message": "Admin access required"})
+
+            try:
+                config_path = app.config.get('config_file_path')
+                if not config_path:
+                    return jsonify({"status": "ERROR", "message": "Config file path not set"})
+
+                with open(config_path, 'r') as f:
+                    config = toml.load(f)
+
+                if 'SERVER' not in config:
+                    config['SERVER'] = {}
+
+                x509_private_key = request.form.get('SERVER_X509_PRIVATE_KEY_CONTENT')
+                x509_certificate = request.form.get('SERVER_X509_CERTIFICATE_CONTENT')
+                public_key = request.form.get('PUBLIC_KEY')
+
+                if x509_private_key is not None:
+                    config['SERVER']['SERVER_X509_PRIVATE_KEY_CONTENT'] = x509_private_key
+                    app.config['config']['SERVER']['SERVER_X509_PRIVATE_KEY_CONTENT'] = x509_private_key
+                    config['SERVER'].pop('SERVER_X509_PRIVATE_KEY', None)
+                if x509_certificate is not None:
+                    config['SERVER']['SERVER_X509_CERTIFICATE_CONTENT'] = x509_certificate
+                    app.config['config']['SERVER']['SERVER_X509_CERTIFICATE_CONTENT'] = x509_certificate
+                    config['SERVER'].pop('SERVER_X509_CERTIFICATE', None)
+                if public_key is not None:
+                    config['SERVER']['PUBLIC_KEY'] = public_key
+                    app.config['config']['SERVER']['PUBLIC_KEY'] = public_key
+
+                with open(config_path, 'w') as f:
+                    toml.dump(config, f)
+
+                log.info("TLS configuration saved")
+                return jsonify({"status": "OK", "message": "TLS configuration saved"})
+
+            except Exception as e:
+                log.error(f"Error saving TLS config: {e}")
                 return jsonify({"status": "ERROR", "message": str(e)})
 
         elif requested_action == "SAVE_GLOBAL_CONFIG":
@@ -1918,23 +2482,32 @@ def api():
                 return jsonify({"status": "ERROR", "message": "Invalid file type"})
 
             try:
+                content = ''
                 if file_type == 'private_key':
-                    file_path = app.config['config']['SERVER'].get('SERVER_X509_PRIVATE_KEY', '')
+                    # Check for content-based config first (new format)
+                    content = app.config['config']['SERVER'].get('SERVER_X509_PRIVATE_KEY_CONTENT', '')
+                    if not content:
+                        # Fall back to path-based config (old format)
+                        file_path = app.config['config']['SERVER'].get('SERVER_X509_PRIVATE_KEY', '')
+                        if file_path and os.path.exists(file_path):
+                            with open(file_path, 'r') as f:
+                                content = f.read()
                     filename = 'private_key_server.pem'
                 else:
-                    file_path = app.config['config']['SERVER'].get('SERVER_X509_CERTIFICATE', '')
+                    # Check for content-based config first (new format)
+                    content = app.config['config']['SERVER'].get('SERVER_X509_CERTIFICATE_CONTENT', '')
+                    if not content:
+                        # Fall back to path-based config (old format)
+                        file_path = app.config['config']['SERVER'].get('SERVER_X509_CERTIFICATE', '')
+                        if file_path and os.path.exists(file_path):
+                            with open(file_path, 'r') as f:
+                                content = f.read()
                     filename = 'certificate_server.pem'
 
-                if not file_path:
-                    return jsonify({"status": "ERROR", "message": f"No {file_type} path configured"})
+                if not content:
+                    return jsonify({"status": "ERROR", "message": f"No {file_type} content available"})
 
-                if not os.path.exists(file_path):
-                    return jsonify({"status": "ERROR", "message": f"File not found: {file_path}"})
-
-                with open(file_path, 'r') as f:
-                    content = f.read()
-
-                log.info(f"Exported {file_type} file: {file_path}")
+                log.info(f"Exported {file_type}")
                 return jsonify({"status": "OK", "content": content, "filename": filename})
 
             except Exception as e:
@@ -2174,6 +2747,422 @@ def api():
 
             log.info(f"SYNTRAF restart requested by user '{session.get('username', 'unknown')}'")
             return jsonify({"status": "OK", "message": "Restart initiated"})
+
+        elif requested_action == "GET_DIAGNOSTICS":
+            ''' Get system diagnostics information '''
+            import platform
+            import psutil
+
+            try:
+                # Get start time from app config or use current time
+                start_time = app.config.get('start_time', dt.now())
+                if isinstance(start_time, str):
+                    start_time = dt.fromisoformat(start_time)
+                uptime = dt.now() - start_time
+                uptime_str = str(uptime).split('.')[0]  # Remove microseconds
+
+                # System resources
+                cpu_percent = psutil.cpu_percent(interval=0.1)
+                memory = psutil.virtual_memory()
+                disk = psutil.disk_usage('/')
+
+                # Count active processes
+                thr = app.config.get('thr', [])
+                active_listeners = sum(1 for t in thr if hasattr(t, 'syntraf_instance_type') and t.syntraf_instance_type == 'LISTENER' and t.getstatus())
+                active_connectors = sum(1 for t in thr if hasattr(t, 'syntraf_instance_type') and t.syntraf_instance_type == 'CONNECTOR' and t.getstatus())
+                failed_processes = sum(1 for t in thr if hasattr(t, 'getstatus') and not t.getstatus())
+
+                data = {
+                    'hostname': platform.node(),
+                    'platform': f"{platform.system()} {platform.release()}",
+                    'python_version': platform.python_version(),
+                    'start_time': start_time.strftime('%Y-%m-%d %H:%M:%S') if hasattr(start_time, 'strftime') else str(start_time),
+                    'uptime': uptime_str,
+                    'cpu_percent': round(cpu_percent, 1),
+                    'memory_percent': round(memory.percent, 1),
+                    'memory_used': f"{memory.used // (1024**3)} GB / {memory.total // (1024**3)} GB",
+                    'disk_percent': round(disk.percent, 1),
+                    'disk_used': f"{disk.used // (1024**3)} GB / {disk.total // (1024**3)} GB",
+                    'active_listeners': active_listeners,
+                    'active_connectors': active_connectors,
+                    'failed_processes': failed_processes
+                }
+                return jsonify({"status": "OK", "data": data})
+            except Exception as e:
+                log.error(f"Error getting diagnostics: {e}")
+                return jsonify({"status": "ERROR", "message": str(e)})
+
+        elif requested_action == "EXPORT_DIAGNOSTICS_REPORT":
+            ''' Export diagnostics report as text '''
+            import platform
+            import psutil
+
+            try:
+                lines = []
+                lines.append("=" * 60)
+                lines.append("SYNTRAF DIAGNOSTICS REPORT")
+                lines.append(f"Generated: {dt.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                lines.append("=" * 60)
+                lines.append("")
+                lines.append("SYSTEM INFORMATION")
+                lines.append("-" * 40)
+                lines.append(f"Hostname: {platform.node()}")
+                lines.append(f"Platform: {platform.system()} {platform.release()}")
+                lines.append(f"Python: {platform.python_version()}")
+                lines.append(f"SYNTRAF Version: {DefaultValues.SYNTRAF_VERSION}")
+                lines.append("")
+                lines.append("RESOURCES")
+                lines.append("-" * 40)
+                lines.append(f"CPU Usage: {psutil.cpu_percent()}%")
+                mem = psutil.virtual_memory()
+                lines.append(f"Memory: {mem.percent}% ({mem.used // (1024**3)} GB / {mem.total // (1024**3)} GB)")
+                disk = psutil.disk_usage('/')
+                lines.append(f"Disk: {disk.percent}% ({disk.used // (1024**3)} GB / {disk.total // (1024**3)} GB)")
+                lines.append("")
+                lines.append("PROCESSES")
+                lines.append("-" * 40)
+                thr = app.config.get('thr', [])
+                for t in thr:
+                    if hasattr(t, 'name'):
+                        status = "Running" if t.getstatus() else "Stopped"
+                        lines.append(f"  {t.name}: {status}")
+                lines.append("")
+                lines.append("DATABASES")
+                lines.append("-" * 40)
+                for db in app.config.get('conn_db', []):
+                    if not getattr(db, 'disabled', False):
+                        lines.append(f"  {db.DB_UID}: {db.status} (queue: {db.write_queue.qsize()})")
+                lines.append("")
+                lines.append("CONNECTED CLIENTS")
+                lines.append("-" * 40)
+                for uid, client in app.config.get('dict_of_clients', {}).items():
+                    lines.append(f"  {uid}: {client.status}")
+
+                return jsonify({"status": "OK", "content": "\n".join(lines)})
+            except Exception as e:
+                log.error(f"Error exporting diagnostics: {e}")
+                return jsonify({"status": "ERROR", "message": str(e)})
+
+        elif requested_action == "GET_CONFIG_TOML":
+            ''' Get current configuration as TOML '''
+            try:
+                with open(app.config['config_file_path'], 'r') as f:
+                    content = f.read()
+                return jsonify({"status": "OK", "content": content})
+            except Exception as e:
+                log.error(f"Error reading config file: {e}")
+                return jsonify({"status": "ERROR", "message": str(e)})
+
+        elif requested_action == "EXPORT_CONFIG_TOML":
+            ''' Export configuration as TOML '''
+            try:
+                read_success, config = read_conf(app.config['config_file_path'])
+                if not read_success:
+                    return jsonify({"status": "ERROR", "message": "Failed to read configuration"})
+
+                # Optionally filter sections
+                include_tokens = request.values.get('INCLUDE_TOKENS', 'true').lower() == 'true'
+                include_db = request.values.get('INCLUDE_DATABASE', 'true').lower() == 'true'
+                include_clients = request.values.get('INCLUDE_CLIENTS', 'true').lower() == 'true'
+
+                export_config = copy.deepcopy(config)
+                if not include_tokens and 'SERVER' in export_config:
+                    export_config['SERVER'].pop('TOKEN', None)
+                if not include_db:
+                    export_config.pop('DATABASE', None)
+                if not include_clients:
+                    export_config.pop('SERVER_CLIENT', None)
+
+                content = toml.dumps(export_config)
+                return jsonify({"status": "OK", "content": content})
+            except Exception as e:
+                log.error(f"Error exporting config: {e}")
+                return jsonify({"status": "ERROR", "message": str(e)})
+
+        elif requested_action == "VALIDATE_CONFIG_TOML":
+            ''' Validate a TOML configuration '''
+            try:
+                content = request.values.get('CONTENT', '')
+                config = toml.loads(content)
+
+                # Basic validation
+                summary = {
+                    'global': 'GLOBAL' in config,
+                    'server': 'SERVER' in config,
+                    'client': 'CLIENT' in config,
+                    'databases': len(config.get('DATABASE', [])),
+                    'mesh_groups': len(config.get('MESH_GROUP', [])),
+                    'clients': len(config.get('SERVER_CLIENT', []))
+                }
+
+                # Run full validation
+                errors = []
+                is_valid, validation_errors = validate_config_for_webui(config)
+                if not is_valid:
+                    errors = validation_errors if isinstance(validation_errors, list) else [str(validation_errors)]
+
+                if errors:
+                    return jsonify({"status": "ERROR", "errors": errors, "summary": summary})
+                return jsonify({"status": "OK", "summary": summary})
+            except toml.TomlDecodeError as e:
+                return jsonify({"status": "ERROR", "errors": [f"TOML syntax error: {e}"]})
+            except Exception as e:
+                log.error(f"Error validating config: {e}")
+                return jsonify({"status": "ERROR", "message": str(e)})
+
+        elif requested_action == "IMPORT_CONFIG_TOML":
+            ''' Import a TOML configuration '''
+            try:
+                content = request.values.get('CONTENT', '')
+                new_config = toml.loads(content)
+
+                # Validate first
+                is_valid, validation_errors = validate_config_for_webui(new_config)
+                if not is_valid:
+                    errors = validation_errors if isinstance(validation_errors, list) else [str(validation_errors)]
+                    return jsonify({"status": "ERROR", "message": "Validation failed", "errors": errors})
+
+                # Create backup
+                config_path = app.config['config_file_path']
+                backup_path = f"{config_path}.backup.{dt.now().strftime('%Y%m%d_%H%M%S')}"
+                import shutil
+                shutil.copy2(config_path, backup_path)
+
+                # Write new config
+                with open(config_path, 'w') as f:
+                    toml.dump(new_config, f)
+
+                # Update in-memory config
+                update_config_in_place(new_config)
+
+                log.info(f"Configuration imported by user '{session.get('username', 'unknown')}'. Backup: {backup_path}")
+                return jsonify({"status": "OK", "backup_file": backup_path})
+            except toml.TomlDecodeError as e:
+                return jsonify({"status": "ERROR", "message": f"TOML syntax error: {e}"})
+            except Exception as e:
+                log.error(f"Error importing config: {e}")
+                return jsonify({"status": "ERROR", "message": str(e)})
+
+        elif requested_action == "ADD_IPERF3_PROFILE":
+            ''' Add a new iperf3 profile '''
+            try:
+                uid = request.values.get('UID', '').strip()
+                if not uid:
+                    return jsonify({"status": "ERROR", "message": "Profile UID is required"})
+
+                read_success, config = read_conf(app.config['config_file_path'])
+                if not read_success:
+                    return jsonify({"status": "ERROR", "message": "Failed to read configuration"})
+
+                # Check if profile already exists
+                profiles = config.get('IPERF3_PROFILE', [])
+                if any(p.get('UID') == uid for p in profiles):
+                    return jsonify({"status": "ERROR", "message": f"Profile '{uid}' already exists"})
+
+                new_profile = {'UID': uid}
+                if request.values.get('BANDWIDTH'):
+                    new_profile['BANDWIDTH'] = request.values.get('BANDWIDTH')
+                if request.values.get('DSCP'):
+                    new_profile['DSCP'] = request.values.get('DSCP')
+                if request.values.get('PACKET_SIZE'):
+                    new_profile['PACKET_SIZE'] = request.values.get('PACKET_SIZE')
+                if request.values.get('INTERVAL'):
+                    new_profile['INTERVAL'] = request.values.get('INTERVAL')
+                if request.values.get('PACKET_PER_SECOND'):
+                    new_profile['PACKET_PER_SECOND'] = request.values.get('PACKET_PER_SECOND')
+
+                if 'IPERF3_PROFILE' not in config:
+                    config['IPERF3_PROFILE'] = []
+                config['IPERF3_PROFILE'].append(new_profile)
+
+                with open(app.config['config_file_path'], 'w') as f:
+                    toml.dump(config, f)
+
+                update_config_in_place(config)
+                log.info(f"iperf3 profile '{uid}' created by user '{session.get('username', 'unknown')}'")
+                return jsonify({"status": "OK", "message": f"Profile '{uid}' created successfully"})
+            except Exception as e:
+                log.error(f"Error adding iperf3 profile: {e}")
+                return jsonify({"status": "ERROR", "message": str(e)})
+
+        elif requested_action == "UPDATE_IPERF3_PROFILE":
+            ''' Update an existing iperf3 profile '''
+            try:
+                original_uid = request.values.get('ORIGINAL_UID', '').strip()
+                uid = request.values.get('UID', '').strip()
+                if not original_uid or not uid:
+                    return jsonify({"status": "ERROR", "message": "Profile UID is required"})
+
+                read_success, config = read_conf(app.config['config_file_path'])
+                if not read_success:
+                    return jsonify({"status": "ERROR", "message": "Failed to read configuration"})
+
+                profiles = config.get('IPERF3_PROFILE', [])
+                profile_idx = next((i for i, p in enumerate(profiles) if p.get('UID') == original_uid), None)
+                if profile_idx is None:
+                    return jsonify({"status": "ERROR", "message": f"Profile '{original_uid}' not found"})
+
+                profiles[profile_idx]['UID'] = uid
+                if request.values.get('BANDWIDTH'):
+                    profiles[profile_idx]['BANDWIDTH'] = request.values.get('BANDWIDTH')
+                if request.values.get('DSCP'):
+                    profiles[profile_idx]['DSCP'] = request.values.get('DSCP')
+                if request.values.get('PACKET_SIZE'):
+                    profiles[profile_idx]['PACKET_SIZE'] = request.values.get('PACKET_SIZE')
+                if request.values.get('INTERVAL'):
+                    profiles[profile_idx]['INTERVAL'] = request.values.get('INTERVAL')
+
+                with open(app.config['config_file_path'], 'w') as f:
+                    toml.dump(config, f)
+
+                update_config_in_place(config)
+                log.info(f"iperf3 profile '{uid}' updated by user '{session.get('username', 'unknown')}'")
+                return jsonify({"status": "OK", "message": f"Profile '{uid}' updated successfully"})
+            except Exception as e:
+                log.error(f"Error updating iperf3 profile: {e}")
+                return jsonify({"status": "ERROR", "message": str(e)})
+
+        elif requested_action == "DELETE_IPERF3_PROFILE":
+            ''' Delete an iperf3 profile '''
+            try:
+                uid = request.values.get('UID', '').strip()
+                if not uid:
+                    return jsonify({"status": "ERROR", "message": "Profile UID is required"})
+
+                read_success, config = read_conf(app.config['config_file_path'])
+                if not read_success:
+                    return jsonify({"status": "ERROR", "message": "Failed to read configuration"})
+
+                profiles = config.get('IPERF3_PROFILE', [])
+                new_profiles = [p for p in profiles if p.get('UID') != uid]
+
+                if len(new_profiles) == len(profiles):
+                    return jsonify({"status": "ERROR", "message": f"Profile '{uid}' not found"})
+
+                # Check if profile is in use
+                mesh_groups = config.get('MESH_GROUP', [])
+                in_use = [mg['UID'] for mg in mesh_groups if mg.get('IPERF3_PROFILE') == uid]
+                if in_use:
+                    return jsonify({"status": "ERROR", "message": f"Profile is in use by mesh groups: {', '.join(in_use)}"})
+
+                config['IPERF3_PROFILE'] = new_profiles
+
+                with open(app.config['config_file_path'], 'w') as f:
+                    toml.dump(config, f)
+
+                update_config_in_place(config)
+                log.info(f"iperf3 profile '{uid}' deleted by user '{session.get('username', 'unknown')}'")
+                return jsonify({"status": "OK", "message": f"Profile '{uid}' deleted successfully"})
+            except Exception as e:
+                log.error(f"Error deleting iperf3 profile: {e}")
+                return jsonify({"status": "ERROR", "message": str(e)})
+
+        elif requested_action == "GET_IPERF3_PROFILES":
+            ''' Get all iperf3 profiles as JSON '''
+            try:
+                profiles = app.config['config'].get('IPERF3_PROFILE', [])
+                mesh_groups = app.config['config'].get('MESH_GROUP', [])
+
+                # Add used_by_groups info to each profile
+                result = []
+                for profile in profiles:
+                    profile_data = dict(profile)
+                    profile_data['used_by_groups'] = [
+                        mg.get('UID') for mg in mesh_groups
+                        if mg.get('IPERF3_PROFILE') == profile.get('UID')
+                    ]
+                    result.append(profile_data)
+
+                return jsonify(result)
+            except Exception as e:
+                log.error(f"Error getting iperf3 profiles: {e}")
+                return jsonify({"status": "ERROR", "message": str(e)})
+
+        elif requested_action == "DELETE_IPERF3_PROFILES":
+            ''' Delete multiple iperf3 profiles '''
+            try:
+                uids_str = request.values.get('UIDS', '')
+                if not uids_str:
+                    return jsonify({"status": "ERROR", "message": "Profile UIDs are required"})
+
+                uids = [u.strip() for u in uids_str.split(',') if u.strip()]
+
+                read_success, config = read_conf(app.config['config_file_path'])
+                if not read_success:
+                    return jsonify({"status": "ERROR", "message": "Failed to read configuration"})
+
+                profiles = config.get('IPERF3_PROFILE', [])
+                mesh_groups = config.get('MESH_GROUP', [])
+
+                # Check if any profile is in use
+                in_use_errors = []
+                for uid in uids:
+                    used_by = [mg['UID'] for mg in mesh_groups if mg.get('IPERF3_PROFILE') == uid]
+                    if used_by:
+                        in_use_errors.append(f"'{uid}' used by: {', '.join(used_by)}")
+
+                if in_use_errors:
+                    return jsonify({"status": "ERROR", "message": "Cannot delete profiles in use: " + "; ".join(in_use_errors)})
+
+                new_profiles = [p for p in profiles if p.get('UID') not in uids]
+                deleted_count = len(profiles) - len(new_profiles)
+
+                if deleted_count == 0:
+                    return jsonify({"status": "ERROR", "message": "No profiles found to delete"})
+
+                config['IPERF3_PROFILE'] = new_profiles
+
+                with open(app.config['config_file_path'], 'w') as f:
+                    toml.dump(config, f)
+
+                update_config_in_place(config)
+                log.info(f"{deleted_count} iperf3 profile(s) deleted by user '{session.get('username', 'unknown')}'")
+                return jsonify({"status": "OK", "message": f"{deleted_count} profile(s) deleted successfully"})
+            except Exception as e:
+                log.error(f"Error deleting iperf3 profiles: {e}")
+                return jsonify({"status": "ERROR", "message": str(e)})
+
+        elif requested_action == "DUPLICATE_IPERF3_PROFILE":
+            ''' Duplicate an iperf3 profile '''
+            try:
+                uid = request.values.get('UID', '').strip()
+                if not uid:
+                    return jsonify({"status": "ERROR", "message": "Profile UID is required"})
+
+                read_success, config = read_conf(app.config['config_file_path'])
+                if not read_success:
+                    return jsonify({"status": "ERROR", "message": "Failed to read configuration"})
+
+                profiles = config.get('IPERF3_PROFILE', [])
+                source_profile = next((p for p in profiles if p.get('UID') == uid), None)
+
+                if not source_profile:
+                    return jsonify({"status": "ERROR", "message": f"Profile '{uid}' not found"})
+
+                # Generate new UID
+                new_uid = f"{uid}_copy"
+                counter = 1
+                while any(p.get('UID') == new_uid for p in profiles):
+                    new_uid = f"{uid}_copy{counter}"
+                    counter += 1
+
+                # Create copy
+                new_profile = dict(source_profile)
+                new_profile['UID'] = new_uid
+
+                if 'IPERF3_PROFILE' not in config:
+                    config['IPERF3_PROFILE'] = []
+                config['IPERF3_PROFILE'].append(new_profile)
+
+                with open(app.config['config_file_path'], 'w') as f:
+                    toml.dump(config, f)
+
+                update_config_in_place(config)
+                log.info(f"iperf3 profile '{uid}' duplicated as '{new_uid}' by user '{session.get('username', 'unknown')}'")
+                return jsonify({"status": "OK", "message": f"Profile duplicated as '{new_uid}'"})
+            except Exception as e:
+                log.error(f"Error duplicating iperf3 profile: {e}")
+                return jsonify({"status": "ERROR", "message": str(e)})
 
         return "OK"
     else:
