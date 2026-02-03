@@ -6,9 +6,13 @@ pytz
 py-cpuinfo
 gevent
 influxdb-client
+influxdb3-python
+requests
 Flask==2.0.3
+Werkzeug>=2.0,<3.0
 flask-wtf
 Flask-Login
 Flask-SQLAlchemy
 python-dotenv
 pillow
+waitress

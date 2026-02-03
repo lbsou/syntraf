@@ -21,7 +21,16 @@ import logging
 import os
 from copy import deepcopy
 import json
+from datetime import date, datetime
 from lib.st_latency import tcp_ping
+
+
+class DateAwareJSONEncoder(json.JSONEncoder):
+    """Custom JSON encoder that handles datetime.date and datetime objects."""
+    def default(self, obj):
+        if isinstance(obj, (date, datetime)):
+            return obj.isoformat()
+        return super().default(obj)
 
 try:
     # SYNTRAF modules
@@ -33,6 +42,7 @@ try:
     from lib.st_clean_close import *
     from lib.st_process_and_thread import *
     from lib.st_system_stats import system_stats
+    from lib.st_thread_safe import ThreadSafeDict
 
 except Exception as exc:
     print("MISSING MODULE: " + str(exc))
@@ -158,21 +168,23 @@ def run():
     atexit.register(onclose, pid_file, threads_n_processes, config)
 
     # SERVER, This object keep track of all the client resources
-    dict_of_clients = {}
+    # Using ThreadSafeDict for thread-safe access from multiple threads
+    dict_of_clients = ThreadSafeDict()
 
     # CLIENT, This object keep track of the local resources
     obj_stats = system_stats(config)
 
     # CLIENT, Will contain the metric that will be sent to the server
-    dict_data_to_send_to_server = {}
+    # Using ThreadSafeDict for thread-safe access from multiple threads
+    dict_data_to_send_to_server = ThreadSafeDict()
 
     # Use by webui to provide message to the server that will be transmitted to client: ie : restart
     # A dictionary in which the key is the client_uid and the value is an array of command
-    # dict_of_commands_for_network_clients = {"DATACENTER": ["RESTART","PAUSE"]}
-    dict_of_commands_for_network_clients = {}
+    # Using ThreadSafeDict for thread-safe access from multiple threads
+    dict_of_commands_for_network_clients = ThreadSafeDict()
 
     # Using a public key mechanism, we have a list of client that are waiting acceptance
-    dict_of_client_pending_acceptance = {}
+    dict_of_client_pending_acceptance = ThreadSafeDict()
 
     # thread_run = threading.Thread(target=udp_server,
     #                               args=(),
@@ -281,7 +293,17 @@ def proc_dump(threads_n_processes, dict_of_clients, config):
                 del config_copy['SERVER']['RSA_KEY_LISTENERS']
             if 'RSA_KEY_CONNECTORS' in config_copy['SERVER']:
                 del config_copy['SERVER']['RSA_KEY_CONNECTORS']
-        config_json = json.dumps(config_copy, indent=4)
+            # Convert date keys in TOKEN dict to strings for JSON serialization
+            if 'TOKEN' in config_copy['SERVER']:
+                tokens = config_copy['SERVER']['TOKEN']
+                new_tokens = {}
+                for key, value in tokens.items():
+                    if isinstance(key, (date, datetime)):
+                        new_tokens[key.isoformat()] = value
+                    else:
+                        new_tokens[str(key)] = value
+                config_copy['SERVER']['TOKEN'] = new_tokens
+        config_json = json.dumps(config_copy, indent=4, cls=DateAwareJSONEncoder)
         with open(os.path.join(DefaultValues.SYNTRAF_PROC_DIR, "config.txt"), "w") as f:
             f.write(config_json)
 

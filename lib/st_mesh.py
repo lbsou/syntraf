@@ -597,8 +597,13 @@ def authenticate_server_client(_config, data, obj_client, sckt):
     ip_addr = sckt.getpeername()[0]
     rejection_explanation = ""
 
-    for description, token in _config['SERVER']['TOKEN'].items():
-        if data['PAYLOAD']['TOKEN'] == token:
+    for date_key, token_data in _config['SERVER']['TOKEN'].items():
+        # Handle both old format (string) and new format (dict with value/description)
+        if isinstance(token_data, dict):
+            token_value = token_data.get('value', '')
+        else:
+            token_value = token_data
+        if data['PAYLOAD']['TOKEN'] == token_value:
             valid_token = True
 
     if is_valid_server_client(_config, data['PAYLOAD']['CLIENT_UID'], sckt):
@@ -1084,22 +1089,22 @@ class SSL_TCPServer(TCPServer):
                  certfile,
                  keyfile,
                  bind_and_activate=True,
-                 ssl_version=ssl.PROTOCOL_TLSv1):
+                 ssl_version=ssl.PROTOCOL_TLS_SERVER):
         TCPServer.__init__(self, server_address, RequestHandlerClass, bind_and_activate)
         self.certfile = certfile
         self.keyfile = keyfile
-        self.ssl_version = ssl_version
+        # Create SSL context (modern approach for Python 3.12+)
+        self.ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        self.ssl_context.load_cert_chain(certfile=certfile, keyfile=keyfile)
+        self.ssl_context.check_hostname = False
+        self.ssl_context.verify_mode = ssl.CERT_NONE
 
 
     def get_request(self):
         newsocket, fromaddr = self.socket.accept()
-        connstream = ssl.wrap_socket(newsocket,
-                                     server_side=True,
-                                     certfile=self.certfile,
-                                     keyfile=self.keyfile,
-                                     #ssl_version=self.ssl_version,
-                                     cert_reqs=ssl.CERT_NONE,
-                                     do_handshake_on_connect=True)
+        connstream = self.ssl_context.wrap_socket(newsocket,
+                                                   server_side=True,
+                                                   do_handshake_on_connect=True)
         return connstream, fromaddr
 
     def get_config(self):

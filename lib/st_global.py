@@ -19,7 +19,7 @@ class CompilationOptions:
 
 class DefaultValues:
     # GLOBAL
-    SYNTRAF_VERSION = "0.45"
+    SYNTRAF_VERSION = "0.46"
     SYNTRAF_ROOT_DIR = pathlib.Path(__file__).parent.parent.absolute()
     SYNTRAF_PID_FILE = os.path.join(SYNTRAF_ROOT_DIR, 'syntraf.pid')
     SYNTRAF_PROC_DIR = os.path.join(SYNTRAF_ROOT_DIR, "proc")
@@ -65,8 +65,8 @@ class DefaultValues:
     #DEFAULT_IPERF3_TEMP_DIRECTORY = os.path.join(SYNTRAF_ROOT_DIR, "iperf3_temp")
     DEFAULT_IPERF3_TIME_SKEW_THRESHOLD = "10"
 
-    # Timeout for control connection setup (ms)
-    DEFAULT_IPERF3_CONNECT_TIMEOUT = "1000"
+    # Timeout for control connection setup (ms) - increased for unstable networks
+    DEFAULT_IPERF3_CONNECT_TIMEOUT = "5000"
     DEFAULT_IPERF3_AUTH = True
 
     # Restart idle server after # seconds in case it got stuck
@@ -75,8 +75,17 @@ class DefaultValues:
     # Handle one client connection then exit
     DEFAULT_IPERF3_SERVER_ONE_OFF = True
 
-    # Set timeout for receiving data during active tests (ms)
-    DEFAULT_IPERF3_RCV_TIMEOUT = "5000"
+    # Set timeout for receiving data during active tests (ms) - increased for unstable networks
+    DEFAULT_IPERF3_RCV_TIMEOUT = "15000"
+
+    # RESPAWN BACKOFF SETTINGS
+    DEFAULT_RESPAWN_MIN_DELAY = 1              # Minimum seconds between respawn attempts
+    DEFAULT_RESPAWN_MAX_DELAY = 60             # Maximum backoff delay in seconds
+    DEFAULT_RESPAWN_BACKOFF_MULTIPLIER = 2.0   # Exponential backoff factor
+    DEFAULT_RESPAWN_MAX_ATTEMPTS = 10          # Max consecutive failures before extended backoff
+
+    # DNS resolution timeout in seconds
+    DEFAULT_DNS_TIMEOUT = 10
 
     # LOGGING
     DEFAULT_LOG_MAX_SIZE_PER_FILE_MB = 20_485_760

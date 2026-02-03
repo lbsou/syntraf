@@ -4,10 +4,14 @@ from lib.st_iperf import *
 from lib.st_influxdb import *
 import time
 import re
+import threading
 from datetime import datetime
 import pytz
 import logging
 log = logging.getLogger("syntraf." + __name__)
+
+# Lock for thread-safe access to bidir_src_port state machine
+_bidir_lock = threading.Lock()
 
 
 #################################################################################
@@ -52,12 +56,11 @@ def tail(config: {}, edge_type: string, edge_key: string, exit_boolean: [], thre
                 return
             try:
                 line = next(iperf3_obj_process_n_thread.subproc.stdout, None)
-            # I/O operation on closed file
-            except ValueError:
-                #log.debug("11111111111111111111111111111111111111111111111")
-                pass
-                # Possible outage
-                #utime_last_event = outage_management(config, edge_type, edge_key, utime_last_event, dict_data_to_send_to_server)
+            # I/O operation on closed file - typically indicates iperf3 process died
+            except ValueError as ve:
+                log.warning(f"PIPE CLOSED for {edge_type} {edge_key}: {ve} - possible outage or process termination")
+                # Trigger outage detection since pipe closure indicates loss
+                utime_last_event = outage_management(config, edge_type, edge_key, utime_last_event, dict_data_to_send_to_server)
             except Exception as exc:
                 #log.debug("22222222222222222222222222222222222222222222222")
                 iperf3_obj_process_n_thread = wait_iperf3(config, edge_type, edge_key, exit_boolean, threads_n_processes)
@@ -118,7 +121,11 @@ def parse_line(line: string, _config: {}, edge_key: string, edge_type: string, d
             # Update last activity
             current_obj_process_n_thread.last_activity = datetime.now()
 
-            timestamp, utime, bitrate, jitter, loss, packet_loss, packet_total = extract_values_from_iperf3_result_line(line)
+            try:
+                timestamp, utime, bitrate, jitter, loss, packet_loss, packet_total = extract_values_from_iperf3_result_line(line)
+            except ValueError as ve:
+                log.warning(f"Failed to parse metrics from line: {ve}")
+                return True  # Continue processing other lines
 
             # when 100% packet loss, iperf report 0 for all values except jitter
             # ie: [  5]   4.00-5.00   sec  0.00 Bytes  0.00 bits/sec  0.024 ms  0/0 (0%)
@@ -180,8 +187,21 @@ def format_line(line: string):
 
 
 def extract_values_from_iperf3_result_line(line: string):
+    """Extract metrics from iperf3 result line with validation.
+
+    Args:
+        line: Raw iperf3 output line
+
+    Returns:
+        Tuple of (timestamp, utime, bitrate, jitter, loss, packet_loss, packet_total)
+
+    Raises:
+        ValueError: If any required field cannot be parsed from the line
+    """
     # timestamp
     x = re.findall(r"(\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d)", line)
+    if not x:
+        raise ValueError(f"No timestamp found in line: {line[:100]}")
     dt = datetime.strptime(str(x[0]), "%Y-%m-%d %H:%M:%S")
     timezone = pytz.timezone(DefaultValues.TIMEZONE)
     dt_tz = timezone.localize(dt)
@@ -190,29 +210,43 @@ def extract_values_from_iperf3_result_line(line: string):
 
     # bitrate
     x = re.findall(r"Bytes[ ]+(\d.*\d*) Kbits\/sec", line)
+    if not x:
+        raise ValueError(f"No bitrate found in line: {line[:100]}")
     bitrate = str(x[0])
 
     # jitter
     x = re.findall(r"\/sec  (.*) ms", line)
+    if not x:
+        raise ValueError(f"No jitter found in line: {line[:100]}")
     jitter = str(x[0])
 
     # loss
     x = re.findall(r"\((.*)%\)", line)
+    if not x:
+        raise ValueError(f"No loss percentage found in line: {line[:100]}")
     loss = str(x[0])
 
     # packet_loss
     x = re.findall(r"ms  (.*)\/.*\(", line)
+    if not x:
+        raise ValueError(f"No packet loss count found in line: {line[:100]}")
     packet_loss = str(x[0])
 
     # packet_total
     x = re.findall(r"ms .*\/(.*)\s\(", line)
+    if not x:
+        raise ValueError(f"No packet total found in line: {line[:100]}")
     packet_total = str(x[0])
 
     return timestamp, utime, bitrate, jitter, loss, packet_loss, packet_total
 
 
 def grab_bidir_src_port(_config: {}, line: string, iperf3_obj_process_n_thread: st_obj_process_n_thread):
+    """Grab the bidir source port for UDP hole punch.
 
+    Uses thread lock to prevent race conditions when multiple threads
+    access the bidir_src_port state machine.
+    """
     # When we have a bidir connection, iperf will open two port to destination. We want to grab the second source port, as it will allow us to keepalive the udp hole with scapy in another thread.
     # local 192.168.2.41 port 58743 connected to 192.168.6.100 port 15999
     # local 192.168.2.41 port 58744 connected to 192.168.6.100 port 15999
@@ -220,15 +254,17 @@ def grab_bidir_src_port(_config: {}, line: string, iperf3_obj_process_n_thread: 
     m_lport = re.search(r"local (?:[0-9]{1,3}.){3}[0-9]{1,3} port (\d{1,10}) connected to (?:[0-9]{1,3}.){3}[0-9]{1,3} port \d{1,10}", line)
     m_laddr = re.search(r"local ((?:[0-9]{1,3}.){3}[0-9]{1,3}) port \d{1,10} connected to (?:[0-9]{1,3}.){3}[0-9]{1,3} port \d{1,10}", line)
 
-    # Grab only the port from the second line, which is the RX
-    if m_lport and iperf3_obj_process_n_thread.bidir_src_port_cpt >= 0 and hasattr(iperf3_obj_process_n_thread, 'bidir_src_port'):
-        if iperf3_obj_process_n_thread.bidir_src_port_cpt == 0:
-            iperf3_obj_process_n_thread.bidir_src_port_cpt += 1
-        elif iperf3_obj_process_n_thread.bidir_src_port_cpt == 1:
-            iperf3_obj_process_n_thread.bidir_src_port = int(m_lport.groups()[0])
-            iperf3_obj_process_n_thread.bidir_local_addr = m_laddr.groups()[0]
-            log.info(f"GOT A SRC_IP AND SRC_PORT FOR UDP_HOLE_PUNCH:{m_laddr.groups()[0]}/{m_lport.groups()[0]}")
-            iperf3_obj_process_n_thread.bidir_src_port_cpt = -1
+    # Use lock to prevent race conditions on bidir_src_port state machine
+    with _bidir_lock:
+        # Grab only the port from the second line, which is the RX
+        if m_lport and iperf3_obj_process_n_thread.bidir_src_port_cpt >= 0 and hasattr(iperf3_obj_process_n_thread, 'bidir_src_port'):
+            if iperf3_obj_process_n_thread.bidir_src_port_cpt == 0:
+                iperf3_obj_process_n_thread.bidir_src_port_cpt += 1
+            elif iperf3_obj_process_n_thread.bidir_src_port_cpt == 1:
+                iperf3_obj_process_n_thread.bidir_src_port = int(m_lport.groups()[0])
+                iperf3_obj_process_n_thread.bidir_local_addr = m_laddr.groups()[0]
+                log.info(f"GOT A SRC_IP AND SRC_PORT FOR UDP_HOLE_PUNCH:{m_laddr.groups()[0]}/{m_lport.groups()[0]}")
+                iperf3_obj_process_n_thread.bidir_src_port_cpt = -1
 
 
 def outage_management(config: {}, edge_type: string, edge_key: string,  utime_last_event, dict_data_to_send_to_server):

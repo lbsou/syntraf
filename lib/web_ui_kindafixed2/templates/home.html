@@ -1,24 +1,30 @@
 {% extends "base.html" %}
-{% block title %}Home Page{% endblock %}
+{% block title %}{{ _('nav.home') }}{% endblock %}
 {% block content %}
 <h1>SYNTRAF</h1>
-<p class="text-info">Welcome, have a nice troubleshooting...</p>
+<p class="text-info">{{ _('home.welcome') }}</p>
 
 <div class="container">
   <div class="row">
     {% for database in conn_db %}
         <div class="col-sm-3">
-          {% if database.status == "ONLINE" %}
+          {% if database.disabled %}
+            <div class="card text-white bg-secondary mb-3" style="max-width: 30rem;" id="{{ database.DB_UID }}_status_color">
+          {% elif database.status == "ONLINE" %}
             <div class="card text-white bg-success mb-3" style="max-width: 30rem;" id="{{ database.DB_UID }}_status_color">
           {%- else -%}
             <div class="card text-white bg-danger mb-3" style="max-width: 30rem;" id="{{ database.DB_UID }}_status_color">
           {%- endif %}
-              <div class="card-header">Status of database: '{{ database.DB_UID }}'</div>
+              <div class="card-header">{{ _('home.database_status') }}: '{{ database.DB_UID }}'</div>
               <div class="card-body">
+                {% if database.disabled %}
+                <h4 class="card-title" id="{{ database.DB_UID }}_status"><i class="fas fa-toggle-off"></i> {{ _('common.disabled') | upper }}</h4>
+                {% else %}
                 <h4 class="card-title" id="{{ database.DB_UID }}_status">{{ database.status }}</h4>
+                {% endif %}
                 <p class="card-text">
-                    <p class="card-text" id="{{ database.DB_UID }}_status_since">Since: {{ database.status_time }}</p>
-                    <p class="card-text" id="{{ database.DB_UID }}_backlog">Data backlog: {{ database.write_queue.queue | length }}</p>
+                    <p class="card-text" id="{{ database.DB_UID }}_status_since">{{ _('home.since') }} {{ database.status_time }}</p>
+                    <p class="card-text" id="{{ database.DB_UID }}_backlog">{{ _('home.queue_label') }} {{ database.write_queue.queue | length }}</p>
                 </p>
               </div>
          </div>
@@ -31,7 +37,7 @@
   <div class="row">
         <div class="col-sm-3">
             <div class="card text-white bg-success mb-3" style="max-width: 30rem;">
-              <div class="card-header"><a href="/stats.html">Online clients</a></div>
+              <div class="card-header"><a href="/stats.html">{{ _('home.online_clients') }}</a></div>
               <div class="card-body">
                 <h4 class="card-title" id="ONLINE_CLIENTS"></h4>
                 <p class="card-text"></p>
@@ -40,7 +46,7 @@
         </div>
         <div class="col-sm-3">
             <div class="card text-white bg-danger mb-3" style="max-width: 30rem;">
-              <div class="card-header"><a href="/stats.html">Offline clients</a></div>
+              <div class="card-header"><a href="/stats.html">{{ _('home.offline_clients') }}</a></div>
               <div class="card-body">
                 <h4 class="card-title" id="OFFLINE_CLIENTS"></h4>
                 <p class="card-text"></p>
@@ -51,6 +57,13 @@
 </div>
 
 <script>
+// i18n labels for JavaScript
+const homeI18n = {
+    since: "{{ _('home.since') }}",
+    queue: "{{ _('home.queue_label') }}",
+    disabled: "{{ _('common.disabled') | upper }}"
+};
+
 get_online_clients()
 get_offline_clients()
 get_list_of_databases_infos()
@@ -118,16 +131,22 @@ async function get_list_of_databases_infos()
     //alert(retval);
 
     for (const [key, value] of Object.entries(retval)) {
+        const statusEl = document.getElementById(key + '_status');
+        const colorEl = document.getElementById(key + '_status_color');
 
-        document.getElementById(key + '_status').innerHTML = value['STATUS'];
-        if (value['STATUS'] == "ONLINE"){
-            document.getElementById(key + '_status_color').className = "card text-white bg-success mb-3";
-        } else{
-            document.getElementById(key + '_status_color').className = "card text-white bg-danger mb-3";
+        if (value['DISABLED']) {
+            statusEl.innerHTML = '<i class="fas fa-toggle-off"></i> ' + homeI18n.disabled;
+            colorEl.className = "card text-white bg-secondary mb-3";
+        } else if (value['STATUS'] == "ONLINE") {
+            statusEl.innerHTML = value['STATUS'];
+            colorEl.className = "card text-white bg-success mb-3";
+        } else {
+            statusEl.innerHTML = value['STATUS'];
+            colorEl.className = "card text-white bg-danger mb-3";
         }
 
-        document.getElementById(key + '_status_since').innerHTML = value['STATUS_TIME'];
-        document.getElementById(key + '_backlog').innerHTML = value['BACKLOG'];
+        document.getElementById(key + '_status_since').innerHTML = homeI18n.since + " " + value['STATUS_TIME'];
+        document.getElementById(key + '_backlog').innerHTML = homeI18n.queue + " " + value['BACKLOG'];
     }
 
 

@@ -1,25 +1,22 @@
 {% extends "base.html" %}
-{% block title %}Groups{% endblock %}
+{% block title %}{{ _('mesh_group.title') }}{% endblock %}
 {% block content %}
   <div class="container"><br>
     <div class="table-responsive">
-      <h2>Mesh groups</h2>
+      <h2>{{ _('mesh_group.title') }}</h2>
 
     <div id="toolbar">
       <button id="btn_new" type="button" class="btn btn-primary" style="width:120px;">
-          <i class="fas fa-plus"></i>&nbsp;&nbsp;&nbsp;New
+          <i class="fas fa-plus"></i>&nbsp;&nbsp;&nbsp;{{ _('common.new') }}
       </button>
-      <button id="btn_edit" type="button" class="btn btn-primary" style="width:120px;">
-          <i class="fa fa-edit"></i>&nbsp;&nbsp;&nbsp;Edit
+      <button id="btn_edit" type="button" class="btn btn-primary" style="width:120px;" disabled>
+          <i class="fa fa-edit"></i>&nbsp;&nbsp;&nbsp;{{ _('common.edit') }}
       </button>
       <button id="btn_delete" class="btn btn-danger" style="width:120px;" disabled>
-        <i class="fa fa-trash"></i>&nbsp;&nbsp;&nbsp;Delete
+        <i class="fa fa-trash"></i>&nbsp;&nbsp;&nbsp;{{ _('common.delete') }}
       </button>
       <button id="btn_duplicate" class="btn btn-primary" style="width:120px;" disabled>
-        <i class="far fa-clone"></i>&nbsp;&nbsp;&nbsp;Duplicate
-      </button>
-      <button id="btn_disable" class="btn btn-primary" style="width:120px;" disabled>
-        <i class="fas fa-slash"></i>&nbsp;&nbsp;&nbsp;Disable
+        <i class="far fa-clone"></i>&nbsp;&nbsp;&nbsp;{{ _('common.duplicate') }}
       </button>
 
     </div>
@@ -44,14 +41,14 @@
           <div class="modal-content">
               <input type="hidden" id="groupID" value="">
               <div class="modal-header">
-                  <h4 class="modal-title" id="modal_confirmation_title_text">Delete group</h4>
+                  <h4 class="modal-title" id="modal_confirmation_title_text">{{ _('mesh_group.delete_group') }}</h4>
               </div>
               <div class="modal-body" >
-                  <p id="modal_confirmationText">Are you sure you wish to delete this group?</p>
+                  <p id="modal_confirmationText">{{ _('mesh_group.confirm_delete') }}</p>
               </div>
               <div class="modal-footer">
-                  <button class="btn btn-default" data-bs-dismiss="modal" type="button">No</button>
-                  <button class="btn btn-danger" id="btn_yes_modal_confirmation" type="button">Yes</button>
+                  <button class="btn btn-default" data-bs-dismiss="modal" type="button">{{ _('common.no') }}</button>
+                  <button class="btn btn-danger" id="btn_yes_modal_confirmation" type="button">{{ _('common.yes') }}</button>
               </div>
           </div><!-- end modal-content -->
       </div><!-- end modal-dialog -->
@@ -91,34 +88,27 @@
   <div class="modal-dialog modal-dialog-centered" role="document">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="modal_new_mesh_group_label">Create mesh group</h5>
+        <h5 class="modal-title" id="modal_new_mesh_group_label">{{ _('mesh_group.create_group') }}</h5>
       </div>
       <form action="" id="new_mg_form" class="g-3" novalidate>
           <div class="modal-body">
                 <div class="table-responsive">
                     <div class="form-group">
-                        <label for="mg_name" class="form-label mt-4">Name</label>
-<!--                        pattern='^[A-Za-z0-9_-]{5,50}$'-->
-                        <input class="form-control" id="mg_name" type="text" oninput="check_validity_uid()" autofocus placeholder="Enter a unique mesh group name" name="mg_name" required>
+                        <label for="mg_name" class="form-label mt-4">{{ _('mesh_group.group_name') }}</label>
+                        <input class="form-control" id="mg_name" type="text" oninput="check_validity_uid()" autofocus placeholder="" name="mg_name" required>
                         <div id="mg_name-feedback" class="invalid-feedback">
-                            Please specify a unique and valid name (A-Za-z0-9_-), 5-50 characters long.
                         </div>
 
-                        <label for="mg_description" class="form-label mt-4">Description</label>
-<!--                        pattern='^[A-Za-z0-9_-]{0,100}$'-->
-                        <input class="form-control"  id="mg_description" type="text" placeholder="Enter a description" name="mg_description">
+                        <label for="mg_description" class="form-label mt-4">{{ _('common.description') }}</label>
+                        <input class="form-control"  id="mg_description" type="text" placeholder="" name="mg_description">
                         <div id="mg_description-feedback" class="invalid-feedback">
-                            You can enter a description for this mesh group.
                         </div>
 
                         <div style="display: inline-block;">
-                            <label for="mg_bandwidth" class="form-label mt-4">Bandwidth</label>
-<!--                            data-rule-min="0.00000001" data-rule-max="1000000000" -->
+                            <label for="mg_bandwidth" class="form-label mt-4">{{ _('mesh_group.bandwidth') }}</label>
                             <input class="form-control"  id="mg_bandwidth" type="text" placeholder="200" name="mg_bandwidth" required>
-<!--                            pattern='^[1-9][0-9]*$'-->
                         </div>
                         <div id="mg_bandwidth-feedback" class="invalid-feedback">
-                            Please specify a positive number.
                         </div>
                         <div style="display: inline-block;">
                           <select class="form-select" id="select_bw">
@@ -129,30 +119,33 @@
                         </div>
                         <br>
 
-                        <label for="mg_dscp" class="form-label mt-4">DSCP</label>
+                        <label for="mg_dscp" class="form-label mt-4">{{ _('mesh_group.dscp') }}</label>
                         <input class="form-control" id="mg_dscp" type="text" placeholder="0" name="mg_dscp" required>
                         <div class="invalid-feedback">
-                            Please specify a DSCP code between 0 and 63.
                         </div>
 
-                        <label for="mg_packet_size" class="form-label mt-4">Packet size (bytes)</label>
+                        <label for="mg_packet_size" class="form-label mt-4">{{ _('mesh_group.packet_size') }}</label>
                         <input class="form-control" id="mg_packet_size" type="text" placeholder="32" name="mg_packet_size" required>
                         <div class="invalid-feedback">
-                            Please specify a packet size between 16 and 65507.
                         </div>
 
-                        <label for="mg_interval" class="form-label mt-4">Metric interval (seconds)</label>
+                        <label for="mg_interval" class="form-label mt-4">{{ _('mesh_group.metric_interval') }}</label>
                         <input class="form-control" id="mg_interval" type="text" placeholder="1" name="mg_interval" required>
                         <div class="invalid-feedback">
-                            Please specify an interval between 1 and 60.
+                        </div>
+
+                        <div class="form-check form-switch mt-4" id="mg_disabled_container" style="display:none;">
+                            <input class="form-check-input" type="checkbox" id="mg_disabled" name="mg_disabled">
+                            <label class="form-check-label" for="mg_disabled">{{ _('common.disabled') }}</label>
+                            <small class="text-muted d-block">{{ _('mesh_group.disabled_info') }}</small>
                         </div>
 
                     </div>
                 </div>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-primary" data-bs-dismiss="modal" style="width:100px;">Cancel</button>
-            <button class="btn btn-primary" id="btn_save_new_mesh_group"style="width:100px;" type="button">Save</button>
+            <button type="button" class="btn btn-primary" data-bs-dismiss="modal" style="width:100px;">{{ _('common.cancel') }}</button>
+            <button class="btn btn-primary" id="btn_save_new_mesh_group"style="width:100px;" type="button">{{ _('common.save') }}</button>
           </div>
       </form>
 
@@ -170,9 +163,11 @@
     var $success_modal_text = $("#success_modal_text");
     var $btn_delete = $("#btn_delete");
     var $btn_new = $("#btn_new");
+    var $btn_edit = $("#btn_edit");
     var $btn_duplicate = $("#btn_duplicate");
-    var $btn_disable = $("#btn_disable");
     var selections = [];
+    var editMode = false;  // Track if we're editing or creating
+    var editingUid = null; // Track which mesh group we're editing
     let form = document.querySelector('.needs-validation')
 
 
@@ -223,11 +218,124 @@
     })
 
     $("#btn_new").click(function() {
+        // Reset form and set to create mode
+        editMode = false;
+        editingUid = null;
+        $('#modal_new_mesh_group_label').text('Create mesh group');
+        $('#mg_name').val('').prop('readonly', false);
+        $('#mg_description').val('');
+        $('#mg_bandwidth').val('');
+        $('#mg_dscp').val('');
+        $('#mg_packet_size').val('');
+        $('#mg_interval').val('');
+        $('#select_bw').val('Kbps');
+        $('#mg_disabled').prop('checked', false);
+        $('#mg_disabled_container').hide(); // Hide disabled checkbox for new groups
         $modal_new_mesh_group.modal('show');
     });
 
+    $("#btn_edit").click(function() {
+        var selectedRows = $table.bootstrapTable('getSelections');
+        if (selectedRows.length !== 1) {
+            alert('Please select exactly one mesh group to edit');
+            return;
+        }
 
+        var row = selectedRows[0];
+        editMode = true;
+        editingUid = row.UID;
 
+        // Set modal title and populate fields
+        $('#modal_new_mesh_group_label').text('Edit mesh group: ' + row.UID);
+        $('#mg_name').val(row.UID).prop('readonly', true); // UID can't be changed
+        $('#mg_description').val(row.DESCRIPTION || '');
+
+        // Parse bandwidth to extract number and unit
+        var bw = row.BANDWIDTH || '';
+        var bwNum = parseFloat(bw);
+        var bwUnit = 'Kbps';
+        if (bw.toUpperCase().endsWith('M')) {
+            bwUnit = 'Mbps';
+            bwNum = parseFloat(bw);
+        } else if (bw.toUpperCase().endsWith('K')) {
+            bwUnit = 'Kbps';
+            bwNum = parseFloat(bw);
+        } else if (!isNaN(parseFloat(bw))) {
+            bwUnit = 'bps';
+            bwNum = parseFloat(bw);
+        }
+        $('#mg_bandwidth').val(bwNum || bw);
+        $('#select_bw').val(bwUnit);
+
+        $('#mg_dscp').val(row.DSCP || '');
+        $('#mg_packet_size').val(row.PACKET_SIZE || '');
+        $('#mg_interval').val(row.INTERVAL || '');
+        $('#mg_disabled').prop('checked', row.DISABLED || false);
+        $('#mg_disabled_container').show(); // Show disabled checkbox in edit mode
+
+        $modal_new_mesh_group.modal('show');
+    });
+
+    // Enable/disable edit button based on selection
+    $table.on('check.bs.table uncheck.bs.table check-all.bs.table uncheck-all.bs.table', function() {
+        var selections = $table.bootstrapTable('getSelections');
+        $btn_edit.prop('disabled', selections.length !== 1);
+    });
+
+    // Save button handler (for both create and edit)
+    $("#btn_save_new_mesh_group").click(async function() {
+        var bandwidth = $('#mg_bandwidth').val();
+        var bwUnit = $('#select_bw').val();
+
+        // Convert bandwidth to standard format
+        if (bwUnit === 'Kbps') {
+            bandwidth = bandwidth + 'K';
+        } else if (bwUnit === 'Mbps') {
+            bandwidth = bandwidth + 'M';
+        }
+
+        const fd = new FormData();
+
+        if (editMode) {
+            // Edit existing mesh group
+            fd.append('ACTION', 'EDIT_MESH_GROUP');
+            fd.append('MESH_GROUP_UID', editingUid);
+            fd.append('BANDWIDTH', bandwidth);
+            fd.append('DSCP', $('#mg_dscp').val());
+            fd.append('PACKET_SIZE', $('#mg_packet_size').val());
+            fd.append('INTERVAL', $('#mg_interval').val());
+            fd.append('DESCRIPTION', $('#mg_description').val());
+            fd.append('DISABLED', $('#mg_disabled').is(':checked') ? 'true' : 'false');
+        } else {
+            // Create new mesh group - needs implementation
+            fd.append('ACTION', 'CREATE_MESH_GROUP');
+            fd.append('UID', $('#mg_name').val());
+            fd.append('BANDWIDTH', bandwidth);
+            fd.append('DSCP', $('#mg_dscp').val());
+            fd.append('PACKET_SIZE', $('#mg_packet_size').val());
+            fd.append('INTERVAL', $('#mg_interval').val());
+            fd.append('DESCRIPTION', $('#mg_description').val());
+        }
+
+        try {
+            const response = await fetch('/api', {
+                method: 'POST',
+                body: fd
+            });
+            const result = await response.json();
+
+            if (result.status === 'OK') {
+                $modal_new_mesh_group.modal('hide');
+                $success_modal_text.html('<p>' + result.message + '</p>');
+                $('#modal_success').modal('show');
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (error) {
+            console.error('Error saving mesh group:', error);
+            alert('Error saving mesh group');
+        }
+    });
 
 
 
@@ -277,7 +385,6 @@
     function () {
       $btn_delete.prop('disabled', !$table.bootstrapTable('getSelections').length)
       $btn_duplicate.prop('disabled', !$table.bootstrapTable('getSelections').length)
-      $btn_disable.prop('disabled', !$table.bootstrapTable('getSelections').length)
     })
 
     $table.on('all.bs.table', function (e, name, args) {
@@ -318,6 +425,31 @@
 
       $modal_confirmation.modal('show');
     })
+
+    // Quick toggle status by clicking on badge
+    async function quickToggleStatus(uid) {
+        const fd = new FormData();
+        fd.append("ACTION", "TOGGLE_DISABLE_MESH_GROUPS");
+        fd.append("MESH_GROUP_UIDS", uid);
+
+        try {
+            const response = await fetch('/api', {
+                method: 'POST',
+                body: fd
+            });
+            const result = await response.json();
+
+            if (result.status === 'OK') {
+                // Just refresh the table, no modal
+                get_mesh_groups();
+            } else {
+                alert('Error: ' + result.message);
+            }
+        } catch (error) {
+            console.error('Error toggling status:', error);
+            alert('Error toggling status');
+        }
+    }
 
     // If group click 'delete' call the API to delete the group
     $("#btn_close_modal_success").click(get_mesh_groups);
@@ -424,6 +556,20 @@
               columns: [
                         { field: 'state', checkbox: true, align: 'center', valign: 'middle'},
                         { field: 'UID', title: 'Name', align: 'center', sortable: true},
+                        { field: 'STATUS', title: 'Status', align: 'center', sortable: true,
+                          formatter: function(value, row) {
+                            if (row.DISABLED) {
+                              return '<span class="badge bg-secondary status-toggle" style="cursor:pointer" data-uid="' + row.UID + '" title="Click to enable"><i class="fas fa-toggle-off me-1"></i>Disabled</span>';
+                            }
+                            return '<span class="badge bg-success status-toggle" style="cursor:pointer" data-uid="' + row.UID + '" title="Click to disable"><i class="fas fa-toggle-on me-1"></i>Enabled</span>';
+                          },
+                          events: {
+                            'click .status-toggle': function(e, value, row, index) {
+                              e.stopPropagation();
+                              quickToggleStatus(row.UID);
+                            }
+                          }
+                        },
                         { field: 'BANDWIDTH', title: 'Bandwidth', align: 'center', sortable: false},
                         { field: 'PACKET_SIZE', title: 'Packet size', align: 'center', sortable: true},
                         { field: 'DSCP', title: 'DSCP', align: 'center', sortable: false},

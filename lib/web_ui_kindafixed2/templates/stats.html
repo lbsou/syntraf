@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Stats{% endblock %}
+{% block title %}{{ _('stats.title') }}{% endblock %}
 {% block head %}
 <link rel="stylesheet" href="/static/st.css">
 <meta http-equiv="refresh" content="3000" >
@@ -8,7 +8,7 @@
 <script type="text/javascript" src='/static/js/dc_4_2_7.min.js'></script>
 {% endblock %}
 {% block content %}
-<h2>Clients status</h2>
+<h2>{{ _('stats.title') }}</h2>
 
 <div class="modal fade" id="modal_system_stats_empty" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-dialog-centered" role="document">
@@ -18,7 +18,7 @@
             </br>
             <div id="error_modal_text"></div>
             </br>
-            <div><button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button></div>
+            <div><button type="button" class="btn btn-light" data-bs-dismiss="modal">{{ _('common.close') }}</button></div>
             </br>
         </div>
     </div>
@@ -28,8 +28,8 @@
   <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="modal_thread_status_label">Running thread(s)</h5>
-        <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
+        <h5 class="modal-title" id="modal_thread_status_label">{{ _('stats.running_threads') }}</h5>
+        <button type="button" class="close" data-bs-dismiss="modal" aria-label="{{ _('common.close') }}">
           <span aria-hidden="true">&times;</span>
         </button>
       </div>
@@ -38,11 +38,11 @@
                 <table id="table_thread_status" class="table table-striped table-hover table-bordered table-sm text-center">
                     <thead>
                         <tr>
-                            <th class="text-center" style="width: 10%">TYPE</th>
-                            <th class="text-center" style="width: 30%">START TIME</th>
-                            <th class="text-center" style="width: 10%">GROUP</th>
-                            <th class="text-center" style="width: 10%">OPPOSITE SIDE CLIENT_UID</th>
-                            <th class="text-center" style="width: 10%">LISTENER PORT</th>
+                            <th class="text-center" style="width: 10%">{{ _('stats.col_type') }}</th>
+                            <th class="text-center" style="width: 30%">{{ _('stats.col_start_time') }}</th>
+                            <th class="text-center" style="width: 10%">{{ _('stats.col_group') }}</th>
+                            <th class="text-center" style="width: 10%">{{ _('stats.col_opposite_client') }}</th>
+                            <th class="text-center" style="width: 10%">{{ _('stats.col_listener_port') }}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -51,7 +51,7 @@
             </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">{{ _('common.ok') }}</button>
       </div>
     </div>
   </div>
@@ -162,17 +162,17 @@
     <tbody>
         {% for key, data in dict_of_clients.items() %}
             <tr>
-                <td class="text-center align-middle">
-                    <div class="btn-group dropright">
-                      <button type="button" id="button_menu_client" class="btn btn-primary-outline dropdown-toggle" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                        {{ key }}
+                <td class="text-center align-middle" style="overflow: visible;">
+                    <div class="btn-group dropdown">
+                      <button type="button" id="button_menu_client_{{ key }}" class="btn btn-primary-outline dropdown-toggle" data-bs-toggle="dropdown" data-bs-boundary="viewport" aria-haspopup="true" aria-expanded="false">
+                        {{ key }} <span class="caret"></span>
                       </button>
                       <div class="dropdown-menu">
-                        <a class="dropdown-item" href="#" onclick="reconnect_client('{{ key }}')">Reconnect</a>
-                        <a class="dropdown-item" href="#" onclick="restart_client('{{ key }}')">Restart</a>
-                        <a class="dropdown-item" href="#">Pause</a>
-                        <a type="button" class="dropdown-item btn btn-info" id="dd_sys_infos_{{ key }}" data-client-uid="{{ key }}" onclick="get_sys_infos(this)">System informations</a>
-                        <a type="button" class="dropdown-item btn btn-info" id="dd_thread_status_{{ key }}" data-client-uid="{{ key }}" onclick="get_thread_status(this)">Thread status</a>
+                        <a class="dropdown-item" href="#" onclick="reconnect_client('{{ key }}')">{{ _('stats.reconnect') }}</a>
+                        <a class="dropdown-item" href="#" onclick="restart_client('{{ key }}')">{{ _('stats.restart') }}</a>
+                        <a class="dropdown-item" href="#">{{ _('stats.pause') }}</a>
+                        <a type="button" class="dropdown-item btn btn-info" id="dd_sys_infos_{{ key }}" data-client-uid="{{ key }}" onclick="get_sys_infos(this)">{{ _('stats.system_info') }}</a>
+                        <a type="button" class="dropdown-item btn btn-info" id="dd_thread_status_{{ key }}" data-client-uid="{{ key }}" onclick="get_thread_status(this)">{{ _('stats.thread_status') }}</a>
                       </div>
                     </div>
                 </td>
@@ -231,18 +231,23 @@ async function update_system_stats() {
         for (let [client_uid, data] of Object.entries(system_stats)) {
             data = JSON.parse(data)
 
-            document.getElementById(client_uid + '_status').innerHTML = data['status'];
-           // document.getElementById(client_uid + '_status').title = data['status_explanation'];
+            // Normalize status display - treat UNKNOWN as OFFLINE
+            let displayStatus = data['status'];
+            if (displayStatus == "UNKNOWN" || displayStatus == "NOT CONNECTED") {
+                displayStatus = "OFFLINE";
+            }
+
+            document.getElementById(client_uid + '_status').innerHTML = displayStatus;
             $("#" + client_uid + "_status").attr("title", data['status_explanation']).tooltip();
 
-            if (data['status'] == "DISCONNECTED"){
+            if (displayStatus == "DISCONNECTED" || displayStatus == "OFFLINE"){
                 document.getElementById(client_uid + '_status').className = "text-warning text-muted";
-                document.getElementById(client_uid + '_status_since').className = "text-danger text-muted";
-                document.getElementById(client_uid + '_syntraf_version').className = "text-danger text-muted";
-                document.getElementById(client_uid + '_clock_skew').className = "text-danger text-muted";
-                document.getElementById(client_uid + '_ip_address').className = "text-danger text-muted";
+                document.getElementById(client_uid + '_status_since').className = "text-muted";
+                document.getElementById(client_uid + '_syntraf_version').className = "text-muted";
+                document.getElementById(client_uid + '_clock_skew').className = "text-muted";
+                document.getElementById(client_uid + '_ip_address').className = "text-muted";
             }
-            else if (data['status'].includes("CONNECTED")){
+            else if (data['status'].startsWith("CONNECTED")){
                 document.getElementById(client_uid + '_status').className = "text-success";
                 document.getElementById(client_uid + '_status_since').className = "";
                 document.getElementById(client_uid + '_syntraf_version').className = "";
@@ -471,10 +476,18 @@ async function get_thread_status(source)
             thread_status = JSON.parse(thread_status);
             console.log(thread_status);
 
-            var datatable = $('#table_thread_status').DataTable();
-            datatable.clear().draw();
+            // Clear existing rows and populate table using jQuery
+            var tbody = $('#table_thread_status tbody');
+            tbody.empty();
             for (let [id, data] of Object.entries(thread_status)){
-                datatable.row.add([data.syntraf_instance_type, data.starttime, data.group, data.opposite_side, data.listener_port]).draw(false);
+                var row = '<tr>' +
+                    '<td>' + (data.syntraf_instance_type || '') + '</td>' +
+                    '<td>' + (data.starttime || '') + '</td>' +
+                    '<td>' + (data.group || '') + '</td>' +
+                    '<td>' + (data.opposite_side || '') + '</td>' +
+                    '<td>' + (data.listener_port || '') + '</td>' +
+                    '</tr>';
+                tbody.append(row);
             }
 
             $('#modal_thread_status').modal('show');

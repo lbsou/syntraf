@@ -1,25 +1,600 @@
 {% extends "base.html" %}
-{% block title %}Client config{% endblock %}
+{% block title %}Client Configuration{% endblock %}
 {% block content %}
-<h2>Clients configurations</h2>
-<br/>
-    {% for clients in config['SERVER_CLIENT'] %}
-        <h4><p class="text-info">{{ clients['UID'] }}</p></h4>
-        <table class="table table-striped table-hover table-bordered table-sm">
-            <thead>
-                <th style="width: 50%">PARAMETER</th>
-                <th style="width: 50%">VALUE</th>
-            </thead>
-            <tbody>
-                {% for item in clients %}
-                    <tr>
-                        <td>{{ item }}</td>
-                        <td>{{ clients[item] }}</td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        <br/>
-    {% endfor %}
+  <div class="container"><br>
+    <div class="table-responsive">
+      <h2>Client Nodes</h2>
+
+    <div id="toolbar">
+      <button id="btn_new" type="button" class="btn btn-primary" style="width:120px;">
+          <i class="fas fa-plus"></i>&nbsp;&nbsp;&nbsp;New
+      </button>
+      <button id="btn_edit" type="button" class="btn btn-primary" style="width:120px;" disabled>
+          <i class="fa fa-edit"></i>&nbsp;&nbsp;&nbsp;Edit
+      </button>
+      <button id="btn_delete" class="btn btn-danger" style="width:120px;" disabled>
+        <i class="fa fa-trash"></i>&nbsp;&nbsp;&nbsp;Delete
+      </button>
+      <button id="btn_duplicate" class="btn btn-primary" style="width:120px;" disabled>
+        <i class="far fa-clone"></i>&nbsp;&nbsp;&nbsp;Duplicate
+      </button>
+    </div>
+      <table id="table" class="table-dark table-striped thead-dark table-hover table-sm vertical-align" style="width:100%"
+          data-toolbar="#toolbar"
+          data-search="true"
+          data-show-toggle="true"
+          data-show-columns="true"
+          data-show-export="true"
+          data-click-to-select="true"
+          data-minimum-count-columns="2"
+          data-show-search-clear-button="true"
+          data-pagination="true"
+          data-id-field="UID"
+          data-page-list="[10, 25, 50, 100, all]"
+          data-show-footer="true">
+      </table>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div aria-labelledby="modal_confirmation" class="modal fade" id="modal_confirmation" role="dialog" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered" role="document">
+          <div class="modal-content">
+              <div class="modal-header">
+                  <h4 class="modal-title" id="modal_confirmation_title_text">Delete client</h4>
+              </div>
+              <div class="modal-body" >
+                  <p id="modal_confirmationText">Are you sure you wish to delete this client?</p>
+              </div>
+              <div class="modal-footer">
+                  <button class="btn btn-default" data-bs-dismiss="modal" type="button">No</button>
+                  <button class="btn btn-danger" id="btn_yes_modal_confirmation" type="button">Yes</button>
+              </div>
+          </div>
+      </div>
+  </div>
+
+  <!-- Error Modal -->
+  <div class="modal fade" id="modal_error" tabindex="-1" role="dialog">
+      <div class="modal-dialog modal-dialog-centered" role="document">
+          <div class="modal-content text-center">
+              <br>
+              <i class="fa fa-exclamation-triangle fa-2x" style="color:yellow" aria-hidden="true"></i>
+              <br>
+              <div id="error_modal_text"></div>
+              <br>
+              <div><button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button></div>
+              <br>
+          </div>
+      </div>
+  </div>
+
+  <!-- Success Modal -->
+  <div class="modal fade" id="modal_success" tabindex="-1" role="dialog" data-keyboard="false" data-backdrop="static">
+      <div class="modal-dialog modal-dialog-centered" role="document">
+          <div class="modal-content text-center">
+            <div class="modal-header">
+              <h5 class="modal-title" id="modal_success_label">Operation Result</h5>
+            </div>
+              <div id="success_modal_text" style="margin-right:15px; margin-left:15px; margin-top:15px;">
+              </div>
+              <br>
+              <div><button type="button" class="btn btn-light" id="btn_close_modal_success" data-bs-dismiss="modal">Close</button></div>
+              <br>
+          </div>
+      </div>
+  </div>
+
+  <!-- New/Edit Client Modal -->
+  <div class="modal fade" id="modal_client" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modal_client_label">Add Client Node</h5>
+        </div>
+        <form id="client_form">
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group mb-3">
+                            <label for="client_uid" class="form-label">Client UID <span class="text-danger">*</span></label>
+                            <input class="form-control" id="client_uid" type="text" placeholder="CLIENT_SITE_A" name="client_uid" required pattern="^[A-Za-z0-9_\-]{4,50}$">
+                            <small class="text-muted">Unique identifier (letters, numbers, _ and -)</small>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group mb-3">
+                            <label for="client_ip" class="form-label">IP Address <span class="text-danger">*</span></label>
+                            <input class="form-control" id="client_ip" type="text" placeholder="0.0.0.0 or 192.168.1.100" name="client_ip" required>
+                            <small class="text-muted">Use 0.0.0.0 for dynamic IP clients</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group mb-3">
+                            <label for="client_max_bw" class="form-label">Max Bandwidth</label>
+                            <div class="input-group">
+                                <input class="form-control" id="client_max_bw" type="text" placeholder="Leave empty for unlimited" name="client_max_bw">
+                                <select class="form-select" id="select_bw" style="max-width:100px;">
+                                    <option value="">-</option>
+                                    <option value="K">Kbps</option>
+                                    <option value="M">Mbps</option>
+                                </select>
+                            </div>
+                            <small class="text-muted">Optional bandwidth limit for this client</small>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group mb-3">
+                            <label class="form-label">Connection Status</label>
+                            <div id="client_status_display" class="form-control-plaintext">
+                                <span class="badge bg-secondary">New client</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group mb-3">
+                    <label for="client_mesh_groups" class="form-label">Mesh Groups</label>
+                    <div id="mesh_groups_container" class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
+                        <!-- Checkboxes will be populated dynamically -->
+                        <div class="text-muted">Loading mesh groups...</div>
+                    </div>
+                    <small class="text-muted">Select the mesh groups this client should participate in</small>
+                </div>
+
+                <hr>
+                <h6 class="text-info"><i class="fas fa-cog"></i> Advanced Settings</h6>
+
+                <div class="form-group mb-3">
+                    <label for="client_override_ips" class="form-label">Override Destination IPs</label>
+                    <textarea class="form-control" id="client_override_ips" rows="2" placeholder="CLIENT_B=10.0.0.2&#10;CLIENT_C=10.0.0.3"></textarea>
+                    <small class="text-muted">Override destination IPs for specific clients (one per line: CLIENT_UID=IP)</small>
+                </div>
+
+                <div class="form-group mb-3">
+                    <label for="client_exclusions" class="form-label">Excluded Clients per Mesh Group</label>
+                    <textarea class="form-control" id="client_exclusions" rows="2" placeholder="MESH_GROUP_1=CLIENT_X&#10;MESH_GROUP_2=CLIENT_Y"></textarea>
+                    <small class="text-muted">Exclude specific clients from mesh groups (one per line: MESH_GROUP=CLIENT_UID)</small>
+                </div>
+
+                <div class="form-check form-switch mb-3" id="client_disabled_container" style="display:none;">
+                    <input class="form-check-input" type="checkbox" id="client_disabled" name="client_disabled">
+                    <label class="form-check-label" for="client_disabled">Disabled</label>
+                    <small class="text-muted d-block">Disabled clients won't participate in mesh topology</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="width:100px;">Cancel</button>
+              <button class="btn btn-primary" id="btn_save_client" style="width:100px;" type="button">Save</button>
+            </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+<script>
+    var $table = $("#table");
+    var $modal_confirmation = $("#modal_confirmation");
+    var $modal_confirmationText = $("#modal_confirmationText");
+    var $modal_client = $("#modal_client");
+    var $success_modal_text = $("#success_modal_text");
+    var $btn_delete = $("#btn_delete");
+    var $btn_new = $("#btn_new");
+    var $btn_edit = $("#btn_edit");
+    var $btn_duplicate = $("#btn_duplicate");
+    var editMode = false;
+    var editingUid = null;
+    var availableMeshGroups = [];
+
+    // Load clients on page load
+    get_clients();
+    load_mesh_groups();
+
+    $(document).ready(function(){
+        $("#modal_confirmation").modal({backdrop: 'static', keyboard: false});
+        $("#modal_client").modal({backdrop: 'static', keyboard: false});
+        $("#modal_error").modal({backdrop: 'static', keyboard: false});
+        $("#modal_success").modal({backdrop: 'static', keyboard: false});
+    });
+
+    function getUidSelections() {
+        return $.map($table.bootstrapTable("getSelections"), function (row) {
+            return row.UID;
+        });
+    }
+
+    async function load_mesh_groups() {
+        const fd = new FormData();
+        fd.append("ACTION", "GET_MESH_GROUPS");
+
+        try {
+            const response = await fetch('/api', {
+                method: 'POST',
+                body: fd
+            });
+            availableMeshGroups = await response.json();
+        } catch (error) {
+            console.error('Error loading mesh groups:', error);
+            availableMeshGroups = [];
+        }
+    }
+
+    function populateMeshGroupCheckboxes(selectedGroups = []) {
+        const container = document.getElementById('mesh_groups_container');
+        if (availableMeshGroups.length === 0) {
+            container.innerHTML = '<div class="text-muted">No mesh groups available</div>';
+            return;
+        }
+
+        let html = '';
+        for (const mg of availableMeshGroups) {
+            const checked = selectedGroups.includes(mg.UID) ? 'checked' : '';
+            const disabled = mg.DISABLED ? 'disabled' : '';
+            const badge = mg.DISABLED ? '<span class="badge bg-secondary ms-2">Disabled</span>' : '';
+            html += `
+                <div class="form-check">
+                    <input class="form-check-input mesh-group-checkbox" type="checkbox" value="${mg.UID}" id="mg_${mg.UID}" ${checked} ${disabled}>
+                    <label class="form-check-label" for="mg_${mg.UID}">${mg.UID}${badge}</label>
+                </div>
+            `;
+        }
+        container.innerHTML = html;
+    }
+
+    function getSelectedMeshGroups() {
+        const checkboxes = document.querySelectorAll('.mesh-group-checkbox:checked');
+        return Array.from(checkboxes).map(cb => cb.value);
+    }
+
+    // New client button
+    $("#btn_new").click(function() {
+        editMode = false;
+        editingUid = null;
+        $('#modal_client_label').text('Add Client Node');
+        $('#client_uid').val('').prop('readonly', false);
+        $('#client_ip').val('0.0.0.0');
+        $('#client_max_bw').val('');
+        $('#select_bw').val('');
+        $('#client_override_ips').val('');
+        $('#client_exclusions').val('');
+        $('#client_disabled').prop('checked', false);
+        $('#client_disabled_container').hide();
+        $('#client_status_display').html('<span class="badge bg-secondary">New client</span>');
+        populateMeshGroupCheckboxes([]);
+        $modal_client.modal('show');
+    });
+
+    // Edit client button
+    $("#btn_edit").click(function() {
+        var selectedRows = $table.bootstrapTable('getSelections');
+        if (selectedRows.length !== 1) {
+            alert('Please select exactly one client to edit');
+            return;
+        }
+
+        var row = selectedRows[0];
+        editMode = true;
+        editingUid = row.UID;
+
+        $('#modal_client_label').text('Edit Client: ' + row.UID);
+        $('#client_uid').val(row.UID).prop('readonly', true);
+        $('#client_ip').val(row.IP_ADDRESS || '0.0.0.0');
+
+        // Parse max bandwidth
+        var maxBw = row.MAX_BANDWIDTH || '';
+        if (maxBw.toUpperCase().endsWith('M')) {
+            $('#client_max_bw').val(parseFloat(maxBw));
+            $('#select_bw').val('M');
+        } else if (maxBw.toUpperCase().endsWith('K')) {
+            $('#client_max_bw').val(parseFloat(maxBw));
+            $('#select_bw').val('K');
+        } else if (maxBw) {
+            $('#client_max_bw').val(maxBw);
+            $('#select_bw').val('');
+        } else {
+            $('#client_max_bw').val('');
+            $('#select_bw').val('');
+        }
+
+        // Parse override IPs
+        var overrideIps = row.OVERRIDE_DST_NODE_IP || {};
+        var overrideText = Object.entries(overrideIps).map(([k, v]) => `${k}=${v}`).join('\n');
+        $('#client_override_ips').val(overrideText);
+
+        // Parse exclusions
+        var exclusions = row.EXCLUDED_CLIENT_DICT || {};
+        var exclusionText = Object.entries(exclusions).map(([k, v]) => `${k}=${v}`).join('\n');
+        $('#client_exclusions').val(exclusionText);
+
+        $('#client_disabled').prop('checked', row.DISABLED || false);
+        $('#client_disabled_container').show();
+
+        // Show connection status
+        if (row.CONNECTION_STATUS === 'CONNECTED') {
+            $('#client_status_display').html('<span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Connected</span>');
+        } else {
+            $('#client_status_display').html('<span class="badge bg-warning"><i class="fas fa-clock me-1"></i>Not connected</span>');
+        }
+
+        populateMeshGroupCheckboxes(row.MESH_GROUP_UID_LIST || []);
+        $modal_client.modal('show');
+    });
+
+    // Enable/disable buttons based on selection
+    $table.on('check.bs.table uncheck.bs.table check-all.bs.table uncheck-all.bs.table', function() {
+        var selections = $table.bootstrapTable('getSelections');
+        $btn_edit.prop('disabled', selections.length !== 1);
+        $btn_delete.prop('disabled', !selections.length);
+        $btn_duplicate.prop('disabled', selections.length !== 1);
+    });
+
+    // Save button handler
+    $("#btn_save_client").click(async function() {
+        const fd = new FormData();
+
+        // Build max bandwidth string
+        var maxBw = $('#client_max_bw').val().trim();
+        var bwUnit = $('#select_bw').val();
+        if (maxBw && bwUnit) {
+            maxBw = maxBw + bwUnit;
+        }
+
+        // Parse override IPs
+        var overrideIpsText = $('#client_override_ips').val().trim();
+        var overrideIps = {};
+        if (overrideIpsText) {
+            overrideIpsText.split('\n').forEach(line => {
+                var parts = line.split('=');
+                if (parts.length === 2) {
+                    overrideIps[parts[0].trim()] = parts[1].trim();
+                }
+            });
+        }
+
+        // Parse exclusions
+        var exclusionsText = $('#client_exclusions').val().trim();
+        var exclusions = {};
+        if (exclusionsText) {
+            exclusionsText.split('\n').forEach(line => {
+                var parts = line.split('=');
+                if (parts.length === 2) {
+                    exclusions[parts[0].trim()] = parts[1].trim();
+                }
+            });
+        }
+
+        if (editMode) {
+            fd.append('ACTION', 'EDIT_CLIENT');
+            fd.append('CLIENT_UID', editingUid);
+        } else {
+            fd.append('ACTION', 'CREATE_CLIENT');
+            fd.append('CLIENT_UID', $('#client_uid').val().trim());
+        }
+
+        fd.append('IP_ADDRESS', $('#client_ip').val().trim());
+        fd.append('MESH_GROUP_UID_LIST', JSON.stringify(getSelectedMeshGroups()));
+        fd.append('MAX_BANDWIDTH', maxBw);
+        fd.append('OVERRIDE_DST_NODE_IP', JSON.stringify(overrideIps));
+        fd.append('EXCLUDED_CLIENT_DICT', JSON.stringify(exclusions));
+        if (editMode) {
+            fd.append('DISABLED', $('#client_disabled').is(':checked') ? 'true' : 'false');
+        }
+
+        try {
+            const response = await fetch('/api', {
+                method: 'POST',
+                body: fd
+            });
+            const result = await response.json();
+
+            if (result.status === 'OK') {
+                $modal_client.modal('hide');
+                var html = '<p><i class="fas fa-check-circle text-success"></i> ' + result.message + '</p>';
+                if (result.warnings && result.warnings.length > 0) {
+                    html += '<div class="alert alert-warning mt-2"><strong>Warnings:</strong><ul class="mb-0">';
+                    result.warnings.forEach(w => html += '<li>' + w + '</li>');
+                    html += '</ul></div>';
+                }
+                $success_modal_text.html(html);
+                $('#modal_success').modal('show');
+            } else if (result.status === 'VALIDATION_ERROR') {
+                // Hide the edit modal first to prevent z-index issues
+                $modal_client.modal('hide');
+                // Show validation errors
+                var errorHtml = '<strong>Validation failed:</strong><ul class="mb-0">';
+                if (result.errors && result.errors.length > 0) {
+                    result.errors.forEach(e => errorHtml += '<li>' + e + '</li>');
+                }
+                errorHtml += '</ul>';
+                if (result.warnings && result.warnings.length > 0) {
+                    errorHtml += '<br><strong>Warnings:</strong><ul class="mb-0">';
+                    result.warnings.forEach(w => errorHtml += '<li>' + w + '</li>');
+                    errorHtml += '</ul>';
+                }
+                document.getElementById("error_modal_text").innerHTML = errorHtml;
+                $('#modal_error').modal('show');
+            } else {
+                showAlert('Error: ' + result.message, 'danger');
+            }
+        } catch (error) {
+            console.error('Error saving client:', error);
+            showAlert('Error saving client configuration', 'danger');
+        }
+    });
+
+    // Delete button handler
+    $btn_delete.click(function () {
+        $('#btn_yes_modal_confirmation').unbind('click');
+        $("#btn_yes_modal_confirmation").click(function() {
+            delete_clients(getUidSelections());
+            $btn_delete.prop('disabled', true);
+            $modal_confirmation.modal('hide');
+        });
+
+        var uids_to_delete = getUidSelections();
+        $('#modal_confirmation_title_text').text('Delete Client');
+
+        if (uids_to_delete.length == 1){
+            $modal_confirmationText.text(`Are you sure you wish to delete the client '${uids_to_delete}'?`);
+        } else {
+            $modal_confirmationText.text(`Are you sure you wish to delete these ${uids_to_delete.length} clients?`);
+        }
+
+        $modal_confirmation.modal('show');
+    });
+
+    // Duplicate button handler
+    $btn_duplicate.click(function () {
+        $('#btn_yes_modal_confirmation').unbind('click');
+        $("#btn_yes_modal_confirmation").click(function() {
+            duplicate_client(getUidSelections()[0]);
+            $btn_duplicate.prop('disabled', true);
+            $modal_confirmation.modal('hide');
+        });
+
+        var client_uid = getUidSelections()[0];
+        $('#modal_confirmation_title_text').text('Duplicate Client');
+        $modal_confirmationText.text(`Are you sure you wish to duplicate the client '${client_uid}'?`);
+        $modal_confirmation.modal('show');
+    });
+
+    // Refresh table on modal close
+    $("#btn_close_modal_success").click(get_clients);
+
+    async function duplicate_client(client_uid) {
+        const fd = new FormData();
+        fd.append("ACTION", "DUPLICATE_CLIENT");
+        fd.append("CLIENT_UID", client_uid);
+
+        try {
+            const response = await fetch('/api', {
+                method: 'POST',
+                body: fd
+            });
+            const result = await response.json();
+
+            if (result.status === 'OK') {
+                $success_modal_text.html('<p><i class="fas fa-check-circle text-success"></i> ' + result.message + '</p>');
+                $('#modal_success').modal('show');
+            } else {
+                document.getElementById("error_modal_text").innerHTML = result.message;
+                $('#modal_error').modal('show');
+            }
+        } catch (error) {
+            console.error('Error duplicating client:', error);
+            document.getElementById("error_modal_text").innerHTML = 'Error duplicating client';
+            $('#modal_error').modal('show');
+        }
+        $btn_duplicate.prop('disabled', false);
+    }
+
+    async function delete_clients(client_uids) {
+        const fd = new FormData();
+        fd.append("ACTION", "DELETE_CLIENTS");
+        fd.append("CLIENT_UIDS", client_uids);
+
+        try {
+            const response = await fetch('/api', {
+                method: 'POST',
+                body: fd
+            });
+            const result = await response.json();
+
+            if (result.status === 'OK') {
+                $success_modal_text.html('<p><i class="fas fa-check-circle text-success"></i> ' + result.message + '</p>');
+                $('#modal_success').modal('show');
+            } else {
+                document.getElementById("error_modal_text").innerHTML = result.message;
+                $('#modal_error').modal('show');
+            }
+        } catch (error) {
+            console.error('Error deleting client:', error);
+            document.getElementById("error_modal_text").innerHTML = 'Error deleting client';
+            $('#modal_error').modal('show');
+        }
+    }
+
+    async function get_clients() {
+        console.log("get_clients");
+        const fd = new FormData();
+        fd.append("ACTION", "GET_CLIENTS");
+
+        try {
+            const response = await fetch('/api', {
+                method: 'POST',
+                body: fd
+            });
+            const clients = await response.json();
+
+            if (clients.status === 'ERROR') {
+                showAlert('Error loading clients: ' + clients.message, 'danger');
+                return;
+            }
+
+            $table.bootstrapTable('destroy');
+            $table.bootstrapTable({
+              pagination: true,
+              search: true,
+              columns: [
+                        { field: 'state', checkbox: true, align: 'center', valign: 'middle'},
+                        { field: 'UID', title: 'UID', align: 'center', sortable: true},
+                        { field: 'STATUS', title: 'Status', align: 'center', sortable: true,
+                          formatter: function(value, row) {
+                            if (row.DISABLED) {
+                              return '<span class="badge bg-secondary"><i class="fas fa-toggle-off me-1"></i>Disabled</span>';
+                            }
+                            if (row.CONNECTION_STATUS === 'CONNECTED') {
+                              return '<span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Connected</span>';
+                            }
+                            return '<span class="badge bg-warning"><i class="fas fa-clock me-1"></i>Offline</span>';
+                          }
+                        },
+                        { field: 'IP_ADDRESS', title: 'IP Address', align: 'center', sortable: true,
+                          formatter: function(value, row) {
+                            // Show live IP if connected and different from configured IP
+                            if (row.LIVE_IP_ADDRESS && row.CONNECTION_STATUS === 'CONNECTED') {
+                              if (value === '0.0.0.0' || !value) {
+                                return '<span class="text-success">' + row.LIVE_IP_ADDRESS + '</span> <small class="text-muted">(live)</small>';
+                              } else if (row.LIVE_IP_ADDRESS !== value) {
+                                return value + ' <small class="text-warning">(' + row.LIVE_IP_ADDRESS + ')</small>';
+                              }
+                            }
+                            return value || '<span class="text-muted">0.0.0.0</span>';
+                          }
+                        },
+                        { field: 'MESH_GROUP_UID_LIST', title: 'Mesh Groups', align: 'center', sortable: false,
+                          formatter: function(value) {
+                            if (!value || value.length === 0) return '<span class="text-muted">None</span>';
+                            return value.map(g => '<span class="badge bg-info me-1">' + g + '</span>').join('');
+                          }
+                        },
+                        { field: 'MAX_BANDWIDTH', title: 'Max BW', align: 'center', sortable: true,
+                          formatter: function(value) {
+                            return value || '<span class="text-muted">-</span>';
+                          }
+                        },
+                        { field: 'OVERRIDE_COUNT', title: 'Overrides', align: 'center', sortable: false,
+                          formatter: function(value, row) {
+                            var overrides = row.OVERRIDE_DST_NODE_IP ? Object.keys(row.OVERRIDE_DST_NODE_IP).length : 0;
+                            var exclusions = row.EXCLUDED_CLIENT_DICT ? Object.keys(row.EXCLUDED_CLIENT_DICT).length : 0;
+                            if (overrides === 0 && exclusions === 0) return '<span class="text-muted">-</span>';
+                            var badges = [];
+                            if (overrides > 0) badges.push('<span class="badge bg-warning" title="IP overrides">' + overrides + ' IP</span>');
+                            if (exclusions > 0) badges.push('<span class="badge bg-danger" title="Exclusions">' + exclusions + ' excl</span>');
+                            return badges.join(' ');
+                          }
+                        }
+                       ],
+              data: clients
+            });
+        } catch (error) {
+            console.error('Error fetching clients:', error);
+            showAlert('Error loading client configurations', 'danger');
+        }
+    }
+</script>
 
 {% endblock %}

@@ -9,3 +9,4 @@ getmac
 scapy
 tabulate
 fqdn
+requests
