@@ -777,7 +777,7 @@ get_git_path() {
 }
 
 client_only_param() {
-	sed -i 's/client_only = False/client_only = True/g' st_global.py &>> install_syntraf.log
+	sed -i 's/client_only = False/client_only = True/g' lib/st_global.py &>> install_syntraf.log
 	
 	if [[ $? -ne 0 ]]; then
 		/usr/bin/printf "${red}An error occured while modifying st_global.py, see install_syntraf.log for details.${clear}\n"
