@@ -156,7 +156,7 @@ detect_os() {
 }
 
 # Returns 0 (true) if $1 >= $2 (version comparison)
-function version_gtee() {
+function version_gte() {
     local required="$1"
     local installed="$2"
     # Sort versions and check if required is less than or equal to installed
