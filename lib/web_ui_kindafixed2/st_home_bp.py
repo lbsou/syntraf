@@ -363,6 +363,7 @@ def queue():
         return redirect(url_for('st_home_bp.index'))
     return render_template('queue.html', title='SYNTRAF WEBUI',
                            dict_data_to_send_to_server=app.config['dict_data_to_send_to_server'],
+                           conn_db=app.config.get('conn_db', []),
                            syntraf_version=DefaultValues.SYNTRAF_VERSION)
 
 

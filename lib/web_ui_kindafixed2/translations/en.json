@@ -297,13 +297,22 @@
     "copied": "Token copied to clipboard"
   },
   "queue": {
-    "title": "Queue - Data to send to server",
+    "title": "Queues",
+    "client_queue_title": "Client Queue - Data to send to server",
+    "client_queue_desc": "Data collected by clients waiting to be sent to the mesh server via the control channel.",
+    "db_queue_title": "Database Write Queues",
+    "db_queue_desc": "Metrics waiting to be written to each configured database. Each database has its own independent write queue.",
     "items_in_queue": "item(s) in queue",
     "empty": "Queue is empty - all data has been sent to the server",
+    "db_empty": "All database write queues are empty",
     "col_measurement": "Measurement",
     "col_time": "Time",
     "col_tags": "Tags",
     "col_fields": "Fields",
+    "col_database": "Database",
+    "col_engine": "Engine",
+    "col_status": "Status",
+    "col_queue_size": "Queue Size",
     "clear_queue": "Clear Queue",
     "confirm_clear": "Are you sure you want to clear the queue?"
   },

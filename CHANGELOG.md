@@ -14,8 +14,9 @@ All notable changes to SYNTRAF will be documented in this file.
   - English and French translations
   - Language selector in navigation bar
   - Translation files in `lib/web_ui_kindafixed2/translations/`
-- **Log viewer**: New logs page in WebUI to view application logs
+- **Log viewer**: New logs page in WebUI to view application logs (newest first)
 - **User management**: Change password functionality
+- **Enhanced queue page**: Shows both client-side queue and per-database write queues with status information
 
 ### Fixed
 - **PID file check**: Improved `check_pid()` to verify process is actually SYNTRAF, not just any process with the same PID
@@ -29,6 +30,7 @@ All notable changes to SYNTRAF will be documented in this file.
 ### Changed
 - **Database config UI**: VictoriaMetrics option in engine dropdown, hides org/bucket fields when selected
 - **Status display**: Normalized status values between backend and frontend
+- **Navigation**: Removed "Processes" submenu from Status dropdown
 
 ### Dependencies
 - Added `requests` library to requirements (for VictoriaMetrics HTTP API)

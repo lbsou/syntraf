@@ -148,8 +148,8 @@
     </div>
 </div>
 
-<button class="btn btn-primary btn-scroll" id="scrollBtn" onclick="scrollToBottom()" style="display: none;">
-    <i class="fas fa-arrow-down"></i>
+<button class="btn btn-primary btn-scroll" id="scrollBtn" onclick="scrollToTop()" style="display: none;">
+    <i class="fas fa-arrow-up"></i>
 </button>
 
 <script>
@@ -171,12 +171,12 @@ let allLogLines = [];
 document.addEventListener('DOMContentLoaded', function() {
     loadLogFiles();
 
-    // Show/hide scroll button based on scroll position
+    // Show/hide scroll button based on scroll position (show when away from top)
     document.getElementById('logContainer').addEventListener('scroll', function() {
         const container = this;
         const scrollBtn = document.getElementById('scrollBtn');
-        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
-        scrollBtn.style.display = isNearBottom ? 'none' : 'block';
+        const isNearTop = container.scrollTop < 100;
+        scrollBtn.style.display = isNearTop ? 'none' : 'block';
     });
 });
 
@@ -251,7 +251,7 @@ async function loadLogFile() {
     }
 }
 
-// Display log content with syntax highlighting
+// Display log content with syntax highlighting (newest first)
 function displayLogContent(content, totalLines) {
     const container = document.getElementById('logContent');
     const lines = content.split('\n');
@@ -259,7 +259,10 @@ function displayLogContent(content, totalLines) {
 
     container.innerHTML = '';
 
-    lines.forEach((line, index) => {
+    // Reverse order to show newest entries first
+    const reversedLines = [...lines].reverse();
+
+    reversedLines.forEach((line, index) => {
         if (line.trim()) {
             const div = document.createElement('div');
             div.className = 'log-line ' + getLogLevelClass(line);
@@ -270,9 +273,8 @@ function displayLogContent(content, totalLines) {
 
     document.getElementById('lineCount').textContent = `${lines.filter(l => l.trim()).length} ${logsI18n.lines} (${totalLines || lines.length} total)`;
 
-    if (document.getElementById('autoScroll').checked) {
-        scrollToBottom();
-    }
+    // Scroll to top to show newest entries
+    scrollToTop();
 }
 
 // Get CSS class based on log level
@@ -369,18 +371,23 @@ async function pollForUpdates() {
     }
 }
 
-// Append new content to log display
+// Prepend new content to log display (newest first)
 function appendLogContent(content) {
     const container = document.getElementById('logContent');
     const lines = content.split('\n');
+    const firstChild = container.firstChild;
 
-    lines.forEach(line => {
+    // Reverse to maintain newest-first order when prepending
+    const reversedLines = [...lines].reverse();
+
+    reversedLines.forEach(line => {
         if (line.trim()) {
             const div = document.createElement('div');
             div.className = 'log-line ' + getLogLevelClass(line);
             div.textContent = line;
-            container.appendChild(div);
-            allLogLines.push(line);
+            // Prepend new lines at the top
+            container.insertBefore(div, firstChild);
+            allLogLines.unshift(line);
         }
     });
 
@@ -392,12 +399,19 @@ function appendLogContent(content) {
         document.getElementById('lineCount').textContent = `${allLogLines.filter(l => l.trim()).length} ${logsI18n.lines}`;
     }
 
+    // Keep scroll at top to see new entries
     if (document.getElementById('autoScroll').checked) {
-        scrollToBottom();
+        scrollToTop();
     }
 }
 
-// Scroll to bottom of log container
+// Scroll to top of log container (newest entries)
+function scrollToTop() {
+    const container = document.getElementById('logContainer');
+    container.scrollTop = 0;
+}
+
+// Scroll to bottom of log container (oldest entries)
 function scrollToBottom() {
     const container = document.getElementById('logContainer');
     container.scrollTop = container.scrollHeight;
