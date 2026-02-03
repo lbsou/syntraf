@@ -1,82 +1,518 @@
 {% extends "base.html" %}
-{% block title %}WEBUI Users{% endblock %}
+{% block title %}{{ _('users.title') }}{% endblock %}
 {% block content %}
-<h2>Users</h2>
-  <div class="container"><br>
-    <div class="table-responsive">
-      <table class="table table-dark table-striped thead-dark table-hover table-sm">
-        <thead>
-          <tr>
-            <th scope="col">Username</th>
-            <th scope="col">Email</th>
-            <th scope="col">Created</th>
-            <th scope="col">Description</th>
-            <th scope="col">Admin</th>
-            <th scope="col">Last login</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for user in users %}
-            <tr>
-              <td scope="row">{{ user.username }}</td>
-              <td scope="row">{{ user.email }}</td>
-              <td scope="row">{{ user.created }}</td>
-              <td scope="row">{{ user.description }}</td>
-              <td scope="row">{{ user.admin }}</td>
-              <td scope="row">{{ user.last_login }}</td>
-              <td scope="row"><button type="button" id="btn_edit_user_open_modal_{{ user.id }}" class="btn btn-default btn-lg btn-block roster-button active d-inline" data-toggle="modal" data-rowid="{{ user.id }}" data-target="#editUser" data-placement="top" title="Edit user"> <i class="fas fa-edit"></i></button></td>
-              <td scope="row"><button type="button" id="btn_remove_user_open_modal_{{ user.id }}" class="btn btn-default btn-lg btn-block roster-button active d-inline" data-toggle="modal" data-rowid="{{ user.id }}" data-target="#removeUser" data-placement="top" title="Remove user"> <i class="far fa-trash-alt"></i></button></td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+<h2><i class="fas fa-users"></i> {{ _('users.title') }}</h2>
+<br/>
+
+<!-- Alert Container -->
+<div id="alert_container"></div>
+
+<!-- Add User Card -->
+<div class="card mb-4">
+    <div class="card-header bg-success text-white">
+        <i class="fas fa-user-plus"></i> {{ _('users.add_user') }}
     </div>
-  </div>
-  <div aria-labelledby="confirmationModal" class="modal fade" id="removeUser"
-  role="dialog" tabindex="-1">
-      <div class="modal-dialog modal-dialog-centered" role="document">
-          <div class="modal-content">
-              <input type="hidden" id="userID" value="">
-              <div class="modal-header">
-                  <h4 class="modal-title">Remove user</h4>
-              </div>
-              <div class="modal-body">
-                  <p>Are you sure you wish to remove this user?</p>
-              </div>
-              <div class="modal-footer">
-                  <button class="btn btn-default" data-dismiss="modal" type="button">Cancel</button>
-                  <button class="btn btn-danger" id="btn_yes_remove_user" type="button">Delete</button>
-              </div>
-          </div><!-- end modal-content -->
-      </div><!-- end modal-dialog -->
-  </div><!-- end modal -->
+    <div class="card-body">
+        <form id="add_user_form" class="row g-3">
+            <div class="col-md-2">
+                <label for="new_username" class="form-label">{{ _('users.username') }} *</label>
+                <input type="text" class="form-control" id="new_username"
+                       pattern="[a-zA-Z0-9_\-]{3,50}" minlength="3" maxlength="50" required
+                       placeholder="johndoe">
+            </div>
+            <div class="col-md-2">
+                <label for="new_email" class="form-label">{{ _('users.email') }}</label>
+                <input type="email" class="form-control" id="new_email"
+                       placeholder="john@example.com">
+            </div>
+            <div class="col-md-2">
+                <label for="new_password" class="form-label">{{ _('users.password') }} *</label>
+                <div class="input-group">
+                    <input type="password" class="form-control" id="new_password"
+                           minlength="8" maxlength="128" required>
+                    <button type="button" class="btn btn-secondary" onclick="generatePassword()" title="{{ _('users.generate_password') }}">
+                        <i class="fas fa-random"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <label for="new_role" class="form-label">{{ _('users.role') }} *</label>
+                <select class="form-control" id="new_role" required>
+                    {% for role in roles %}
+                    <option value="{{ role }}">{{ role }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="new_description" class="form-label">{{ _('common.description') }}</label>
+                <input type="text" class="form-control" id="new_description"
+                       maxlength="100" placeholder="">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">&nbsp;</label>
+                <button type="submit" class="btn btn-success w-100">
+                    <i class="fas fa-plus"></i> {{ _('users.add_user') }}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Password Policy Info -->
+<div class="alert alert-info">
+    <i class="fas fa-shield-alt"></i> <strong>{{ _('users.password_policy') }}:</strong>
+    {{ _('users.min_chars') }} {{ password_policy.min_length }} {{ _('users.chars') }}, {{ _('users.policy_requirements') }}.
+    {{ _('users.password_expire') }} {{ password_policy.max_age_days }} {{ _('users.days') }}.
+    {{ _('users.password_history') }} {{ password_policy.history_count }} {{ _('users.passwords') }}.
+</div>
+
+<!-- Users Table -->
+<div class="card">
+    <div class="card-header">
+        <i class="fas fa-list"></i> {{ _('nav.users') }}
+    </div>
+    <div class="card-body">
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>{{ _('users.col_username') }}</th>
+                    <th>{{ _('users.col_email') }}</th>
+                    <th>{{ _('users.col_role') }}</th>
+                    <th>{{ _('users.col_status') }}</th>
+                    <th>{{ _('users.col_last_login') }}</th>
+                    <th>{{ _('users.col_description') }}</th>
+                    <th>{{ _('common.actions') }}</th>
+                </tr>
+            </thead>
+            <tbody id="users_tbody">
+                {% for user in users %}
+                <tr id="user_row_{{ user.id }}">
+                    <td>
+                        <strong>{{ user.username }}</strong>
+                        {% if user.must_change_password %}
+                        <span class="badge bg-warning" title="Must change password"><i class="fas fa-exclamation-triangle"></i></span>
+                        {% endif %}
+                    </td>
+                    <td>{{ user.email or '-' }}</td>
+                    <td>
+                        <span class="badge {% if user.role == 'admin' %}bg-danger{% else %}bg-secondary{% endif %}">
+                            {{ user.role }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if not user.is_active %}
+                        <span class="badge bg-dark"><i class="fas fa-ban"></i> {{ _('users.status_deactivated') }}</span>
+                        {% elif user.locked_until %}
+                        <span class="badge bg-warning text-dark"><i class="fas fa-lock"></i> {{ _('users.status_locked') }}</span>
+                        {% else %}
+                        <span class="badge bg-success"><i class="fas fa-check"></i> {{ _('users.status_active') }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ user.last_login[:16] if user.last_login else 'Never' }}</td>
+                    <td>{{ user.description or '-' }}</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary me-1" onclick="openEditModal({{ user.id }})" title="{{ _('users.edit_user') }}">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-warning me-1" onclick="openResetPasswordModal({{ user.id }}, '{{ user.username }}')" title="{{ _('users.reset_password') }}">
+                            <i class="fas fa-key"></i>
+                        </button>
+                        {% if user.locked_until %}
+                        <button class="btn btn-sm btn-info me-1" onclick="unlockUser({{ user.id }})" title="{{ _('users.unlock_account') }}">
+                            <i class="fas fa-unlock"></i>
+                        </button>
+                        {% endif %}
+                        <button class="btn btn-sm btn-danger" onclick="confirmDeleteUser({{ user.id }}, '{{ user.username }}')" title="{{ _('users.delete_user') }}">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Edit User Modal -->
+<div class="modal fade" id="editUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-user-edit"></i> {{ _('users.edit_user') }}</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="edit_user_id">
+                <div class="mb-3">
+                    <label for="edit_email" class="form-label">{{ _('users.email') }}</label>
+                    <input type="email" class="form-control" id="edit_email">
+                </div>
+                <div class="mb-3">
+                    <label for="edit_role" class="form-label">{{ _('users.role') }}</label>
+                    <select class="form-control" id="edit_role">
+                        {% for role in roles %}
+                        <option value="{{ role }}">{{ role }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="edit_description" class="form-label">{{ _('common.description') }}</label>
+                    <input type="text" class="form-control" id="edit_description" maxlength="100">
+                </div>
+                <div class="mb-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="edit_is_active">
+                        <label class="form-check-label" for="edit_is_active">{{ _('users.status_active') }}</label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ _('common.cancel') }}</button>
+                <button type="button" class="btn btn-primary" onclick="saveUserEdit()">
+                    <i class="fas fa-save"></i> {{ _('common.save') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reset Password Modal -->
+<div class="modal fade" id="resetPasswordModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title"><i class="fas fa-key"></i> Reset Password</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="reset_user_id">
+                <p>Reset password for user: <strong id="reset_username"></strong></p>
+                <div class="mb-3">
+                    <label for="reset_new_password" class="form-label">New Password</label>
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="reset_new_password"
+                               minlength="8" maxlength="128" required>
+                        <button type="button" class="btn btn-secondary" onclick="generateResetPassword()" title="Generate password">
+                            <i class="fas fa-random"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="togglePasswordVisibility('reset_new_password')" title="Show/hide password">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                    <small class="text-muted">User will be required to change this password on next login.</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" onclick="resetPassword()">
+                    <i class="fas fa-key"></i> Reset Password
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="fas fa-exclamation-triangle"></i> Confirm Delete</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="delete_user_id">
+                <p>Are you sure you want to delete user <strong id="delete_username"></strong>?</p>
+                <p class="text-danger">This action cannot be undone!</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="deleteUser()">
+                    <i class="fas fa-trash"></i> Delete User
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script>
-    $(document).ready(function(){
+// Store users data for editing
+let usersData = {};
 
-        // Show confirmation modal
-        $("#btn_remove_user_open_modal").click(function(){
-            $("#removeUser").modal();
-        });
+// Initialize
+$(document).ready(function() {
+    loadUsers();
 
-        // Take the 'data.rowid' value of the delete button and put it in the hidden value 'userID' inside the modal
-        $('#removeUser').on('show.bs.modal', function (e) {
-            var rowid = $(e.relatedTarget).data('rowid');
-            $('#userID').val(rowid);
-         });
-
-        // If user click 'delete' call the API to delete the user
-        $("#btn_yes_remove_user").click(function(){
-            var delid = $('#userID').val();
-            alert(delid);
-            $("#removeUser").modal('hide');
-            window.location.reload();
-        });
+    document.getElementById('add_user_form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        addUser();
     });
+});
 
+function showAlert(message, type) {
+    const alertHtml = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    document.getElementById('alert_container').innerHTML = alertHtml;
+    setTimeout(() => {
+        document.getElementById('alert_container').innerHTML = '';
+    }, 5000);
+}
 
+function generatePassword() {
+    const password = generateSecurePassword();
+    document.getElementById('new_password').value = password;
+    document.getElementById('new_password').type = 'text';
+    setTimeout(() => {
+        document.getElementById('new_password').type = 'password';
+    }, 3000);
+}
+
+function generateResetPassword() {
+    const password = generateSecurePassword();
+    document.getElementById('reset_new_password').value = password;
+    document.getElementById('reset_new_password').type = 'text';
+}
+
+function generateSecurePassword() {
+    const length = 16;
+    const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+    const digits = '0123456789';
+    const special = '!@#$%^&*()_+-=';
+    const all = uppercase + lowercase + digits + special;
+
+    let password = '';
+    // Ensure at least one of each required type
+    password += uppercase[Math.floor(Math.random() * uppercase.length)];
+    password += lowercase[Math.floor(Math.random() * lowercase.length)];
+    password += digits[Math.floor(Math.random() * digits.length)];
+    password += special[Math.floor(Math.random() * special.length)];
+
+    // Fill the rest randomly
+    for (let i = password.length; i < length; i++) {
+        password += all[Math.floor(Math.random() * all.length)];
+    }
+
+    // Shuffle the password
+    return password.split('').sort(() => Math.random() - 0.5).join('');
+}
+
+function togglePasswordVisibility(inputId) {
+    const input = document.getElementById(inputId);
+    input.type = input.type === 'password' ? 'text' : 'password';
+}
+
+async function loadUsers() {
+    const fd = new FormData();
+    fd.append('ACTION', 'GET_USERS');
+
+    try {
+        const response = await fetch('/api', { method: 'POST', body: fd });
+        const result = await response.json();
+
+        if (result.status === 'OK') {
+            usersData = {};
+            result.users.forEach(user => {
+                usersData[user.id] = user;
+            });
+            // Page will be refreshed to show updated data
+        }
+    } catch (error) {
+        console.error('Error loading users:', error);
+    }
+}
+
+async function addUser() {
+    const username = document.getElementById('new_username').value.trim();
+    const email = document.getElementById('new_email').value.trim();
+    const password = document.getElementById('new_password').value;
+    const role = document.getElementById('new_role').value;
+    const description = document.getElementById('new_description').value.trim();
+
+    if (!username || !password) {
+        showAlert('Username and password are required', 'warning');
+        return;
+    }
+
+    const fd = new FormData();
+    fd.append('ACTION', 'CREATE_USER');
+    fd.append('username', username);
+    fd.append('password', password);
+    fd.append('email', email);
+    fd.append('role', role);
+    fd.append('description', description);
+
+    try {
+        const response = await fetch('/api', { method: 'POST', body: fd });
+        const result = await response.json();
+
+        if (result.status === 'OK') {
+            showAlert('User created successfully', 'success');
+            document.getElementById('add_user_form').reset();
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showAlert('Error: ' + result.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error creating user:', error);
+        showAlert('Error creating user', 'danger');
+    }
+}
+
+function openEditModal(userId) {
+    // Fetch fresh user data
+    const user = usersData[userId];
+    if (!user) {
+        // Try to get from DOM
+        loadUsers().then(() => {
+            const user = usersData[userId];
+            if (user) {
+                populateEditModal(user);
+            }
+        });
+        return;
+    }
+    populateEditModal(user);
+}
+
+function populateEditModal(user) {
+    document.getElementById('edit_user_id').value = user.id;
+    document.getElementById('edit_email').value = user.email || '';
+    document.getElementById('edit_role').value = user.role;
+    document.getElementById('edit_description').value = user.description || '';
+    document.getElementById('edit_is_active').checked = user.is_active;
+
+    const modal = new bootstrap.Modal(document.getElementById('editUserModal'));
+    modal.show();
+}
+
+async function saveUserEdit() {
+    const userId = document.getElementById('edit_user_id').value;
+    const email = document.getElementById('edit_email').value.trim();
+    const role = document.getElementById('edit_role').value;
+    const description = document.getElementById('edit_description').value.trim();
+    const isActive = document.getElementById('edit_is_active').checked;
+
+    const fd = new FormData();
+    fd.append('ACTION', 'UPDATE_USER');
+    fd.append('user_id', userId);
+    fd.append('email', email);
+    fd.append('role', role);
+    fd.append('description', description);
+    fd.append('is_active', isActive ? 'true' : 'false');
+
+    try {
+        const response = await fetch('/api', { method: 'POST', body: fd });
+        const result = await response.json();
+
+        if (result.status === 'OK') {
+            showAlert('User updated successfully', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('editUserModal')).hide();
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showAlert('Error: ' + result.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error updating user:', error);
+        showAlert('Error updating user', 'danger');
+    }
+}
+
+function openResetPasswordModal(userId, username) {
+    document.getElementById('reset_user_id').value = userId;
+    document.getElementById('reset_username').textContent = username;
+    document.getElementById('reset_new_password').value = '';
+
+    const modal = new bootstrap.Modal(document.getElementById('resetPasswordModal'));
+    modal.show();
+}
+
+async function resetPassword() {
+    const userId = document.getElementById('reset_user_id').value;
+    const newPassword = document.getElementById('reset_new_password').value;
+
+    if (!newPassword) {
+        showAlert('Please enter a new password', 'warning');
+        return;
+    }
+
+    const fd = new FormData();
+    fd.append('ACTION', 'RESET_USER_PASSWORD');
+    fd.append('user_id', userId);
+    fd.append('new_password', newPassword);
+
+    try {
+        const response = await fetch('/api', { method: 'POST', body: fd });
+        const result = await response.json();
+
+        if (result.status === 'OK') {
+            showAlert('Password reset successfully', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('resetPasswordModal')).hide();
+        } else {
+            showAlert('Error: ' + result.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error resetting password:', error);
+        showAlert('Error resetting password', 'danger');
+    }
+}
+
+async function unlockUser(userId) {
+    const fd = new FormData();
+    fd.append('ACTION', 'UNLOCK_USER');
+    fd.append('user_id', userId);
+
+    try {
+        const response = await fetch('/api', { method: 'POST', body: fd });
+        const result = await response.json();
+
+        if (result.status === 'OK') {
+            showAlert('User unlocked successfully', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showAlert('Error: ' + result.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error unlocking user:', error);
+        showAlert('Error unlocking user', 'danger');
+    }
+}
+
+function confirmDeleteUser(userId, username) {
+    document.getElementById('delete_user_id').value = userId;
+    document.getElementById('delete_username').textContent = username;
+
+    const modal = new bootstrap.Modal(document.getElementById('deleteUserModal'));
+    modal.show();
+}
+
+async function deleteUser() {
+    const userId = document.getElementById('delete_user_id').value;
+
+    const fd = new FormData();
+    fd.append('ACTION', 'DELETE_USER');
+    fd.append('user_id', userId);
+
+    try {
+        const response = await fetch('/api', { method: 'POST', body: fd });
+        const result = await response.json();
+
+        if (result.status === 'OK') {
+            showAlert('User deleted successfully', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('deleteUserModal')).hide();
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showAlert('Error: ' + result.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error deleting user:', error);
+        showAlert('Error deleting user', 'danger');
+    }
+}
 </script>
 
 {% endblock %}
-
-

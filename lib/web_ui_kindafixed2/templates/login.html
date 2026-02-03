@@ -1,75 +1,119 @@
 <!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-        <link rel="stylesheet" href="https://cdn.datatables.net/1.10.24/css/dataTables.bootstrap4.min.css">
-        <link rel="stylesheet" href="/static/theme/darkly/bootstrap.min.css">
-        <link rel='stylesheet' href="{{ url_for('static', filename='fontawesome-free-5.15.3-web/css/all.css')}}">
+<html lang="{{ current_language }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link rel="stylesheet" href="{{ url_for('static', filename='bootstrap5/bootswatch_darkly_5.min.css')}}">
+    <link rel='stylesheet' href="{{ url_for('static', filename='fontawesome-free-5.15.3-web/css/all.css')}}">
+    <title>SYNTRAF - {{ _('login.title') }}</title>
+    <style>
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .login-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+        }
+        .login-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .login-header h2 {
+            color: #fff;
+            margin-bottom: 10px;
+        }
+        .login-header .version {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.9em;
+        }
+        .form-control {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff;
+        }
+        .form-control:focus {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: #375a7f;
+            color: #fff;
+            box-shadow: 0 0 0 0.2rem rgba(55, 90, 127, 0.25);
+        }
+        .form-control::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+        .input-group-text {
+            background: rgba(55, 90, 127, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff;
+        }
+        .btn-login {
+            background: #375a7f;
+            border: none;
+            padding: 12px;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }
+        .btn-login:hover {
+            background: #2c4a6b;
+        }
+    </style>
+</head>
+<body>
+    <script src="{{ url_for('static', filename='bootstrap5/bootstrap.bundle.min.js')}}"></script>
+    <script src="{{ url_for('static', filename='jquery/jquery-3.6.1.min.js')}}"></script>
+    <script src="{{ url_for('static', filename='fontawesome-free-5.15.3-web/js/fontawesome.min.js')}}"></script>
 
-        <title>SYNTRAF</title>
-        <style>body { padding-top: 70px; }</style>
-        {% block head %}{% endblock %}
-    </head>
-        <script src="/static/js/jquery-3.6.0.min.js"></script>
-        <script src="/static/js/popper.min.js"></script>
-        <script src="/static/js/bootstrap.min.js"></script>
-        <script src="https://cdn.datatables.net/1.10.24/js/jquery.dataTables.min.js"></script>
-        <script src="https://cdn.datatables.net/1.10.24/js/dataTables.bootstrap4.min.js"></script>
-        <script src="/static/fontawesome-free-5.15.3-web/js/fontawesome.min.js"></script>
+    <div class="login-card">
+        <div class="login-header">
+            <h2><i class="fas fa-network-wired"></i> SYNTRAF</h2>
+            <span class="version">v{{ syntraf_version }}</span>
+        </div>
 
-{% block content %}
-  {% if session['logged_in'] %}
-    You're logged in already!
-  {% else %}
-	<br><br><br>
-	<div class="container">
-		<div class="d-flex justify-content-center h-100">
-			<div class="card">
-				<div class="card-header">
-					<h3>Login</h3>
-					<div class="d-flex justify-content-center">
-						  {% for mesg in get_flashed_messages() %}
-						  <h4>{{ mesg }}</h4>
-						  {% endfor %}
-					</div>
-				</div>
-				<div class="card-body">
-					<form action="/login" method="POST">
-						<div class="input-group form-group">
-							<div class="input-group-prepend">
-								<span class="input-group-text"><i class="fas fa-user"></i></span>
-							</div>
-							<input type="text" class="form-control" placeholder="username" name="username">
-						</div>
-						<div class="input-group form-group">
-							<div class="input-group-prepend">
-								<span class="input-group-text"><i class="fas fa-key"></i></span>
-							</div>
-							<input type="password" class="form-control" placeholder="password" name="password">
-						</div>
-						<div class="row align-items-center remember">
-							<input type="checkbox">Remember Me
-						</div>
-						<div class="form-group">
-							<input type="submit" value="Login" class="btn float-right login_btn">
-						</div>
-					</form>
-				</div>
-				<div class="card-footer">
-					<div class="d-flex justify-content-center">
-						<a href="#">Forgot your password?</a>
-					</div>
-				</div>
-			</div>
-		</div>
-	</div>
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <i class="fas fa-exclamation-circle"></i> {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
 
-  {% endif %}
-{% endblock %}
+        <form action="/login" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="mb-3">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-user"></i></span>
+                    <input type="text" class="form-control" placeholder="{{ _('login.username') }}" name="username" required autofocus>
+                </div>
+            </div>
+            <div class="mb-4">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                    <input type="password" class="form-control" placeholder="{{ _('login.password') }}" name="password" required>
+                </div>
+            </div>
+            <div class="d-grid">
+                <button type="submit" class="btn btn-primary btn-login">
+                    <i class="fas fa-sign-in-alt"></i> {{ _('login.sign_in') }}
+                </button>
+            </div>
+        </form>
 
-    </body>
+        <div class="text-center mt-4">
+            <small class="text-muted">
+                <i class="fas fa-shield-alt"></i> {{ _('login.secure_required') }}
+            </small>
+        </div>
+    </div>
+</body>
 </html>
-
-
-

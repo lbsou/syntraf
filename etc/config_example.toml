@@ -1,9 +1,12 @@
 [[MESH_GROUP]]
 UID = "TEST_PROFILE_1"
-BANDWIDTH = "33K"
+BANDWIDTH = "332K"
 DSCP = "46"
 PACKET_SIZE = "218"
-INTERVAL = "1"
+INTERVAL = "2"
+DESCRIPTION = ""
+DISABLED = false
+WEBUI_JSON = "{\"elements\":{\"nodes\":[{\"data\":{\"id\":\"ST_CLIENT_1\",\"name\":\"ST_CLIENT_1\"},\"position\":{\"x\":250,\"y\":250},\"group\":\"nodes\",\"removed\":false,\"selected\":false,\"selectable\":true,\"locked\":false,\"grabbable\":true,\"pannable\":false,\"classes\":\"\"},{\"data\":{\"id\":\"ST_CLIENT_2\",\"name\":\"ST_CLIENT_2\"},\"position\":{\"x\":750,\"y\":250},\"group\":\"nodes\",\"removed\":false,\"selected\":false,\"selectable\":true,\"locked\":false,\"grabbable\":true,\"pannable\":false,\"classes\":\"\"},{\"data\":{\"id\":\"ST_CLIENT_3\",\"name\":\"ST_CLIENT_3\"},\"position\":{\"x\":250,\"y\":750},\"group\":\"nodes\",\"removed\":false,\"selected\":false,\"selectable\":true,\"locked\":false,\"grabbable\":true,\"pannable\":false,\"classes\":\"\"}],\"edges\":[{\"data\":{\"id\":\"ST_CLIENT_1ST_CLIENT_2\",\"source\":\"ST_CLIENT_1\",\"target\":\"ST_CLIENT_2\"},\"position\":{\"x\":0,\"y\":0},\"group\":\"edges\",\"removed\":false,\"selected\":false,\"selectable\":true,\"locked\":false,\"grabbable\":true,\"pannable\":true,\"classes\":\"\"},{\"data\":{\"id\":\"ST_CLIENT_2ST_CLIENT_1\",\"source\":\"ST_CLIENT_2\",\"target\":\"ST_CLIENT_1\"},\"position\":{\"x\":0,\"y\":0},\"group\":\"edges\",\"removed\":false,\"selected\":false,\"selectable\":true,\"locked\":false,\"grabbable\":true,\"pannable\":true,\"classes\":\"\"},{\"data\":{\"id\":\"ST_CLIENT_1ST_CLIENT_3\",\"source\":\"ST_CLIENT_1\",\"target\":\"ST_CLIENT_3\"},\"position\":{\"x\":0,\"y\":0},\"group\":\"edges\",\"removed\":false,\"selected\":false,\"selectable\":true,\"locked\":false,\"grabbable\":true,\"pannable\":true,\"classes\":\"\"},{\"data\":{\"id\":\"ST_CLIENT_3ST_CLIENT_1\",\"source\":\"ST_CLIENT_3\",\"target\":\"ST_CLIENT_1\"},\"position\":{\"x\":0,\"y\":0},\"group\":\"edges\",\"removed\":false,\"selected\":false,\"selectable\":true,\"locked\":false,\"grabbable\":true,\"pannable\":true,\"classes\":\"\"},{\"data\":{\"id\":\"ST_CLIENT_2ST_CLIENT_3\",\"source\":\"ST_CLIENT_2\",\"target\":\"ST_CLIENT_3\"},\"position\":{\"x\":0,\"y\":0},\"group\":\"edges\",\"removed\":false,\"selected\":false,\"selectable\":true,\"locked\":false,\"grabbable\":true,\"pannable\":true,\"classes\":\"\"},{\"data\":{\"id\":\"ST_CLIENT_3ST_CLIENT_2\",\"source\":\"ST_CLIENT_3\",\"target\":\"ST_CLIENT_2\"},\"position\":{\"x\":0,\"y\":0},\"group\":\"edges\",\"removed\":false,\"selected\":false,\"selectable\":true,\"locked\":false,\"grabbable\":true,\"pannable\":true,\"classes\":\"\"}]},\"style\":[{\"selector\":\"edge\",\"style\":{\"curve-style\":\"bezier\",\"target-arrow-shape\":\"triangle\",\"target-arrow-color\":\"rgb(0,0,0)\",\"line-color\":\"rgb(0,0,0)\",\"width\":\"1px\"}},{\"selector\":\"node\",\"style\":{\"label\":\"data(name)\",\"font-size\":\"14px\",\"text-valign\":\"center\",\"color\":\"rgb(255,255,255)\",\"text-outline-width\":\"2px\",\"background-color\":\"rgb(0,0,0)\",\"text-outline-color\":\"rgb(0,0,0)\",\"shape\":\"ellipse\",\"width\":\"data(width)\",\"height\":\"data(height)\"}}],\"data\":{},\"zoomingEnabled\":false,\"userZoomingEnabled\":true,\"zoom\":1,\"minZoom\":1e-50,\"maxZoom\":1e+50,\"panningEnabled\":true,\"userPanningEnabled\":true,\"pan\":{\"x\":0,\"y\":0},\"boxSelectionEnabled\":true,\"renderer\":{\"name\":\"canvas\"}}"
 
 [[MESH_GROUP]]
 UID = "TEST_PROFILE_2"
@@ -11,53 +14,42 @@ BANDWIDTH = "33K"
 DSCP = "0"
 PACKET_SIZE = "1000"
 INTERVAL = "1"
+DISABLED = false
 
 [[SERVER_CLIENT]]
 UID = "ST_SERVER"
 IP_ADDRESS = "0.0.0.0"
 MESH_GROUP_UID_LIST = []
+DISABLED = false
 
 [[SERVER_CLIENT]]
-UID = "ST_CLIENT_1"
+UID = "TEST"
 IP_ADDRESS = "0.0.0.0"
-MESH_GROUP_UID_LIST = [ "TEST_PROFILE_1",]
+MESH_GROUP_UID_LIST = []
 
 [[SERVER_CLIENT]]
-UID = "ST_CLIENT_2"
+UID = "test2"
 IP_ADDRESS = "0.0.0.0"
-MESH_GROUP_UID_LIST = [ "TEST_PROFILE_1","TEST_PROFILE_2"]
-
-[[SERVER_CLIENT]]
-UID = "ST_CLIENT_3"
-IP_ADDRESS = "0.0.0.0"
-MESH_GROUP_UID_LIST = [ "TEST_PROFILE_2","TEST_PROFILE_1"]
-
-[[SERVER_CLIENT]]
-UID = "ST_CLIENT_4"
-IP_ADDRESS = "10.1.0.200"
-MESH_GROUP_UID_LIST = [ "TEST_PROFILE_2",]
-MAX_BANDWIDTH = "88K"
-
-[SERVER_CLIENT.OVERRIDE_DST_NODE_IP]
-ST_CLIENT_3 = "10.2.0.202"
-[SERVER_CLIENT.EXCLUDED_CLIENT_DICT]
-TEST_PROFILE_2 = "ST_CLIENT_2"
+MESH_GROUP_UID_LIST = []
 
 [[DATABASE]]
-DB_UID = "INFLUXDB"
-DB_SERVER = "10.1.1.100"
-DB_PORT = "8086"
-DB_TOKEN = "INSERTYOURINFLUXDBTOKENHERE!"
-DB_ORG = "SYNTRAF"
-DB_BUCKET = "SYNTRAF"
-DB_ENGINE = "InfluxDB2"
+DB_UID = "VICTORIAMETRICS_LOCAL"
+DB_ENGINE = "VictoriaMetrics"
+DB_SERVER = "127.0.0.1"
+DB_PORT = "8428"
 DB_SERVER_USE_SSL = false
+DISABLED = false
+DB_ORG = ""
+DB_BUCKET = ""
 
 [CLIENT]
 CLIENT_UID = "ST_SERVER"
 SERVER = "127.0.0.1"
 SERVER_PORT = "6531"
-TOKEN = "TOKENTOAUTHENTICATESYNTRAFCLIENT"
+TOKEN = "xqxqHb-oSys7g6-NohGZG06BfD3v6CC-b7bm0j3SNFEPJeGsakhoo8cnO2hxp6OS"
+PUBLIC_KEY = "b'-----BEGIN PUBLIC KEY-----\\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAjH7lwFvVpRGeOlQHa4Ph\\n01h2uI6tFwPfGSRub+ROdMhNDuxvC1vmsjwZGWTOM+8LvQY2WltHffriZ8U+tSN3\\njuQ3r4k0JRNd5c8Qk3XH6TLw3AlKPOUUtuhK1Lod6o5jsOcdlpLjlx3HwjAo8LF0\\n8o0oy3sluAcY0YRRfzh7gfpsiOAOXpDWe5Aewwou0EQrOEVTq62w2zRfGwzj9zBe\\nLacQ50YZdBxefSCrphiVhaZ/oZtD/cByaV8Di1U8u+Tvrl+loAtBl9tWV99Xq8+h\\nxHo1F9cgs567K1ozXTbTvTQEjShDPkTNtSHYUUUE8gpoGKJbgu75nTrdiH8S8kfK\\njwIDAQAB\\n-----END PUBLIC KEY-----\\n'"
+CLIENT_X509_PRIVATE_KEY = "c:\\Users\\L\\Documents\\Projets_PYTHON\\SYNTRAF_NG\\syntraf\\crypto\\CLIENT_X509_SELFSIGNED_DIRECTORY\\private_key_client.pem"
+CLIENT_X509_CERTIFICATE = "c:\\Users\\L\\Documents\\Projets_PYTHON\\SYNTRAF_NG\\syntraf\\crypto\\CLIENT_X509_SELFSIGNED_DIRECTORY\\certificate_client.pem"
 
 [GLOBAL]
 IPERF3_BINARY_PATH = "C:\\iperf3\\iperf3.exe"
@@ -70,6 +62,42 @@ WATCHDOG_CHECK_RATE = "2"
 
 [SERVER]
 BIND_ADDRESS = "0.0.0.0"
+PUBLIC_KEY = "b'-----BEGIN PUBLIC KEY-----\\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAgXyvTMiDMJnUpvPRnLBd\\nnqvomCAMbMk9BFSPoZ2MW+COvJGtrUPDJDtgzjtSSVCVC9gTJacP9BxXilV+u8nN\\npalZNd1ZHq3AcJwrZnxOiQgKtySGk1JOHqErq4HXAf2ktdTo3zA0n2H/qzM0EMje\\n3BjT5Jth5sgkrcR7LTfW4OnnQJgAhrE8mP7fuaKgd/4Qvy2Y1Ci2UGvK74lT8Dpm\\nl/oCSPPPpgUz2CHC5ei46svvvYsvtTgcqNDu/W0/5Jf8P6fX/SgWMEiH1jd7KnEn\\nStdpl8afUXh/t5/3z2RrL7B6gNIzNoSH3Zqfqa8pGlwYTSs9BAkGCc6MrQ8uXvf8\\nWwIDAQAB\\n-----END PUBLIC KEY-----\\n'"
+SERVER_X509_PRIVATE_KEY = "c:\\Users\\L\\Documents\\Projets_PYTHON\\SYNTRAF_NG\\syntraf\\crypto\\SERVER_X509_SELFSIGNED_DIRECTORY\\private_key_server.pem"
+SERVER_X509_CERTIFICATE = "c:\\Users\\L\\Documents\\Projets_PYTHON\\SYNTRAF_NG\\syntraf\\crypto\\SERVER_X509_SELFSIGNED_DIRECTORY\\certificate_server.pem"
+SERVER_PORT = "6531"
+MESH_LISTENERS_PORT_RANGE = "15000-16000"
+RSA_KEY_LISTENERS = "-----BEGIN PRIVATE KEY-----\r\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDNTpsyaLpF1f8C\r\nKoKr8ZY50PR9NQgV1z/Ye2dGXeTBytb9CVBYblX+ftDhh5FkdTsBgDgO6R7WQiKj\r\nGOR3QwbbK1+Xz2xks/2sSqTAVRq7rKo/9q0mtFWPStpy5TI1w9gMYCG/IOKb7UBx\r\n8069Z4aOpItceG6sotK9OxVwYbZRc2DZEVYMLXTPYKGz5jbZbrhX8Pg6E+iTWs4Q\r\nxMOsnCo2eJWRVx48gk97xXDf4RMEQWWhCjXf3lfON3acLMSyegoaXqcTm3NlkQf9\r\nq9ea1KiKW8ftQequUB77kx+6DnZ3hv/9/D3AnbuG/PNB2ueW9O5A+BAKVaBIgrUj\r\nldASBdKxAgMBAAECggEABV4sRZ2iXSgSskpNP1SiMmHJuqpTy0pk83KKiTb0P7Lf\r\nex8uuBkua2iCapsiTIeaItho3s7ujPiOskf41Ttt5vYT2kLEmT9xfvs2ooa3G7gQ\r\nfXqkHVJyuDvjSUS/0tMLh4tN5pLkCeKioDgV03Ls/DbGJAVME3xwWR092sHbQ/bd\r\nz95ZmELcSfVk4xDHmL4Nps/N1DaCl3BQ/68ogabNKE2GW3q0tdyIQhJbGjLYfG0d\r\n/HBYxQ/2PKpYmMLOyJRvsIxWjURz1JEHzqNAsC/4dQq46sHNjZhNgjXkHTMXAdBQ\r\nKGLDy5q8Gy5c+5pPoarxPSYtqmIxNnhAWqyfYNNU1wKBgQDrNerORfrVERYWQXbJ\r\nFtbL6CgOgzUxsDgFMf9mIEmeZkjP52xaA8tKFrylnyP336fQPgVa5oQbvar/t9oy\r\ndgkRAN0fkq9KmOta/QgLox1pP0aGp6hiVEr82WZT1MSF53PvbYSYg6N7QhqSeYuA\r\n7ZtOyhnFR/xkkvy55XOamYfZ/wKBgQDfdBCS41Z5E0YC0zkFss8ktOPIxMnTzdwg\r\nfohhiSOWetnXl2G8l4x/lv4C0nzpDYB/RFeEoiRUn0oqYdWXCKQHOG2RuMxSesu3\r\nqNt5lNzf+Rv789gV7NQwUx566AW090Nmg+3es+WaJZbUuS06SteoQ+9G3Y+Z4fnL\r\nS7uP3dRzTwKBgQDbeCjLJfMBonrIc3cB9WShSNMvj3AwF+x9tIRJ57Cps2kXTSoF\r\n5+plDEgkBhUKsc8k+OoIQnVcaSLIjuVzFj4pdnPdhQI5Cez5roY2TZIg5WDKPmBY\r\nt6xst/HKIQrqoufDrZ3+rT36wdiHehAYUh0LbHqVYTD5K0nTr2yqAb4IQwKBgQCE\r\nYxNes2oMGaslCVeDVMj9Cl7aGB0ra4+7gLv0bXe0M9zUqk+xmGgZP7AGpAZ1XRaA\r\nUFE5t4amzCj4qzYMYYYs8PWZnE8RnscLbPN7OQMTf1dhErs3YjTk3Jn2X3jiGozI\r\nM+m+Q/8IMLUIGx38p1LV0kn1RldJ6GRCWgAp4Fd6aQKBgDo8NZdClOt6WuPH8/mk\r\n47Pa1vNwp7o3AWhkcLCd3279qlCKhoFfB5zPBfj27RY42dwwh2MI9lAdmgoOZNsX\r\nA9xJERy5QxC6uJmg+7YF6pmkRVp1tn7YesDPxlG56aAxjSgCUmV6qjiIA9PEt8x1\r\nE2kLYSH2yNFr7Umn/p+fufW1\r\n-----END PRIVATE KEY-----\r\n"
+RSA_KEY_CONNECTORS = "-----BEGIN PUBLIC KEY-----\r\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzU6bMmi6RdX/AiqCq/GW\r\nOdD0fTUIFdc/2HtnRl3kwcrW/QlQWG5V/n7Q4YeRZHU7AYA4Duke1kIioxjkd0MG\r\n2ytfl89sZLP9rEqkwFUau6yqP/atJrRVj0racuUyNcPYDGAhvyDim+1AcfNOvWeG\r\njqSLXHhurKLSvTsVcGG2UXNg2RFWDC10z2Chs+Y22W64V/D4OhPok1rOEMTDrJwq\r\nNniVkVcePIJPe8Vw3+ETBEFloQo1395Xzjd2nCzEsnoKGl6nE5tzZZEH/avXmtSo\r\nilvH7UHqrlAe+5Mfug52d4b//fw9wJ27hvzzQdrnlvTuQPgQClWgSIK1I5XQEgXS\r\nsQIDAQAB\r\n-----END PUBLIC KEY-----\r\n"
+IPERF3_USERNAME = "3uiEJkcALHzMl5ydDQmO"
+IPERF3_PASSWORD = "gGFKnW,Xdb@\"QV~o7)j<"
+IPERF3_PASSWORD_HASH = "b81c7cb050c9c7e60bc788c9cfd0c9696b4c8d9dd3cb0d9a8ef6080c6e009b0d"
 
-[SERVER.TOKEN]
-2018-01-01 = "TOKENTOAUTHENTICATESYNTRAFCLIENT"
+[WEBUI]
+PUBLIC_KEY = "b'-----BEGIN PUBLIC KEY-----\\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA68Hem7REU6o0oFA/nwPK\\nEC7dafgz9YqMuYZ99nL5XkDuB41W1VRI1D2Hm+Qq54O+ijqrsT/MwD3o8yI28XQS\\n7uUEh+Jk1YSYEA7QxTzQa4IOrbU4Y+QXFZ7jfXaUcoHRWLWmL/NuXWn55AJWFYW7\\nrhv2zIToSPPTyD6RJfKfSqWQB3y89zhlXRGVMW73RCsEf6O0u7VOZKObCok6jwxf\\ng/tzUVWhNoOIvP6mj7LEz4Ix8SHfRqkfg6/Ojdd93eg81MDApoAgszamImX9CXPH\\nHP8/Mt77NYbpCh6/w6oqSFaHvd9D4/eySoQKAsxm//yOMLWfyEaRWTg+k4H3Oa66\\nJQIDAQAB\\n-----END PUBLIC KEY-----\\n'"
+WEBUI_X509_PRIVATE_KEY = "c:\\Users\\L\\Documents\\Projets_PYTHON\\SYNTRAF_NG\\syntraf\\crypto\\WEBUI_X509_SELFSIGNED_DIRECTORY\\private_key_webui.pem"
+WEBUI_X509_CERTIFICATE = "c:\\Users\\L\\Documents\\Projets_PYTHON\\SYNTRAF_NG\\syntraf\\crypto\\WEBUI_X509_SELFSIGNED_DIRECTORY\\certificate_webui.pem"
+
+[SERVER.TOKEN."2026-02-02T18:40:47"]
+value = "sShvWD2eKFE5suRi9ZDfqbf4IAXS_9RSdbo3dO128lb25Dqf6AzJ3wV1XH9vYq4l"
+description = "SITE A"
+
+[SERVER.TOKEN."2026-02-02T18:40:52"]
+value = "HlitRLLBcMkzSPEcwPhNr7E9WCwfAVK1"
+description = "SITE B"
+
+[SERVER.TOKEN."2026-02-02T18:40:56"]
+value = "zkSUAe3IfZln4yC5jXqrHoGn0JtFxkxv"
+description = "SITE C"
+
+[SERVER.TOKEN."2026-02-02T18:41:03"]
+value = "nFoZufpFkJ5ezBe_if6CQlg2oF2viKSh"
+description = "SITE D"
+
+[SERVER.TOKEN."2026-02-02T18:41:14"]
+value = "p_drw1qFaj4LkzfqEKbNSh8v0-yFB9c8dmfn0tmJc2lXv8HH4AHhxKBFvhe-Lzwe"
+description = "SITE E"
+
+[SERVER.TOKEN."2026-02-03T20:52:55"]
+value = "xqxqHb-oSys7g6-NohGZG06BfD3v6CC-b7bm0j3SNFEPJeGsakhoo8cnO2hxp6OS"
+description = "SYNTRAF_SERVER"

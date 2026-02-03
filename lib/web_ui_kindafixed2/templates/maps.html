@@ -262,34 +262,34 @@
     <div class="page-container">
         <nav id="sidenav" class="sidenav">
             <p>
-              <span type="button" data-toggle="collapse" data-target="#background_div" aria-expanded="false" aria-controls="background_div">
+              <a class="btn btn-link text-white" data-bs-toggle="collapse" href="#background_div" role="button" aria-expanded="false" aria-controls="background_div">
                   <b>Background</b>
-              </span>
+              </a>
             </p>
             <div class="collapse" id="background_div">
               <div class="card card-body">
                  <div class="form-group w-50">
-                    <a type="button" class="dropdown-item btn btn-info" data-toggle="modal" data-target="#modal-upload-bg">Choose a background</a>
+                    <a type="button" class="dropdown-item btn btn-info" data-bs-toggle="modal" data-bs-target="#modal-upload-bg">Choose a background</a>
                  </div>
               </div>
             </div>
             <p>
-              <span type="button" data-toggle="collapse" data-target="#layout_div" aria-expanded="false" aria-controls="layout_div">
+              <a class="btn btn-link text-white" data-bs-toggle="collapse" href="#layout_div" role="button" aria-expanded="false" aria-controls="layout_div">
                   <b>Layout</b>
-              </span>
+              </a>
             </p>
             <div class="collapse" id="layout_div">
               <div class="card card-body">
                 Choose a layout :
                    <div class="form-group w-50">
-                        <select class="custom-select" name="layout" id="layout" onchange="load_run_layout()">
-                            <option value="random"  selected>Random</option>
+                        <select class="form-select" name="layout" id="layout" onchange="load_run_layout()">
+                            <option value="random">Random</option>
                             <option value="preset" selected>Preset</option>
-                            <option value="grid" selected>Grid</option>
-                            <option value="circle" selected>Circle</option>
-                            <option value="concentric" selected>Concentric</option>
-                            <option value="breadthfirst" selected>Breadthfirst</option>
-                            <option value="cose" selected>Cose</option>
+                            <option value="grid">Grid</option>
+                            <option value="circle">Circle</option>
+                            <option value="concentric">Concentric</option>
+                            <option value="breadthfirst">Breadthfirst</option>
+                            <option value="cose">Cose</option>
                         </select>
                     </div>
                     <div><input type="submit" class="btn btn-primary" id="reset_positions_btn" value="Reset"></div>
@@ -298,20 +298,96 @@
             </div>
 
            <p>
-              <span  type="button" data-toggle="collapse" data-target="#style_div" aria-expanded="false" aria-controls="style_div">
+              <a class="btn btn-link text-white" data-bs-toggle="collapse" href="#style_div" role="button" aria-expanded="false" aria-controls="style_div">
                   <b>Style</b>
-              </span>
+              </a>
             </p>
             <div class="collapse" id="style_div">
-              <div class="card card-body">
-                Choose a style :
-                  <div>Node size :</div>
-                  <div>Node color :</div>
-                  <div>Node label size :</div>
-                  <div>Node label color :</div>
-                  <div>Edge ok :</div>
-                  <div>Edge warning :</div>
-                  <div>Edge critical :</div>
+              <div class="card card-body bg-dark">
+                <h6 class="text-white mb-3">Node Style</h6>
+                <div class="mb-2">
+                    <label class="form-label text-white small">Node size</label>
+                    <input type="range" class="form-range" id="node_size" min="10" max="100" value="30" onchange="applyNodeStyle()">
+                    <span class="text-white small" id="node_size_value">30px</span>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label text-white small">Node color</label>
+                    <input type="color" class="form-control form-control-color" id="node_color" value="#000000" onchange="applyNodeStyle()">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label text-white small">Node shape</label>
+                    <select class="form-select form-select-sm" id="node_shape" onchange="applyNodeStyle()">
+                        <option value="ellipse" selected>Circle</option>
+                        <option value="rectangle">Rectangle</option>
+                        <option value="roundrectangle">Rounded Rectangle</option>
+                        <option value="diamond">Diamond</option>
+                        <option value="triangle">Triangle</option>
+                        <option value="pentagon">Pentagon</option>
+                        <option value="hexagon">Hexagon</option>
+                        <option value="star">Star</option>
+                    </select>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label text-white small">Label size</label>
+                    <input type="range" class="form-range" id="label_size" min="8" max="32" value="14" onchange="applyNodeStyle()">
+                    <span class="text-white small" id="label_size_value">14px</span>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label text-white small">Label color</label>
+                    <input type="color" class="form-control form-control-color" id="label_color" value="#ffffff" onchange="applyNodeStyle()">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-white small">Label outline color</label>
+                    <input type="color" class="form-control form-control-color" id="label_outline_color" value="#000000" onchange="applyNodeStyle()">
+                </div>
+
+                <h6 class="text-white mb-3 mt-3">Edge Style</h6>
+                <div class="mb-2">
+                    <label class="form-label text-white small">Edge width</label>
+                    <input type="range" class="form-range" id="edge_width" min="1" max="10" value="1" onchange="applyEdgeStyle()">
+                    <span class="text-white small" id="edge_width_value">1px</span>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label text-white small">Edge color (OK)</label>
+                    <input type="color" class="form-control form-control-color" id="edge_color_ok" value="#28a745" onchange="applyEdgeStyle()">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label text-white small">Edge color (Warning)</label>
+                    <input type="color" class="form-control form-control-color" id="edge_color_warning" value="#ffc107" onchange="applyEdgeStyle()">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label text-white small">Edge color (Critical)</label>
+                    <input type="color" class="form-control form-control-color" id="edge_color_critical" value="#dc3545" onchange="applyEdgeStyle()">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label text-white small">Edge curve style</label>
+                    <select class="form-select form-select-sm" id="edge_curve" onchange="applyEdgeStyle()">
+                        <option value="bezier" selected>Bezier</option>
+                        <option value="straight">Straight</option>
+                        <option value="haystack">Haystack</option>
+                        <option value="segments">Segments</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-white small">Arrow shape</label>
+                    <select class="form-select form-select-sm" id="arrow_shape" onchange="applyEdgeStyle()">
+                        <option value="triangle" selected>Triangle</option>
+                        <option value="triangle-tee">Triangle-Tee</option>
+                        <option value="circle-triangle">Circle-Triangle</option>
+                        <option value="vee">Vee</option>
+                        <option value="diamond">Diamond</option>
+                        <option value="none">None</option>
+                    </select>
+                </div>
+
+                <div class="d-grid gap-2 mt-3">
+                    <button type="button" class="btn btn-primary btn-sm" onclick="applyAllStyles()">
+                        <i class="fas fa-check me-1"></i>Apply All
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="resetStyles()">
+                        <i class="fas fa-undo me-1"></i>Reset to Default
+                    </button>
+                </div>
               </div>
             </div>
         </nav>
@@ -324,7 +400,7 @@
                  <div class="form-group w-50 ">
                     <form>
                         <div class="d-inline-flex">
-                         <select class="custom-select" name="mesh_group_map" id="mesh_group_map" onchange="this.form.submit()">
+                         <select class="form-select" name="mesh_group_map" id="mesh_group_map" onchange="this.form.submit()">
                              {% if config['MESH_GROUP'] | length >= 1 %}
                                 {% for mesh_group in config['MESH_GROUP'] %}
                                     <option value="{{ mesh_group['UID'] }}" selected>{{ mesh_group['UID'] }}</option>
@@ -361,7 +437,7 @@
                             <button type="button" id="asd13" class="cy_button cy_unlock" onclick="openNav()" data-toggle="tooltip" data-placement="top" title="Unlock to make modifications"> <i class="fa fa-unlock-alt fa-2x"></i></button>
                         </div>
                         <div id="cy_add">
-                            <button type="button" id="asd" class="cy_button cy_add" onclick="openNav()" data-toggle="tooltip" data-placement="top" title="Add nodes"> <i class="fa fa-plus fa-2x"></i></button>
+                            <button type="button" id="asd" class="cy_button cy_add" onclick="addNodesFromConfig()" data-bs-toggle="tooltip" data-bs-placement="top" title="Add nodes from mesh config"> <i class="fa fa-plus fa-2x"></i></button>
                         </div>
                         <div id="cy_remove">
                             <button type="button" id="asd1" class="cy_button cy_remove" onclick="openNav()" data-toggle="tooltip" data-placement="top" title="Remove nodes"> <i class="fa fa-eraser fa-2x"></i></button>
@@ -374,14 +450,12 @@
 
 
 
-    <div class="modal" tabindex="-1" role="dialog" id="modal-upload-bg">
-      <div class="modal-dialog" role="document">
+    <div class="modal" tabindex="-1" id="modal-upload-bg">
+      <div class="modal-dialog">
         <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title">Upload a background</h5>
-            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-              <span aria-hidden="true">&times;</span>
-            </button>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body">
             <div class="file-upload">
@@ -404,7 +478,7 @@
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-primary" onclick="save_background()">Save changes</button>
-            <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
           </div>
         </div>
       </div>
@@ -440,7 +514,8 @@
 
         if (return_code == "OK"){
             //close modal
-            $('#modal-upload-bg').modal('toggle');
+            var modal = bootstrap.Modal.getInstance(document.getElementById('modal-upload-bg'));
+            if (modal) modal.hide();
         }
         else{
             alert("upload failed");
@@ -490,7 +565,7 @@
                         'text-outline-width': 2,
                         "background-color": "black",
                         "text-outline-color": "black",
-                        'shape': 'round',
+                        'shape': 'ellipse',
                         'width': "data(width)",
                         'height': "data(height)"
                   }),
@@ -538,7 +613,7 @@
                         'text-outline-width': 2,
                         "background-color": "black",
                         "text-outline-color": "black",
-                        'shape': 'round',
+                        'shape': 'ellipse',
                         'width': "data(width)",
                         'height': "data(height)"
                   }),
@@ -575,45 +650,41 @@
 
         var unique_nodes = [];
         var dict_of_arrays_generated_tuples_for_map = {{ dict_of_arrays_generated_tuples_for_map  | safe}};
-        //alert(JSON.stringify(dict_of_arrays_generated_tuples_for_map["{{ selected_map }}"]));
+        var selected_map_key = "{{ selected_map }}";
+
+        // Check if the selected map exists in the dictionary
+        var map_data = dict_of_arrays_generated_tuples_for_map[selected_map_key];
+        if (!map_data || !Array.isArray(map_data) || map_data.length === 0) {
+            console.log("No data available for selected map: " + selected_map_key);
+            return;
+        }
 
         // Add all nodes from tuples to an array, then convert to a set to obtain a unique list of nodes
-        for (var index in dict_of_arrays_generated_tuples_for_map["{{ selected_map }}"])
+        for (var index in map_data)
         {
-            unique_nodes.push(dict_of_arrays_generated_tuples_for_map["{{ selected_map }}"][index][0]);
-            unique_nodes.push(dict_of_arrays_generated_tuples_for_map["{{ selected_map }}"][index][1]);
+            unique_nodes.push(map_data[index][0]);
+            unique_nodes.push(map_data[index][1]);
         }
         var unique_nodes = [...new Set(unique_nodes)]
-        //alert(unique_nodes);
 
-        //add gear config
-        //cy.add([
-        //{group: 'nodes', data:{ id: "GEAR"}},
-        //]);
-        //cy.nodes()[0].css("background-color", "transparent")
-        //cy.nodes()[0].css("background-image", "/static/maps/gear.png")
-        //cy.nodes()[0].css("background-size", "contain")
-        //cy.nodes()[0].css("height", "60px")
-        //cy.nodes()[0].css("width", "60px")
-        //cy.nodes()[0].css("background-height", "100%")
-        //cy.nodes()[0].css("background-width", "100%")
-        //cy.nodes()[0].addClass('fa')
-        //cy.nodes()[0].addClass('fa-5x')
-        //cy.nodes()[0].addClass('fa-car')
-        //cy.nodes()[0].lock()
-
-        //add nodes
+        //add nodes (skip if already exists)
         for (index = 0; index < unique_nodes.length; index++) {
-            cy.add([
-            {group: 'nodes', data:{ id: unique_nodes[index], name: unique_nodes[index]}},
-            ]);
+            var nodeId = unique_nodes[index];
+            if (cy.getElementById(nodeId).length === 0) {
+                cy.add([
+                    {group: 'nodes', data:{ id: nodeId, name: nodeId}},
+                ]);
+            }
         }
 
-        //add edges
-        for (index = 0; index < dict_of_arrays_generated_tuples_for_map["{{ selected_map }}"].length; index++) {
-            cy.add([
-            {group: 'edges', data:{ id: dict_of_arrays_generated_tuples_for_map["{{ selected_map }}"][index][0] + dict_of_arrays_generated_tuples_for_map["{{ selected_map }}"][index][1] , source: dict_of_arrays_generated_tuples_for_map["{{ selected_map }}"][index][0], target: dict_of_arrays_generated_tuples_for_map["{{ selected_map }}"][index][1]}},
-            ]);
+        //add edges (skip if already exists)
+        for (index = 0; index < map_data.length; index++) {
+            var edgeId = map_data[index][0] + map_data[index][1];
+            if (cy.getElementById(edgeId).length === 0) {
+                cy.add([
+                    {group: 'edges', data:{ id: edgeId, source: map_data[index][0], target: map_data[index][1]}},
+                ]);
+            }
         }
 
 
@@ -674,6 +745,39 @@
       document.getElementById("sidebarCollapse").onclick = openNav;
     }
 
+    /* Add nodes from mesh configuration */
+    function addNodesFromConfig() {
+        // Check if a mesh group is selected
+        var selected_map_key = "{{ selected_map }}";
+        if (!selected_map_key || selected_map_key === "Null" || selected_map_key === "") {
+            alert("Please select a mesh group first.");
+            return;
+        }
+
+        // Check if cytoscape is initialized
+        if (typeof cy === 'undefined') {
+            alert("Graph not initialized. Please refresh the page.");
+            return;
+        }
+
+        // Get current node count
+        var currentNodeCount = cy.nodes().length;
+
+        // Call initialization to add nodes
+        first_time_initialization();
+
+        // Get new node count
+        var newNodeCount = cy.nodes().length;
+        var addedNodes = newNodeCount - currentNodeCount;
+
+        if (addedNodes > 0) {
+            alert("Added " + addedNodes + " node(s) to the graph.");
+        } else if (newNodeCount > 0) {
+            alert("Graph already contains " + newNodeCount + " node(s). No new nodes to add.");
+        } else {
+            alert("No nodes available in the mesh configuration for '" + selected_map_key + "'.");
+        }
+    }
 
     /* For the file upload */
     function readURL(input) {
@@ -704,6 +808,122 @@
         $('.image-upload-wrap').removeClass('image-dropping');
     });
 
+
+    /* ============ STYLE FUNCTIONS ============ */
+
+    // Update range slider value displays
+    document.getElementById('node_size').addEventListener('input', function() {
+        document.getElementById('node_size_value').textContent = this.value + 'px';
+    });
+    document.getElementById('label_size').addEventListener('input', function() {
+        document.getElementById('label_size_value').textContent = this.value + 'px';
+    });
+    document.getElementById('edge_width').addEventListener('input', function() {
+        document.getElementById('edge_width_value').textContent = this.value + 'px';
+    });
+
+    // Apply node styles to Cytoscape
+    function applyNodeStyle() {
+        if (typeof cy === 'undefined') return;
+
+        var nodeSize = document.getElementById('node_size').value;
+        var nodeColor = document.getElementById('node_color').value;
+        var nodeShape = document.getElementById('node_shape').value;
+        var labelSize = document.getElementById('label_size').value;
+        var labelColor = document.getElementById('label_color').value;
+        var labelOutlineColor = document.getElementById('label_outline_color').value;
+
+        cy.style()
+            .selector('node')
+            .css({
+                'width': nodeSize,
+                'height': nodeSize,
+                'background-color': nodeColor,
+                'shape': nodeShape,
+                'font-size': labelSize,
+                'color': labelColor,
+                'text-outline-color': labelOutlineColor
+            })
+            .update();
+    }
+
+    // Apply edge styles to Cytoscape
+    function applyEdgeStyle() {
+        if (typeof cy === 'undefined') return;
+
+        var edgeWidth = document.getElementById('edge_width').value;
+        var edgeColorOk = document.getElementById('edge_color_ok').value;
+        var edgeCurve = document.getElementById('edge_curve').value;
+        var arrowShape = document.getElementById('arrow_shape').value;
+
+        cy.style()
+            .selector('edge')
+            .css({
+                'width': edgeWidth,
+                'line-color': edgeColorOk,
+                'curve-style': edgeCurve,
+                'target-arrow-shape': arrowShape,
+                'target-arrow-color': edgeColorOk
+            })
+            .update();
+    }
+
+    // Apply all styles
+    function applyAllStyles() {
+        applyNodeStyle();
+        applyEdgeStyle();
+    }
+
+    // Reset to default styles
+    function resetStyles() {
+        // Reset node controls
+        document.getElementById('node_size').value = 30;
+        document.getElementById('node_size_value').textContent = '30px';
+        document.getElementById('node_color').value = '#000000';
+        document.getElementById('node_shape').value = 'ellipse';
+        document.getElementById('label_size').value = 14;
+        document.getElementById('label_size_value').textContent = '14px';
+        document.getElementById('label_color').value = '#ffffff';
+        document.getElementById('label_outline_color').value = '#000000';
+
+        // Reset edge controls
+        document.getElementById('edge_width').value = 1;
+        document.getElementById('edge_width_value').textContent = '1px';
+        document.getElementById('edge_color_ok').value = '#28a745';
+        document.getElementById('edge_color_warning').value = '#ffc107';
+        document.getElementById('edge_color_critical').value = '#dc3545';
+        document.getElementById('edge_curve').value = 'bezier';
+        document.getElementById('arrow_shape').value = 'triangle';
+
+        // Apply default styles to Cytoscape
+        if (typeof cy !== 'undefined') {
+            cy.style()
+                .selector('node')
+                .css({
+                    'width': 30,
+                    'height': 30,
+                    'background-color': '#000000',
+                    'shape': 'ellipse',
+                    'font-size': 14,
+                    'color': '#ffffff',
+                    'text-outline-color': '#000000',
+                    'text-outline-width': 2,
+                    'content': 'data(name)',
+                    'text-valign': 'center'
+                })
+                .selector('edge')
+                .css({
+                    'width': 1,
+                    'line-color': '#000000',
+                    'curve-style': 'bezier',
+                    'target-arrow-shape': 'triangle',
+                    'target-arrow-color': '#000000'
+                })
+                .update();
+        }
+    }
+
+    /* ============ END STYLE FUNCTIONS ============ */
 
 
     // Reselect the previously selected map (before POST)

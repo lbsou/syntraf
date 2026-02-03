@@ -364,25 +364,6 @@ def validate_bandwidth(bandwidth):
 
 
 #################################################################################
-### VALIDATE THE PACKET PER SECOND
-#################################################################################
-def is_packet_per_second_valid(packet_per_second):
-    try:
-        # is it an integer?
-        try:
-            val = int(packet_per_second)
-
-            # is it positive?
-            if val >= 1:
-                return True
-        except ValueError:
-            return False
-
-    except Exception as exc:
-        log.error(f"validate_packet_per_second:{type(exc).__name__}:{exc}", exc_info=True)
-        return False
-
-#################################################################################
 ### VALIDATE THE LISTENERS IN THE CONFIG FILE [DEPRECATED, REPLACED BY AUTOMATIC CONFIG GENERATION]
 #################################################################################
 def config_validation_listeners(_config, listener_dict_key, reload=False):
@@ -464,54 +445,72 @@ def config_validation_database(_config):
             if 'DB_SERVER_USE_SSL' in database:
                 log.debug(
                     f"IS DB_SERVER_USE_SSL DECLARED FOR DATABASE '{database['DB_UID']}' : YES")
-                if not isinstance(database['DB_SERVER_USE_SSL'], bool):
-                    log.warning(f"DB_SERVER_USE_SSL DECLARED FOR DATABASE '{database['DB_UID']}' BUT INVALID: APPLYING DEFAULT: {DefaultValues.DEFAULT_INFLUXDB_USE_SSL}")
-                    database['DB_SERVER_USE_SSL'] = DefaultValues.DEFAULT_INFLUXDB_USE_SSL
             else:
                 log.warning(
                     f"IS DB_SERVER_USE_SSL DECLARED FOR DATABASE '{database['DB_UID']}' : NO, APPLYING DEFAULT: {DefaultValues.DEFAULT_INFLUXDB_USE_SSL}")
                 database['DB_SERVER_USE_SSL'] = DefaultValues.DEFAULT_INFLUXDB_USE_SSL
 
-            if 'DB_MODE' in database:
-                log.debug(f"IS DB_MODE DECLARED FOR DATABASE '{database['DB_UID']}' : YES")
-                if not database['DB_MODE'] in ["OSS", "CLOUD"]:
-                    log.warning(f"DB_MODE DECLARED FOR DATABASE '{database['DB_UID']}' BUT INVALID : APPLYING DEFAULT: {DefaultValues.DEFAULT_INFLUXDB_DB_MODE}")
-                    database['DB_MODE'] = DefaultValues.DEFAULT_INFLUXDB_DB_MODE
-            else:
-                log.warning(f"IS DB_MODE DECLARED FOR DATABASE '{database['DB_UID']}' : NO, APPLYING DEFAULT: {DefaultValues.DEFAULT_INFLUXDB_DB_MODE}")
-                database['DB_MODE'] = DefaultValues.DEFAULT_INFLUXDB_DB_MODE
-
-            if database['DB_ENGINE'].upper() == "INFLUXDB2":
+            if database['DB_ENGINE'].upper() in ["INFLUXDB2", "INFLUXDB3", "VICTORIAMETRICS"]:
                 log.debug(
                     f"IS DB_ENGINE '{database['DB_ENGINE'].upper()}' VALID FOR DATABASE '{database['DB_UID']}' : YES")
             else:
                 log.error(
-                    f"IS DB_ENGINE '{database['DB_ENGINE'].upper()}' VALID FOR DATABASE '{database['DB_UID']}' : NO")
+                    f"IS DB_ENGINE '{database['DB_ENGINE'].upper()}' VALID FOR DATABASE '{database['DB_UID']}' : NO (must be INFLUXDB2, INFLUXDB3, or VICTORIAMETRICS)")
                 return False
 
+            # DB_TOKEN is required for InfluxDB, optional for VictoriaMetrics
             if 'DB_TOKEN' in database:
                 log.debug(
                     f"IS DB_TOKEN DECLARED FOR DATABASE '{database['DB_UID']}' : YES")
+            elif database['DB_ENGINE'].upper() == "VICTORIAMETRICS":
+                log.debug(
+                    f"IS DB_TOKEN DECLARED FOR DATABASE '{database['DB_UID']}' : NO (optional for VictoriaMetrics)")
             else:
                 log.debug(
                     f"IS DB_TOKEN DECLARED FOR DATABASE '{database['DB_UID']}' : NO")
                 return False
 
-            if 'DB_ORG' in database:
-                log.debug(
-                    f"IS DB_ORG DECLARED FOR DATABASE '{database['DB_UID']}' : YES")
-            else:
-                log.debug(
-                    f"IS DB_ORG DECLARED FOR DATABASE '{database['DB_UID']}' : NO")
-                return False
+            # DB_ORG is required for InfluxDB2, optional for InfluxDB3, not used for VictoriaMetrics
+            if database['DB_ENGINE'].upper() == "INFLUXDB2":
+                if 'DB_ORG' in database:
+                    log.debug(
+                        f"IS DB_ORG DECLARED FOR DATABASE '{database['DB_UID']}' : YES")
+                else:
+                    log.debug(
+                        f"IS DB_ORG DECLARED FOR DATABASE '{database['DB_UID']}' : NO")
+                    return False
+            elif database['DB_ENGINE'].upper() == "INFLUXDB3":
+                # InfluxDB3 - org is optional
+                if 'DB_ORG' not in database:
+                    database['DB_ORG'] = ''
+            # VictoriaMetrics doesn't use DB_ORG
 
-            if 'DB_BUCKET' in database:
-                log.debug(
-                    f"IS DB_BUCKET DECLARED FOR DATABASE '{database['DB_UID']}' : YES")
-            else:
-                log.debug(
-                    f"IS DB_BUCKET DECLARED FOR DATABASE '{database['DB_UID']}' : NO")
-                return False
+            # DB_BUCKET for InfluxDB2, DB_DATABASE or DB_BUCKET for InfluxDB3, not used for VictoriaMetrics
+            if database['DB_ENGINE'].upper() == "INFLUXDB2":
+                if 'DB_BUCKET' in database:
+                    log.debug(
+                        f"IS DB_BUCKET DECLARED FOR DATABASE '{database['DB_UID']}' : YES")
+                else:
+                    log.debug(
+                        f"IS DB_BUCKET DECLARED FOR DATABASE '{database['DB_UID']}' : NO")
+                    return False
+            elif database['DB_ENGINE'].upper() == "INFLUXDB3":
+                # InfluxDB3 - can use DB_DATABASE or DB_BUCKET
+                if 'DB_DATABASE' in database or 'DB_BUCKET' in database:
+                    log.debug(
+                        f"IS DB_DATABASE/DB_BUCKET DECLARED FOR DATABASE '{database['DB_UID']}' : YES")
+                else:
+                    log.debug(
+                        f"IS DB_DATABASE/DB_BUCKET DECLARED FOR DATABASE '{database['DB_UID']}' : NO")
+                    return False
+            elif database['DB_ENGINE'].upper() == "VICTORIAMETRICS":
+                # VictoriaMetrics - optional DB_TENANT for multi-tenancy
+                if 'DB_TENANT' in database:
+                    log.debug(
+                        f"IS DB_TENANT DECLARED FOR DATABASE '{database['DB_UID']}' : YES")
+                else:
+                    log.debug(
+                        f"IS DB_TENANT DECLARED FOR DATABASE '{database['DB_UID']}' : NO (optional)")
 
             if 'DB_USE_WEB_PROXY' in database:
                 log.debug(
@@ -569,26 +568,21 @@ def config_validation_database(_config):
 #################################################################################
 def config_validation_global(_config):
     try:
-
         # validating WATCHDOG_CHECK_RATE
         if "WATCHDOG_CHECK_RATE" in _config['GLOBAL']:
             log.debug(f"IS WATCHDOG_CHECK_RATE DECLARED IN CONFIG FILE : YES")
-
-            try:
-                x = float(_config['GLOBAL']['WATCHDOG_CHECK_RATE'])
-            except ValueError:
-                log.error(f"IS A WATCHDOG_CHECK_RATE OF '{_config['GLOBAL']['WATCHDOG_CHECK_RATE'].upper()} seconds' VALID : NO")
-                return False
-
-            if 0.1 <= float(_config['GLOBAL']['WATCHDOG_CHECK_RATE']) <= 86400:
-                log.debug(
-                    f"IS A WATCHDOG_CHECK_RATE OF '{_config['GLOBAL']['WATCHDOG_CHECK_RATE'].upper()} seconds' VALID : YES")
+            if _config['GLOBAL']['WATCHDOG_CHECK_RATE'].isdigit():
+                if 1 <= int(_config['GLOBAL']['WATCHDOG_CHECK_RATE']) <= 86400:
+                    log.debug(
+                        f"IS A WATCHDOG_CHECK_RATE OF '{_config['GLOBAL']['WATCHDOG_CHECK_RATE'].upper()} seconds' VALID : YES")
+                else:
+                    log.error(
+                        f"IS A WATCHDOG_CHECK_RATE OF '{_config['GLOBAL']['WATCHDOG_CHECK_RATE'].upper()} seconds' VALID : NO")
+                    return False
             else:
                 log.error(
                     f"IS A WATCHDOG_CHECK_RATE OF '{_config['GLOBAL']['WATCHDOG_CHECK_RATE'].upper()} seconds' VALID : NO")
                 return False
-
-
         else:
             log.debug(
                 f"IS WATCHDOG_CHECK_RATE DECLARED IN CONFIG FILE : NO, USING DEFAULT (10sec)")
@@ -650,6 +644,54 @@ def config_validation_global(_config):
                 _config['GLOBAL']['IPERF3_AUTH'] = DefaultValues.DEFAULT_IPERF3_AUTH
         else:
             _config['GLOBAL']['IPERF3_AUTH'] = DefaultValues.DEFAULT_IPERF3_AUTH
+
+        # Validate IPERF3_CONNECT_TIMEOUT (ms, 1000-60000)
+        if 'IPERF3_CONNECT_TIMEOUT' in _config['GLOBAL']:
+            val = str(_config['GLOBAL']['IPERF3_CONNECT_TIMEOUT'])
+            if val.isdigit() and 1000 <= int(val) <= 60000:
+                log.debug(f"IS IPERF3_CONNECT_TIMEOUT '{val}' VALID : YES")
+                _config['GLOBAL']['IPERF3_CONNECT_TIMEOUT'] = val
+            else:
+                log.warning(f"IPERF3_CONNECT_TIMEOUT '{val}' INVALID, APPLYING DEFAULT '{DefaultValues.DEFAULT_IPERF3_CONNECT_TIMEOUT}'")
+                _config['GLOBAL']['IPERF3_CONNECT_TIMEOUT'] = DefaultValues.DEFAULT_IPERF3_CONNECT_TIMEOUT
+        else:
+            _config['GLOBAL']['IPERF3_CONNECT_TIMEOUT'] = DefaultValues.DEFAULT_IPERF3_CONNECT_TIMEOUT
+
+        # Validate IPERF3_RCV_TIMEOUT (ms, 1000-120000)
+        if 'IPERF3_RCV_TIMEOUT' in _config['GLOBAL']:
+            val = str(_config['GLOBAL']['IPERF3_RCV_TIMEOUT'])
+            if val.isdigit() and 1000 <= int(val) <= 120000:
+                log.debug(f"IS IPERF3_RCV_TIMEOUT '{val}' VALID : YES")
+                _config['GLOBAL']['IPERF3_RCV_TIMEOUT'] = val
+            else:
+                log.warning(f"IPERF3_RCV_TIMEOUT '{val}' INVALID, APPLYING DEFAULT '{DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT}'")
+                _config['GLOBAL']['IPERF3_RCV_TIMEOUT'] = DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT
+        else:
+            _config['GLOBAL']['IPERF3_RCV_TIMEOUT'] = DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT
+
+        # Validate RESPAWN_MAX_ATTEMPTS (1-100)
+        if 'RESPAWN_MAX_ATTEMPTS' in _config['GLOBAL']:
+            val = str(_config['GLOBAL']['RESPAWN_MAX_ATTEMPTS'])
+            if val.isdigit() and 1 <= int(val) <= 100:
+                log.debug(f"IS RESPAWN_MAX_ATTEMPTS '{val}' VALID : YES")
+                _config['GLOBAL']['RESPAWN_MAX_ATTEMPTS'] = int(val)
+            else:
+                log.warning(f"RESPAWN_MAX_ATTEMPTS '{val}' INVALID, APPLYING DEFAULT '{DefaultValues.DEFAULT_RESPAWN_MAX_ATTEMPTS}'")
+                _config['GLOBAL']['RESPAWN_MAX_ATTEMPTS'] = DefaultValues.DEFAULT_RESPAWN_MAX_ATTEMPTS
+        else:
+            _config['GLOBAL']['RESPAWN_MAX_ATTEMPTS'] = DefaultValues.DEFAULT_RESPAWN_MAX_ATTEMPTS
+
+        # Validate DNS_TIMEOUT (1-60 seconds)
+        if 'DNS_TIMEOUT' in _config['GLOBAL']:
+            val = str(_config['GLOBAL']['DNS_TIMEOUT'])
+            if val.isdigit() and 1 <= int(val) <= 60:
+                log.debug(f"IS DNS_TIMEOUT '{val}' VALID : YES")
+                _config['GLOBAL']['DNS_TIMEOUT'] = int(val)
+            else:
+                log.warning(f"DNS_TIMEOUT '{val}' INVALID, APPLYING DEFAULT '{DefaultValues.DEFAULT_DNS_TIMEOUT}'")
+                _config['GLOBAL']['DNS_TIMEOUT'] = DefaultValues.DEFAULT_DNS_TIMEOUT
+        else:
+            _config['GLOBAL']['DNS_TIMEOUT'] = DefaultValues.DEFAULT_DNS_TIMEOUT
 
     except Exception as exc:
         log.error(f"config_validation_global:{type(exc).__name__}:{exc}", exc_info=True)
@@ -856,17 +898,23 @@ def config_validation_server(_config, parameters):
 
     # Validating the list of mesh token
     if 'TOKEN' in _config['SERVER']:
-        for token in _config['SERVER']['TOKEN']:
+        for token_key in _config['SERVER']['TOKEN']:
+            token_data = _config['SERVER']['TOKEN'][token_key]
+            # Handle both old format (string) and new format (dict with value/description)
+            if isinstance(token_data, dict):
+                token_value = token_data.get('value', '')
+            else:
+                token_value = token_data
             # Token must be between 5 and 255 char long
-            if not 5 <= len(_config['SERVER']['TOKEN'][token]) <= 255:
+            if not 5 <= len(token_value) <= 255:
                 log.error(
-                    f"IS TOKEN '{_config['SERVER']['TOKEN'][token]}' VALID : NO")
+                    f"IS TOKEN '{token_value}' VALID : NO")
                 log.error(
                     f"TOKEN MUST BE BETWEEN 5 AND 255 CHARACTER INCLUSIVELY")
                 return False, None, None
             else:
                 log.debug(
-                    f"IS TOKEN '{_config['SERVER']['TOKEN'][token]}' VALID : YES")
+                    f"IS TOKEN '{token_value}' VALID : YES")
     else:
         log.error(
             f"IS TOKEN SPECIFIED IN SERVER CONFIGURATION : NO")
@@ -1156,38 +1204,11 @@ def validate_uid(uid):
     regex_allowed_char = re.compile(r'^[A-Za-z0-9_-]{4,50}$')
     return bool(regex_allowed_char.search(uid))
 
-
-#################################################################################
-### Apply a IPERF3_PROFILE to a MESH_GROUP
-#################################################################################
-def explode_profile(group, _config):
-    for iperf3_profile in _config['IPERF3_PROFILE']:
-        if 'UID' in iperf3_profile:
-            if group['IPERF3_PROFILE'] == iperf3_profile['UID']:
-                if 'BANDWIDTH' in iperf3_profile: group['BANDWIDTH'] = iperf3_profile['BANDWIDTH']
-                if 'DSCP' in iperf3_profile: group['DSCP'] = iperf3_profile['DSCP']
-                if 'PACKET_SIZE' in iperf3_profile: group['PACKET_SIZE'] = iperf3_profile['PACKET_SIZE']
-                if 'PACKET_PER_SECOND' in iperf3_profile: group['PACKET_PER_SECOND'] = iperf3_profile['PACKET_PER_SECOND']
-                if 'INTERVAL' in iperf3_profile: group['INTERVAL'] = iperf3_profile['INTERVAL']
-            else:
-                log.warning(f"IPERF3_PROFILE '{group['IPERF3_PROFILE']}' NOT FOUND, UNABLE TO APPLY PROFILE TO GROUP '{group['UID']}'")
-
-
 #################################################################################
 ### Validation of MESH_GROUP
 #################################################################################
 def validate_group(_config, group_type):
     for group in _config[group_type]:
-
-        # Validate the disabled parameter
-        if "DISABLED" in group:
-            if not isinstance(group['DISABLED'], bool):
-                log.warning(f"DISABLED PARAMETER INVALID (NOT A BOOLEAN) FOR MESH GROUP '{group['UID']}' : APPLYING DEFAULT OF : False")
-                group['DISABLED'] = False
-
-        # Apply iperf3_profile if there is one specified
-        if 'IPERF3_PROFILE' in group:
-            explode_profile(group, _config)
 
         # Validation of the UID, mandatory config and must be A-Za-z0-9_-
         if 'UID' in group:
@@ -1196,73 +1217,34 @@ def validate_group(_config, group_type):
                     f"IS UID VALUE '{group['UID']}' VALID : NO    (ONLY A-Za-z0-9_- ALLOWED)")
                 return False
 
+        # Validation of the BANDWIDTH
+        if 'BANDWIDTH' in group:
+            if not validate_bandwidth(group['BANDWIDTH']) >= 0:
+                log.error(
+                    f"IS BANDWIDTH VALUE '{group['BANDWIDTH']}' VALID FOR SERVER GROUP '{group['UID']}' : NO")
+                return False
+
         # Validation of the TOS
         if 'DSCP' in group:
             if not validate_dscp(group['DSCP']):
                 group['DSCP'] = DefaultValues.DEFAULT_DSCP
                 log.warning(
-                    f"DSCP PARAMETER INVALID FOR MESH GROUP '{group['UID']}': APPLYING DEFAULT OF {DefaultValues.DEFAULT_DSCP}")
+                    f"DSCP PARAMETER INVALID FOR SERVER GROUP '{group['UID']}': APPLYING DEFAULT OF {DefaultValues.DEFAULT_DSCP}")
         else:
             group['DSCP'] = DefaultValues.DEFAULT_DSCP
             log.warning(
-                f"DSCP PARAMETER NOT FOUND FOR MESH GROUP '{group['UID']}': APPLYING DEFAULT OF {DefaultValues.DEFAULT_DSCP}")
-
-
-        # We need two of the next three parameter for the mesh_group to be valid
-        packet_size_flag = False
-        bandwidth_flag = False
-        packet_per_second_flag = False
+                f"DSCP PARAMETER NOT FOUND FOR SERVER GROUP '{group['UID']}': APPLYING DEFAULT OF {DefaultValues.DEFAULT_DSCP}")
 
         # Validation of the PACKET_SIZE
         if "PACKET_SIZE" in group:
-            packet_size_flag = True
             if not validate_packet_size(group['PACKET_SIZE']):
                 group['PACKET_SIZE'] = DefaultValues.DEFAULT_PACKET_SIZE
-                log.warning(f"PACKET_SIZE PARAMETER INVALID FOR SERVER GROUP '{group['UID']}': APPLYING DEFAULT OF '{DefaultValues.DEFAULT_PACKET_SIZE}'")
-
-        # Validation of the BANDWIDTH
-        if 'BANDWIDTH' in group:
-            bandwidth_flag = True
-            if not validate_bandwidth(group['BANDWIDTH']) >= 0:
-                group['BANDWIDTH'] = DefaultValues.DEFAULT_BANDWIDTH
-                log.warning(f"BANDWIDTH PARAMETER INVALID FOR SERVER GROUP '{group['UID']}': APPLYING DEFAULT OF '{DefaultValues.DEFAULT_BANDWIDTH}'")
-
-        # Validation of the packet per second
-        if 'PACKET_PER_SECOND' in group:
-            if is_packet_per_second_valid(group['PACKET_PER_SECOND']):
-                packet_per_second_flag = True
-
-        # Calculate BANDWIDTH FROM PACKET_PER_SECOND AND PACKET_SIZE
-        if packet_per_second_flag and packet_size_flag:
-            group['BANDWIDTH'] = int(group['PACKET_SIZE']) * int(group['PACKET_PER_SECOND'])
-            log.debug(f"CALCULATED BANDWITH ({group['BANDWIDTH']}), FROM PACKET_SIZE ({group['PACKET_SIZE']}) AND PACKET_PER_SECOND ({group['PACKET_PER_SECOND']})")
-
-        # Calculate PACKET_PER_SECOND FROM BANDWIDTH AND PACKET_SIZE
-        elif packet_size_flag and bandwidth_flag:
-            bandwidth_bytes_per_seconds = get_bandwidth_bytes(group['BANDWIDTH'])
-            group['PACKET_PER_SECOND'] = int(bandwidth_bytes_per_seconds / int(group['PACKET_SIZE']))
-            log.debug(f"CALCULATED PACKET_PER_SECOND ({group['PACKET_PER_SECOND']}), FROM BANDWIDTH ({group['BANDWIDTH']}) AND PACKET_SIZE ({group['PACKET_SIZE']})")
-
-        # Calculate PACKET_SIZE FROM BANDWIDTH AND PACKET_PER_SECOND
-        elif bandwidth_flag and packet_per_second_flag:
-            bandwidth_bytes_per_seconds = get_bandwidth_bytes(group['BANDWIDTH'])
-            group['PACKET_SIZE'] = int(bandwidth_bytes_per_seconds / int(group['PACKET_PER_SECOND']))
-            log.debug(f"CALCULATED PACKET_SIZE ({group['PACKET_SIZE']}), FROM PACKET_PER_SECOND ({group['PACKET_PER_SECOND']}) AND BANDWIDTH ({group['BANDWIDTH']})")
-
-        elif packet_per_second_flag and bandwidth_flag and packet_size_flag:
-            # Too many parameters
-            log.error(f"TOO MANY PARAMETERS IN MESH GROUP '{group['UID']}', YOU SHOULD SPECIFY ONLY TWO OF THE FOLLOWING PARAMETERS, THIRD ONE IS CALCULATED AUTOMATICALLY : PACKET_SIZE: {group['PACKET_SIZE']}, BANDWIDTH: {group['BANDWIDTH']}, PACKET_PER_SECOND: {group['PACKET_PER_SECOND']}")
-            return False
-
-        if [packet_per_second_flag, bandwidth_flag, packet_size_flag].count(True) <= 1:
-            log.error(f"NOT ENOUGH PARAMETER IN MESH_GROUP '{group['UID']}', YOU NEED TO DEFINE 2 OUT OF THREE PARAMETERS. CURRENT DEFINED PARAMETERS STATE IS = PACKET_PER_SECOND: {packet_per_second_flag}, BANDWIDTH: {bandwidth_flag}, PACKET_SIZE: {packet_size_flag}")
-            return False
-
-        # CALCULATING PACING
-        # DISTANCE BETWEEN PACKET IN A SECOND
-        usec_in_a_sec = 1000000
-        group['PACKET_PACING'] = int(usec_in_a_sec / int(group['PACKET_PER_SECOND']))
-        log.debug(f"PACKET_PACING FOR MESH_GROUP '{group['UID']}' CALCULATED AND DEFINED AS '{group['PACKET_PACING']}'")
+                log.warning(
+                    f"PACKET_SIZE PARAMETER INVALID FOR SERVER GROUP '{group['UID']}': APPLYING DEFAULT OF '{DefaultValues.DEFAULT_PACKET_SIZE}'")
+        else:
+            group['PACKET_SIZE'] = DefaultValues.DEFAULT_PACKET_SIZE
+            log.warning(
+                f"PACKET_SIZE PARAMETER NOT FOUND FOR SERVER GROUP '{group['UID']}': APPLYING DEFAULT OF '{DefaultValues.DEFAULT_PACKET_SIZE}'")
 
         # VALIDATING INTERVAL
         if "INTERVAL" in group:
@@ -1276,35 +1258,6 @@ def validate_group(_config, group_type):
                 f"BANDWIDTH PARAMETER NOT FOUND FOR SERVER GROUP '{group['UID']}': APPLYING DEFAULT OF '{DefaultValues.DEFAULT_INTERVAL}'")
 
     return True
-
-
-def get_bandwidth_bytes(bandwidth):
-    data = "0"
-    multiplier = 1
-
-    try:
-        # If end with K, extract what precede, multiplier is 1000
-        if bandwidth[-1].lower() == "k":
-            multiplier = 1000
-            data = bandwidth[0:-1]
-
-        # If end with M, extract what precede, then multiply it by 1000**2 to get bits
-        elif bandwidth[-1].lower() == "m":
-            multiplier = 1000000
-            data = bandwidth[0:-1]
-
-        else:
-            data = bandwidth
-
-        try:
-            float(data)
-            return float(data) * multiplier / 8
-        except ValueError:
-            return -1
-
-    except Exception as exc:
-        log.error(f"get_bandwidth_bytes:{type(exc).__name__}:{exc}", exc_info=True)
-        return -1
 
 
 #################################################################################
@@ -1332,12 +1285,7 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
 
     # iterate over all mesh_group and generate config for every client
     for mesh_group in _config['MESH_GROUP']:
-
-        if "DISABLED" in mesh_group:
-            if mesh_group["DISABLED"]:
-                continue
-
-        # This list is used to fill a dictionary (_dict_by_group_of_generated_tuple_for_map) in which the keys are the mesh_group. We need to reinitialize it at each loop so that it contain only the nodes of the current group
+        # This list is use to fill a dictionnary (_dict_by_group_of_generated_tuple_for_map) in which the keys are the mesh_group. We need to reinitalize it at each loop so that it contain only the nodes of the current group
         _list_tuple_for_map_gen = []
 
         # Loop over all client
@@ -1419,7 +1367,7 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
 
                                         # Two client behind NAT, do not create connector/listener
                                         if client_behind_nat and client2_behind_nat:
-                                            log.error(f"CLIENT {client['UID']} AND {client2['UID']} ARE BEHIND A NAT, NO COMMUNICATION IS POSSIBLE BETWEEN THOSE TWO CLIENT")
+                                            log.error(f"CLIENT {client['UID']} AND {client2['UID']} ARE BEHIND A NAT, NOT COMMUNICATION POSSIBLE BETWEEN THOSE TWO CLIENT")
                                             continue
 
                                         # if this client can receive a connection, open a listener
@@ -1447,7 +1395,6 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
                                                                                             DSCP=mesh_group['DSCP'],
                                                                                             MESH_GROUP=mesh_group['UID'],
                                                                                             PACKET_SIZE=mesh_group['PACKET_SIZE'],
-                                                                                            PACKET_PACING=mesh_group['PACKET_PACING'],
                                                                                             BIDIR=client_behind_nat)
 
                                         # if this client can receive a connection, open a listener
@@ -1475,7 +1422,6 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
                                                                                             DSCP=mesh_group['DSCP'],
                                                                                             MESH_GROUP=mesh_group['UID'],
                                                                                             PACKET_SIZE=mesh_group['PACKET_SIZE'],
-                                                                                            PACKET_PACING=mesh_group['PACKET_PACING'],
                                                                                             BIDIR=client2_behind_nat)
 
                                         # Creating array inside dictionary before appending the objects
@@ -1715,3 +1661,249 @@ def is_port_valid(port, config_name):
         log.error(f"is_port_valid:{type(exc).__name__}:{exc}", exc_info=True)
 
     return True
+
+
+#################################################################################
+### VALIDATE CONFIGURATION FOR WEBUI - Returns errors/warnings instead of exiting
+#################################################################################
+def validate_config_for_webui(config):
+    """
+    Validate configuration and return a list of errors and warnings.
+    This function is designed to be called from the WebUI before saving.
+
+    Returns:
+        dict: {
+            'valid': bool,
+            'errors': list of error messages,
+            'warnings': list of warning messages
+        }
+    """
+    errors = []
+    warnings = []
+
+    try:
+        # Validate MESH_GROUP configurations
+        if 'MESH_GROUP' in config and isinstance(config['MESH_GROUP'], list):
+            for mg in config['MESH_GROUP']:
+                mg_uid = mg.get('UID', 'UNKNOWN')
+
+                # Validate bandwidth
+                if 'BANDWIDTH' in mg:
+                    bw = validate_bandwidth(str(mg['BANDWIDTH']))
+                    if bw < 0:
+                        errors.append(f"MESH_GROUP '{mg_uid}': Invalid BANDWIDTH value '{mg['BANDWIDTH']}'")
+
+                # Validate packet size
+                if 'PACKET_SIZE' in mg:
+                    if not validate_packet_size(str(mg['PACKET_SIZE'])):
+                        errors.append(f"MESH_GROUP '{mg_uid}': Invalid PACKET_SIZE '{mg['PACKET_SIZE']}' (must be 16-65507)")
+
+                # Validate DSCP
+                if 'DSCP' in mg:
+                    if not validate_dscp(str(mg['DSCP'])):
+                        errors.append(f"MESH_GROUP '{mg_uid}': Invalid DSCP value '{mg['DSCP']}' (must be 0-63)")
+
+                # Validate interval
+                if 'INTERVAL' in mg:
+                    interval = validate_interval(str(mg['INTERVAL']))
+                    if interval < 0:
+                        errors.append(f"MESH_GROUP '{mg_uid}': Invalid INTERVAL value '{mg['INTERVAL']}'")
+
+        # Validate SERVER_CLIENT configurations
+        if 'SERVER_CLIENT' in config and isinstance(config['SERVER_CLIENT'], list):
+            for sc in config['SERVER_CLIENT']:
+                sc_uid = sc.get('UID', 'UNKNOWN')
+
+                # Validate UID format
+                if 'UID' in sc:
+                    if not validate_uid(sc['UID']):
+                        errors.append(f"SERVER_CLIENT '{sc_uid}': Invalid UID format (4-50 characters, only alphanumeric, underscores and hyphens allowed)")
+
+                # Validate IP address (can be 'IP' or 'IP_ADDRESS')
+                ip_value = sc.get('IP') or sc.get('IP_ADDRESS')
+                if ip_value and ip_value != '0.0.0.0':  # Skip validation for placeholder IPs
+                    if not validate_ipv4(ip_value):
+                        # Check if it's a valid FQDN
+                        try:
+                            fqdn = FQDN(ip_value)
+                            if not fqdn.is_valid:
+                                errors.append(f"SERVER_CLIENT '{sc_uid}': Invalid IP or FQDN '{ip_value}'")
+                        except:
+                            errors.append(f"SERVER_CLIENT '{sc_uid}': Invalid IP or FQDN '{ip_value}'")
+
+                # Validate MAX_BANDWIDTH format if present
+                if 'MAX_BANDWIDTH' in sc:
+                    max_bw = validate_bandwidth(str(sc['MAX_BANDWIDTH']))
+                    if max_bw < 0:
+                        errors.append(f"SERVER_CLIENT '{sc_uid}': Invalid MAX_BANDWIDTH value '{sc['MAX_BANDWIDTH']}'")
+
+        # Calculate and validate bandwidth per client
+        bandwidth_check = validate_bandwidth_per_client(config)
+        for error in bandwidth_check.get('errors', []):
+            errors.append(error)
+        for warning in bandwidth_check.get('warnings', []):
+            warnings.append(warning)
+
+        # Validate SERVER configuration
+        if 'SERVER' in config:
+            server = config['SERVER']
+
+            # Validate port
+            if 'PORT' in server:
+                if not is_port_valid(str(server['PORT']), 'SERVER_PORT'):
+                    errors.append(f"SERVER: Invalid PORT value '{server['PORT']}'")
+
+            # Validate mesh listeners port range
+            if 'MESH_LISTENERS_PORT_RANGE' in server:
+                port_range = server['MESH_LISTENERS_PORT_RANGE']
+                if isinstance(port_range, list) and len(port_range) == 2:
+                    if port_range[0] >= port_range[1]:
+                        errors.append(f"SERVER: MESH_LISTENERS_PORT_RANGE start ({port_range[0]}) must be less than end ({port_range[1]})")
+                    if port_range[1] - port_range[0] < 100:
+                        warnings.append(f"SERVER: MESH_LISTENERS_PORT_RANGE is small ({port_range[1] - port_range[0]} ports). Consider expanding for larger meshes.")
+
+        # Validate DATABASE configuration
+        if 'DATABASE' in config and isinstance(config['DATABASE'], list):
+            for i, db in enumerate(config['DATABASE']):
+                db_uid = db.get('DB_UID', f'DATABASE_{i}')
+
+                # Check for DB_ENGINE (the database type)
+                if 'DB_ENGINE' not in db:
+                    errors.append(f"DATABASE '{db_uid}': Missing required DB_ENGINE field")
+                elif db['DB_ENGINE'].upper() == 'INFLUXDB2':
+                    required_fields = ['DB_SERVER', 'DB_TOKEN', 'DB_ORG', 'DB_BUCKET']
+                    for field in required_fields:
+                        if field not in db:
+                            errors.append(f"DATABASE '{db_uid}': Missing required field '{field}' for InfluxDB2")
+                elif db['DB_ENGINE'].upper() == 'INFLUXDB3':
+                    required_fields = ['DB_SERVER', 'DB_TOKEN']
+                    for field in required_fields:
+                        if field not in db:
+                            errors.append(f"DATABASE '{db_uid}': Missing required field '{field}' for InfluxDB3")
+                    # InfluxDB3 needs either DB_DATABASE or DB_BUCKET
+                    if 'DB_DATABASE' not in db and 'DB_BUCKET' not in db:
+                        errors.append(f"DATABASE '{db_uid}': Missing DB_DATABASE or DB_BUCKET for InfluxDB3")
+                elif db['DB_ENGINE'].upper() == 'VICTORIAMETRICS':
+                    # VictoriaMetrics only requires DB_SERVER, token is optional
+                    required_fields = ['DB_SERVER']
+                    for field in required_fields:
+                        if field not in db:
+                            errors.append(f"DATABASE '{db_uid}': Missing required field '{field}' for VictoriaMetrics")
+                else:
+                    errors.append(f"DATABASE '{db_uid}': Unknown DB_ENGINE '{db['DB_ENGINE']}'. Must be INFLUXDB2, INFLUXDB3, or VICTORIAMETRICS")
+
+    except Exception as exc:
+        errors.append(f"Validation error: {type(exc).__name__}: {exc}")
+        log.error(f"validate_config_for_webui: {type(exc).__name__}: {exc}", exc_info=True)
+
+    return {
+        'valid': len(errors) == 0,
+        'errors': errors,
+        'warnings': warnings
+    }
+
+
+def format_bandwidth_display(bps):
+    """Format bandwidth value for display (input is in bits per second)."""
+    if bps >= 1000000:
+        return f"{bps/1000000:.1f}M".rstrip('0').rstrip('.')  + "bps"
+    elif bps >= 1000:
+        return f"{bps/1000:.1f}K".rstrip('0').rstrip('.') + "bps"
+    else:
+        return f"{bps:.0f}bps"
+
+
+#################################################################################
+### VALIDATE BANDWIDTH PER CLIENT - Check MAX_BANDWIDTH constraints
+#################################################################################
+def validate_bandwidth_per_client(config):
+    """
+    Calculate the total bandwidth used by each client and check against MAX_BANDWIDTH.
+
+    Returns:
+        dict: {'errors': [], 'warnings': []}
+    """
+    errors = []
+    warnings = []
+
+    if 'SERVER_CLIENT' not in config or 'MESH_GROUP' not in config:
+        return {'errors': errors, 'warnings': warnings}
+
+    # Build a map of client UID to MAX_BANDWIDTH
+    client_max_bw = {}
+    for sc in config['SERVER_CLIENT']:
+        if 'UID' in sc and 'MAX_BANDWIDTH' in sc:
+            max_bw = validate_bandwidth(str(sc['MAX_BANDWIDTH']))
+            if max_bw > 0:
+                client_max_bw[sc['UID']] = max_bw
+
+    # Build a map of mesh group UID to client UIDs
+    client_mesh_groups = {}  # client_uid -> list of (mesh_group_uid, bandwidth)
+
+    for mg in config['MESH_GROUP']:
+        mg_uid = mg.get('UID', 'UNKNOWN')
+        mg_bandwidth = validate_bandwidth(str(mg.get('BANDWIDTH', '0')))
+
+        if mg_bandwidth <= 0:
+            continue
+
+        # Find clients that belong to this mesh group
+        for sc in config['SERVER_CLIENT']:
+            sc_uid = sc.get('UID')
+            if not sc_uid:
+                continue
+
+            # Check if client is in this mesh group
+            mesh_groups = sc.get('MESH_GROUP_UID_LIST', [])
+            if isinstance(mesh_groups, str):
+                mesh_groups = [mesh_groups]
+
+            if mg_uid in mesh_groups:
+                if sc_uid not in client_mesh_groups:
+                    client_mesh_groups[sc_uid] = []
+                client_mesh_groups[sc_uid].append((mg_uid, mg_bandwidth))
+
+    # Calculate total bandwidth per client (one-way)
+    # In a mesh, each client connects to all other clients in the group
+    for client_uid, groups in client_mesh_groups.items():
+        if client_uid not in client_max_bw:
+            continue
+
+        max_bw = client_max_bw[client_uid]
+
+        # Count other clients in each group
+        total_bandwidth = 0
+        for mg_uid, mg_bandwidth in groups:
+            # Find how many other clients are in this mesh group
+            other_clients = 0
+            for sc in config['SERVER_CLIENT']:
+                sc_uid = sc.get('UID')
+                if sc_uid == client_uid:
+                    continue
+
+                mesh_groups = sc.get('MESH_GROUP_UID_LIST', [])
+                if isinstance(mesh_groups, str):
+                    mesh_groups = [mesh_groups]
+
+                # Check exclusions
+                excluded = sc.get('EXCLUDED_CLIENT', [])
+                if isinstance(excluded, str):
+                    excluded = [excluded]
+
+                if mg_uid in mesh_groups and client_uid not in excluded:
+                    other_clients += 1
+
+            total_bandwidth += mg_bandwidth * other_clients
+
+        if total_bandwidth > max_bw:
+            errors.append(
+                f"CLIENT '{client_uid}': MAX_BANDWIDTH ({format_bandwidth_display(max_bw)}) exceeded. "
+                f"Calculated one-way sum is {format_bandwidth_display(total_bandwidth)}"
+            )
+        elif total_bandwidth > max_bw * 0.8:
+            warnings.append(
+                f"CLIENT '{client_uid}': Bandwidth usage ({format_bandwidth_display(total_bandwidth)}) is at "
+                f"{total_bandwidth/max_bw*100:.0f}% of MAX_BANDWIDTH ({format_bandwidth_display(max_bw)})"
+            )
+
+    return {'errors': errors, 'warnings': warnings}

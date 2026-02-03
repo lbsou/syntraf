@@ -9,14 +9,26 @@ import logging
 log = logging.getLogger("syntraf." + __name__)
 
 
-# RETURN TRUE IF PID EXIST
+# RETURN TRUE IF PID EXIST AND IS A SYNTRAF/PYTHON PROCESS
 def check_pid(pid):
     try:
-        pid_exist = psutil.pid_exists(pid)
-        if pid_exist:
-            return True
-        else:
+        if not psutil.pid_exists(pid):
             return False
+
+        # Verify the process is actually a Python/SYNTRAF process
+        try:
+            proc = psutil.Process(pid)
+            proc_name = proc.name().lower()
+            cmdline = ' '.join(proc.cmdline()).lower()
+
+            # Check if it's a Python process running syntraf
+            if 'python' in proc_name or 'python' in cmdline:
+                if 'syntraf' in cmdline:
+                    return True
+            return False
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            return False
+
     except Exception as exc:
         log.error(f"check_pid:{type(exc).__name__}:{exc}", exc_info=True)
         return False

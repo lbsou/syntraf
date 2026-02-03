@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 
 class cc_client:
     _status = "UNKNOWN"
@@ -29,7 +30,11 @@ class cc_client:
         o_dict = self.__dict__
         j_dump = {}
         j_dump['status'] = self._status
-        j_dump['status_since'] = self._status_since
+        # Convert datetime to ISO string for JSON serialization
+        if isinstance(self._status_since, datetime):
+            j_dump['status_since'] = self._status_since.isoformat()
+        else:
+            j_dump['status_since'] = str(self._status_since)
         j_dump['status_explanation'] = self._status_explanation
         j_dump['bool_dynamic_client'] = self._bool_dynamic_client
         j_dump['client_uid'] = self._client_uid
@@ -137,5 +142,6 @@ class cc_client:
     tcp_port = property(get_tcp_port, set_tcp_port)
     system_stats = property(get_system_stats, set_system_stats)
     system_infos = property(get_system_infos, set_system_infos)
+    thread_status = property(get_thread_status, set_thread_status)
     clock_skew_in_seconds = property(get_clock_skew_in_seconds, set_clock_skew_in_seconds)
     syntraf_version = property(get_syntraf_version, set_syntraf_version)

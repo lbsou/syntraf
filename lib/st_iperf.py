@@ -23,6 +23,32 @@ iperf3_listeners_log = logging.getLogger("syntraf." + "lib.st_iperf3_listeners")
 HIGH_PRIORITY_CLASS = 0x00000080
 
 
+def dns_resolve_with_timeout(hostname, timeout=10):
+    """Resolve DNS with timeout to prevent indefinite blocking.
+
+    Uses ThreadPoolExecutor for cross-platform timeout support.
+
+    Args:
+        hostname: The hostname to resolve
+        timeout: Timeout in seconds (default 10)
+
+    Returns:
+        Resolved IP address string
+
+    Raises:
+        TimeoutError: If resolution takes longer than timeout
+        socket.gaierror: If DNS resolution fails
+    """
+    import concurrent.futures
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(socket.gethostbyname, hostname)
+        try:
+            return future.result(timeout=timeout)
+        except concurrent.futures.TimeoutError:
+            raise TimeoutError(f"DNS resolution timed out for {hostname}")
+
+
 # Find the ephemeral port iperf3 is using for the incoming connection in bidirectional mode then send a packet
 # to the other side with the right src and dst port to keep alive the udp hole punch.
 def udp_hole_punch(dst_ip, dst_port, iperf3_connector_obj_pnt, connector_key, threads_n_processes, exit_boolean):
@@ -114,12 +140,12 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_connector_obj_pnt, connector_key, th
             curr_thread.packet_sent += 1
             curr_thread.last_activity = datetime.now()
             iperf3_connectors_log.debug(f"SENDING KEEPALIVE WITH SRC:{src_mac}/{src_ip}/{iperf3_connector_obj_pnt.bidir_src_port}, DST:{dst_mac}/{dst_ip}/{dst_port} ON IFACE:{src_if}")
-            #scapy.sendp(scapy.Ether(src=src_mac, dst=dst_mac) / scapy.IP(src=src_ip, dst=dst_ip) / scapy.UDP(sport=src_port,dport=dst_port) / scapy.Raw(load=""), verbose=False, iface=src_if, inter=1, count=1)
+            scapy.sendp(scapy.Ether(src=src_mac, dst=dst_mac) / scapy.IP(src=src_ip, dst=dst_ip) / scapy.UDP(sport=src_port,dport=dst_port) / scapy.Raw(load="KEEPALIVE"), verbose=False, iface=src_if, inter=1, count=1)
 
         except Exception as ex:
             iperf3_connectors_log.error(ex)
 
-        time.sleep(15)
+        time.sleep(1)
 
     iperf3_connectors_log.error(f"UDP_HOLE FOR {connector_key}, IPERF3 PROCESS ID: '{iperf3_pid}' TERMINATED. EXIT MESSAGE: {exit_message}")
 
@@ -145,15 +171,38 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes):
 
         valid_ip = False
         ip_address = None
-        while not valid_ip:
+        dns_attempts = 0
+        max_dns_attempts = 5
+        dns_timeout = int(config['GLOBAL'].get('DNS_TIMEOUT', DefaultValues.DEFAULT_DNS_TIMEOUT))
+
+        while not valid_ip and dns_attempts < max_dns_attempts:
+            dns_attempts += 1
             try:
-                ip_address = socket.gethostbyname(socket.gethostbyname(config['CONNECTORS'][connector_key]['DESTINATION_ADDRESS']))
+                ip_address = dns_resolve_with_timeout(
+                    config['CONNECTORS'][connector_key]['DESTINATION_ADDRESS'],
+                    timeout=dns_timeout
+                )
                 if validate_ipv4(ip_address):
                     valid_ip = True
+            except TimeoutError:
+                iperf3_connectors_log.error(f"DNS TIMEOUT for '{config['CONNECTORS'][connector_key]['DESTINATION_ADDRESS']}' (attempt {dns_attempts}/{max_dns_attempts})")
             except socket.gaierror as e:
                 if e.errno == socket.EAI_AGAIN:
-                    logging.error(f"TEMPORARY FAILURE IN NAME RESOLUTION OF {ip_address}")
-            time.sleep(1)
+                    iperf3_connectors_log.error(f"TEMPORARY FAILURE IN NAME RESOLUTION of '{config['CONNECTORS'][connector_key]['DESTINATION_ADDRESS']}' (attempt {dns_attempts}/{max_dns_attempts})")
+                else:
+                    iperf3_connectors_log.error(f"DNS RESOLUTION FAILED for '{config['CONNECTORS'][connector_key]['DESTINATION_ADDRESS']}': {e} (attempt {dns_attempts}/{max_dns_attempts})")
+
+            if not valid_ip and dns_attempts < max_dns_attempts:
+                # Progressive backoff: 1s, 2s, 4s, 8s
+                backoff = min(dns_attempts * 2, 10)
+                time.sleep(backoff)
+
+        if not valid_ip:
+            iperf3_connectors_log.error(f"FAILED TO RESOLVE DNS for connector '{connector_key}' after {max_dns_attempts} attempts, will retry on next watchdog cycle")
+            # Remove the connector object so watchdog will retry later
+            if iperf3_obj_proc_n_thread in threads_n_processes:
+                threads_n_processes.remove(iperf3_obj_proc_n_thread)
+            return
 
         args = []
         args.append(config['GLOBAL']['IPERF3_BINARY_PATH'])
@@ -163,9 +212,10 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes):
         args.extend(["-t", "0"])
         args.extend(["-b", config['CONNECTORS'][connector_key]['BANDWIDTH']])
         args.append("--udp-counters-64bit")
-        args.extend(["--connect-timeout=" + DefaultValues.DEFAULT_IPERF3_CONNECT_TIMEOUT])
+        connect_timeout = config['GLOBAL'].get('IPERF3_CONNECT_TIMEOUT', DefaultValues.DEFAULT_IPERF3_CONNECT_TIMEOUT)
+        args.extend(["--connect-timeout=" + str(connect_timeout)])
         args.extend(["--dscp", config['CONNECTORS'][connector_key]['DSCP']])
-        args.extend(["--pacing-timer", str(config['CONNECTORS'][connector_key]['PACKET_PACING'])])
+        args.extend(["--pacing-timer", "12000"])
         args.extend(["-f", "k"])
         args.extend(["-p", str(config['CONNECTORS'][connector_key]['PORT'])])
         args.append("--timestamps='%F %T '")
@@ -186,9 +236,10 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes):
             args.append("--rsa-public-key-path")
             args.append(os.path.join(config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'public_key_iperf_client.pem'))
 
-        #if config['CONNECTORS'][connector_key]['BIDIR']:
-        #    args.append("--rcv-timeout")
-        #    args.append(DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT)
+        if config['CONNECTORS'][connector_key]['BIDIR']:
+            rcv_timeout = config['GLOBAL'].get('IPERF3_RCV_TIMEOUT', DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT)
+            args.append("--rcv-timeout")
+            args.append(str(rcv_timeout))
 
         arguments = " "
         arguments = arguments.join(args)
@@ -226,57 +277,60 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes):
 def iperf3_server(config, listener_key, listener_value, threads_n_processes):
     iperf3_obj_proc_n_thread = get_obj_process_n_thread(threads_n_processes, "LISTENER", listener_key)
 
-    iperf3_listeners_log.debug(config['LISTENERS'][listener_key]['BIND_ADDRESS'])
-
-    #if is_port_available(config['LISTENERS'][listener_key]['BIND_ADDRESS'], str(config['LISTENERS'][listener_key]['PORT'])):
-    try:
-        args = []
-        args.append(config['GLOBAL']['IPERF3_BINARY_PATH'])
-        args.append("-s")
-        args.extend(["-i", config['LISTENERS'][listener_key]['INTERVAL']])
-        args.extend(["-f", "k"])
-        args.append("--forceflush")
-        args.extend(["--idle-timeout", DefaultValues.DEFAULT_IPERF3_SERVER_IDLE_TIMEOUT])
-        args.extend(["--rcv-timeout", DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT])
-        args.append("--one-off")
-        args.extend(["-p", str(config['LISTENERS'][listener_key]['PORT'])])
-        args.append("--timestamps='%F %T '")
-
-        ''' 
-        --cntl-ka[=#/#/#] use control connection TCP keepalive - KEEPIDLE/KEEPINTV/KEEPCNT
-        control connection Keepalive period should be larger than retry period (interval * count) 
-        TCP_KEEPIDLE = Interval of Keepalive
-        TCP_KEEPINTV = Interval of Retry
-        TCP_KEEPCNT = Drop connection after that amount of lost keepalive
-        '''
-        args.append('--cntl-ka=10/1/5')
-
-        if config['GLOBAL']['IPERF3_AUTH']:
-            args.append("--rsa-private-key-path")
-            args.append(os.path.join(config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'private_key_iperf_client.pem'))
-            args.append("--authorized-users-path")
-            args.append(os.path.join(config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'credentials.csv'))
-            args.append("--time-skew-threshold")
-            args.append(config['GLOBAL']['IPERF3_TIME_SKEW_THRESHOLD'])
+    if is_port_available(config['LISTENERS'][listener_key]['BIND_ADDRESS'], str(config['LISTENERS'][listener_key]['PORT'])):
+        try:
+            args = []
+            args.append(config['GLOBAL']['IPERF3_BINARY_PATH'])
+            args.append("-s")
+            args.extend(["-i", config['LISTENERS'][listener_key]['INTERVAL']])
+            args.extend(["-f", "k"])
+            args.append("--forceflush")
+            idle_timeout = config['GLOBAL'].get('IPERF3_SERVER_IDLE_TIMEOUT', DefaultValues.DEFAULT_IPERF3_SERVER_IDLE_TIMEOUT)
+            rcv_timeout = config['GLOBAL'].get('IPERF3_RCV_TIMEOUT', DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT)
+            args.extend(["--idle-timeout", str(idle_timeout)])
+            args.extend(["--rcv-timeout", str(rcv_timeout)])
+            args.append("--one-off")
+            args.extend(["-p", str(config['LISTENERS'][listener_key]['PORT'])])
             args.append("--timestamps='%F %T '")
 
-        arguments = " "
-        arguments = arguments.join(args)
-        # iperf3_listeners_log.error(arguments)
+            ''' 
+            --cntl-ka[=#/#/#] use control connection TCP keepalive - KEEPIDLE/KEEPINTV/KEEPCNT
+            control connection Keepalive period should be larger than retry period (interval * count) 
+            TCP_KEEPIDLE = Interval of Keepalive
+            TCP_KEEPINTV = Interval of Retry
+            TCP_KEEPCNT = Drop connection after that amount of lost keepalive
+            '''
+            args.append('--cntl-ka=10/1/5')
 
-        p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, stdin=None, text=True, bufsize=1)
-        iperf3_obj_proc_n_thread.subproc = p
+            if config['GLOBAL']['IPERF3_AUTH']:
+                args.append("--rsa-private-key-path")
+                args.append(os.path.join(config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'private_key_iperf_client.pem'))
+                args.append("--authorized-users-path")
+                args.append(os.path.join(config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'credentials.csv'))
+                args.append("--time-skew-threshold")
+                args.append(config['GLOBAL']['IPERF3_TIME_SKEW_THRESHOLD'])
+                args.append("--timestamps='%F %T '")
 
-        if p.poll() is None:
-            iperf3_listeners_log.warning(f"IPERF3 SERVER FOR LISTENER '{listener_key}' STARTED ON PORT {config['LISTENERS'][listener_key]['PORT']}")
-            return p
-        else:
-            last_breath = p.communicate()[1]
-            iperf3_listeners_log.error(f"UNABLE TO START IPERF3 SERVER FOR LISTENER '{listener_key}' : IPERF3 LAST BREATH : {last_breath}")
+            arguments = " "
+            arguments = arguments.join(args)
+            # iperf3_listeners_log.error(arguments)
 
-    except Exception as exc:
-        iperf3_listeners_log.error(f"iperf_server:{type(exc).__name__}:{exc}", exc_info=True)
-    # else:
-    #     iperf3_listeners_log.error(f"iperf_server: port unavailable")
-    #     sys.exit()
+            p = subprocess.Popen(args, close_fds=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, stdin=None, text=True, bufsize=1)
+            iperf3_obj_proc_n_thread.subproc = p
+
+            if p.poll() is None:
+                iperf3_listeners_log.warning(f"IPERF3 SERVER FOR LISTENER '{listener_key}' STARTED ON PORT {config['LISTENERS'][listener_key]['PORT']}")
+                return p
+            else:
+                last_breath = p.communicate()[1]
+                iperf3_listeners_log.error(f"UNABLE TO START IPERF3 SERVER FOR LISTENER '{listener_key}' : IPERF3 LAST BREATH : {last_breath}")
+
+        except Exception as exc:
+            iperf3_listeners_log.error(f"iperf_server:{type(exc).__name__}:{exc}", exc_info=True)
+    else:
+        iperf3_listeners_log.error(f"iperf_server: port {config['LISTENERS'][listener_key]['PORT']} unavailable for listener '{listener_key}', will retry on next watchdog cycle")
+        # Remove the object from threads_n_processes so watchdog will retry
+        if iperf3_obj_proc_n_thread in threads_n_processes:
+            threads_n_processes.remove(iperf3_obj_proc_n_thread)
+        return None
 

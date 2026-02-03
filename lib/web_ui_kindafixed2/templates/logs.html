@@ -1,0 +1,466 @@
+{% extends "base.html" %}
+{% block title %}{{ _('logs.title') }}{% endblock %}
+{% block head %}
+<style>
+    .log-container {
+        background-color: #1a1a2e;
+        border: 1px solid #444;
+        border-radius: 4px;
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        font-size: 12px;
+        height: calc(100vh - 280px);
+        min-height: 400px;
+        overflow-y: auto;
+        padding: 10px;
+        color: #e0e0e0;
+    }
+    .log-line {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        margin: 0;
+        padding: 1px 0;
+        line-height: 1.4;
+    }
+    .log-line:hover {
+        background-color: #2a2a4e;
+    }
+    .log-line.log-error {
+        color: #ff6b6b;
+    }
+    .log-line.log-warning {
+        color: #ffd93d;
+    }
+    .log-line.log-info {
+        color: #6bcf7f;
+    }
+    .log-line.log-debug {
+        color: #74b9ff;
+    }
+    .log-line.log-highlight {
+        background-color: #4a4a0a;
+    }
+    .controls-bar {
+        background-color: #2d2d44;
+        padding: 15px;
+        border-radius: 4px;
+        margin-bottom: 15px;
+    }
+    .tail-indicator {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-right: 5px;
+    }
+    .tail-indicator.active {
+        background-color: #28a745;
+        animation: pulse 1s infinite;
+    }
+    .tail-indicator.inactive {
+        background-color: #6c757d;
+    }
+    @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.5; }
+        100% { opacity: 1; }
+    }
+    .file-info {
+        font-size: 0.85em;
+        color: #888;
+    }
+    .btn-scroll {
+        position: fixed;
+        bottom: 80px;
+        right: 40px;
+        z-index: 1000;
+        opacity: 0.8;
+    }
+    .btn-scroll:hover {
+        opacity: 1;
+    }
+    .line-count {
+        font-size: 0.9em;
+        color: #888;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2 class="mb-4"><i class="fas fa-file-alt me-2"></i>{{ _('logs.title') }}</h2>
+
+    <div class="controls-bar">
+        <div class="row align-items-center">
+            <div class="col-md-4">
+                <label for="logFileSelect" class="form-label mb-1">{{ _('logs.log_file') }}</label>
+                <select class="form-select" id="logFileSelect" onchange="loadLogFile()">
+                    <option value="">{{ _('common.loading') }}</option>
+                </select>
+                <div class="file-info mt-1" id="fileInfo"></div>
+            </div>
+            <div class="col-md-3">
+                <label for="searchInput" class="form-label mb-1">{{ _('common.search') }}</label>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="searchInput" placeholder="{{ _('common.filter') }}..." onkeyup="filterLogs()">
+                    <button class="btn btn-outline-secondary" type="button" onclick="clearSearch()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <label for="linesSelect" class="form-label mb-1">{{ _('logs.lines') }}</label>
+                <select class="form-select" id="linesSelect" onchange="loadLogFile()">
+                    <option value="100">100</option>
+                    <option value="500" selected>500</option>
+                    <option value="1000">1000</option>
+                    <option value="5000">5000</option>
+                    <option value="0">{{ _('common.all') }}</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label mb-1">&nbsp;</label>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary" onclick="loadLogFile()" title="{{ _('logs.refresh') }}">
+                        <i class="fas fa-sync-alt"></i> {{ _('common.refresh') }}
+                    </button>
+                    <button class="btn btn-success" id="tailBtn" onclick="toggleTail()" title="Tail">
+                        <span class="tail-indicator inactive" id="tailIndicator"></span>
+                        <span id="tailBtnText">Tail</span>
+                    </button>
+                    <button class="btn btn-secondary" onclick="downloadLog()" title="{{ _('logs.download') }}">
+                        <i class="fas fa-download"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="line-count" id="lineCount">0 {{ _('logs.lines') }}</span>
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="autoScroll" checked>
+            <label class="form-check-label" for="autoScroll">{{ _('logs.auto_scroll') }}</label>
+        </div>
+    </div>
+
+    <div class="log-container" id="logContainer">
+        <div id="logContent">{{ _('logs.select_file') }}...</div>
+    </div>
+</div>
+
+<button class="btn btn-primary btn-scroll" id="scrollBtn" onclick="scrollToBottom()" style="display: none;">
+    <i class="fas fa-arrow-down"></i>
+</button>
+
+<script>
+// i18n for JavaScript
+const logsI18n = {
+    noFiles: "{{ _('logs.no_logs') }}",
+    lines: "{{ _('logs.lines') }}",
+    linesDisplayed: "{{ _('logs.lines') }}",
+    error: "{{ _('common.error') }}",
+    lastUpdated: "{{ _('logs.last_updated') }}"
+};
+
+let tailInterval = null;
+let lastLogSize = 0;
+let currentFile = '';
+let allLogLines = [];
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadLogFiles();
+
+    // Show/hide scroll button based on scroll position
+    document.getElementById('logContainer').addEventListener('scroll', function() {
+        const container = this;
+        const scrollBtn = document.getElementById('scrollBtn');
+        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+        scrollBtn.style.display = isNearBottom ? 'none' : 'block';
+    });
+});
+
+// Load list of available log files
+async function loadLogFiles() {
+    try {
+        const fd = new FormData();
+        fd.append('ACTION', 'GET_LOG_FILES');
+
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        });
+
+        const result = await response.json();
+        const select = document.getElementById('logFileSelect');
+        select.innerHTML = '';
+
+        if (result.status === 'OK' && result.files && result.files.length > 0) {
+            result.files.forEach((file, index) => {
+                const option = document.createElement('option');
+                option.value = file.name;
+                option.text = `${file.name} (${formatSize(file.size)})`;
+                select.appendChild(option);
+            });
+            // Auto-load first file
+            loadLogFile();
+        } else {
+            const option = document.createElement('option');
+            option.value = '';
+            option.text = logsI18n.noFiles;
+            select.appendChild(option);
+        }
+    } catch (error) {
+        console.error('Error loading log files:', error);
+        showAlert(logsI18n.error, 'danger');
+    }
+}
+
+// Load selected log file content
+async function loadLogFile() {
+    const filename = document.getElementById('logFileSelect').value;
+    const lines = document.getElementById('linesSelect').value;
+
+    if (!filename) return;
+
+    currentFile = filename;
+
+    try {
+        const fd = new FormData();
+        fd.append('ACTION', 'GET_LOG_CONTENT');
+        fd.append('FILENAME', filename);
+        fd.append('LINES', lines);
+
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        });
+
+        const result = await response.json();
+
+        if (result.status === 'OK') {
+            displayLogContent(result.content, result.total_lines);
+            lastLogSize = result.file_size;
+            updateFileInfo(result);
+        } else {
+            document.getElementById('logContent').innerHTML = `<span class="text-danger">${logsI18n.error}: ${result.message}</span>`;
+        }
+    } catch (error) {
+        console.error('Error loading log content:', error);
+        document.getElementById('logContent').innerHTML = `<span class="text-danger">${logsI18n.error}</span>`;
+    }
+}
+
+// Display log content with syntax highlighting
+function displayLogContent(content, totalLines) {
+    const container = document.getElementById('logContent');
+    const lines = content.split('\n');
+    allLogLines = lines;
+
+    container.innerHTML = '';
+
+    lines.forEach((line, index) => {
+        if (line.trim()) {
+            const div = document.createElement('div');
+            div.className = 'log-line ' + getLogLevelClass(line);
+            div.textContent = line;
+            container.appendChild(div);
+        }
+    });
+
+    document.getElementById('lineCount').textContent = `${lines.filter(l => l.trim()).length} ${logsI18n.lines} (${totalLines || lines.length} total)`;
+
+    if (document.getElementById('autoScroll').checked) {
+        scrollToBottom();
+    }
+}
+
+// Get CSS class based on log level
+function getLogLevelClass(line) {
+    const upperLine = line.toUpperCase();
+    if (upperLine.includes('ERROR') || upperLine.includes('CRITICAL') || upperLine.includes('FATAL')) {
+        return 'log-error';
+    } else if (upperLine.includes('WARNING') || upperLine.includes('WARN')) {
+        return 'log-warning';
+    } else if (upperLine.includes('INFO')) {
+        return 'log-info';
+    } else if (upperLine.includes('DEBUG')) {
+        return 'log-debug';
+    }
+    return '';
+}
+
+// Filter log lines based on search input
+function filterLogs() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const container = document.getElementById('logContent');
+    const lines = container.getElementsByClassName('log-line');
+
+    let visibleCount = 0;
+
+    for (let line of lines) {
+        if (searchTerm === '' || line.textContent.toLowerCase().includes(searchTerm)) {
+            line.style.display = '';
+            line.classList.toggle('log-highlight', searchTerm !== '' && line.textContent.toLowerCase().includes(searchTerm));
+            visibleCount++;
+        } else {
+            line.style.display = 'none';
+        }
+    }
+
+    document.getElementById('lineCount').textContent = `${visibleCount} ${logsI18n.lines}`;
+}
+
+// Clear search filter
+function clearSearch() {
+    document.getElementById('searchInput').value = '';
+    filterLogs();
+}
+
+// Toggle tail mode
+function toggleTail() {
+    const indicator = document.getElementById('tailIndicator');
+    const btnText = document.getElementById('tailBtnText');
+
+    if (tailInterval) {
+        // Stop tail
+        clearInterval(tailInterval);
+        tailInterval = null;
+        indicator.className = 'tail-indicator inactive';
+        btnText.textContent = 'Tail';
+        document.getElementById('tailBtn').classList.remove('btn-danger');
+        document.getElementById('tailBtn').classList.add('btn-success');
+    } else {
+        // Start tail
+        indicator.className = 'tail-indicator active';
+        btnText.textContent = 'Stop';
+        document.getElementById('tailBtn').classList.remove('btn-success');
+        document.getElementById('tailBtn').classList.add('btn-danger');
+
+        // Poll for new content every 2 seconds
+        tailInterval = setInterval(pollForUpdates, 2000);
+        pollForUpdates(); // Immediate first poll
+    }
+}
+
+// Poll for new log entries
+async function pollForUpdates() {
+    if (!currentFile) return;
+
+    try {
+        const fd = new FormData();
+        fd.append('ACTION', 'TAIL_LOG');
+        fd.append('FILENAME', currentFile);
+        fd.append('LAST_SIZE', lastLogSize);
+
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        });
+
+        const result = await response.json();
+
+        if (result.status === 'OK' && result.new_content) {
+            appendLogContent(result.new_content);
+            lastLogSize = result.file_size;
+        }
+    } catch (error) {
+        console.error('Error polling for updates:', error);
+    }
+}
+
+// Append new content to log display
+function appendLogContent(content) {
+    const container = document.getElementById('logContent');
+    const lines = content.split('\n');
+
+    lines.forEach(line => {
+        if (line.trim()) {
+            const div = document.createElement('div');
+            div.className = 'log-line ' + getLogLevelClass(line);
+            div.textContent = line;
+            container.appendChild(div);
+            allLogLines.push(line);
+        }
+    });
+
+    // Reapply filter if active
+    const searchTerm = document.getElementById('searchInput').value;
+    if (searchTerm) {
+        filterLogs();
+    } else {
+        document.getElementById('lineCount').textContent = `${allLogLines.filter(l => l.trim()).length} ${logsI18n.lines}`;
+    }
+
+    if (document.getElementById('autoScroll').checked) {
+        scrollToBottom();
+    }
+}
+
+// Scroll to bottom of log container
+function scrollToBottom() {
+    const container = document.getElementById('logContainer');
+    container.scrollTop = container.scrollHeight;
+}
+
+// Download current log file
+async function downloadLog() {
+    const filename = document.getElementById('logFileSelect').value;
+    if (!filename) return;
+
+    try {
+        const fd = new FormData();
+        fd.append('ACTION', 'DOWNLOAD_LOG');
+        fd.append('FILENAME', filename);
+
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        });
+
+        const result = await response.json();
+
+        if (result.status === 'OK') {
+            // Create download link
+            const blob = new Blob([result.content], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } else {
+            showAlert(logsI18n.error + ': ' + result.message, 'danger');
+        }
+    } catch (error) {
+        showAlert(logsI18n.error, 'danger');
+    }
+}
+
+// Update file info display
+function updateFileInfo(result) {
+    const info = document.getElementById('fileInfo');
+    if (result.modified) {
+        info.textContent = `${logsI18n.lastUpdated}: ${result.modified} | ${formatSize(result.file_size)}`;
+    }
+}
+
+// Format file size
+function formatSize(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', function() {
+    if (tailInterval) {
+        clearInterval(tailInterval);
+    }
+});
+</script>
+{% endblock %}

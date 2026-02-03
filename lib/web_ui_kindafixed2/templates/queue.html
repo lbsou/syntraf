@@ -1,76 +1,78 @@
-<html>
-    <head>
-        <title>{{ title }}</title>
-        {{ pure.css }}
-    </head>
-    <body>
-    <h2>QUEUE</h2>
+{% extends "base.html" %}
+{% block title %}{{ _('nav.queue') }}{% endblock %}
+{% block head %}
+<style>
+    .nested-table {
+        font-size: 0.85em;
+        margin: 0;
+    }
+    .nested-table td {
+        padding: 2px 8px;
+    }
+</style>
+{% endblock %}
 
+{% block content %}
+<div class="container-fluid">
+    <h2 class="mb-4"><i class="fas fa-database me-2"></i>{{ _('queue.title') }}</h2>
 
+    {% if dict_data_to_send_to_server %}
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle me-2"></i>{{ dict_data_to_send_to_server|length }} {{ _('queue.items_in_queue') }}
+    </div>
 
-    <table class="pure-table pure-table-bordered pure-table-striped">
-        <thead>
-            <th>Measurement</th>
-            <th>Time</th>
-            <th>Tags</th>
-            <th>Fields</th>
-        </thead>
-        {% for result in dict_data_to_send_to_server %}
-            <tr>
-                <td>{{ result[0]['measurement'] }}</td>
-                <td>{{ result[0]['time'] }}</td>
-                <td>
-                    <table class="pure-table pure-table-bordered pure-table-striped">
-                        <tbody>
-                            <tr>
-                                <td><b>MESH_GROUP</b></td>
-                                <td>{{ result[0]['tags']['MESH_GROUP'] }}</td>
-                            </tr>
-                            <tr>
-                                <td><b>CLIENT</b></td>
-                                <td>{{ result[0]['tags']['CLIENT'] }}</td>
-                            </tr>
-                            <tr>
-                                <td><b>SERVER</b></td>
-                                <td>{{ result[0]['tags']['SERVER'] }}</td>
-                            </tr>
-                            <tr>
-                                <td><b>UID</b></td>
-                                <td>{{ result[0]['tags']['UID'] }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </td>
-                <td>
-                    <table class="pure-table pure-table-bordered pure-table-striped">
-                        <tbody>
-                            <tr>
-                                <td><b>RX_BITRATE</b></td>
-                                <td>{{ result[0]['fields']['RX_BITRATE'] }}</td>
-                            </tr>
-                            <tr>
-                                <td><b>RX_JITTER</b></td>
-                                <td>{{ result[0]['fields']['RX_JITTER'] }}</td>
-                            </tr>
-                            <tr>
-                                <td><b>RX_PCT_LOSS</b></td>
-                                <td>{{ result[0]['fields']['RX_PCT_LOSS'] }}</td>
-                            </tr>
-                            <tr>
-                                <td><b>RX_PACKET_TOTAL</b></td>
-                                <td>{{ result[0]['fields']['RX_PACKET_TOTAL'] }}</td>
-                            </tr>
-                            <tr>
-                                <td><b>RX_PACKET_LOSS</b></td>
-                                <td>{{ result[0]['fields']['RX_PACKET_LOSS'] }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </td>
-            </tr>
-        {% endfor %}
-    </table>
-
-
-    </body>
-</html>
+    <div class="table-responsive">
+        <table class="table table-striped table-bordered table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>{{ _('queue.col_measurement') }}</th>
+                    <th>{{ _('queue.col_time') }}</th>
+                    <th>{{ _('queue.col_tags') }}</th>
+                    <th>{{ _('queue.col_fields') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for result in dict_data_to_send_to_server %}
+                <tr>
+                    <td>{{ result[0]['measurement'] }}</td>
+                    <td>{{ result[0]['time'] }}</td>
+                    <td>
+                        <table class="table table-sm nested-table mb-0">
+                            <tbody>
+                                {% if result[0]['tags'] %}
+                                {% for key, value in result[0]['tags'].items() %}
+                                <tr>
+                                    <td><strong>{{ key }}</strong></td>
+                                    <td>{{ value }}</td>
+                                </tr>
+                                {% endfor %}
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </td>
+                    <td>
+                        <table class="table table-sm nested-table mb-0">
+                            <tbody>
+                                {% if result[0]['fields'] %}
+                                {% for key, value in result[0]['fields'].items() %}
+                                <tr>
+                                    <td><strong>{{ key }}</strong></td>
+                                    <td>{{ value }}</td>
+                                </tr>
+                                {% endfor %}
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="alert alert-success">
+        <i class="fas fa-check-circle me-2"></i>{{ _('queue.empty') }}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

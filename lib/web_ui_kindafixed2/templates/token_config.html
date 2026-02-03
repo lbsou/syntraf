@@ -1,74 +1,245 @@
 {% extends "base.html" %}
 {% block title %}Token{% endblock %}
 {% block content %}
-<h2>Token configuration</h2>
+<h2>Token Configuration</h2>
 <br/>
-    <table id="table_tokens" class="table table-striped table-hover table-sm">
-        <thead>
-            <th style="width: 50%">DESCRIPTION</th>
-            <th style="width: 50%">TOKEN</th>
-        </thead>
-        <tbody>
-            <tr>
-                <td></td>
-                <td></td>
-            </tr>
-        </tbody>
-    </table>
+
+<div class="alert alert-info">
+    <i class="fas fa-info-circle"></i> Tokens are used to authenticate SYNTRAF clients connecting to this server.
+    Each token has a date (start of validity), a value (alphanumeric string, 5-255 characters), and an optional description.
+</div>
+
+<!-- Add Token Form -->
+<div class="card mb-4">
+    <div class="card-header">
+        <i class="fas fa-plus"></i> Add New Token
+    </div>
+    <div class="card-body">
+        <form id="add_token_form" class="row g-3">
+            <div class="col-md-2">
+                <label for="token_date" class="form-label">Date (YYYY-MM-DD)</label>
+                <input type="date" class="form-control" id="token_date" required>
+            </div>
+            <div class="col-md-4">
+                <label for="token_value" class="form-label">Token Value</label>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="token_value"
+                           placeholder="Enter or generate token"
+                           pattern="[A-Za-z0-9_\-]{5,255}"
+                           minlength="5" maxlength="255" required>
+                    <button type="button" class="btn btn-secondary" onclick="generateToken()">
+                        <i class="fas fa-random"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-1">
+                <label class="form-label">Length</label>
+                <select class="form-control" id="token_length">
+                    <option value="16">16</option>
+                    <option value="32" selected>32</option>
+                    <option value="48">48</option>
+                    <option value="64">64</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="token_description" class="form-label">Description (optional)</label>
+                <input type="text" class="form-control" id="token_description"
+                       placeholder="e.g., Site A client" maxlength="100">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">&nbsp;</label>
+                <button type="submit" class="btn btn-success w-100">
+                    <i class="fas fa-plus"></i> Add Token
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Alert for messages -->
+<div id="alert_container"></div>
+
+<!-- Tokens Table -->
+<table id="table_tokens" class="table table-striped table-hover">
+    <thead>
+        <tr>
+            <th style="width: 12%">DATE</th>
+            <th style="width: 20%">DESCRIPTION</th>
+            <th style="width: 43%">TOKEN</th>
+            <th style="width: 25%">ACTIONS</th>
+        </tr>
+    </thead>
+    <tbody id="tokens_tbody">
+    </tbody>
+</table>
 
 <script>
 
-window.onload = function() {
-    $('#table_tokens').dataTable({stateSave: true});
+$(document).ready(function() {
     get_tokens();
-};
 
-async function get_tokens()
-{
+    // Set today's date as default
+    document.getElementById('token_date').valueAsDate = new Date();
+
+    document.getElementById('add_token_form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        add_token();
+    });
+});
+
+function generateToken() {
+    const length = parseInt(document.getElementById('token_length').value);
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-';
+    let token = '';
+
+    // Use crypto API for secure random generation
+    const randomValues = new Uint32Array(length);
+    crypto.getRandomValues(randomValues);
+
+    for (let i = 0; i < length; i++) {
+        token += chars[randomValues[i] % chars.length];
+    }
+
+    document.getElementById('token_value').value = token;
+}
+
+function showAlert(message, type) {
+    const alertHtml = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    `;
+    document.getElementById('alert_container').innerHTML = alertHtml;
+    setTimeout(() => {
+        document.getElementById('alert_container').innerHTML = '';
+    }, 5000);
+}
+
+async function get_tokens() {
     const fd = new FormData();
     fd.append('ACTION', "GET_TOKENS");
 
-    // send `POST` request
-    const response = await fetch('/api', {
-        method: 'POST',
-        body: fd
-    })
+    try {
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        });
 
-    tokens = await response.text();
+        const tokens = await response.json();
+        const tbody = document.getElementById('tokens_tbody');
+        tbody.innerHTML = '';
 
-    if ("ER" == tokens) {
-        document.getElementById("error_modal_text").innerHTML = "This information is not available until this client connect to the server.";
-        $('#modal_system_stats_empty').modal('show');
-    }
-    else {
-            console.log(tokens);
-            tokens = JSON.parse(tokens);
-            console.log(tokens);
-
-            var datatable = $('#table_tokens').DataTable();
-            datatable.clear().draw();
-            for (let [id, data] of Object.entries(tokens)){
-                datatable.row.add(id, data).draw(false);
+        for (let [dateKey, tokenData] of Object.entries(tokens)) {
+            const row = document.createElement('tr');
+            // Handle both old format (string) and new format (object with value/description)
+            let tokenValue, description;
+            if (typeof tokenData === 'string') {
+                tokenValue = tokenData;
+                description = '';
+            } else {
+                tokenValue = tokenData.value || '';
+                description = tokenData.description || '';
             }
+            // Display date part only (before T if present), escape for use in onclick
+            const displayDate = dateKey.includes('T') ? dateKey.split('T')[0] : dateKey;
+            const escapedKey = dateKey.replace(/'/g, "\\'");
+            const escapedToken = tokenValue.replace(/'/g, "\\'");
+            const copyBtn = `<button class="btn btn-info btn-sm me-1" onclick="copyToken('${escapedToken}')" title="Copy to clipboard">
+                <i class="fas fa-copy"></i>
+            </button>`;
+            const deleteBtn = `<button class="btn btn-danger btn-sm" onclick="delete_token('${escapedKey}')" title="Delete token">
+                <i class="fas fa-trash"></i> Delete
+            </button>`;
+            row.innerHTML = `<td>${displayDate}</td><td>${description}</td><td><code>${tokenValue}</code></td><td>${copyBtn}${deleteBtn}</td>`;
+            tbody.appendChild(row);
+        }
+    } catch (error) {
+        console.error('Error fetching tokens:', error);
+        showAlert('Error fetching tokens', 'danger');
+    }
+}
 
+function copyToken(token) {
+    navigator.clipboard.writeText(token).then(() => {
+        showAlert('Token copied to clipboard!', 'success');
+    }).catch(err => {
+        console.error('Failed to copy:', err);
+        showAlert('Failed to copy token', 'danger');
+    });
+}
 
+async function add_token() {
+    const tokenDate = document.getElementById('token_date').value;
+    const tokenValue = document.getElementById('token_value').value;
+    const tokenDescription = document.getElementById('token_description').value;
 
-<!--            system_infos = JSON.parse(system_infos);-->
-<!--            document.getElementById('modal_system_stats_label').innerHTML= 'System informations of ' + client_uid;-->
-<!--            document.getElementById('modal_system_infos_system').innerHTML= system_infos["SYSTEM"];-->
-<!--            document.getElementById('modal_system_infos_node_name').innerHTML=system_infos["NODE_NAME"];-->
-<!--            document.getElementById('modal_system_infos_release').innerHTML=system_infos["RELEASE"];-->
-<!--            document.getElementById('modal_system_infos_version').innerHTML=system_infos["VERSION"];-->
-<!--            document.getElementById('modal_system_infos_processor').innerHTML=system_infos["PROCESSOR"];-->
-<!--            document.getElementById('modal_system_infos_python_version').innerHTML=system_infos["PYTHON_VERSION"];-->
-<!--            document.getElementById('modal_system_infos_cpu_model').innerHTML=system_infos["CPU_MODEL"];-->
-<!--            document.getElementById('modal_system_infos_cpu_count_logical').innerHTML=system_infos["CPU_LOGICAL"];-->
-<!--            document.getElementById('modal_system_infos_cpu_count_physical').innerHTML=system_infos["CPU_PHYSICAL"];-->
-<!--            document.getElementById('modal_system_infos_cpu_frequency').innerHTML=system_infos["CPU_FREQUENCY"];-->
-<!--            document.getElementById('modal_system_infos_memory_mb_physical').innerHTML=system_infos["MEMORY_MB"] + " MB";-->
-<!--            document.getElementById('modal_system_infos_boot_time').innerHTML=system_infos["BOOT_TIME"];-->
-<!--            document.getElementById('modal_system_infos_timezone').innerHTML=system_infos["TIMEZONE"];-->
-<!--            $('#modal_system_stats').modal('show');-->
+    if (!tokenDate || !tokenValue) {
+        showAlert('Please fill in both date and token value', 'warning');
+        return;
+    }
+
+    // Validate token format
+    const tokenRegex = /^[A-Za-z0-9_-]{5,255}$/;
+    if (!tokenRegex.test(tokenValue)) {
+        showAlert('Invalid token format. Use only A-Z, a-z, 0-9, _ and - (5-255 characters)', 'warning');
+        return;
+    }
+
+    const fd = new FormData();
+    fd.append('ACTION', "ADD_TOKEN");
+    fd.append('TOKEN_DATE', tokenDate);
+    fd.append('TOKEN_VALUE', tokenValue);
+    fd.append('TOKEN_DESCRIPTION', tokenDescription);
+
+    try {
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        });
+
+        const result = await response.json();
+
+        if (result.status === "OK") {
+            showAlert('Token added successfully', 'success');
+            document.getElementById('add_token_form').reset();
+            document.getElementById('token_date').valueAsDate = new Date();
+            get_tokens();
+        } else {
+            showAlert('Error: ' + result.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error adding token:', error);
+        showAlert('Error adding token', 'danger');
+    }
+}
+
+async function delete_token(tokenDate) {
+    if (!confirm('Are you sure you want to delete this token?\n\nClients using this token will no longer be able to authenticate.')) {
+        return;
+    }
+
+    const fd = new FormData();
+    fd.append('ACTION', "DELETE_TOKEN");
+    fd.append('TOKEN_DATE', tokenDate);
+
+    try {
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        });
+
+        const result = await response.json();
+
+        if (result.status === "OK") {
+            showAlert('Token deleted successfully', 'success');
+            get_tokens();
+        } else {
+            showAlert('Error: ' + result.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error deleting token:', error);
+        showAlert('Error deleting token', 'danger');
     }
 }
 

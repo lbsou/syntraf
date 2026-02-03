@@ -1,14 +1,16 @@
 #!/bin/bash
 
 ###################################################################
-# Script Name	:   install.sh                                                                                       
-# Description	:   Install script for SYNTRAF                                                                          
-# Args          :   None                                                                                     
-# Author       	:	Louis-Berthier Soullière                                    
-# Email         :	shadow131@hotmail.com                                      
+# Script Name	:   install.sh
+# Description	:   Install script for SYNTRAF
+# Args          :   None
+# Author       	:	Louis-Berthier Soullière
+# Email         :	shadow131@hotmail.com
 ###################################################################
 
-installer_version=0.1
+set -o pipefail
+
+installer_version=0.2
 syntraf_version=
 python_min_req_version=3.9
 iperf3_min_req_version=3.10
@@ -34,7 +36,7 @@ python_installed=
 python_version_raw=
 python_version=
 python_major_version=
-python_binary_path=`command -v python3`
+python_binary_path=$(command -v python3)
 
 pip_binary_path=pip3
 
@@ -48,9 +50,9 @@ os_distroBasedOn=
 client_or_server=
 
 git_installed="False"
-git_binary_path=`command -v git`
+git_binary_path=$(command -v git)
 
-random_token=`cat /dev/urandom | tr -dc '[:alnum:]' | fold -w ${1:-100} | head -n 1`
+random_token=$(cat /dev/urandom | tr -dc '[:alnum:]' | fold -w ${1:-100} | head -n 1)
 
 # Color variables
 green='\033[0;32m'
@@ -63,7 +65,7 @@ lgreen='\e[1;32m'
 clear='\033[0m'
 
 # SYNTRAF Wizard GLOBAL
-IPERF3_BINARY_PATH=`command -v iperf3`
+IPERF3_BINARY_PATH=$(command -v iperf3)
 WATCHDOG_CHECK_RATE=2
 
 # SYNTRAF Wizard SERVER
@@ -76,6 +78,19 @@ MESH_LISTENERS_PORT_RANGE=
 CLIENT_UID=
 SERVER=
 TOKEN=
+
+# Cleanup function for temporary files
+cleanup() {
+	rm -f /tmp/syntraf.tar.gz 2>/dev/null
+	rm -f /tmp/python3.tar.gz 2>/dev/null
+	rm -f /tmp/iperf3.tar.gz 2>/dev/null
+	rm -rf /tmp/syntraf-latest 2>/dev/null
+	rm -rf /tmp/Python-3.10.6 2>/dev/null
+	rm -rf /tmp/iperf-3.11 2>/dev/null
+}
+
+# Trap to cleanup on exit (error or success)
+trap cleanup EXIT
 
 display_banner() {
 
@@ -140,7 +155,13 @@ detect_os() {
 	fi
 }
 
-function version_gt() { test "$(echo "$@" | tr " " "\n" | sort -V | head -n 1)" == "$1"; }
+# Returns 0 (true) if $1 >= $2 (version comparison)
+function version_gtee() {
+    local required="$1"
+    local installed="$2"
+    # Sort versions and check if required is less than or equal to installed
+    [ "$(printf '%s\n' "$required" "$installed" | sort -V | head -n1)" = "$required" ]
+}
 
 validate_python_installed() {
 	python_installed=`command -v $1 -V >/dev/null && echo True || echo False`
@@ -216,7 +237,7 @@ check_python() {
 			validate_python_version
 
 			if [[ $python_major_version =~ $regex ]]; then
-				if version_gt $python_min_req_version $python_major_version; then
+				if version_gte $python_min_req_version $python_major_version; then
 					/usr/bin/printf "${green}\xE2\x9C\x94 Python version $python_version was found and satisfied the minimum requirement of version $python_min_req_version\n${clear}"
 					python_ok="True"
 				else
@@ -225,7 +246,7 @@ check_python() {
 					get_python_path
 				fi
 			else
-				echo "a"
+				/usr/bin/printf "${red}Invalid Python version format detected.\n${clear}"
 			fi
 		else
 			/usr/bin/printf "${yellow}The path provided does not point to a valid python binary.\n${clear}"
@@ -497,7 +518,7 @@ get_iperf3_path() {
 				if [[ $? -eq 0 ]]; then
 					make install  &>> install_syntraf.log
 					if [[ $? -eq 0 ]]; then
-						IPERF3_BINARY_PATH="${base_dir_for_packages}/iperf3/iperf3"
+						IPERF3_BINARY_PATH="${base_dir_for_packages}/iperf3/bin/iperf3"
 						/usr/bin/printf "$green\xE2\x9C\x94 Iperf3 version 3.11 successfully installed in '${IPERF3_BINARY_PATH}'.\n$clear"
 						iperf3_installed="True"
 						exit_loop="True"
@@ -534,7 +555,7 @@ check_iperf3() {
 			iperf3_version_raw=$($IPERF3_BINARY_PATH -v 2>&1 | grep -Po 'iperf (\d.\d+)')
 			iperf3_detected_version=`echo $iperf3_version_raw | cut -d " " -f 2`
 			
-			if version_gt $iperf3_min_req_version $iperf3_detected_version; then
+			if version_gte $iperf3_min_req_version $iperf3_detected_version; then
 				/usr/bin/printf "${green}\xE2\x9C\x94 iperf3 version $iperf3_detected_version was found and satisfied the minimum requirement of version $iperf3_min_req_version\n${clear}"
 				iperf3_ok="True"
 			else
@@ -613,27 +634,28 @@ save_config_client() {
 	done
 	
 	if [[ $client_or_server == "B" || $client_or_server == "b" || $client_or_server == "S" || $client_or_server == "s" ]]; then
-		SERVER_IP="127.0.0.1"
-		TOKEN=${random_token}
+		SERVER="127.0.0.1"
+		TOKEN="${random_token}"
 	else
-		while [ $is_server_ip_ok = "False" ];
+		while [ "$is_server_ip_ok" = "False" ];
 		do
 			echo -n "Please enter the server ip address : "
 			read SERVER
-			if [[ $SERVER =~ $regex_ip ]]; then
+			# Basic IP validation (IPv4)
+			if [[ $SERVER =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
 				is_server_ip_ok="True"
 			else
-				/usr/bin/printf "${yellow} '$answer' is not a valid option. \n${clear}"
+				/usr/bin/printf "${yellow} '$SERVER' is not a valid IP address. \n${clear}"
 			fi
-		done	
+		done
 
 		echo -n "Please enter the token : "
 		read TOKEN
 	fi
-	
+
 	echo "[CLIENT]" >> /etc/syntraf.conf
 	echo "CLIENT_UID = \"${CLIENT_UID}\"" >> /etc/syntraf.conf
-	echo "SERVER = \"${SERVER_IP}\"" >> /etc/syntraf.conf
+	echo "SERVER = \"${SERVER}\"" >> /etc/syntraf.conf
 	echo "TOKEN = \"${TOKEN}\"" >> /etc/syntraf.conf
 	echo "" >> /etc/syntraf.conf
 }
@@ -660,9 +682,10 @@ save_config_mesh_group() {
 }
 
 ctrlc() {
+	local valid_answer="False"
 	/usr/bin/printf "\n${yellow}Ctrl+c detected, are you sure you want to exit the installation? ${cyan}[y/n]${clear} : "
 
-	while [ $valid_answer = "False" ]; 
+	while [ "$valid_answer" = "False" ];
 	do
 		read exit_confirmation
 		regex='^[YyNn]$'

@@ -6,3 +6,38 @@
     filter: grayscale(100%);
     filter: gray;
   }
+
+/* Fix dropdown menus being clipped inside Bootstrap Table */
+.bootstrap-table .fixed-table-body {
+    overflow: visible !important;
+}
+
+.bootstrap-table .fixed-table-container {
+    overflow: visible !important;
+}
+
+/* Ensure dropdown menus in tables are fully visible */
+#status .dropdown-menu {
+    position: absolute;
+    z-index: 1050;
+}
+
+#status .btn-group.dropright {
+    position: static;
+}
+
+#status td {
+    overflow: visible !important;
+}
+
+/* Ensure dropdown toggle caret is visible */
+#status .dropdown-toggle::after {
+    display: inline-block;
+    margin-left: 0.5em;
+    vertical-align: middle;
+}
+
+/* Ensure dropdown menu displays above table content when needed */
+#status .dropdown-menu.show {
+    z-index: 1060;
+}

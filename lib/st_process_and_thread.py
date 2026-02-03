@@ -14,13 +14,17 @@ from lib.st_mesh import client, server
 if not CompilationOptions.client_only:
     from lib.web_ui_kindafixed2 import create_app
 
-    # from gevent import monkey
-    # monkey.patch_all()
-    from gevent.pywsgi import WSGIServer
-
     from werkzeug.serving import run_simple
     from werkzeug.middleware.profiler import ProfilerMiddleware
-    from gevent.pool import Pool
+
+    # Use Waitress on Windows for better compatibility, gevent on Linux for performance
+    if sys.platform == "win32":
+        from waitress import serve as waitress_serve
+    else:
+        # from gevent import monkey
+        # monkey.patch_all()
+        from gevent.pywsgi import WSGIServer
+        from gevent.pool import Pool
 # BUILTIN IMPORT
 import logging
 from datetime import datetime
@@ -129,17 +133,23 @@ def launch_webui(threads_n_processes, subprocess_iperf_dict, _dict_by_node_gener
                          config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients)
         # app = ProfilerMiddleware(app)
         cert_path = os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, "crypto", "WEBUI_X509_SELFSIGNED_DIRECTORY")
-        pool = Pool(100)
 
         try:
-            http_server = WSGIServer(('0.0.0.0', DefaultValues.DEFAULT_WEBUI_PORT), app, error_log=log, log=log)
+            if sys.platform == "win32":
+                # Use Waitress on Windows - pure Python, production-grade WSGI server
+                log.info(f"Starting WEBUI with Waitress on port {DefaultValues.DEFAULT_WEBUI_PORT}")
+                waitress_serve(app, host='0.0.0.0', port=DefaultValues.DEFAULT_WEBUI_PORT, threads=8)
+            else:
+                # Use gevent on Linux for better performance
+                pool = Pool(100)
+                http_server = WSGIServer(('0.0.0.0', DefaultValues.DEFAULT_WEBUI_PORT), app, error_log=log, log=log)
 
-            # try:
-            #    http_server = WSGIServer(('0.0.0.0', DefaultValues.DEFAULT_WEBUI_PORT), app,
-            #                             certfile=os.path.join(cert_path, 'certificate_webui.pem'),
-            #                             keyfile=os.path.join(cert_path, 'private_key_webui.pem'), server_side=True,
-            #                             cert_reqs=ssl.CERT_NONE, do_handshake_on_connect=True, spawn=pool, environ={'wsgi.multithread': True, 'wsgi.multiprocess': True,})
-            http_server.serve_forever()
+                # try:
+                #    http_server = WSGIServer(('0.0.0.0', DefaultValues.DEFAULT_WEBUI_PORT), app,
+                #                             certfile=os.path.join(cert_path, 'certificate_webui.pem'),
+                #                             keyfile=os.path.join(cert_path, 'private_key_webui.pem'), server_side=True,
+                #                             cert_reqs=ssl.CERT_NONE, do_handshake_on_connect=True, spawn=pool, environ={'wsgi.multithread': True, 'wsgi.multiprocess': True,})
+                http_server.serve_forever()
         except Exception as exc:
             log.error(exc)
     except Exception as msg:
@@ -272,36 +282,81 @@ def manage_mesh(config, threads_n_processes, mesh_type, obj_stats, config_file_p
         log.error(f"manage_mesh:{type(exc).__name__}:{exc}", exc_info=True)
 
 
+# Track failure counts by key (persists across object recreation)
+_listener_failure_tracking = {}
+_connector_failure_tracking = {}
+
+
 def manage_listeners_process(config, threads_n_processes, dict_data_to_send_to_server, conn_db):
     try:
         # For each connector, validate config and run the iperf_client
         if 'LISTENERS' in config:
+            max_attempts = int(config['GLOBAL'].get('RESPAWN_MAX_ATTEMPTS', DefaultValues.DEFAULT_RESPAWN_MAX_ATTEMPTS))
+
             for listener_key, listener_value in config['LISTENERS'].items():
 
                 # Do we already have a LISTENER in the threads_n_processes dict
                 thr_temp = get_obj_process_n_thread(threads_n_processes, "LISTENER", listener_key)
 
-                # # Dead, remove from dict
-                # if not thr_temp.subproc:
-                #     threads_n_processes.remove(thr_temp)
-                #     thr_temp = None
+                # Initialize failure tracking for this key if not exists
+                if listener_key not in _listener_failure_tracking:
+                    _listener_failure_tracking[listener_key] = {
+                        'consecutive_failures': 0,
+                        'last_failure_time': None,
+                        'current_backoff_delay': 0,
+                        'respawn_count': 0
+                    }
 
                 # Was never launch or was removed
                 if thr_temp is None:
+                    # Check if we're in backoff period
+                    tracking = _listener_failure_tracking[listener_key]
+                    if tracking['last_failure_time'] is not None:
+                        elapsed = time.time() - tracking['last_failure_time']
+                        if elapsed < tracking['current_backoff_delay']:
+                            log.debug(f"LISTENER '{listener_key}' in backoff, {tracking['current_backoff_delay'] - elapsed:.1f}s remaining (attempt {tracking['consecutive_failures']})")
+                            continue
+
                     # starting the new iperf server
                     start_iperf3_server(config, listener_key, listener_value, threads_n_processes, dict_data_to_send_to_server)
-
 
                 # Iperf3 server was launch, but is it still running?
                 else:
                     # The subproc is not running
                     if not thr_temp.getstatus():
+                        tracking = _listener_failure_tracking[listener_key]
+
+                        # Record the failure
+                        tracking['consecutive_failures'] += 1
+                        tracking['respawn_count'] += 1
+                        tracking['last_failure_time'] = time.time()
+
+                        # Calculate exponential backoff
+                        min_delay = DefaultValues.DEFAULT_RESPAWN_MIN_DELAY
+                        max_delay = DefaultValues.DEFAULT_RESPAWN_MAX_DELAY
+                        multiplier = DefaultValues.DEFAULT_RESPAWN_BACKOFF_MULTIPLIER
+                        tracking['current_backoff_delay'] = min(
+                            min_delay * (multiplier ** (tracking['consecutive_failures'] - 1)),
+                            max_delay
+                        )
+
+                        # Check max attempts
+                        if tracking['consecutive_failures'] > max_attempts:
+                            log.error(f"LISTENER '{listener_key}' exceeded max respawn attempts ({max_attempts}), entering extended backoff (300s)")
+                            tracking['current_backoff_delay'] = 300  # 5 minute extended backoff
+
+                        log.warning(f"LISTENER '{listener_key}' failed, will respawn after {tracking['current_backoff_delay']:.1f}s backoff (attempt {tracking['consecutive_failures']})")
+
                         # Print the last breath and remove from threads_n_processes dict
                         terminate_listener_and_childs(threads_n_processes, listener_key, thr_temp, config)
+                    else:
+                        # Process is running successfully, reset failure count
+                        tracking = _listener_failure_tracking[listener_key]
+                        if tracking['consecutive_failures'] > 0:
+                            log.info(f"LISTENER '{listener_key}' recovered, resetting failure count")
+                            tracking['consecutive_failures'] = 0
+                            tracking['current_backoff_delay'] = 0
 
-                        # starting the new iperf3 server
-                        start_iperf3_server(config, listener_key, listener_value, threads_n_processes,
-                                            dict_data_to_send_to_server)
     except Exception as exc:
         log.error(f"manage_listeners_process:{type(exc).__name__}:{exc}", exc_info=True)
 
@@ -423,13 +478,32 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
     try:
         # For each connector, validate config and run the iperf_client
         if 'CONNECTORS' in config:
+            max_attempts = int(config['GLOBAL'].get('RESPAWN_MAX_ATTEMPTS', DefaultValues.DEFAULT_RESPAWN_MAX_ATTEMPTS))
+
             for connector_key, connector_value in config['CONNECTORS'].items():
 
                 # Do we already have a CONNECTOR in the threads_n_processes dict
                 thr_temp = get_obj_process_n_thread(threads_n_processes, "CONNECTOR", connector_key)
 
+                # Initialize failure tracking for this key if not exists
+                if connector_key not in _connector_failure_tracking:
+                    _connector_failure_tracking[connector_key] = {
+                        'consecutive_failures': 0,
+                        'last_failure_time': None,
+                        'current_backoff_delay': 0,
+                        'respawn_count': 0
+                    }
+
                 # Was never launch or was removed (maybe a client reverted to dynamic IP)
                 if thr_temp is None:
+                    # Check if we're in backoff period
+                    tracking = _connector_failure_tracking[connector_key]
+                    if tracking['last_failure_time'] is not None:
+                        elapsed = time.time() - tracking['last_failure_time']
+                        if elapsed < tracking['current_backoff_delay']:
+                            log.debug(f"CONNECTOR '{connector_key}' in backoff, {tracking['current_backoff_delay'] - elapsed:.1f}s remaining (attempt {tracking['consecutive_failures']})")
+                            continue
+
                     # starting the new iperf3 connector. Also start udp_hole and read_log if this is a bidirectionnal connection
                     start_iperf3_client(config, connector_key, connector_value, threads_n_processes,
                                         dict_data_to_send_to_server)
@@ -437,12 +511,39 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
                 else:
                     # The subproc is not running
                     if not thr_temp.getstatus():
+                        tracking = _connector_failure_tracking[connector_key]
+
+                        # Record the failure
+                        tracking['consecutive_failures'] += 1
+                        tracking['respawn_count'] += 1
+                        tracking['last_failure_time'] = time.time()
+
+                        # Calculate exponential backoff
+                        min_delay = DefaultValues.DEFAULT_RESPAWN_MIN_DELAY
+                        max_delay = DefaultValues.DEFAULT_RESPAWN_MAX_DELAY
+                        multiplier = DefaultValues.DEFAULT_RESPAWN_BACKOFF_MULTIPLIER
+                        tracking['current_backoff_delay'] = min(
+                            min_delay * (multiplier ** (tracking['consecutive_failures'] - 1)),
+                            max_delay
+                        )
+
+                        # Check max attempts
+                        if tracking['consecutive_failures'] > max_attempts:
+                            log.error(f"CONNECTOR '{connector_key}' exceeded max respawn attempts ({max_attempts}), entering extended backoff (300s)")
+                            tracking['current_backoff_delay'] = 300  # 5 minute extended backoff
+
+                        log.warning(f"CONNECTOR '{connector_key}' failed, will respawn after {tracking['current_backoff_delay']:.1f}s backoff (attempt {tracking['consecutive_failures']})")
+
                         # Print the last breath and remove from threads_n_processes dict
                         terminate_connector_and_childs(threads_n_processes, connector_key, thr_temp, config)
+                    else:
+                        # Process is running successfully, reset failure count
+                        tracking = _connector_failure_tracking[connector_key]
+                        if tracking['consecutive_failures'] > 0:
+                            log.info(f"CONNECTOR '{connector_key}' recovered, resetting failure count")
+                            tracking['consecutive_failures'] = 0
+                            tracking['current_backoff_delay'] = 0
 
-                        # starting the new iperf3 connector. Also start udp_hole and read_log if this is a bidirectionnal connection
-                        start_iperf3_client(config, connector_key, connector_value, threads_n_processes,
-                                            dict_data_to_send_to_server)
     except Exception as exc:
         log.error(f"manage_connectors_process:{type(exc).__name__}:{exc}", exc_info=True)
 
@@ -487,11 +588,11 @@ def terminate_connector_and_childs(threads_n_processes, connector_key, thr_temp,
     copy_threads_n_processes = copy(threads_n_processes)
     for thread_to_kill in copy_threads_n_processes:
         if thread_to_kill.syntraf_instance_type == "UDP_HOLE" and connector_key in thread_to_kill.name:
-            thread_to_kill.exit_boolean[0] = [True]
+            thread_to_kill.exit_boolean[0] = True
             threads_n_processes.remove(thread_to_kill)
 
         if thread_to_kill.syntraf_instance_type == "READ_LOG" and connector_key in thread_to_kill.name:
-            thread_to_kill.exit_boolean[0] = [True]
+            thread_to_kill.exit_boolean[0] = True
             threads_n_processes.remove(thread_to_kill)
 
     # Print the last breath and remove from threads_n_processes dict
@@ -511,7 +612,7 @@ def terminate_listener_and_childs(threads_n_processes, listener_key, thr_temp, c
     copy_threads_n_processes = copy(threads_n_processes)
     for thread_to_kill in copy_threads_n_processes:
         if thread_to_kill.syntraf_instance_type == "READ_LOG" and listener_key in thread_to_kill.name:
-            thread_to_kill.exit_boolean[0] = [True]
+            thread_to_kill.exit_boolean[0] = True
             threads_n_processes.remove(thread_to_kill)
 
     # Print the last breath and remove from threads_n_processes dict

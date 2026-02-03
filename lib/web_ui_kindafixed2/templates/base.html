@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ current_language }}">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
@@ -13,50 +13,161 @@
     </head>
 
     <body class="px-3">
-        <nav class="navbar navbar-expand-lg fixed-top navbar-dark bg-primary">
-          <a class="navbar-brand" href="home.html">Home</a>
+        <nav class="navbar navbar-expand-lg fixed-top navbar-dark bg-primary px-4">
+          <a class="navbar-brand" href="home.html"><strong>SYNTRAF</strong></a>
           <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarColor01" aria-controls="navbarColor01" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
           </button>
 
           <div class="collapse navbar-collapse" id="navbarColor01">
-            <ul class="navbar-nav mr-auto">
+            <ul class="navbar-nav me-auto">
+
+              <li class="nav-item">
+                <a class="nav-link" href="home.html">{{ _('nav.home') }}</a>
+              </li>
 
               <li class="nav-item dropdown">
-                <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" id="dropMenuStatus" role="button" aria-expanded="false">Status</a>
+                <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" id="dropMenuStatus" role="button" aria-expanded="false">{{ _('nav.status') }}</a>
                 <div class="dropdown-menu" aria-labelledby="dropMenuStatus">
-                  <a class="dropdown-item" href="stats.html">Clients</a>
-                  <a class="dropdown-item" href="">Databases</a>
+                  <a class="dropdown-item" href="stats.html">{{ _('nav.clients') }}</a>
+                  <a class="dropdown-item" href="maps.html">{{ _('nav.maps') }}</a>
+                  <a class="dropdown-item" href="proc.html">{{ _('nav.processes') }}</a>
+                  <a class="dropdown-item" href="queue.html">{{ _('nav.queue') }}</a>
                 </div>
               </li>
 
               <li class="nav-item dropdown">
-                <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">Configurations</a>
+                <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">{{ _('nav.configurations') }}</a>
                 <div class="dropdown-menu">
-                  <a class="dropdown-item" href="client_config.html">Clients</a>
-                  <a class="dropdown-item" href="database_config.html">Databases</a>
-                  <a class="dropdown-item" href="mesh_group_config.html">Groups</a>
-                  <a class="dropdown-item" href="server_config.html">Server</a>
-                  <a class="dropdown-item" href="token_config.html">Tokens</a>
-                  <a class="dropdown-item" href="users_config.html">Users</a>
+                  <a class="dropdown-item" href="client_config.html">{{ _('nav.clients') }}</a>
+                  <a class="dropdown-item" href="database_config.html">{{ _('nav.databases') }}</a>
+                  <a class="dropdown-item" href="global_config.html">{{ _('nav.global') }}</a>
+                  <a class="dropdown-item" href="mesh_group_config.html">{{ _('nav.groups') }}</a>
+                  <a class="dropdown-item" href="server.html">{{ _('nav.server') }}</a>
+                  <a class="dropdown-item" href="token_config.html">{{ _('nav.tokens') }}</a>
+                  <a class="dropdown-item" href="users_config.html">{{ _('nav.users') }}</a>
                 </div>
               </li>
-              <li class="nav-item dropdown">
-                <a class="nav-link " href="/logout" role="button" >Logout</a>
+              <li class="nav-item">
+                <a class="nav-link" href="logs.html">{{ _('nav.logs') }}</a>
+              </li>
+
+              <li class="nav-item">
+                <a class="nav-link " href="/logout" role="button" >{{ _('nav.logout') }}</a>
               </li>
             </ul>
           </div>
-            <div>
-                SYNTRAF v{{ syntraf_version }}<br>
+            <div class="d-flex align-items-center">
+                <!-- Language Selector -->
+                <div class="dropdown me-3">
+                    <button class="btn btn-outline-light btn-sm dropdown-toggle" type="button" id="languageDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-globe"></i> {{ get_language_name(current_language) }}
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="languageDropdown">
+                        {% for lang in supported_languages %}
+                        <li>
+                            <a class="dropdown-item {% if lang == current_language %}active{% endif %}" href="/set_language/{{ lang }}">
+                                {% if lang == 'en' %}<span class="me-2">🇬🇧</span>{% elif lang == 'fr' %}<span class="me-2">🇫🇷</span>{% endif %}
+                                {{ get_language_name(lang) }}
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                <button type="button" class="btn btn-warning btn-sm me-3" onclick="restartSyntraf()" title="{{ _('nav.restart') }} SYNTRAF">
+                    <i class="fas fa-sync-alt"></i> {{ _('nav.restart') }}
+                </button>
+                <span class="text-light">v{{ syntraf_version }}</span>
             </div>
         </nav>
-        <script src="{{ url_for('static', filename='bootstrap5/bootstrap.bundle.min.js')}}"></script>
+        <!-- Toast Container (fixed position) -->
+        <div id="toast_container" style="position: fixed; bottom: 20px; right: 20px; z-index: 1050;"></div>
+        <!-- jQuery must be loaded BEFORE Bootstrap-table -->
         <script src="{{ url_for('static', filename='jquery/jquery-3.6.1.min.js')}}"></script>
         <script src="{{ url_for('static', filename='jquery/jquery.validate.min.js')}}"></script>
+        <script src="{{ url_for('static', filename='bootstrap5/bootstrap.bundle.min.js')}}"></script>
         <script src="{{ url_for('static', filename='bootstrap-table/bootstrap-table.min.js')}}"></script>
         <script src="https://unpkg.com/tableexport.jquery.plugin/tableExport.min.js"></script>
         <script src="{{ url_for('static', filename='bootstrap-table/extensions/export/bootstrap-table-export.min.js')}}"></script>
         <script src="{{ url_for('static', filename='fontawesome-free-5.15.3-web/js/fontawesome.min.js')}}"></script>
+
+        <script>
+        // i18n translations for JavaScript
+        const i18n = {
+            restart: {
+                confirm: "{{ _('restart.confirm') }}",
+                restarting: "{{ _('restart.restarting') }}",
+                initiated: "{{ _('restart.initiated') }}",
+                connection_lost: "{{ _('restart.connection_lost') }}"
+            },
+            common: {
+                error: "{{ _('common.error') }}"
+            }
+        };
+
+        // Global toast notification function
+        function showAlert(message, type) {
+            const toastId = 'toast_' + Date.now();
+            const iconMap = {
+                'success': 'fa-check-circle',
+                'danger': 'fa-exclamation-circle',
+                'warning': 'fa-exclamation-triangle',
+                'info': 'fa-info-circle'
+            };
+            const icon = iconMap[type] || 'fa-info-circle';
+
+            const toastHtml = `
+                <div id="${toastId}" class="toast show align-items-center text-white bg-${type} border-0 mb-2" role="alert">
+                    <div class="d-flex">
+                        <div class="toast-body">
+                            <i class="fas ${icon} me-2"></i>${message}
+                        </div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" onclick="this.closest('.toast').remove()"></button>
+                    </div>
+                </div>
+            `;
+            document.getElementById('toast_container').insertAdjacentHTML('beforeend', toastHtml);
+            setTimeout(() => {
+                const toast = document.getElementById(toastId);
+                if (toast) toast.remove();
+            }, 5000);
+        }
+
+        // Global restart SYNTRAF function
+        async function restartSyntraf() {
+            if (!confirm(i18n.restart.confirm)) {
+                return;
+            }
+
+            const fd = new FormData();
+            fd.append('ACTION', 'RESTART_SYNTRAF');
+
+            try {
+                showAlert(i18n.restart.restarting, 'info');
+                const response = await fetch('/api', {
+                    method: 'POST',
+                    body: fd
+                });
+
+                const result = await response.json();
+
+                if (result.status === 'OK') {
+                    showAlert(i18n.restart.initiated, 'success');
+                    setTimeout(() => {
+                        location.reload();
+                    }, 3000);
+                } else {
+                    showAlert(i18n.common.error + ': ' + result.message, 'danger');
+                }
+            } catch (error) {
+                console.error('Error restarting SYNTRAF:', error);
+                showAlert(i18n.restart.connection_lost, 'warning');
+                setTimeout(() => {
+                    location.reload();
+                }, 5000);
+            }
+        }
+        </script>
 
         {% block content %}{% endblock %}
     </body>

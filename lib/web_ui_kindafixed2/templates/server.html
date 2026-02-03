@@ -1,38 +1,303 @@
 {% extends "base.html" %}
-{% block title %}Server{% endblock %}
+{% block title %}Server Configuration{% endblock %}
 {% block content %}
-<h2>Server configurations</h2>
-<br/>
-    <table id="status" class="table table-striped table-hover table-bordered table-sm" style="width:100%">
-        <thead>
-            <th style="width: 50%">PARAMETER</th>
-            <th style="width: 50%">VALUE</th>
-        </thead>
-            <tbody>
-                {% for key, value in config['SERVER'].items() %}
-                    <tr>
-                        <td>{{ key }}</td>
-                        <td>{{ value }}</td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-<br/>
-<h4><p class="text-info">Tokens</p></h4>
-    <table class="table table-striped table-hover table-sm">
-        <thead>
-            <th style="width: 50%">DESCRIPTION</th>
-            <th style="width: 50%">TOKEN</th>
-        </thead>
-        <tbody>
-            {% for key, token in config['SERVER']['TOKEN'].items() %}
-                <tr>
-                    <td>{{ key }}</td>
-                    <td>{{ token }}</td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+<div class="mb-3">
+    <h2><i class="fas fa-server"></i> Server Configuration</h2>
+</div>
 
+<div class="card">
+    <div class="card-header">
+        <i class="fas fa-cog"></i> Server Settings
+    </div>
+    <div class="card-body">
+        <form id="server_config_form">
+            <!-- Network Settings -->
+            <h5 class="text-info mb-3"><i class="fas fa-network-wired"></i> Network Settings</h5>
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label for="bind_address" class="form-label">Bind Address</label>
+                    <input type="text" class="form-control" id="bind_address"
+                           value="{{ config['SERVER'].get('BIND_ADDRESS', '0.0.0.0') }}"
+                           placeholder="0.0.0.0">
+                    <small class="text-muted">IP address to bind the server to (0.0.0.0 for all interfaces)</small>
+                </div>
+                <div class="col-md-4">
+                    <label for="server_port" class="form-label">Server Port</label>
+                    <input type="number" class="form-control" id="server_port"
+                           value="{{ config['SERVER'].get('SERVER_PORT', '6531') }}"
+                           min="1" max="65535">
+                    <small class="text-muted">TCP port for client connections</small>
+                </div>
+                <div class="col-md-4">
+                    <label for="mesh_port_range" class="form-label">Mesh Listeners Port Range</label>
+                    <input type="text" class="form-control" id="mesh_port_range"
+                           value="{{ config['SERVER'].get('MESH_LISTENERS_PORT_RANGE', '10001-10100') }}"
+                           pattern="\d+-\d+" placeholder="10001-10100">
+                    <small class="text-muted">Port range for iperf3 listeners (e.g., 10001-10100)</small>
+                </div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Certificate Settings -->
+            <h5 class="text-info mb-3"><i class="fas fa-certificate"></i> Certificate Settings</h5>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="x509_private_key" class="form-label">X509 Private Key Path</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="x509_private_key"
+                               value="{{ config['SERVER'].get('SERVER_X509_PRIVATE_KEY', '') }}">
+                        <button type="button" class="btn btn-outline-info" onclick="exportFile('private_key')" title="Download private key">
+                            <i class="fas fa-download"></i>
+                        </button>
+                    </div>
+                    <small class="text-muted">Path to the server's private key file</small>
+                </div>
+                <div class="col-md-6">
+                    <label for="x509_certificate" class="form-label">X509 Certificate Path</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="x509_certificate"
+                               value="{{ config['SERVER'].get('SERVER_X509_CERTIFICATE', '') }}">
+                        <button type="button" class="btn btn-outline-info" onclick="exportFile('certificate')" title="Download certificate">
+                            <i class="fas fa-download"></i>
+                        </button>
+                    </div>
+                    <small class="text-muted">Path to the server's certificate file</small>
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-12">
+                    <label for="public_key" class="form-label">Public Key
+                        <button type="button" class="btn btn-sm btn-outline-info ms-2" onclick="exportPublicKey()" title="Download public key">
+                            <i class="fas fa-download"></i> Export
+                        </button>
+                    </label>
+                    {% set raw_key = config['SERVER'].get('PUBLIC_KEY', '') or '' %}
+                    {% if raw_key is string %}
+                        {% if raw_key.startswith("b'") and raw_key.endswith("'") %}
+                            {% set clean_key = raw_key[2:-1].replace('\\n', '\n') %}
+                        {% else %}
+                            {% set clean_key = raw_key %}
+                        {% endif %}
+                    {% else %}
+                        {% set clean_key = raw_key.decode('utf-8') if raw_key else '' %}
+                    {% endif %}
+                    <textarea class="form-control" id="public_key" rows="4" readonly
+                              style="font-family: monospace; font-size: 0.85em;">{{ clean_key }}</textarea>
+                    <small class="text-muted">Server's RSA public key (read-only, generated from private key)</small>
+                </div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- iperf3 Authentication Settings -->
+            <h5 class="text-info mb-3"><i class="fas fa-user-lock"></i> iperf3 Authentication Settings</h5>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="rsa_key_listeners" class="form-label">RSA Private Key (Listeners)
+                        <button type="button" class="btn btn-sm btn-outline-info ms-2" onclick="exportRsaKey('listeners')" title="Download RSA key">
+                            <i class="fas fa-download"></i> Export
+                        </button>
+                    </label>
+                    {% set raw_rsa_listeners = config['SERVER'].get('RSA_KEY_LISTENERS', '') or '' %}
+                    {% if raw_rsa_listeners is string %}
+                        {% if raw_rsa_listeners.startswith("b'") and raw_rsa_listeners.endswith("'") %}
+                            {% set clean_rsa_listeners = raw_rsa_listeners[2:-1].replace('\\n', '\n') %}
+                        {% else %}
+                            {% set clean_rsa_listeners = raw_rsa_listeners %}
+                        {% endif %}
+                    {% else %}
+                        {% set clean_rsa_listeners = raw_rsa_listeners.decode('utf-8') if raw_rsa_listeners else '' %}
+                    {% endif %}
+                    <textarea class="form-control" id="rsa_key_listeners" rows="4"
+                              style="font-family: monospace; font-size: 0.85em;">{{ clean_rsa_listeners }}</textarea>
+                    <small class="text-muted">RSA private key for iperf3 listeners authentication</small>
+                </div>
+                <div class="col-md-6">
+                    <label for="rsa_key_connectors" class="form-label">RSA Public Key (Connectors)
+                        <button type="button" class="btn btn-sm btn-outline-info ms-2" onclick="exportRsaKey('connectors')" title="Download RSA key">
+                            <i class="fas fa-download"></i> Export
+                        </button>
+                    </label>
+                    {% set raw_rsa_connectors = config['SERVER'].get('RSA_KEY_CONNECTORS', '') or '' %}
+                    {% if raw_rsa_connectors is string %}
+                        {% if raw_rsa_connectors.startswith("b'") and raw_rsa_connectors.endswith("'") %}
+                            {% set clean_rsa_connectors = raw_rsa_connectors[2:-1].replace('\\n', '\n') %}
+                        {% else %}
+                            {% set clean_rsa_connectors = raw_rsa_connectors %}
+                        {% endif %}
+                    {% else %}
+                        {% set clean_rsa_connectors = raw_rsa_connectors.decode('utf-8') if raw_rsa_connectors else '' %}
+                    {% endif %}
+                    <textarea class="form-control" id="rsa_key_connectors" rows="4"
+                              style="font-family: monospace; font-size: 0.85em;">{{ clean_rsa_connectors }}</textarea>
+                    <small class="text-muted">RSA public key for iperf3 connectors authentication</small>
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label for="iperf3_username" class="form-label">iperf3 Username</label>
+                    <input type="text" class="form-control" id="iperf3_username"
+                           value="{{ config['SERVER'].get('IPERF3_USERNAME', '') }}"
+                           placeholder="iperf3_user">
+                    <small class="text-muted">Username for iperf3 authentication</small>
+                </div>
+                <div class="col-md-4">
+                    <label for="iperf3_password" class="form-label">iperf3 Password</label>
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="iperf3_password"
+                               value="{{ config['SERVER'].get('IPERF3_PASSWORD', '') }}"
+                               placeholder="Leave empty to keep current">
+                        <button type="button" class="btn btn-outline-secondary" onclick="togglePasswordVisibility('iperf3_password')" title="Show/hide">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                    <small class="text-muted">Password for iperf3 authentication</small>
+                </div>
+                <div class="col-md-4">
+                    <label for="iperf3_password_hash" class="form-label">iperf3 Password Hash</label>
+                    <input type="text" class="form-control" id="iperf3_password_hash"
+                           value="{{ config['SERVER'].get('IPERF3_PASSWORD_HASH', '') }}" readonly
+                           style="font-family: monospace; font-size: 0.85em;">
+                    <small class="text-muted">SHA256 hash (auto-generated from password)</small>
+                </div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Save Button -->
+            <div class="d-flex justify-content-between">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Save Configuration
+                </button>
+                <a href="token_config.html" class="btn btn-outline-secondary">
+                    <i class="fas fa-key"></i> Manage Tokens
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function exportRsaKey(keyType) {
+    const elementId = keyType === 'listeners' ? 'rsa_key_listeners' : 'rsa_key_connectors';
+    const filename = keyType === 'listeners' ? 'rsa_private_key_listeners.pem' : 'rsa_public_key_connectors.pem';
+    const content = document.getElementById(elementId).value;
+    if (!content || content.trim() === '') {
+        showAlert('No RSA key available to export', 'warning');
+        return;
+    }
+    const blob = new Blob([content], { type: 'application/x-pem-file' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    showAlert('RSA key exported: ' + filename, 'success');
+}
+
+function exportPublicKey() {
+    const content = document.getElementById('public_key').value;
+    if (!content || content.trim() === '') {
+        showAlert('No public key available to export', 'warning');
+        return;
+    }
+    const blob = new Blob([content], { type: 'application/x-pem-file' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'public_key_server.pem';
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    showAlert('Public key exported: public_key_server.pem', 'success');
+}
+
+async function exportFile(fileType) {
+    const fd = new FormData();
+    fd.append('ACTION', 'EXPORT_SERVER_FILE');
+    fd.append('FILE_TYPE', fileType);
+
+    try {
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        });
+
+        const result = await response.json();
+
+        if (result.status === 'OK') {
+            // Create download link
+            const blob = new Blob([result.content], { type: 'application/x-pem-file' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = result.filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            showAlert('File downloaded: ' + result.filename, 'success');
+        } else {
+            showAlert('Error: ' + result.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error exporting file:', error);
+        showAlert('Error exporting file', 'danger');
+    }
+}
+
+function togglePasswordVisibility(fieldId) {
+    const field = document.getElementById(fieldId);
+    const icon = field.nextElementSibling.querySelector('i');
+    if (field.type === 'password') {
+        field.type = 'text';
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+    } else {
+        field.type = 'password';
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+    }
+}
+
+document.getElementById('server_config_form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const fd = new FormData();
+    fd.append('ACTION', 'SAVE_SERVER_CONFIG');
+    fd.append('BIND_ADDRESS', document.getElementById('bind_address').value);
+    fd.append('SERVER_PORT', document.getElementById('server_port').value);
+    fd.append('MESH_LISTENERS_PORT_RANGE', document.getElementById('mesh_port_range').value);
+    fd.append('SERVER_X509_PRIVATE_KEY', document.getElementById('x509_private_key').value);
+    fd.append('SERVER_X509_CERTIFICATE', document.getElementById('x509_certificate').value);
+    fd.append('RSA_KEY_LISTENERS', document.getElementById('rsa_key_listeners').value);
+    fd.append('RSA_KEY_CONNECTORS', document.getElementById('rsa_key_connectors').value);
+    fd.append('IPERF3_USERNAME', document.getElementById('iperf3_username').value);
+    fd.append('IPERF3_PASSWORD', document.getElementById('iperf3_password').value);
+
+    try {
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        });
+
+        const result = await response.json();
+
+        if (result.status === 'OK') {
+            showAlert('Configuration saved successfully. Restart SYNTRAF to apply changes.', 'success');
+        } else {
+            showAlert('Error: ' + result.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error saving config:', error);
+        showAlert('Error saving configuration', 'danger');
+    }
+});
+</script>
 
 {% endblock %}
