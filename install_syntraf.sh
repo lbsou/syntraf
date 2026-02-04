@@ -572,27 +572,46 @@ install_dev_essentials() {
 
 get_iperf3_path() {
 	exit_loop="False"
-	
+
 	while [ $exit_loop = "False" ];
 	do
 		read IPERF3_BINARY_PATH
 		if [[ $IPERF3_BINARY_PATH == "i" || $IPERF3_BINARY_PATH == "I" ]]; then
-		
-			install_dev_essentials
-		
-			wget -O /tmp/iperf3.tar.gz $iperf3_tarball &>> install_syntraf.log
-			tar -xvzf /tmp/iperf3.tar.gz -C /tmp &>> install_syntraf.log
-			cd /tmp/iperf-3.11
-			./configure --prefix=${base_dir_for_packages}/iperf3 &>> install_syntraf.log
-			if [[ $? -eq 0 ]]; then
-				make &>> install_syntraf.log
+
+			# Alpine: install iperf3 from package manager
+			if [[ "$os_distroBasedOn" == "Alpine" ]]; then
+				update_apk_cache
+				apk add --no-cache iperf3 &>> install_syntraf.log
 				if [[ $? -eq 0 ]]; then
-					make install  &>> install_syntraf.log
+					IPERF3_BINARY_PATH=$(command -v iperf3)
+					/usr/bin/printf "$green\xE2\x9C\x94 Iperf3 successfully installed via apk.\n$clear"
+					iperf3_installed="True"
+					exit_loop="True"
+				else
+					/usr/bin/printf "${red}An error occured while installing iperf3, see install_syntraf.log for details.${clear}\n"
+					exit
+				fi
+			else
+				# Other distros: compile from source
+				install_dev_essentials
+
+				wget -O /tmp/iperf3.tar.gz $iperf3_tarball &>> install_syntraf.log
+				tar -xvzf /tmp/iperf3.tar.gz -C /tmp &>> install_syntraf.log
+				cd /tmp/iperf-3.11
+				./configure --prefix=${base_dir_for_packages}/iperf3 &>> install_syntraf.log
+				if [[ $? -eq 0 ]]; then
+					make &>> install_syntraf.log
 					if [[ $? -eq 0 ]]; then
-						IPERF3_BINARY_PATH="${base_dir_for_packages}/iperf3/bin/iperf3"
-						/usr/bin/printf "$green\xE2\x9C\x94 Iperf3 version 3.11 successfully installed in '${IPERF3_BINARY_PATH}'.\n$clear"
-						iperf3_installed="True"
-						exit_loop="True"
+						make install  &>> install_syntraf.log
+						if [[ $? -eq 0 ]]; then
+							IPERF3_BINARY_PATH="${base_dir_for_packages}/iperf3/bin/iperf3"
+							/usr/bin/printf "$green\xE2\x9C\x94 Iperf3 version 3.11 successfully installed in '${IPERF3_BINARY_PATH}'.\n$clear"
+							iperf3_installed="True"
+							exit_loop="True"
+						else
+							/usr/bin/printf "${red}An error occured while installing iperf3, see install_syntraf.log for details.${clear}\n"
+							exit
+						fi
 					else
 						/usr/bin/printf "${red}An error occured while installing iperf3, see install_syntraf.log for details.${clear}\n"
 						exit
@@ -601,9 +620,6 @@ get_iperf3_path() {
 					/usr/bin/printf "${red}An error occured while installing iperf3, see install_syntraf.log for details.${clear}\n"
 					exit
 				fi
-			else
-				/usr/bin/printf "${red}An error occured while installing iperf3, see install_syntraf.log for details.${clear}\n"
-				exit
 			fi
 		else
 			if [[ ! -f $IPERF3_BINARY_PATH ]]; then
