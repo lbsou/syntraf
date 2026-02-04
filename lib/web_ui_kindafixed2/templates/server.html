@@ -40,29 +40,38 @@
             <hr class="my-4">
 
             <!-- Certificate Settings -->
-            <h5 class="text-info mb-3"><i class="fas fa-certificate"></i> Certificate Settings</h5>
+            <h5 class="text-info mb-3"><i class="fas fa-certificate"></i> TLS Certificate Settings</h5>
+            <div class="alert alert-info mb-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>X509 Certificates</strong> - Used for TLS encryption on the control channel between server and clients.
+                    </div>
+                    <button type="button" class="btn btn-warning" onclick="generateNewX509Certificates()">
+                        <i class="fas fa-sync-alt me-1"></i> Generate New Certificates
+                    </button>
+                </div>
+            </div>
             <div class="row mb-3">
                 <div class="col-md-6">
-                    <label for="x509_private_key" class="form-label">X509 Private Key Path</label>
-                    <div class="input-group">
-                        <input type="text" class="form-control" id="x509_private_key"
-                               value="{{ config['SERVER'].get('SERVER_X509_PRIVATE_KEY', '') }}">
-                        <button type="button" class="btn btn-outline-info" onclick="exportFile('private_key')" title="Download private key">
-                            <i class="fas fa-download"></i>
+                    <label for="x509_private_key_content" class="form-label">X509 Private Key
+                        <button type="button" class="btn btn-sm btn-outline-info ms-2" onclick="exportX509('private_key')" title="Download private key">
+                            <i class="fas fa-download"></i> Export
                         </button>
-                    </div>
-                    <small class="text-muted">Path to the server's private key file</small>
+                    </label>
+                    <textarea class="form-control" id="x509_private_key_content" rows="6"
+                              style="font-family: monospace; font-size: 0.85em;">{{ x509_private_key_content }}</textarea>
+                    <small class="text-muted">Server's X509 private key (PEM format)</small>
                 </div>
                 <div class="col-md-6">
-                    <label for="x509_certificate" class="form-label">X509 Certificate Path</label>
-                    <div class="input-group">
-                        <input type="text" class="form-control" id="x509_certificate"
-                               value="{{ config['SERVER'].get('SERVER_X509_CERTIFICATE', '') }}">
-                        <button type="button" class="btn btn-outline-info" onclick="exportFile('certificate')" title="Download certificate">
-                            <i class="fas fa-download"></i>
+                    <label for="x509_certificate_content" class="form-label">X509 Certificate
+                        <button type="button" class="btn btn-sm btn-outline-info ms-2" onclick="exportX509('certificate')" title="Download certificate">
+                            <i class="fas fa-download"></i> Export
                         </button>
-                    </div>
-                    <small class="text-muted">Path to the server's certificate file</small>
+                    </label>
+                    <textarea class="form-control" id="x509_certificate_content" rows="6"
+                              style="font-family: monospace; font-size: 0.85em;">{{ x509_certificate_content }}</textarea>
+                    <small class="text-muted">Server's X509 certificate (PEM format)</small>
                 </div>
             </div>
             <div class="row mb-3">
@@ -92,6 +101,20 @@
 
             <!-- iperf3 Authentication Settings -->
             <h5 class="text-info mb-3"><i class="fas fa-user-lock"></i> iperf3 Authentication Settings</h5>
+
+            <div class="alert alert-info mb-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>RSA Key Pair</strong> - Used for iperf3 authentication between clients and server.
+                        The private key is used by listeners, the public key by connectors.
+                    </div>
+                    <button type="button" class="btn btn-warning" onclick="generateNewRsaKeys()">
+                        <i class="fas fa-sync-alt me-1"></i> Generate New RSA Keys
+                    </button>
+                </div>
+            </div>
+
             <div class="row mb-3">
                 <div class="col-md-6">
                     <label for="rsa_key_listeners" class="form-label">RSA Private Key (Listeners)
@@ -137,9 +160,14 @@
             <div class="row mb-3">
                 <div class="col-md-4">
                     <label for="iperf3_username" class="form-label">iperf3 Username</label>
-                    <input type="text" class="form-control" id="iperf3_username"
-                           value="{{ config['SERVER'].get('IPERF3_USERNAME', '') }}"
-                           placeholder="iperf3_user">
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="iperf3_username"
+                               value="{{ config['SERVER'].get('IPERF3_USERNAME', '') }}"
+                               placeholder="iperf3_user">
+                        <button type="button" class="btn btn-outline-warning" onclick="generateUsername()" title="Generate random username">
+                            <i class="fas fa-random"></i>
+                        </button>
+                    </div>
                     <small class="text-muted">Username for iperf3 authentication</small>
                 </div>
                 <div class="col-md-4">
@@ -150,6 +178,9 @@
                                placeholder="Leave empty to keep current">
                         <button type="button" class="btn btn-outline-secondary" onclick="togglePasswordVisibility('iperf3_password')" title="Show/hide">
                             <i class="fas fa-eye"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-warning" onclick="generatePassword()" title="Generate random password">
+                            <i class="fas fa-random"></i>
                         </button>
                     </div>
                     <small class="text-muted">Password for iperf3 authentication</small>
@@ -179,6 +210,102 @@
 </div>
 
 <script>
+function generateUsername() {
+    // Generate a random username: syntraf_XXXX (4 random alphanumeric chars)
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    let suffix = '';
+    for (let i = 0; i < 8; i++) {
+        suffix += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    const username = 'syntraf_' + suffix;
+    document.getElementById('iperf3_username').value = username;
+    showAlert('Username generated: ' + username, 'info');
+}
+
+async function generatePassword() {
+    // Generate a secure random password (16 chars with letters, numbers, symbols)
+    const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+    const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const numbers = '0123456789';
+    const symbols = '!@#$%^&*()_+-=[]{}|;:,.<>?';
+    const allChars = lowercase + uppercase + numbers + symbols;
+
+    let password = '';
+    // Ensure at least one of each type
+    password += lowercase.charAt(Math.floor(Math.random() * lowercase.length));
+    password += uppercase.charAt(Math.floor(Math.random() * uppercase.length));
+    password += numbers.charAt(Math.floor(Math.random() * numbers.length));
+    password += symbols.charAt(Math.floor(Math.random() * symbols.length));
+
+    // Fill the rest randomly
+    for (let i = 4; i < 16; i++) {
+        password += allChars.charAt(Math.floor(Math.random() * allChars.length));
+    }
+
+    // Shuffle the password
+    password = password.split('').sort(() => Math.random() - 0.5).join('');
+
+    document.getElementById('iperf3_password').value = password;
+    document.getElementById('iperf3_password').type = 'text'; // Show the generated password
+
+    // Calculate SHA256 hash
+    const hash = await calculateSHA256(password);
+    document.getElementById('iperf3_password_hash').value = hash;
+
+    showAlert('Password generated (16 characters) with hash updated. Remember to save the configuration!', 'info');
+}
+
+async function calculateSHA256(text) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(text);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    return hashHex;
+}
+
+async function generateNewRsaKeys() {
+    if (!confirm('Are you sure you want to generate new RSA keys?\n\nThis will:\n- Create a new RSA key pair\n- Update the configuration\n- Require all clients to be updated with the new public key\n\nExisting iperf3 connections will fail until clients are updated.')) {
+        return;
+    }
+
+    const btn = event.target.closest('button');
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Generating...';
+
+    try {
+        const fd = new FormData();
+        fd.append('ACTION', 'GENERATE_IPERF3_RSA_KEYS');
+
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        });
+
+        const result = await response.json();
+
+        if (result.status === 'OK') {
+            // Update the textarea values with new keys
+            if (result.private_key) {
+                document.getElementById('rsa_key_listeners').value = result.private_key;
+            }
+            if (result.public_key) {
+                document.getElementById('rsa_key_connectors').value = result.public_key;
+            }
+            showAlert('New RSA keys generated successfully. Click "Save Configuration" to persist changes.', 'success');
+        } else {
+            showAlert('Error generating RSA keys: ' + result.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error generating RSA keys:', error);
+        showAlert('Error generating RSA keys', 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    }
+}
+
 function exportRsaKey(keyType) {
     const elementId = keyType === 'listeners' ? 'rsa_key_listeners' : 'rsa_key_connectors';
     const filename = keyType === 'listeners' ? 'rsa_private_key_listeners.pem' : 'rsa_public_key_connectors.pem';
@@ -217,12 +344,40 @@ function exportPublicKey() {
     showAlert('Public key exported: public_key_server.pem', 'success');
 }
 
-async function exportFile(fileType) {
-    const fd = new FormData();
-    fd.append('ACTION', 'EXPORT_SERVER_FILE');
-    fd.append('FILE_TYPE', fileType);
+function exportX509(keyType) {
+    const elementId = keyType === 'private_key' ? 'x509_private_key_content' : 'x509_certificate_content';
+    const filename = keyType === 'private_key' ? 'server_private_key.pem' : 'server_certificate.pem';
+    const content = document.getElementById(elementId).value;
+    if (!content || content.trim() === '') {
+        showAlert('No ' + (keyType === 'private_key' ? 'private key' : 'certificate') + ' available to export', 'warning');
+        return;
+    }
+    const blob = new Blob([content], { type: 'application/x-pem-file' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    showAlert('Exported: ' + filename, 'success');
+}
+
+async function generateNewX509Certificates() {
+    if (!confirm('Are you sure you want to generate new X509 certificates?\n\nThis will:\n- Create a new self-signed certificate and private key\n- Update the configuration\n- Require all clients to reconnect\n\nExisting client connections will be terminated.')) {
+        return;
+    }
+
+    const btn = event.target.closest('button');
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Generating...';
 
     try {
+        const fd = new FormData();
+        fd.append('ACTION', 'GENERATE_X509_CERTIFICATES');
+
         const response = await fetch('/api', {
             method: 'POST',
             body: fd
@@ -231,23 +386,26 @@ async function exportFile(fileType) {
         const result = await response.json();
 
         if (result.status === 'OK') {
-            // Create download link
-            const blob = new Blob([result.content], { type: 'application/x-pem-file' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = result.filename;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-            showAlert('File downloaded: ' + result.filename, 'success');
+            // Update the textarea values with new certificates
+            if (result.private_key) {
+                document.getElementById('x509_private_key_content').value = result.private_key;
+            }
+            if (result.certificate) {
+                document.getElementById('x509_certificate_content').value = result.certificate;
+            }
+            if (result.public_key) {
+                document.getElementById('public_key').value = result.public_key;
+            }
+            showAlert('New X509 certificates generated successfully. Click "Save Configuration" to persist changes.', 'success');
         } else {
-            showAlert('Error: ' + result.message, 'danger');
+            showAlert('Error generating certificates: ' + result.message, 'danger');
         }
     } catch (error) {
-        console.error('Error exporting file:', error);
-        showAlert('Error exporting file', 'danger');
+        console.error('Error generating X509 certificates:', error);
+        showAlert('Error generating X509 certificates', 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
     }
 }
 
@@ -273,8 +431,9 @@ document.getElementById('server_config_form').addEventListener('submit', async f
     fd.append('BIND_ADDRESS', document.getElementById('bind_address').value);
     fd.append('SERVER_PORT', document.getElementById('server_port').value);
     fd.append('MESH_LISTENERS_PORT_RANGE', document.getElementById('mesh_port_range').value);
-    fd.append('SERVER_X509_PRIVATE_KEY', document.getElementById('x509_private_key').value);
-    fd.append('SERVER_X509_CERTIFICATE', document.getElementById('x509_certificate').value);
+    fd.append('SERVER_X509_PRIVATE_KEY_CONTENT', document.getElementById('x509_private_key_content').value);
+    fd.append('SERVER_X509_CERTIFICATE_CONTENT', document.getElementById('x509_certificate_content').value);
+    fd.append('PUBLIC_KEY', document.getElementById('public_key').value);
     fd.append('RSA_KEY_LISTENERS', document.getElementById('rsa_key_listeners').value);
     fd.append('RSA_KEY_CONNECTORS', document.getElementById('rsa_key_connectors').value);
     fd.append('IPERF3_USERNAME', document.getElementById('iperf3_username').value);

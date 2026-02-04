@@ -28,12 +28,20 @@ def read_log(edge_key, edge_type, config, dict_data_to_send_to_server, threads_n
         while True:
             if exit_boolean[0]:
                 return
+            # Check if edge still exists in config (may have been deleted)
+            config_key = f"{edge_type}S"
+            if config_key not in config or edge_key not in config[config_key]:
+                log.info(f"Edge {edge_type} {edge_key} no longer exists in config, stopping log reader")
+                return
             line = next(lines, None)
             if line:
                 if not parse_line(line, config, edge_key, edge_type, dict_data_to_send_to_server, current_obj_process_n_thread):
                     break
-            time.sleep(int(config[f"{edge_type}S"][edge_key]['INTERVAL']) / 2)
+            time.sleep(int(config[config_key][edge_key]['INTERVAL']) / 2)
 
+    except KeyError as ke:
+        # Edge was deleted from config while reading logs - graceful exit
+        log.info(f"Edge {edge_type} {edge_key} removed from config, stopping log reader: {ke}")
     except Exception as exc:
         log.error(f"read_log:{type(exc).__name__}:{exc}", exc_info=True)
 
@@ -45,7 +53,16 @@ def tail(config: {}, edge_type: string, edge_key: string, exit_boolean: [], thre
 
     try:
         utime_last_event = None
+        config_key = f"{edge_type}S"
+
+        # Check if edge exists before starting
+        if config_key not in config or edge_key not in config[config_key]:
+            log.info(f"Edge {edge_type} {edge_key} not found in config, skipping tail")
+            return
+
         iperf3_obj_process_n_thread = wait_iperf3(config, edge_type, edge_key, exit_boolean, threads_n_processes)
+        if iperf3_obj_process_n_thread is None:
+            return
         current_obj_process_n_thread.iperf3_obj_process_n_thread = iperf3_obj_process_n_thread
 
         log.debug(f"READLOG THREAD ACQUIRED IPERF3 STDOUT FOR {edge_type} - {iperf3_obj_process_n_thread.name} -  {edge_key}")
@@ -54,16 +71,23 @@ def tail(config: {}, edge_type: string, edge_key: string, exit_boolean: [], thre
             log.debug("LOOPING")
             if exit_boolean[0]:
                 return
+            # Check if edge still exists in config (may have been deleted)
+            if config_key not in config or edge_key not in config[config_key]:
+                log.info(f"Edge {edge_type} {edge_key} no longer exists in config, stopping tail")
+                return
             try:
                 line = next(iperf3_obj_process_n_thread.subproc.stdout, None)
             # I/O operation on closed file - typically indicates iperf3 process died
             except ValueError as ve:
                 log.warning(f"PIPE CLOSED for {edge_type} {edge_key}: {ve} - possible outage or process termination")
                 # Trigger outage detection since pipe closure indicates loss
-                utime_last_event = outage_management(config, edge_type, edge_key, utime_last_event, dict_data_to_send_to_server)
+                if config_key in config and edge_key in config[config_key]:
+                    utime_last_event = outage_management(config, edge_type, edge_key, utime_last_event, dict_data_to_send_to_server)
             except Exception as exc:
                 #log.debug("22222222222222222222222222222222222222222222222")
                 iperf3_obj_process_n_thread = wait_iperf3(config, edge_type, edge_key, exit_boolean, threads_n_processes)
+                if iperf3_obj_process_n_thread is None:
+                    return
                 current_obj_process_n_thread.iperf3_obj_process_n_thread = iperf3_obj_process_n_thread
                 #log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
             else:
@@ -76,9 +100,16 @@ def tail(config: {}, edge_type: string, edge_key: string, exit_boolean: [], thre
                         utime_last_event = time.time()
                         yield line
 
-            time.sleep(int(config[f"{edge_type}S"][edge_key]['INTERVAL']) / 4)
+            # Check again before sleeping
+            if config_key not in config or edge_key not in config[config_key]:
+                log.info(f"Edge {edge_type} {edge_key} no longer exists in config, stopping tail")
+                return
+            time.sleep(int(config[config_key][edge_key]['INTERVAL']) / 4)
             log.debug(f"TAIL SLEEPING")
 
+    except KeyError as ke:
+        # Edge was deleted from config - graceful exit
+        log.info(f"Edge {edge_type} {edge_key} removed from config, stopping tail: {ke}")
     except Exception as exc:
         log.error(f"tail:{type(exc).__name__}:{exc}", exc_info=True)
 
@@ -92,10 +123,16 @@ def parse_line(line: string, _config: {}, edge_key: string, edge_type: string, d
     #The edge_type is used not only as reference to the type but also as a key in the config. In config there is an "S", so replacing for the current function and the save_config
     if edge_type == "CONNECTOR":
         edge_type = "CONNECTORS"
+        # Check if edge still exists in config (may have been deleted)
+        if edge_type not in _config or edge_key not in _config[edge_type]:
+            return False
         if not _config['CONNECTORS'][edge_key]['BIDIR']:
             return True
     else:
         edge_type = "LISTENERS"
+        # Check if edge still exists in config (may have been deleted)
+        if edge_type not in _config or edge_key not in _config[edge_type]:
+            return False
 
     line = format_line(line)
 
@@ -134,6 +171,11 @@ def parse_line(line: string, _config: {}, edge_key: string, edge_type: string, d
                 jitter = "0"
 
             # When we have bidir activated, the server will transmit
+            # Check again before accessing config (edge may have been deleted during processing)
+            if edge_type not in _config or edge_key not in _config[edge_type]:
+                log.info(f"Edge {edge_type} {edge_key} removed during line processing, skipping save")
+                return False
+
             if edge_type == "CONNECTORS":
                 save_to_server(
                     [_config['CONNECTORS'][edge_key]['UID_SERVER'],
@@ -153,6 +195,10 @@ def parse_line(line: string, _config: {}, edge_key: string, edge_type: string, d
         else:
             log.debug(f"tail(): {edge_key} - LINE DOES NOT CONTAIN METRICS:{line}")
 
+    except KeyError as ke:
+        # Edge was deleted from config - graceful exit
+        log.info(f"Edge {edge_type} {edge_key} removed from config during parsing: {ke}")
+        return False
     except Exception as exc:
         log.error(f"parse_line:{type(exc).__name__}:{exc}", exc_info=True)
         return False
@@ -165,16 +211,21 @@ def wait_iperf3(config: {}, edge_type: string, edge_key: string, exit_boolean: [
 
     # find corresponding iperf3 thread
     iperf3_obj_process_n_thread = get_obj_process_n_thread(threads_n_processes, edge_type, edge_key)
+    config_key = f"{edge_type}S"
 
     while True:
         if exit_boolean[0]:
+            return None
+        # Check if edge still exists in config (may have been deleted)
+        if config_key not in config or edge_key not in config[config_key]:
+            log.info(f"Edge {edge_type} {edge_key} no longer exists in config, stopping wait")
             return None
         try:
             if iperf3_obj_process_n_thread.subproc is not None:
                 return iperf3_obj_process_n_thread
         except Exception as exc:
             pass
-        time.sleep(int(config[f"{edge_type}S"][edge_key]['INTERVAL']) / 2)
+        time.sleep(int(config[config_key][edge_key]['INTERVAL']) / 2)
 
 
 def format_line(line: string):
@@ -269,10 +320,16 @@ def grab_bidir_src_port(_config: {}, line: string, iperf3_obj_process_n_thread: 
 
 def outage_management(config: {}, edge_type: string, edge_key: string,  utime_last_event, dict_data_to_send_to_server):
     utime_now = time.time()
+    config_key = f"{edge_type}S"
 
-    interval = int(config[f"{edge_type}S"][edge_key]['INTERVAL'])
-    uid_client = config[f"{edge_type}S"][edge_key]['UID_CLIENT']
-    uid_server = config[f"{edge_type}S"][edge_key]['UID_SERVER']
+    # Check if edge still exists in config (may have been deleted)
+    if config_key not in config or edge_key not in config[config_key]:
+        log.info(f"Edge {edge_type} {edge_key} no longer exists in config, skipping outage management")
+        return utime_now
+
+    interval = int(config[config_key][edge_key]['INTERVAL'])
+    uid_client = config[config_key][edge_key]['UID_CLIENT']
+    uid_server = config[config_key][edge_key]['UID_SERVER']
 
     '''
     When iperf3 stop generating logs, we want to record 100% losses

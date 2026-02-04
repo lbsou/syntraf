@@ -1,0 +1,354 @@
+{% extends "base.html" %}
+{% block title %}{{ _('diagnostics.title') }}{% endblock %}
+{% block head %}
+<style>
+    .stat-card {
+        transition: all 0.3s ease;
+    }
+    .stat-card:hover {
+        transform: translateY(-2px);
+    }
+    .status-indicator {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 8px;
+    }
+    .status-healthy { background-color: #28a745; }
+    .status-warning { background-color: #ffc107; }
+    .status-critical { background-color: #dc3545; }
+    .progress-thin {
+        height: 8px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-stethoscope me-2"></i>{{ _('diagnostics.title') }}</h2>
+        <div>
+            <button class="btn btn-primary me-2" onclick="refreshDiagnostics()">
+                <i class="fas fa-sync-alt me-2"></i>{{ _('diagnostics.refresh') }}
+            </button>
+            <button class="btn btn-secondary" onclick="exportReport()">
+                <i class="fas fa-file-export me-2"></i>{{ _('diagnostics.export_report') }}
+            </button>
+        </div>
+    </div>
+
+    <!-- Server Info -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <i class="fas fa-server me-2"></i>{{ _('diagnostics.server_info') }}
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <strong>{{ _('diagnostics.hostname') }}:</strong>
+                            <span id="server_hostname">{{ _('common.loading') }}</span>
+                        </div>
+                        <div class="col-md-3">
+                            <strong>{{ _('diagnostics.platform') }}:</strong>
+                            <span id="server_platform">{{ _('common.loading') }}</span>
+                        </div>
+                        <div class="col-md-3">
+                            <strong>{{ _('diagnostics.python_version') }}:</strong>
+                            <span id="python_version">{{ _('common.loading') }}</span>
+                        </div>
+                        <div class="col-md-3">
+                            <strong>{{ _('diagnostics.syntraf_version') }}:</strong>
+                            <span id="syntraf_version">v{{ syntraf_version }}</span>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <strong>{{ _('diagnostics.start_time') }}:</strong>
+                            <span id="start_time">{{ _('common.loading') }}</span>
+                        </div>
+                        <div class="col-md-6">
+                            <strong>{{ _('diagnostics.uptime') }}:</strong>
+                            <span id="uptime">{{ _('common.loading') }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Resources -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card stat-card">
+                <div class="card-body text-center">
+                    <i class="fas fa-microchip fa-2x text-info mb-2"></i>
+                    <h5>{{ _('diagnostics.cpu_usage') }}</h5>
+                    <div class="progress progress-thin mb-2">
+                        <div class="progress-bar bg-info" id="cpu_bar" style="width: 0%"></div>
+                    </div>
+                    <span class="h4" id="cpu_value">0%</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card stat-card">
+                <div class="card-body text-center">
+                    <i class="fas fa-memory fa-2x text-success mb-2"></i>
+                    <h5>{{ _('diagnostics.memory_usage') }}</h5>
+                    <div class="progress progress-thin mb-2">
+                        <div class="progress-bar bg-success" id="memory_bar" style="width: 0%"></div>
+                    </div>
+                    <span class="h4" id="memory_value">0%</span>
+                    <br><small class="text-muted" id="memory_detail"></small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card stat-card">
+                <div class="card-body text-center">
+                    <i class="fas fa-hdd fa-2x text-warning mb-2"></i>
+                    <h5>{{ _('diagnostics.disk_usage') }}</h5>
+                    <div class="progress progress-thin mb-2">
+                        <div class="progress-bar bg-warning" id="disk_bar" style="width: 0%"></div>
+                    </div>
+                    <span class="h4" id="disk_value">0%</span>
+                    <br><small class="text-muted" id="disk_detail"></small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <!-- iperf3 Processes -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-cogs me-2"></i>{{ _('diagnostics.iperf3_processes') }}
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <div class="h3 text-success" id="active_listeners">0</div>
+                            <small>{{ _('diagnostics.active_listeners') }}</small>
+                        </div>
+                        <div class="col-4">
+                            <div class="h3 text-primary" id="active_connectors">0</div>
+                            <small>{{ _('diagnostics.active_connectors') }}</small>
+                        </div>
+                        <div class="col-4">
+                            <div class="h3 text-danger" id="failed_processes">0</div>
+                            <small>{{ _('diagnostics.failed_processes') }}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Database Status -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-database me-2"></i>{{ _('diagnostics.database_status') }}
+                </div>
+                <div class="card-body">
+                    <div id="database_status_list">
+                        {% if conn_db and conn_db|length > 0 %}
+                        {% for db in conn_db %}
+                        {% if not db.disabled %}
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div>
+                                <span class="status-indicator {% if db.status == 'ONLINE' or db.status == 'OK' %}status-healthy{% else %}status-critical{% endif %}"></span>
+                                <strong>{{ db.DB_UID }}</strong>
+                            </div>
+                            <div>
+                                <span class="badge bg-{% if db.status == 'ONLINE' or db.status == 'OK' %}success{% else %}danger{% endif %}">
+                                    {{ db.status }}
+                                </span>
+                                <span class="badge bg-secondary ms-1">{{ _('diagnostics.queue_size') }}: {{ db.write_queue.qsize() }}</span>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                        {% else %}
+                        <p class="text-muted">{{ _('home.no_database') }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Client Connectivity -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <i class="fas fa-network-wired me-2"></i>{{ _('diagnostics.connectivity') }}
+        </div>
+        <div class="card-body">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>{{ _('diagnostics.status') }}</th>
+                        <th>{{ _('diagnostics.client_uid') }}</th>
+                        <th>IP</th>
+                        <th>{{ _('diagnostics.last_seen') }}</th>
+                        <th>{{ _('diagnostics.time_skew') }}</th>
+                        <th>{{ _('diagnostics.active_listeners') }}</th>
+                        <th>{{ _('diagnostics.active_connectors') }}</th>
+                    </tr>
+                </thead>
+                <tbody id="clients_tbody">
+                    {% if dict_of_clients %}
+                    {% for client_uid, client in dict_of_clients.items() %}
+                    <tr>
+                        <td>
+                            {% if client.status and client.status.startswith('CONNECTED') %}
+                            <span class="status-indicator status-healthy"></span>{{ _('diagnostics.healthy') }}
+                            {% elif client.status == 'DISCONNECTED' %}
+                            <span class="status-indicator status-critical"></span>{{ _('diagnostics.critical') }}
+                            {% else %}
+                            <span class="status-indicator status-warning"></span>{{ _('diagnostics.warning') }}
+                            {% endif %}
+                        </td>
+                        <td><strong>{{ client_uid }}</strong></td>
+                        <td>{{ client.ip_address }}</td>
+                        <td>{{ client.last_seen if client.last_seen else '-' }}</td>
+                        <td>
+                            {% if client.time_skew is defined %}
+                            {% if client.time_skew|abs > 10 %}
+                            <span class="text-danger">{{ client.time_skew }}s</span>
+                            {% else %}
+                            <span class="text-success">{{ client.time_skew }}s</span>
+                            {% endif %}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>{{ client.listeners|length if client.listeners else 0 }}</td>
+                        <td>{{ client.connectors|length if client.connectors else 0 }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted">
+                            <i class="fas fa-info-circle me-2"></i>{{ _('stats.no_clients') }}
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+const diagI18n = {
+    loading: "{{ _('common.loading') }}",
+    error: "{{ _('common.error') }}"
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+    refreshDiagnostics();
+    // Auto-refresh every 30 seconds
+    setInterval(refreshDiagnostics, 30000);
+});
+
+async function refreshDiagnostics() {
+    try {
+        const fd = new FormData();
+        fd.append('ACTION', 'GET_DIAGNOSTICS');
+
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        });
+        const result = await response.json();
+
+        if (result.status === 'OK') {
+            const data = result.data;
+
+            // Server info
+            document.getElementById('server_hostname').textContent = data.hostname || '-';
+            document.getElementById('server_platform').textContent = data.platform || '-';
+            document.getElementById('python_version').textContent = data.python_version || '-';
+            document.getElementById('start_time').textContent = data.start_time || '-';
+            document.getElementById('uptime').textContent = data.uptime || '-';
+
+            // System resources
+            const cpu = data.cpu_percent || 0;
+            document.getElementById('cpu_value').textContent = cpu + '%';
+            document.getElementById('cpu_bar').style.width = cpu + '%';
+            updateProgressColor('cpu_bar', cpu);
+
+            const memory = data.memory_percent || 0;
+            document.getElementById('memory_value').textContent = memory + '%';
+            document.getElementById('memory_bar').style.width = memory + '%';
+            document.getElementById('memory_detail').textContent = data.memory_used || '';
+            updateProgressColor('memory_bar', memory);
+
+            const disk = data.disk_percent || 0;
+            document.getElementById('disk_value').textContent = disk + '%';
+            document.getElementById('disk_bar').style.width = disk + '%';
+            document.getElementById('disk_detail').textContent = data.disk_used || '';
+            updateProgressColor('disk_bar', disk);
+
+            // Process counts
+            document.getElementById('active_listeners').textContent = data.active_listeners || 0;
+            document.getElementById('active_connectors').textContent = data.active_connectors || 0;
+            document.getElementById('failed_processes').textContent = data.failed_processes || 0;
+        }
+    } catch (error) {
+        console.error('Error refreshing diagnostics:', error);
+    }
+}
+
+function updateProgressColor(elementId, value) {
+    const bar = document.getElementById(elementId);
+    bar.className = 'progress-bar';
+    if (value > 90) {
+        bar.classList.add('bg-danger');
+    } else if (value > 70) {
+        bar.classList.add('bg-warning');
+    } else {
+        bar.classList.add('bg-success');
+    }
+}
+
+async function exportReport() {
+    try {
+        const fd = new FormData();
+        fd.append('ACTION', 'EXPORT_DIAGNOSTICS_REPORT');
+
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        });
+        const result = await response.json();
+
+        if (result.status === 'OK') {
+            // Create download
+            const blob = new Blob([result.content], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'syntraf_diagnostics_' + new Date().toISOString().slice(0,19).replace(/[:-]/g, '') + '.txt';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+            showAlert('Diagnostics report exported', 'success');
+        } else {
+            showAlert(diagI18n.error + ': ' + result.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error exporting report:', error);
+        showAlert(diagI18n.error, 'danger');
+    }
+}
+</script>
+
+{% endblock %}

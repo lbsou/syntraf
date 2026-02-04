@@ -38,7 +38,7 @@ import inspect
 import os.path
 import re
 import struct
-from datetime import datetime
+from datetime import datetime, timedelta
 from copy import copy, deepcopy
 from ctypes import *
 
@@ -97,6 +97,30 @@ def sock_send(sckt, payload, command):
 
     except Exception as exc:
         raise exc
+
+
+#################################################################################
+###  CLEANUP EXPIRED PENDING CLIENTS
+#################################################################################
+def cleanup_expired_pending_clients(dict_of_client_pending_acceptance):
+    """Remove expired pending client entries (older than 7 days)."""
+    now = datetime.now()
+    expired_uids = []
+
+    for client_uid, data in dict_of_client_pending_acceptance.items():
+        if isinstance(data, dict) and 'expiration' in data:
+            try:
+                expiration = datetime.fromisoformat(data['expiration'])
+                if now > expiration:
+                    expired_uids.append(client_uid)
+            except (ValueError, TypeError):
+                pass  # Invalid expiration format, skip
+
+    for uid in expired_uids:
+        dict_of_client_pending_acceptance.pop(uid, None)
+        server_log.info(f"Expired pending client '{uid}' removed (7-day expiration)")
+
+    return len(expired_uids)
 
 
 def get_system_infos():
@@ -648,9 +672,16 @@ def send_config(dict_by_node_generated_config, client_uid, sckt, _config):
             for server_client in _config['SERVER_CLIENT']:
                 if server_client['UID'] == client_uid:
                     if server_client['UID'] in dict_by_node_generated_config:
+                        # Handle both bytes and str for RSA keys
+                        rsa_listeners = _config['SERVER']['RSA_KEY_LISTENERS']
+                        rsa_connectors = _config['SERVER']['RSA_KEY_CONNECTORS']
+                        if isinstance(rsa_listeners, bytes):
+                            rsa_listeners = rsa_listeners.decode()
+                        if isinstance(rsa_connectors, bytes):
+                            rsa_connectors = rsa_connectors.decode()
                         dict_by_node_generated_config[server_client['UID']]['CLIENT'] = {
-                            "RSA_KEY_LISTENERS": _config['SERVER']['RSA_KEY_LISTENERS'].decode(),
-                            "RSA_KEY_CONNECTORS": _config['SERVER']['RSA_KEY_CONNECTORS'].decode(),
+                            "RSA_KEY_LISTENERS": rsa_listeners,
+                            "RSA_KEY_CONNECTORS": rsa_connectors,
                             "IPERF3_USERNAME": _config['SERVER']['IPERF3_USERNAME'],
                             "IPERF3_PASSWORD": _config['SERVER']['IPERF3_PASSWORD'],
                             "IPERF3_PASSWORD_HASH": _config['SERVER']['IPERF3_PASSWORD_HASH']}
@@ -708,18 +739,33 @@ def server_auth(received_data, obj_client, _config, address, dict_of_commands_fo
     server_log.debug(
         f"CONTEXT: {obj_client.client_uid} - NEW CONNECTION FROM CLIENT_UID : '{obj_client.client_uid}', SOURCE_IP : '{address}'")
 
-    auth_ok = False
-    # CHECK IF PUBLIC KEY IS IN THE CONFIG FILE FOR THIS SPECIFIC CLIENT
+    # Check if client UID exists in SERVER_CLIENT configuration
+    client_uid_exists = False
     for server_client in _config['SERVER_CLIENT']:
         if server_client['UID'] == obj_client.client_uid:
-            if 'PUBLIC_KEY' in server_client:
-                print("NEW AUTH SUCCESSFUL **************************************")
-                auth_ok = True
-                pass
+            client_uid_exists = True
+            break
 
-    if not auth_ok:
-        # add this public key and other interesting informations to a dictionnary that will be use to keep pending acceptation
-        dict_of_client_pending_acceptance[obj_client.client_uid] = public_key
+    if not client_uid_exists:
+        # Client UID is not in config - add to pending approval list
+        pending_client_data = {
+            'public_key': public_key,
+            'ip_address': obj_client.ip_address,
+            'syntraf_version': received_data['PAYLOAD'].get('SYNTRAF_CLIENT_VERSION', 'UNKNOWN'),
+            'timestamp': datetime.now().isoformat(),
+            'expiration': (datetime.now() + timedelta(days=7)).isoformat(),
+            'status': 'PENDING'
+        }
+        dict_of_client_pending_acceptance[obj_client.client_uid] = pending_client_data
+        server_log.warning(f"PENDING APPROVAL: Client '{obj_client.client_uid}' added to pending approval list (IP: {obj_client.ip_address})")
+
+        # Reject connection - client must be approved first
+        obj_client.status = "PENDING_APPROVAL"
+        obj_client.status_explanation = "CLIENT UID NOT IN CONFIGURATION - PENDING APPROVAL"
+        obj_client.status_since = datetime.now()
+        sock_send(sckt, "CLIENT_UID_PENDING_APPROVAL", "AUTH_FAILED")
+        server_log.error(f"AUTHENTICATION FAILED FROM IP '{obj_client.ip_address}' WITH CLIENT UID '{obj_client.client_uid}' - CLIENT UID NOT CONFIGURED (added to pending list)")
+        return False
 
     # Authentication, if token is wrong, disconnect
     is_authenticated, rejection_explanation = authenticate_server_client(_config, received_data, obj_client, sckt)
@@ -951,6 +997,11 @@ class Handler(StreamRequestHandler):
 
         try:
             while True:
+                # Check if client still exists in dict (might have been deleted via WebUI)
+                if uid not in dict_of_clients:
+                    server_log.warning(f"Client '{uid}' no longer in dict_of_clients - closing connection")
+                    break
+
                 # no need to loop if no server_client
                 if "SERVER_CLIENT" in _config:
                     received_data = ""
@@ -960,51 +1011,78 @@ class Handler(StreamRequestHandler):
                         received_data = sock_rcv(sckt)
 
                     if received_data is None:
-                        server_log.debug(f"CONTEXT: {dict_of_clients[uid].client_uid} - INVALID DATA RECEIVED")
-                        dict_of_clients[uid].status_explanation = "CONNECTION RESET BY PEER"
-                        server_log.error(f"CONNECTION RESET BY PEER: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+                        client_obj = dict_of_clients.get(uid)
+                        if client_obj:
+                            server_log.debug(f"CONTEXT: {client_obj.client_uid} - INVALID DATA RECEIVED")
+                            client_obj.status_explanation = "CONNECTION RESET BY PEER"
+                            server_log.error(f"CONNECTION RESET BY PEER: {client_obj.ip_address}: CLOSING CONNECTION")
+                        else:
+                            server_log.error(f"CONNECTION RESET BY PEER: {uid}: CLOSING CONNECTION")
                         break
                     else:
+                        # Get client object safely
+                        client_obj = dict_of_clients.get(uid)
+                        if not client_obj:
+                            server_log.warning(f"Client '{uid}' removed during connection - closing")
+                            break
+
                         # Log the command that was received
-                        server_log.debug(
-                            f"CONTEXT: {dict_of_clients[uid].client_uid} - RECEIVED {received_data['COMMAND']}")
+                        server_log.debug(f"CONTEXT: {client_obj.client_uid} - RECEIVED {received_data['COMMAND']}")
 
                         if received_data['COMMAND'] == "AUTH":
 
-                            if not server_auth(received_data, dict_of_clients[uid], _config,
-                                               dict_of_clients[uid].ip_address, dict_of_commands_for_network_clients, sckt,
+                            if not server_auth(received_data, client_obj, _config,
+                                               client_obj.ip_address, dict_of_commands_for_network_clients, sckt,
                                                _dict_by_node_generated_config, dict_of_client_pending_acceptance, threads_n_processes):
                                 return
 
                             # Now that we know the identity of the client connecting, we can update the dictionary of client objects
-                            new_uid = dict_of_clients[uid].client_uid
-                            dict_of_clients[new_uid].client_uid = new_uid
-                            dict_of_clients[new_uid].status = dict_of_clients[uid].status
-                            dict_of_clients[new_uid].bool_dynamic_client = dict_of_clients[uid].bool_dynamic_client
-                            dict_of_clients[new_uid].status_since = dict_of_clients[uid].status_since
-                            dict_of_clients[new_uid].status_explanation = dict_of_clients[uid].status_explanation
-                            dict_of_clients[new_uid].clock_skew_in_seconds = dict_of_clients[uid].clock_skew_in_seconds
-                            dict_of_clients[new_uid].syntraf_version = dict_of_clients[uid].syntraf_version
-                            dict_of_clients[new_uid].ip_address = address[0]
-                            dict_of_clients[new_uid].tcp_port = address[1]
-                            dict_of_clients.pop(uid)
+                            new_uid = client_obj.client_uid
+
+                            # Create entry if it doesn't exist (e.g., client was approved dynamically via WebUI after server start)
+                            if new_uid not in dict_of_clients:
+                                dict_of_clients[new_uid] = cc_client(
+                                    status="CONNECTING",
+                                    status_since=datetime.now(),
+                                    status_explanation="Dynamically approved client",
+                                    bool_dynamic_client=False,
+                                    client_uid=new_uid,
+                                    ip_address=address[0]
+                                )
+
+                            # Copy data from temp client object to the permanent entry
+                            new_client_obj = dict_of_clients.get(new_uid)
+                            if new_client_obj:
+                                new_client_obj.client_uid = new_uid
+                                new_client_obj.status = client_obj.status
+                                new_client_obj.bool_dynamic_client = client_obj.bool_dynamic_client
+                                new_client_obj.status_since = client_obj.status_since
+                                new_client_obj.status_explanation = client_obj.status_explanation
+                                new_client_obj.clock_skew_in_seconds = client_obj.clock_skew_in_seconds
+                                new_client_obj.syntraf_version = client_obj.syntraf_version
+                                new_client_obj.ip_address = address[0]
+                                new_client_obj.tcp_port = address[1]
+
+                            # Remove temp entry and update uid/client_obj for subsequent commands
+                            dict_of_clients.pop(uid, None)
                             uid = new_uid
+                            client_obj = new_client_obj
 
                         elif received_data['COMMAND'] == "SAVE_METRIC":
-                            server_save_metric(dict_of_clients[uid], conn_db, received_data,
-                                               dict_of_clients[uid].ip_address, sckt)
+                            server_save_metric(client_obj, conn_db, received_data,
+                                               client_obj.ip_address, sckt)
 
                         elif received_data['COMMAND'] == "SAVE_STATS_METRIC":
-                            server_save_stats_metric(dict_of_clients[uid], received_data)
+                            server_save_stats_metric(client_obj, received_data)
 
                         elif received_data['COMMAND'] == "SAVE_THREAD_STATUS":
-                            server_save_thread_status(dict_of_clients[uid], received_data)
+                            server_save_thread_status(client_obj, received_data)
 
                         elif received_data['COMMAND'] == "SYSTEM_INFOS":
-                            server_save_system_infos(dict_of_clients[uid], received_data)
+                            server_save_system_infos(client_obj, received_data)
 
                         elif received_data['COMMAND'] == "AWAITING_COMMAND":
-                            server_awaiting_commands(dict_of_clients[uid].client_uid, dict_of_commands_for_network_clients,
+                            server_awaiting_commands(client_obj.client_uid, dict_of_commands_for_network_clients,
                                                      sckt)
 
                         elif received_data['COMMAND'] == "HEARTBEAT":
@@ -1016,70 +1094,88 @@ class Handler(StreamRequestHandler):
                     time.sleep(2)
 
         except socket.timeout as exc:
-            server_log.error(f"SOCKET TIMEOUT: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
-            dict_of_clients[uid].status_explanation = "SOCKET TIMEOUT"
+            client_obj = dict_of_clients.get(uid)
+            client_ip = client_obj.ip_address if client_obj else uid
+            server_log.error(f"SOCKET TIMEOUT: {client_ip}: CLOSING CONNECTION")
+            if client_obj:
+                client_obj.status_explanation = "SOCKET TIMEOUT"
         except json.JSONDecodeError as exc:
             server_log.error(f"JSON DECODING FAILED FOR STRING")
         except OSError as exc:
+            client_obj = dict_of_clients.get(uid)
+            client_ip = client_obj.ip_address if client_obj else uid
             if exc.errno == 32:  # BROKEN PIPE, THE OTHER END HAS GONE AWAY
-                dict_of_clients[uid].status_explanation = "BROKEN PIPE"
-                server_log.error(f"BROKEN PIPE: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+                if client_obj:
+                    client_obj.status_explanation = "BROKEN PIPE"
+                server_log.error(f"BROKEN PIPE: {client_ip}: CLOSING CONNECTION")
             # CONNECTION RESET BY PEER
             elif exc.errno == 104:
-                dict_of_clients[uid].status_explanation = "CONNECTION RESET BY PEER"
-                server_log.error(f"CONNECTION RESET BY PEER: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+                if client_obj:
+                    client_obj.status_explanation = "CONNECTION RESET BY PEER"
+                server_log.error(f"CONNECTION RESET BY PEER: {client_ip}: CLOSING CONNECTION")
             elif exc.errno == 113:
-                dict_of_clients[uid].status_explanation = "NO ROUTE TO HOST"
-                server_log.error(f"NO ROUTE TO HOST: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+                if client_obj:
+                    client_obj.status_explanation = "NO ROUTE TO HOST"
+                server_log.error(f"NO ROUTE TO HOST: {client_ip}: CLOSING CONNECTION")
             # CONNECTION TIMEOUT
             elif exc.errno == 110:
-                dict_of_clients[uid].status_explanation = "CONNECTION TIMEOUT"
-                server_log.error(f"CONNECTION TIMEOUT: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+                if client_obj:
+                    client_obj.status_explanation = "CONNECTION TIMEOUT"
+                server_log.error(f"CONNECTION TIMEOUT: {client_ip}: CLOSING CONNECTION")
             # FOR WINDOWS [WinError 10053] #An established connection was aborted by the software in your host machine
             elif exc.errno == 10053:
-                dict_of_clients[uid].status_explanation = "CONNECTION ABORTED"
-                server_log.error(f"CONNECTION ABORTED: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+                if client_obj:
+                    client_obj.status_explanation = "CONNECTION ABORTED"
+                server_log.error(f"CONNECTION ABORTED: {client_ip}: CLOSING CONNECTION")
             # FOR WINDOWS [WinError 10054]
             elif exc.errno == 10054:
-                dict_of_clients[uid].status_explanation = "CONNECTION RESET BY PEER"
-                server_log.error(f"CONNECTION RESET BY PEER: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+                if client_obj:
+                    client_obj.status_explanation = "CONNECTION RESET BY PEER"
+                server_log.error(f"CONNECTION RESET BY PEER: {client_ip}: CLOSING CONNECTION")
             elif exc.errno == 10057:  # FOR WINDOWS [WinError 10057]
-                dict_of_clients[uid].status_explanation = "SOCKET IS NOT CONNECTED"
-                server_log.error(
-                    f"{type(exc).__name__.upper()}:{exc.errno}: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+                if client_obj:
+                    client_obj.status_explanation = "SOCKET IS NOT CONNECTED"
+                server_log.error(f"{type(exc).__name__.upper()}:{exc.errno}: {client_ip}: CLOSING CONNECTION")
             else:
-                dict_of_clients[uid].status_explanation = "UNKNOWN OSError"
-                server_log.error(f"UNHANDLE OSError (st_mesh:sock_rcv): {dict_of_clients[uid].ip_address}:", exc,
+                if client_obj:
+                    client_obj.status_explanation = "UNKNOWN OSError"
+                server_log.error(f"UNHANDLE OSError (st_mesh:sock_rcv): {client_ip}:", exc,
                                  exc.errno, exc.strerror)
         except Exception as exc:
-            dict_of_clients[uid].status_explanation = "UNKNOWN"
+            client_obj = dict_of_clients.get(uid)
+            if client_obj:
+                client_obj.status_explanation = "UNKNOWN"
             server_log.error(f"Handler:handle:{type(exc).__name__}:{exc}", exc_info=True)
 
         finally:
             # The socket on the other end is probably closed
-            server_log.error(f"CLIENT: {dict_of_clients[uid].ip_address} DISCONNECTED")
+            client_obj = dict_of_clients.get(uid)
+            client_ip = client_obj.ip_address if client_obj else uid
+            server_log.error(f"CLIENT: {client_ip} DISCONNECTED")
 
             try:
-                # If this is a dynamic client, once disconnected, we should forget about the ip address
-                server_forget_dynamic_client_ip(dict_of_clients[uid], _config, dict_of_commands_for_network_clients)
+                if client_obj:
+                    # If this is a dynamic client, once disconnected, we should forget about the ip address
+                    server_forget_dynamic_client_ip(client_obj, _config, dict_of_commands_for_network_clients)
 
-                # Updating the status
-                # We don't want to overwrite a reason for failed authentication, so we overwrite only when the client was connected
-                if "CONNECTED" in dict_of_clients[uid].status:
-                    dict_of_clients[uid].status = "DISCONNECTED"
-                    dict_of_clients[uid].status_since = datetime.now()
+                    # Updating the status
+                    # We don't want to overwrite a reason for failed authentication, so we overwrite only when the client was connected
+                    if "CONNECTED" in client_obj.status:
+                        client_obj.status = "DISCONNECTED"
+                        client_obj.status_since = datetime.now()
 
-                # Reinitializing stats array so that the sparklines graphes does not appear in the webui
-                dict_of_clients[uid].system_stats['if_pct_usage_rx'] = []
-                dict_of_clients[uid].system_stats['if_pct_usage_tx'] = []
-                dict_of_clients[uid].system_stats['mem_pct_free'] = []
-                dict_of_clients[uid].system_stats['cpu_pct_usage'] = []
+                    # Reinitializing stats array so that the sparklines graphes does not appear in the webui
+                    if hasattr(client_obj, 'system_stats') and client_obj.system_stats:
+                        client_obj.system_stats['if_pct_usage_rx'] = []
+                        client_obj.system_stats['if_pct_usage_tx'] = []
+                        client_obj.system_stats['mem_pct_free'] = []
+                        client_obj.system_stats['cpu_pct_usage'] = []
 
                 sckt.close()
 
             except Exception as e:
-                server_log.error(
-                    f"AN ERROR OCCURRED WHILE FREEING RESOURCE FOR THE CLIENT: {dict_of_clients[uid].client_uid}/{dict_of_clients[uid].ip_address}")
+                client_info = f"{client_obj.client_uid}/{client_obj.ip_address}" if client_obj else uid
+                server_log.error(f"AN ERROR OCCURRED WHILE FREEING RESOURCE FOR THE CLIENT: {client_info}")
 
 
 class SSL_TCPServer(TCPServer):
@@ -1102,6 +1198,8 @@ class SSL_TCPServer(TCPServer):
 
     def get_request(self):
         newsocket, fromaddr = self.socket.accept()
+        # Configure socket timeout and keepalive BEFORE TLS wrapping
+        set_tcp_ka(newsocket, server_log)
         connstream = self.ssl_context.wrap_socket(newsocket,
                                                    server_side=True,
                                                    do_handshake_on_connect=True)
@@ -1141,30 +1239,49 @@ def server(_config, threads_n_processes, stop_thread, dict_by_node_generated_con
         if 'SERVER_X509_SELFSIGNED' in _config['SERVER']:
             if _config['SERVER']['SERVER_X509_SELFSIGNED'] == "NO":
                 self_signed_flag = False
+
+        # Determine keyfile and certfile paths
+        keyfile_path = None
+        certfile_path = None
+
         if not self_signed_flag:
-                server_log.debug(f"CONTROL CHANNEL SERVER SOCKET CREATED")
-                tcp_server = SSLnThreadingTCPServer(server_address, Handler,
-                                                    keyfile=_config['SERVER']['SERVER_X509_PRIVATE_KEY'],
-                                                    certfile=_config['SERVER']['SERVER_X509_CERTIFICATE'],
-                                                    bind_and_activate=True)
+            # Check for content-based certificates first (new format)
+            key_content = _config['SERVER'].get('SERVER_X509_PRIVATE_KEY_CONTENT', '')
+            cert_content = _config['SERVER'].get('SERVER_X509_CERTIFICATE_CONTENT', '')
 
-                server_log.debug(
-                    f"BINDING CONTROL CHANNEL SERVER SSL SOCKET TO '{_config['SERVER']['BIND_ADDRESS']}:{_config['SERVER']['SERVER_PORT']}' SUCCESSFUL")
-                server_log.debug(f"CONTROL CHANNEL SERVER SSL SOCKET LISTENING")
+            if key_content and cert_content:
+                # Write content to files in the crypto directory
+                cert_dir = DefaultValues.DEFAULT_SERVER_X509_SELFSIGNED_DIRECTORY
+                os.makedirs(cert_dir, exist_ok=True)
+                keyfile_path = os.path.join(cert_dir, "custom_private_key.pem")
+                certfile_path = os.path.join(cert_dir, "custom_certificate.pem")
+                try:
+                    with open(keyfile_path, 'w') as f:
+                        f.write(key_content)
+                    with open(certfile_path, 'w') as f:
+                        f.write(cert_content)
+                    server_log.debug(f"Wrote X509 content to files in {cert_dir}")
+                except Exception as e:
+                    server_log.error(f"Failed to write X509 content to files: {e}")
+                    raise
+            else:
+                # Fall back to path-based certificates (old format)
+                keyfile_path = _config['SERVER'].get('SERVER_X509_PRIVATE_KEY', '')
+                certfile_path = _config['SERVER'].get('SERVER_X509_CERTIFICATE', '')
         else:
+            # Use self-signed certificates
+            keyfile_path = os.path.join(DefaultValues.DEFAULT_SERVER_X509_SELFSIGNED_DIRECTORY, "private_key_server.pem")
+            certfile_path = os.path.join(DefaultValues.DEFAULT_SERVER_X509_SELFSIGNED_DIRECTORY, "certificate_server.pem")
 
-                server_log.debug(f"CONTROL CHANNEL SERVER SOCKET CREATED")
-                tcp_server = SSLnThreadingTCPServer(server_address, Handler,
-                                                    keyfile=os.path.join(
-                                                        DefaultValues.DEFAULT_SERVER_X509_SELFSIGNED_DIRECTORY,
-                                                        "private_key_server.pem"),
-                                                    certfile=os.path.join(
-                                                        DefaultValues.DEFAULT_SERVER_X509_SELFSIGNED_DIRECTORY,
-                                                        "certificate_server.pem"), bind_and_activate=True)
+        server_log.debug(f"CONTROL CHANNEL SERVER SOCKET CREATED")
+        tcp_server = SSLnThreadingTCPServer(server_address, Handler,
+                                            keyfile=keyfile_path,
+                                            certfile=certfile_path,
+                                            bind_and_activate=True)
 
-                server_log.debug(
-                    f"BINDING CONTROL CHANNEL SERVER SSL SOCKET TO '{_config['SERVER']['BIND_ADDRESS']}:{_config['SERVER']['SERVER_PORT']}' SUCCESSFUL")
-                server_log.debug(f"CONTROL CHANNEL SERVER SSL SOCKET LISTENING")
+        server_log.debug(
+            f"BINDING CONTROL CHANNEL SERVER SSL SOCKET TO '{_config['SERVER']['BIND_ADDRESS']}:{_config['SERVER']['SERVER_PORT']}' SUCCESSFUL")
+        server_log.debug(f"CONTROL CHANNEL SERVER SSL SOCKET LISTENING")
 
         tcp_server.dict_by_node_generated_config = dict_by_node_generated_config
         tcp_server.conn_db = conn_db
@@ -1300,11 +1417,15 @@ def update_config(data, _config):
 
 
 def save_credentials(data, _config):
+    # Handle both bytes and str for RSA keys
+    rsa_listeners = data['PAYLOAD']['CLIENT']['RSA_KEY_LISTENERS']
+    rsa_connectors = data['PAYLOAD']['CLIENT']['RSA_KEY_CONNECTORS']
+
     with open(os.path.join(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'private_key_iperf_client.pem'), 'wb') as f:
-        f.write(data['PAYLOAD']['CLIENT']['RSA_KEY_LISTENERS'].encode())
+        f.write(rsa_listeners.encode() if isinstance(rsa_listeners, str) else rsa_listeners)
 
     with open(os.path.join(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'public_key_iperf_client.pem'), 'wb') as f:
-        f.write(data['PAYLOAD']['CLIENT']['RSA_KEY_CONNECTORS'].encode())
+        f.write(rsa_connectors.encode() if isinstance(rsa_connectors, str) else rsa_connectors)
 
     try:
         with open(os.path.join(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'credentials.csv'), 'w') as f:

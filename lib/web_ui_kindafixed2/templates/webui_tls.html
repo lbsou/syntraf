@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% block title %}{{ _('webui_tls.title') }}{% endblock %}
+{% block content %}
+<div class="mb-3">
+    <h2><i class="fas fa-certificate"></i> {{ _('webui_tls.title') }}</h2>
+    <p class="text-muted">{{ _('webui_tls.description') }}</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <i class="fas fa-lock"></i> {{ _('webui_tls.x509_certificates') }}
+    </div>
+    <div class="card-body">
+        <form id="webui_tls_form">
+            <div class="alert alert-info mb-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>{{ _('webui_tls.x509_info_title') }}</strong> - {{ _('webui_tls.x509_info_desc') }}
+                    </div>
+                    <button type="button" class="btn btn-warning" onclick="generateNewX509Certificates()">
+                        <i class="fas fa-sync-alt me-1"></i> {{ _('webui_tls.generate_certs') }}
+                    </button>
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="x509_private_key_content" class="form-label">{{ _('webui_tls.private_key') }}
+                        <button type="button" class="btn btn-sm btn-outline-info ms-2" onclick="exportX509('private_key')" title="{{ _('common.download') }}">
+                            <i class="fas fa-download"></i> {{ _('common.export') }}
+                        </button>
+                    </label>
+                    <textarea class="form-control" id="x509_private_key_content" rows="8"
+                              style="font-family: monospace; font-size: 0.85em;">{{ x509_private_key_content }}</textarea>
+                    <small class="text-muted">{{ _('webui_tls.private_key_help') }}</small>
+                </div>
+                <div class="col-md-6">
+                    <label for="x509_certificate_content" class="form-label">{{ _('webui_tls.certificate') }}
+                        <button type="button" class="btn btn-sm btn-outline-info ms-2" onclick="exportX509('certificate')" title="{{ _('common.download') }}">
+                            <i class="fas fa-download"></i> {{ _('common.export') }}
+                        </button>
+                    </label>
+                    <textarea class="form-control" id="x509_certificate_content" rows="8"
+                              style="font-family: monospace; font-size: 0.85em;">{{ x509_certificate_content }}</textarea>
+                    <small class="text-muted">{{ _('webui_tls.certificate_help') }}</small>
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-12">
+                    <label for="public_key" class="form-label">{{ _('webui_tls.public_key') }}
+                        <button type="button" class="btn btn-sm btn-outline-info ms-2" onclick="exportPublicKey()" title="{{ _('common.download') }}">
+                            <i class="fas fa-download"></i> {{ _('common.export') }}
+                        </button>
+                    </label>
+                    {% set raw_key = config['SERVER'].get('PUBLIC_KEY', '') or '' %}
+                    {% if raw_key is string %}
+                        {% if raw_key.startswith("b'") and raw_key.endswith("'") %}
+                            {% set clean_key = raw_key[2:-1].replace('\\n', '\n') %}
+                        {% else %}
+                            {% set clean_key = raw_key %}
+                        {% endif %}
+                    {% else %}
+                        {% set clean_key = raw_key.decode('utf-8') if raw_key else '' %}
+                    {% endif %}
+                    <textarea class="form-control" id="public_key" rows="4" readonly
+                              style="font-family: monospace; font-size: 0.85em;">{{ clean_key }}</textarea>
+                    <small class="text-muted">{{ _('webui_tls.public_key_help') }}</small>
+                </div>
+            </div>
+
+            <hr class="my-4">
+
+            <div class="d-flex justify-content-between">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i> {{ _('common.save') }}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function exportX509(keyType) {
+    const elementId = keyType === 'private_key' ? 'x509_private_key_content' : 'x509_certificate_content';
+    const filename = keyType === 'private_key' ? 'server_private_key.pem' : 'server_certificate.pem';
+    const content = document.getElementById(elementId).value;
+    if (!content || content.trim() === '') {
+        showAlert('{{ _("webui_tls.no_content") }}', 'warning');
+        return;
+    }
+    const blob = new Blob([content], { type: 'application/x-pem-file' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    showAlert('{{ _("common.exported") }}: ' + filename, 'success');
+}
+
+function exportPublicKey() {
+    const content = document.getElementById('public_key').value;
+    if (!content || content.trim() === '') {
+        showAlert('{{ _("webui_tls.no_public_key") }}', 'warning');
+        return;
+    }
+    const blob = new Blob([content], { type: 'application/x-pem-file' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'public_key_server.pem';
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    showAlert('{{ _("common.exported") }}: public_key_server.pem', 'success');
+}
+
+async function generateNewX509Certificates() {
+    if (!confirm('{{ _("webui_tls.confirm_generate") }}')) {
+        return;
+    }
+
+    const btn = event.target.closest('button');
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> {{ _("common.generating") }}...';
+
+    try {
+        const fd = new FormData();
+        fd.append('ACTION', 'GENERATE_X509_CERTIFICATES');
+
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        });
+
+        const result = await response.json();
+
+        if (result.status === 'OK') {
+            if (result.private_key) {
+                document.getElementById('x509_private_key_content').value = result.private_key;
+            }
+            if (result.certificate) {
+                document.getElementById('x509_certificate_content').value = result.certificate;
+            }
+            if (result.public_key) {
+                document.getElementById('public_key').value = result.public_key;
+            }
+            showAlert('{{ _("webui_tls.generated_success") }}', 'success');
+        } else {
+            showAlert('{{ _("common.error") }}: ' + result.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error generating X509 certificates:', error);
+        showAlert('{{ _("common.error") }}', 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    }
+}
+
+document.getElementById('webui_tls_form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const fd = new FormData();
+    fd.append('ACTION', 'SAVE_TLS_CONFIG');
+    fd.append('SERVER_X509_PRIVATE_KEY_CONTENT', document.getElementById('x509_private_key_content').value);
+    fd.append('SERVER_X509_CERTIFICATE_CONTENT', document.getElementById('x509_certificate_content').value);
+    fd.append('PUBLIC_KEY', document.getElementById('public_key').value);
+
+    try {
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        });
+
+        const result = await response.json();
+
+        if (result.status === 'OK') {
+            showAlert('{{ _("common.saved_restart") }}', 'success');
+        } else {
+            showAlert('{{ _("common.error") }}: ' + result.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error saving config:', error);
+        showAlert('{{ _("common.error") }}', 'danger');
+    }
+});
+</script>
+
+{% endblock %}

@@ -81,8 +81,9 @@ def gen_rsa_iperf3(log, _config):
         with open(os.path.join(path, 'public_key_iperf.pem'), 'wb') as f:
             f.write(public_pem)
 
-        _config['SERVER']['RSA_KEY_LISTENERS'] = private_pem
-        _config['SERVER']['RSA_KEY_CONNECTORS'] = public_pem
+        # Decode bytes to string for config storage
+        _config['SERVER']['RSA_KEY_LISTENERS'] = private_pem.decode('utf-8') if isinstance(private_pem, bytes) else private_pem
+        _config['SERVER']['RSA_KEY_CONNECTORS'] = public_pem.decode('utf-8') if isinstance(public_pem, bytes) else public_pem
 
     except Exception as exc:
         log.error(f"gen_cert:{type(exc).__name__}:{exc}", exc_info=True)
@@ -102,6 +103,9 @@ def gen_cert(log, path, suffix_filename, parameters, config, type_of_service):
         public_key_pem = public_key.public_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PublicFormat.SubjectPublicKeyInfo)
+        # Decode bytes to string for config file storage
+        if isinstance(public_key_pem, bytes):
+            public_key_pem = public_key_pem.decode('utf-8')
 
         with open(os.path.join(path, "private_key_" + suffix_filename + ".pem"), "wb") as f:
             # Write our private key to disk, will override existing certificate

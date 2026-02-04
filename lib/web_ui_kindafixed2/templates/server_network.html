@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}{{ _('server_network.title') }}{% endblock %}
+{% block content %}
+<div class="mb-3">
+    <h2><i class="fas fa-network-wired"></i> {{ _('server_network.title') }}</h2>
+    <p class="text-muted">{{ _('server_network.description') }}</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <i class="fas fa-cog"></i> {{ _('server_network.settings') }}
+    </div>
+    <div class="card-body">
+        <form id="server_network_form">
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label for="bind_address" class="form-label">{{ _('server_network.bind_address') }}</label>
+                    <input type="text" class="form-control" id="bind_address"
+                           value="{{ config['SERVER'].get('BIND_ADDRESS', '0.0.0.0') }}"
+                           placeholder="0.0.0.0">
+                    <small class="text-muted">{{ _('server_network.bind_address_help') }}</small>
+                </div>
+                <div class="col-md-4">
+                    <label for="server_port" class="form-label">{{ _('server_network.server_port') }}</label>
+                    <input type="number" class="form-control" id="server_port"
+                           value="{{ config['SERVER'].get('SERVER_PORT', '6531') }}"
+                           min="1" max="65535">
+                    <small class="text-muted">{{ _('server_network.server_port_help') }}</small>
+                </div>
+                <div class="col-md-4">
+                    <label for="mesh_port_range" class="form-label">{{ _('server_network.port_range') }}</label>
+                    <input type="text" class="form-control" id="mesh_port_range"
+                           value="{{ config['SERVER'].get('MESH_LISTENERS_PORT_RANGE', '10001-10100') }}"
+                           pattern="\d+-\d+" placeholder="10001-10100">
+                    <small class="text-muted">{{ _('server_network.port_range_help') }}</small>
+                </div>
+            </div>
+
+            <hr class="my-4">
+
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="pool_size" class="form-label">{{ _('server_network.pool_size') }}</label>
+                    <input type="number" class="form-control" id="pool_size"
+                           value="{{ config['SERVER'].get('SERVER_POOL_SIZE', '1000') }}"
+                           min="10" max="10000">
+                    <small class="text-muted">{{ _('server_network.pool_size_help') }}</small>
+                </div>
+                <div class="col-md-6">
+                    <label for="key_size" class="form-label">{{ _('server_network.key_size') }}</label>
+                    <select class="form-select" id="key_size">
+                        <option value="2048" {{ 'selected' if config['SERVER'].get('KEY_SIZE', '2048') == '2048' else '' }}>2048 bits</option>
+                        <option value="4096" {{ 'selected' if config['SERVER'].get('KEY_SIZE', '2048') == '4096' else '' }}>4096 bits</option>
+                    </select>
+                    <small class="text-muted">{{ _('server_network.key_size_help') }}</small>
+                </div>
+            </div>
+
+            <hr class="my-4">
+
+            <div class="d-flex justify-content-between">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i> {{ _('common.save') }}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.getElementById('server_network_form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const fd = new FormData();
+    fd.append('ACTION', 'SAVE_SERVER_NETWORK');
+    fd.append('BIND_ADDRESS', document.getElementById('bind_address').value);
+    fd.append('SERVER_PORT', document.getElementById('server_port').value);
+    fd.append('MESH_LISTENERS_PORT_RANGE', document.getElementById('mesh_port_range').value);
+    fd.append('SERVER_POOL_SIZE', document.getElementById('pool_size').value);
+    fd.append('KEY_SIZE', document.getElementById('key_size').value);
+
+    try {
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        });
+
+        const result = await response.json();
+
+        if (result.status === 'OK') {
+            showAlert('{{ _("common.saved_restart") }}', 'success');
+        } else {
+            showAlert('{{ _("common.error") }}: ' + result.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error saving config:', error);
+        showAlert('{{ _("common.error") }}', 'danger');
+    }
+});
+</script>
+
+{% endblock %}

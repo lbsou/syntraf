@@ -1,37 +1,39 @@
 [[MESH_GROUP]]
 UID = "TEST_PROFILE_1"
-BANDWIDTH = "332K"
-DSCP = "46"
-PACKET_SIZE = "218"
-INTERVAL = "2"
+BANDWIDTH = "88K"
+DSCP = "42"
+PACKET_SIZE = "32"
+INTERVAL = "10"
 DESCRIPTION = ""
 DISABLED = false
 WEBUI_JSON = "{\"elements\":{\"nodes\":[{\"data\":{\"id\":\"ST_CLIENT_1\",\"name\":\"ST_CLIENT_1\"},\"position\":{\"x\":250,\"y\":250},\"group\":\"nodes\",\"removed\":false,\"selected\":false,\"selectable\":true,\"locked\":false,\"grabbable\":true,\"pannable\":false,\"classes\":\"\"},{\"data\":{\"id\":\"ST_CLIENT_2\",\"name\":\"ST_CLIENT_2\"},\"position\":{\"x\":750,\"y\":250},\"group\":\"nodes\",\"removed\":false,\"selected\":false,\"selectable\":true,\"locked\":false,\"grabbable\":true,\"pannable\":false,\"classes\":\"\"},{\"data\":{\"id\":\"ST_CLIENT_3\",\"name\":\"ST_CLIENT_3\"},\"position\":{\"x\":250,\"y\":750},\"group\":\"nodes\",\"removed\":false,\"selected\":false,\"selectable\":true,\"locked\":false,\"grabbable\":true,\"pannable\":false,\"classes\":\"\"}],\"edges\":[{\"data\":{\"id\":\"ST_CLIENT_1ST_CLIENT_2\",\"source\":\"ST_CLIENT_1\",\"target\":\"ST_CLIENT_2\"},\"position\":{\"x\":0,\"y\":0},\"group\":\"edges\",\"removed\":false,\"selected\":false,\"selectable\":true,\"locked\":false,\"grabbable\":true,\"pannable\":true,\"classes\":\"\"},{\"data\":{\"id\":\"ST_CLIENT_2ST_CLIENT_1\",\"source\":\"ST_CLIENT_2\",\"target\":\"ST_CLIENT_1\"},\"position\":{\"x\":0,\"y\":0},\"group\":\"edges\",\"removed\":false,\"selected\":false,\"selectable\":true,\"locked\":false,\"grabbable\":true,\"pannable\":true,\"classes\":\"\"},{\"data\":{\"id\":\"ST_CLIENT_1ST_CLIENT_3\",\"source\":\"ST_CLIENT_1\",\"target\":\"ST_CLIENT_3\"},\"position\":{\"x\":0,\"y\":0},\"group\":\"edges\",\"removed\":false,\"selected\":false,\"selectable\":true,\"locked\":false,\"grabbable\":true,\"pannable\":true,\"classes\":\"\"},{\"data\":{\"id\":\"ST_CLIENT_3ST_CLIENT_1\",\"source\":\"ST_CLIENT_3\",\"target\":\"ST_CLIENT_1\"},\"position\":{\"x\":0,\"y\":0},\"group\":\"edges\",\"removed\":false,\"selected\":false,\"selectable\":true,\"locked\":false,\"grabbable\":true,\"pannable\":true,\"classes\":\"\"},{\"data\":{\"id\":\"ST_CLIENT_2ST_CLIENT_3\",\"source\":\"ST_CLIENT_2\",\"target\":\"ST_CLIENT_3\"},\"position\":{\"x\":0,\"y\":0},\"group\":\"edges\",\"removed\":false,\"selected\":false,\"selectable\":true,\"locked\":false,\"grabbable\":true,\"pannable\":true,\"classes\":\"\"},{\"data\":{\"id\":\"ST_CLIENT_3ST_CLIENT_2\",\"source\":\"ST_CLIENT_3\",\"target\":\"ST_CLIENT_2\"},\"position\":{\"x\":0,\"y\":0},\"group\":\"edges\",\"removed\":false,\"selected\":false,\"selectable\":true,\"locked\":false,\"grabbable\":true,\"pannable\":true,\"classes\":\"\"}]},\"style\":[{\"selector\":\"edge\",\"style\":{\"curve-style\":\"bezier\",\"target-arrow-shape\":\"triangle\",\"target-arrow-color\":\"rgb(0,0,0)\",\"line-color\":\"rgb(0,0,0)\",\"width\":\"1px\"}},{\"selector\":\"node\",\"style\":{\"label\":\"data(name)\",\"font-size\":\"14px\",\"text-valign\":\"center\",\"color\":\"rgb(255,255,255)\",\"text-outline-width\":\"2px\",\"background-color\":\"rgb(0,0,0)\",\"text-outline-color\":\"rgb(0,0,0)\",\"shape\":\"ellipse\",\"width\":\"data(width)\",\"height\":\"data(height)\"}}],\"data\":{},\"zoomingEnabled\":false,\"userZoomingEnabled\":true,\"zoom\":1,\"minZoom\":1e-50,\"maxZoom\":1e+50,\"panningEnabled\":true,\"userPanningEnabled\":true,\"pan\":{\"x\":0,\"y\":0},\"boxSelectionEnabled\":true,\"renderer\":{\"name\":\"canvas\"}}"
+PACKET_PER_SECOND = "343.75"
 
 [[MESH_GROUP]]
 UID = "TEST_PROFILE_2"
-BANDWIDTH = "33K"
+BANDWIDTH = "1M"
 DSCP = "0"
 PACKET_SIZE = "1000"
 INTERVAL = "1"
 DISABLED = false
+DESCRIPTION = ""
+PACKET_PER_SECOND = "125.00"
 
 [[SERVER_CLIENT]]
 UID = "ST_SERVER"
 IP_ADDRESS = "0.0.0.0"
-MESH_GROUP_UID_LIST = []
+MESH_GROUP_UID_LIST = [ "TEST_PROFILE_1",]
 DISABLED = false
 
 [[SERVER_CLIENT]]
-UID = "TEST"
-IP_ADDRESS = "0.0.0.0"
-MESH_GROUP_UID_LIST = []
+UID = "ALPINE1"
+IP_ADDRESS = "192.168.3.169"
+MESH_GROUP_UID_LIST = [ "TEST_PROFILE_1",]
+PUBLIC_KEY = "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA7QIqFTv+CJq7GKBWmPeH\n0vmSTtCUTMFgSRdZMtdqlflwHnSg4hbCRy8lg6x7MfKsAfkbRpYPdzdIe603dFlW\nFITurL5HQsQsx5redSEKmH5gBmNOHooA5Phm7gN5Pmfnr0xfFiLhGCpPl54sLxwt\ndOOJfrJVdWqZ+X3BkbDUCwgDEe64YG+qGEMtOPip9F//Y2ceeMo7puWulmvXCnwC\nMWA1zVtRVlucTLOM2QCUNpIsg7qDYB1S84eoKPaxXuA5x/pOipUfinaMtH+5UFfd\nG2oHFpaR6k+BVIGi0A1R0ZDvpYKnMUIvKyAZLpD9+XwCw854avn5BGK/EbXL2Mr4\ncQIDAQAB\n-----END PUBLIC KEY-----\n"
+DISABLED = false
 
-[[SERVER_CLIENT]]
-UID = "test2"
-IP_ADDRESS = "0.0.0.0"
-MESH_GROUP_UID_LIST = []
-
+[SERVER_CLIENT.OVERRIDE_DST_NODE_IP]
+ST_SERVER = "192.168.3.41"
 [[DATABASE]]
 DB_UID = "VICTORIAMETRICS_LOCAL"
 DB_ENGINE = "VictoriaMetrics"
@@ -42,12 +44,19 @@ DISABLED = false
 DB_ORG = ""
 DB_BUCKET = ""
 
+[[IPERF3_PROFILE]]
+UID = "Voip"
+BANDWIDTH = "87K"
+DSCP = "42"
+PACKET_SIZE = "32"
+INTERVAL = "10"
+
 [CLIENT]
 CLIENT_UID = "ST_SERVER"
 SERVER = "127.0.0.1"
 SERVER_PORT = "6531"
 TOKEN = "xqxqHb-oSys7g6-NohGZG06BfD3v6CC-b7bm0j3SNFEPJeGsakhoo8cnO2hxp6OS"
-PUBLIC_KEY = "b'-----BEGIN PUBLIC KEY-----\\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAjH7lwFvVpRGeOlQHa4Ph\\n01h2uI6tFwPfGSRub+ROdMhNDuxvC1vmsjwZGWTOM+8LvQY2WltHffriZ8U+tSN3\\njuQ3r4k0JRNd5c8Qk3XH6TLw3AlKPOUUtuhK1Lod6o5jsOcdlpLjlx3HwjAo8LF0\\n8o0oy3sluAcY0YRRfzh7gfpsiOAOXpDWe5Aewwou0EQrOEVTq62w2zRfGwzj9zBe\\nLacQ50YZdBxefSCrphiVhaZ/oZtD/cByaV8Di1U8u+Tvrl+loAtBl9tWV99Xq8+h\\nxHo1F9cgs567K1ozXTbTvTQEjShDPkTNtSHYUUUE8gpoGKJbgu75nTrdiH8S8kfK\\njwIDAQAB\\n-----END PUBLIC KEY-----\\n'"
+PUBLIC_KEY = "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAjH7lwFvVpRGeOlQHa4Ph\n01h2uI6tFwPfGSRub+ROdMhNDuxvC1vmsjwZGWTOM+8LvQY2WltHffriZ8U+tSN3\njuQ3r4k0JRNd5c8Qk3XH6TLw3AlKPOUUtuhK1Lod6o5jsOcdlpLjlx3HwjAo8LF0\n8o0oy3sluAcY0YRRfzh7gfpsiOAOXpDWe5Aewwou0EQrOEVTq62w2zRfGwzj9zBe\nLacQ50YZdBxefSCrphiVhaZ/oZtD/cByaV8Di1U8u+Tvrl+loAtBl9tWV99Xq8+h\nxHo1F9cgs567K1ozXTbTvTQEjShDPkTNtSHYUUUE8gpoGKJbgu75nTrdiH8S8kfK\njwIDAQAB\n-----END PUBLIC KEY-----\n"
 CLIENT_X509_PRIVATE_KEY = "c:\\Users\\L\\Documents\\Projets_PYTHON\\SYNTRAF_NG\\syntraf\\crypto\\CLIENT_X509_SELFSIGNED_DIRECTORY\\private_key_client.pem"
 CLIENT_X509_CERTIFICATE = "c:\\Users\\L\\Documents\\Projets_PYTHON\\SYNTRAF_NG\\syntraf\\crypto\\CLIENT_X509_SELFSIGNED_DIRECTORY\\certificate_client.pem"
 
@@ -62,21 +71,28 @@ WATCHDOG_CHECK_RATE = "2"
 
 [SERVER]
 BIND_ADDRESS = "0.0.0.0"
-PUBLIC_KEY = "b'-----BEGIN PUBLIC KEY-----\\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAgXyvTMiDMJnUpvPRnLBd\\nnqvomCAMbMk9BFSPoZ2MW+COvJGtrUPDJDtgzjtSSVCVC9gTJacP9BxXilV+u8nN\\npalZNd1ZHq3AcJwrZnxOiQgKtySGk1JOHqErq4HXAf2ktdTo3zA0n2H/qzM0EMje\\n3BjT5Jth5sgkrcR7LTfW4OnnQJgAhrE8mP7fuaKgd/4Qvy2Y1Ci2UGvK74lT8Dpm\\nl/oCSPPPpgUz2CHC5ei46svvvYsvtTgcqNDu/W0/5Jf8P6fX/SgWMEiH1jd7KnEn\\nStdpl8afUXh/t5/3z2RrL7B6gNIzNoSH3Zqfqa8pGlwYTSs9BAkGCc6MrQ8uXvf8\\nWwIDAQAB\\n-----END PUBLIC KEY-----\\n'"
-SERVER_X509_PRIVATE_KEY = "c:\\Users\\L\\Documents\\Projets_PYTHON\\SYNTRAF_NG\\syntraf\\crypto\\SERVER_X509_SELFSIGNED_DIRECTORY\\private_key_server.pem"
-SERVER_X509_CERTIFICATE = "c:\\Users\\L\\Documents\\Projets_PYTHON\\SYNTRAF_NG\\syntraf\\crypto\\SERVER_X509_SELFSIGNED_DIRECTORY\\certificate_server.pem"
+PUBLIC_KEY = "-----BEGIN PUBLIC KEY-----\r\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxvItDPSWAOrtgga5stas\r\n52fxOR0+cs7t4VsXIL4bNBIx5Sxcidq020yiDSIz/U+ETlWLp5mYhQJXpXttK4LV\r\nYT3yBIFTxDt+gs3BFc6BZ2/vaFOdQv37gCubrAnlcYMgJv3sEzkNTvVhAnk9QIrj\r\n3+x5xt0hgM6OoheWnAu7Rn9Sxq8GQI6E4+XraGmEWbdZEqVqxzs2uwKUfg+M3c2R\r\nvxJ7+zuWwOSiN1MAnzP6ZFTYYHqU7tH+zivWj06JllFxzJRiDSyLzBY7Pykv00lT\r\nGGpGE/OefPr9LsxI+47qMT2jkcI8KBPZavzBi5RQ0oDTbd1+uNCiY/NrNYsfFJh+\r\ngwIDAQAB\r\n-----END PUBLIC KEY-----\r\n"
 SERVER_PORT = "6531"
 MESH_LISTENERS_PORT_RANGE = "15000-16000"
-RSA_KEY_LISTENERS = "-----BEGIN PRIVATE KEY-----\r\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDNTpsyaLpF1f8C\r\nKoKr8ZY50PR9NQgV1z/Ye2dGXeTBytb9CVBYblX+ftDhh5FkdTsBgDgO6R7WQiKj\r\nGOR3QwbbK1+Xz2xks/2sSqTAVRq7rKo/9q0mtFWPStpy5TI1w9gMYCG/IOKb7UBx\r\n8069Z4aOpItceG6sotK9OxVwYbZRc2DZEVYMLXTPYKGz5jbZbrhX8Pg6E+iTWs4Q\r\nxMOsnCo2eJWRVx48gk97xXDf4RMEQWWhCjXf3lfON3acLMSyegoaXqcTm3NlkQf9\r\nq9ea1KiKW8ftQequUB77kx+6DnZ3hv/9/D3AnbuG/PNB2ueW9O5A+BAKVaBIgrUj\r\nldASBdKxAgMBAAECggEABV4sRZ2iXSgSskpNP1SiMmHJuqpTy0pk83KKiTb0P7Lf\r\nex8uuBkua2iCapsiTIeaItho3s7ujPiOskf41Ttt5vYT2kLEmT9xfvs2ooa3G7gQ\r\nfXqkHVJyuDvjSUS/0tMLh4tN5pLkCeKioDgV03Ls/DbGJAVME3xwWR092sHbQ/bd\r\nz95ZmELcSfVk4xDHmL4Nps/N1DaCl3BQ/68ogabNKE2GW3q0tdyIQhJbGjLYfG0d\r\n/HBYxQ/2PKpYmMLOyJRvsIxWjURz1JEHzqNAsC/4dQq46sHNjZhNgjXkHTMXAdBQ\r\nKGLDy5q8Gy5c+5pPoarxPSYtqmIxNnhAWqyfYNNU1wKBgQDrNerORfrVERYWQXbJ\r\nFtbL6CgOgzUxsDgFMf9mIEmeZkjP52xaA8tKFrylnyP336fQPgVa5oQbvar/t9oy\r\ndgkRAN0fkq9KmOta/QgLox1pP0aGp6hiVEr82WZT1MSF53PvbYSYg6N7QhqSeYuA\r\n7ZtOyhnFR/xkkvy55XOamYfZ/wKBgQDfdBCS41Z5E0YC0zkFss8ktOPIxMnTzdwg\r\nfohhiSOWetnXl2G8l4x/lv4C0nzpDYB/RFeEoiRUn0oqYdWXCKQHOG2RuMxSesu3\r\nqNt5lNzf+Rv789gV7NQwUx566AW090Nmg+3es+WaJZbUuS06SteoQ+9G3Y+Z4fnL\r\nS7uP3dRzTwKBgQDbeCjLJfMBonrIc3cB9WShSNMvj3AwF+x9tIRJ57Cps2kXTSoF\r\n5+plDEgkBhUKsc8k+OoIQnVcaSLIjuVzFj4pdnPdhQI5Cez5roY2TZIg5WDKPmBY\r\nt6xst/HKIQrqoufDrZ3+rT36wdiHehAYUh0LbHqVYTD5K0nTr2yqAb4IQwKBgQCE\r\nYxNes2oMGaslCVeDVMj9Cl7aGB0ra4+7gLv0bXe0M9zUqk+xmGgZP7AGpAZ1XRaA\r\nUFE5t4amzCj4qzYMYYYs8PWZnE8RnscLbPN7OQMTf1dhErs3YjTk3Jn2X3jiGozI\r\nM+m+Q/8IMLUIGx38p1LV0kn1RldJ6GRCWgAp4Fd6aQKBgDo8NZdClOt6WuPH8/mk\r\n47Pa1vNwp7o3AWhkcLCd3279qlCKhoFfB5zPBfj27RY42dwwh2MI9lAdmgoOZNsX\r\nA9xJERy5QxC6uJmg+7YF6pmkRVp1tn7YesDPxlG56aAxjSgCUmV6qjiIA9PEt8x1\r\nE2kLYSH2yNFr7Umn/p+fufW1\r\n-----END PRIVATE KEY-----\r\n"
-RSA_KEY_CONNECTORS = "-----BEGIN PUBLIC KEY-----\r\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzU6bMmi6RdX/AiqCq/GW\r\nOdD0fTUIFdc/2HtnRl3kwcrW/QlQWG5V/n7Q4YeRZHU7AYA4Duke1kIioxjkd0MG\r\n2ytfl89sZLP9rEqkwFUau6yqP/atJrRVj0racuUyNcPYDGAhvyDim+1AcfNOvWeG\r\njqSLXHhurKLSvTsVcGG2UXNg2RFWDC10z2Chs+Y22W64V/D4OhPok1rOEMTDrJwq\r\nNniVkVcePIJPe8Vw3+ETBEFloQo1395Xzjd2nCzEsnoKGl6nE5tzZZEH/avXmtSo\r\nilvH7UHqrlAe+5Mfug52d4b//fw9wJ27hvzzQdrnlvTuQPgQClWgSIK1I5XQEgXS\r\nsQIDAQAB\r\n-----END PUBLIC KEY-----\r\n"
-IPERF3_USERNAME = "3uiEJkcALHzMl5ydDQmO"
-IPERF3_PASSWORD = "gGFKnW,Xdb@\"QV~o7)j<"
-IPERF3_PASSWORD_HASH = "b81c7cb050c9c7e60bc788c9cfd0c9696b4c8d9dd3cb0d9a8ef6080c6e009b0d"
+RSA_KEY_LISTENERS = "-----BEGIN PRIVATE KEY-----\r\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCh84E8SB5XRSj9\r\ngJ4Ldlvk13IfHAu1ndofy+1bRgknLYr/wUltYWViYpx9cFh0NUI5oMYZQYNrqwEL\r\ndjwVfw7jJM9DELozwXUHXaNCEDR3axpqRoS9PH2Annk36fSGKR1lp9GdptLMPtC8\r\nAw/b6jfeTYu3EWWa2Q/yUQUgO/YdiBQk0+98HX89fJjquq5B25tPQCnY+kROsKvq\r\ni8DaC2E4xcw7KkWnRSv3yZxD405dewywtS1E56a0CA68YGSQsMhQrTYCvIPCUKiB\r\nEy8bkCJ6OQ0n3IN07cBC677yfOPIur7ljKbZogs5dhiWYvU+nfYYVGq/SvE3ICqo\r\npOKAwT49AgMBAAECggEAIYwG171ap5o4aPalBlvQokEsrxwIoujdX5vHAZKq37Yz\r\n5lGcC6/SqAQkRWmpsPy9SKGwl1e2SO3FzCGERbGpnEyqMEq9P25R9yIi6NLhg2Eo\r\nuh38bhSjLKrnEjmAwO+wWrfeGGmPneZfJ6r8tIG6a+6lQ9kzMlXHU1sMFEbHbwtG\r\nBxmD3HtMqwiJVFLsg/hYcyNI7iWWJ3E4blsJl8LiL9pOK34GZSyHf9EJFJYm6mn0\r\nBTRAMJzW4WhLT/qDrk/P8QWC6IdXnecvO5VzNAWL3UqQhhBLwsXsm15DbyaQQedr\r\nVHEq8SkwCTi3jNJBV4GrKR0Gc4tDo1bbOTFHWKIWAQKBgQDbLhFtZKXui/8998TS\r\nTA6CEy8j84yr+m5nKF7zP5Dk+IY6jGKrlKY4gicrrLVxLbEDHCjwfpM3NaGX/mIC\r\nIYhdIsVONArWOq3yrB0xqzXSW52MbieNmq+x/c/9dCcuXwkJhJitD10jOUohhmMq\r\nlGr0KlObCBwiM51NzG0ODBsrAQKBgQC9KEnIfweHrFQKg9jjQCZEjPXzqYu5QPhS\r\nP+YIK1BePBv3NyALr3g25ZdCXlaYnpuXtzi9BvQ0sQBFWWbQeJPMRTIe2gg4uzSF\r\n+dVSydiE2SNC77fZT3UHEf9jcX4ttwQaGWhgN8WwmVsajTUNNUEXR876rlp9Fdmn\r\nOBnpaHL/PQKBgHSGR2mbKsRp1WcChLcxDD2HKXa5kr4TxAI/6kr0Lnoszl/uJr8F\r\npmFAgMataUEkg4kdvX4uLOIbNy/xY/WyEidBxxfOfzxpsfTkIBk55sFRR69TGOAl\r\nrua4A43B5Nq4V7uhrPHEy0VgvdKY+bu3cC0jG5O+egaM3kJwPkJLmV4BAoGBAKdt\r\nOaGVjnywM9L60MaUyUpz2l9J+rqGn0Vt+ZXRgNloKviuelbdgXJV1YSRK+T6vo2T\r\nR01JEm5xHORFNZPgpjFwLeTQ5+YPDXZopEEbF+K+r09YD0rx4YvYikzi7+RW0fKn\r\n+pLvyrN9if3+bq66LFsG3FVWbhG5fWVdatIF+YOhAoGBAJKSqbe6MyDYkuxY1Dq8\r\n/R9T97Mi2RBINgXCrTHEzp8Jr0WzTec9oJpsmWaCSTq29w/UKqMuHKgn7MHuPCip\r\nbPAWw61DCwPhzkI3WZmSxf3WLAXeM4f2MkZp0RYFfTgHNZRiJz7DDXYTrL5JQl84\r\n6tn42loe+94ONuIjbewMSzVW\r\n-----END PRIVATE KEY-----\r\n"
+RSA_KEY_CONNECTORS = "-----BEGIN PUBLIC KEY-----\r\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAofOBPEgeV0Uo/YCeC3Zb\r\n5NdyHxwLtZ3aH8vtW0YJJy2K/8FJbWFlYmKcfXBYdDVCOaDGGUGDa6sBC3Y8FX8O\r\n4yTPQxC6M8F1B12jQhA0d2saakaEvTx9gJ55N+n0hikdZafRnabSzD7QvAMP2+o3\r\n3k2LtxFlmtkP8lEFIDv2HYgUJNPvfB1/PXyY6rquQdubT0Ap2PpETrCr6ovA2gth\r\nOMXMOypFp0Ur98mcQ+NOXXsMsLUtROemtAgOvGBkkLDIUK02AryDwlCogRMvG5Ai\r\nejkNJ9yDdO3AQuu+8nzjyLq+5Yym2aILOXYYlmL1Pp32GFRqv0rxNyAqqKTigME+\r\nPQIDAQAB\r\n-----END PUBLIC KEY-----\r\n"
+IPERF3_USERNAME = "mowPgsq4jZIKLtilnADC"
+IPERF3_PASSWORD = "=z3NQx#-torEGMy\"XV>I"
+IPERF3_PASSWORD_HASH = "bc7f31000c90cf2cd4ac5b7f8fb7384ad818eb44a549f61467c2c6be6fd5c41e"
+SERVER_X509_PRIVATE_KEY_CONTENT = "-----BEGIN RSA PRIVATE KEY-----\r\nMIIEpAIBAAKCAQEAxvItDPSWAOrtgga5stas52fxOR0+cs7t4VsXIL4bNBIx5Sxc\r\nidq020yiDSIz/U+ETlWLp5mYhQJXpXttK4LVYT3yBIFTxDt+gs3BFc6BZ2/vaFOd\r\nQv37gCubrAnlcYMgJv3sEzkNTvVhAnk9QIrj3+x5xt0hgM6OoheWnAu7Rn9Sxq8G\r\nQI6E4+XraGmEWbdZEqVqxzs2uwKUfg+M3c2RvxJ7+zuWwOSiN1MAnzP6ZFTYYHqU\r\n7tH+zivWj06JllFxzJRiDSyLzBY7Pykv00lTGGpGE/OefPr9LsxI+47qMT2jkcI8\r\nKBPZavzBi5RQ0oDTbd1+uNCiY/NrNYsfFJh+gwIDAQABAoIBAAJTiJ/90tc16AsS\r\nMGUH9O5Lx9qmyI59HvOjULTq+X8gC1dRBSVThQk0xIb/dGOCOjDUTUAWIAjGIJI9\r\nzDwAWVBmx11ddHD3T8u7GNvmwJqeCMr2ggCWNF+o+DazHZdjNM1f62fEzgQIrda3\r\n5jXKqfl6AWky4sESfpZ593fhpzyexo6n+MaZAnZWL6phI6LuguynqeDCbVx+sr3R\r\nHv9Zrbuugh2bfLmA+hLmlwHKDwPjwXK9arLlt8Tb7N1dyKUJCkIRD+zldmW3prXI\r\n2r8SZ8rvujYI9xoyXa3ussR+VndX/jakRAIuzFjueKMyIQH1n60q076dg6qNYx+S\r\nNrK2BuECgYEA9bucUwJupv21fLxj+RyQB5TzheQ4krNXp/qhIcswWu7sYIVYzhd0\r\npVjeVrdjkDw2gqvjl9qpR2PcGQk8NcniRLzk733SLMiJDQkYAEqtP3VD9Y1iFDDs\r\nbe3N45ocw276QH2IPA5TrmggoHlvw/J1yY3fc35tteDAasY+Ea1ljzMCgYEAz0Ig\r\nlhnIqFWMTC+0skzOD7y/MJOgDZ5O3haTAQTNn+vLiKivHdmHvFNECIpBgMdRcbZO\r\nIPDVFzVo4xBENa6yckl7VkpLzBRZezurO1yTGjRKkPeIXQiktFiV753gEe5RHrgW\r\n0YREuTAEsbfNZ4reuv7kPUzlVdR4CZRhVwhOk3ECgYEAnI/CwpSLIXQF3Io+++l5\r\nzorVORo1/SmskIa7gMdvcJBHJBvxf6UsGWjsh71h/vSOGmUfpZGYRrbV9VGP/gk5\r\nU2gySHAWp5fA0gBYPV9W0FaLTPieY5TkHgnkIr3+03lykgIo+XJ7WGRZXUThs6tX\r\n5mmw02naxoWCssTJqQOb8EcCgYAdr6ARP9Iw4kf9JZwhKcUeFe/gmlSDfthXES6v\r\nJ6v4KwL1KQwkH2NEwzxsaLknI+VzfyRDrZsn/ttuIodSlRo0KnhDDNM8gPGsKAjH\r\nsOPVDgZcK0hZ4wIMXt/i+V790n/GAaIrEmHxkIIrnmMKYKa0bAvvB9OVbqBe5uTm\r\nXWc70QKBgQCBTp5D4kGVQjan+kpLZi8UTRIJyzysds2H7Dk6qH0632QS7SuBMOPS\r\ni02eWXQsDSP4qNaOTi5kDWkSnI2VmhtGqhwBkTXZBa60f6jyU8UUPeOLvnLortIq\r\n6JO83HbJFvl5LCPQgR1Z2ZffuY5MpbJ9JB1FAPKBlCtDejmz5SOnww==\r\n-----END RSA PRIVATE KEY-----\r\n"
+SERVER_X509_CERTIFICATE_CONTENT = "-----BEGIN CERTIFICATE-----\r\nMIIDfzCCAmegAwIBAgIUETx63l2VstwpcWMPfUewRXYex0cwDQYJKoZIhvcNAQEL\r\nBQAwZDELMAkGA1UEBhMCVVMxEDAOBgNVBAgMB05ldHdvcmsxEDAOBgNVBAcMB1NZ\r\nTlRSQUYxFzAVBgNVBAoMDlNZTlRSQUYgU2VydmVyMRgwFgYDVQQDDA9ERVNLVE9Q\r\nLVU4UE04UVYwHhcNMjYwMjA0MDI0NDE3WhcNMzYwMjAyMDI0NDE3WjBkMQswCQYD\r\nVQQGEwJVUzEQMA4GA1UECAwHTmV0d29yazEQMA4GA1UEBwwHU1lOVFJBRjEXMBUG\r\nA1UECgwOU1lOVFJBRiBTZXJ2ZXIxGDAWBgNVBAMMD0RFU0tUT1AtVThQTThRVjCC\r\nASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAMbyLQz0lgDq7YIGubLWrOdn\r\n8TkdPnLO7eFbFyC+GzQSMeUsXInatNtMog0iM/1PhE5Vi6eZmIUCV6V7bSuC1WE9\r\n8gSBU8Q7foLNwRXOgWdv72hTnUL9+4Arm6wJ5XGDICb97BM5DU71YQJ5PUCK49/s\r\necbdIYDOjqIXlpwLu0Z/UsavBkCOhOPl62hphFm3WRKlasc7NrsClH4PjN3Nkb8S\r\ne/s7lsDkojdTAJ8z+mRU2GB6lO7R/s4r1o9OiZZRccyUYg0si8wWOz8pL9NJUxhq\r\nRhPznnz6/S7MSPuO6jE9o5HCPCgT2Wr8wYuUUNKA023dfrjQomPzazWLHxSYfoMC\r\nAwEAAaMpMCcwJQYDVR0RBB4wHIIPREVTS1RPUC1VOFBNOFFWgglsb2NhbGhvc3Qw\r\nDQYJKoZIhvcNAQELBQADggEBAEOWCxzjDo3NWn2LLkwH+J+NWJKKckIZmWunDU6W\r\nD4HFVJMBxuuVmkAFL7qgwFdv6RKIw48GsB1ItM1cCT7Hr25yjDmQidCNN/R1DSFq\r\nVl5en6jtZyB4+qP/QmCENod8KTthq9x91AyNpJ5Zb6Bsl+bwLjko9gwRS1SUDe2/\r\n3T3UwXM5hFlTPmGpzV5PY5W00YcOmwTJSMoc9AUehYTFbqZPQMByPCDSrJyNidzU\r\nMSV2CV8PL7Q76z2d1Q9B0XBFKYlUxaUHGxWryLJZsLoiF59bCKaAQkRH3xTXzHsK\r\nVxSXhbEXcigQgsnL30bFxs3ugLuPkddTF5qDEg8ptz+3D0s=\r\n-----END CERTIFICATE-----\r\n"
+SERVER_X509_PRIVATE_KEY = "c:\\Users\\L\\Documents\\Projets_PYTHON\\SYNTRAF_NG\\syntraf\\crypto\\SERVER_X509_SELFSIGNED_DIRECTORY\\private_key_server.pem"
+SERVER_X509_CERTIFICATE = "c:\\Users\\L\\Documents\\Projets_PYTHON\\SYNTRAF_NG\\syntraf\\crypto\\SERVER_X509_SELFSIGNED_DIRECTORY\\certificate_server.pem"
 
 [WEBUI]
-PUBLIC_KEY = "b'-----BEGIN PUBLIC KEY-----\\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA68Hem7REU6o0oFA/nwPK\\nEC7dafgz9YqMuYZ99nL5XkDuB41W1VRI1D2Hm+Qq54O+ijqrsT/MwD3o8yI28XQS\\n7uUEh+Jk1YSYEA7QxTzQa4IOrbU4Y+QXFZ7jfXaUcoHRWLWmL/NuXWn55AJWFYW7\\nrhv2zIToSPPTyD6RJfKfSqWQB3y89zhlXRGVMW73RCsEf6O0u7VOZKObCok6jwxf\\ng/tzUVWhNoOIvP6mj7LEz4Ix8SHfRqkfg6/Ojdd93eg81MDApoAgszamImX9CXPH\\nHP8/Mt77NYbpCh6/w6oqSFaHvd9D4/eySoQKAsxm//yOMLWfyEaRWTg+k4H3Oa66\\nJQIDAQAB\\n-----END PUBLIC KEY-----\\n'"
+PUBLIC_KEY = "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA68Hem7REU6o0oFA/nwPK\nEC7dafgz9YqMuYZ99nL5XkDuB41W1VRI1D2Hm+Qq54O+ijqrsT/MwD3o8yI28XQS\n7uUEh+Jk1YSYEA7QxTzQa4IOrbU4Y+QXFZ7jfXaUcoHRWLWmL/NuXWn55AJWFYW7\nrhv2zIToSPPTyD6RJfKfSqWQB3y89zhlXRGVMW73RCsEf6O0u7VOZKObCok6jwxf\ng/tzUVWhNoOIvP6mj7LEz4Ix8SHfRqkfg6/Ojdd93eg81MDApoAgszamImX9CXPH\nHP8/Mt77NYbpCh6/w6oqSFaHvd9D4/eySoQKAsxm//yOMLWfyEaRWTg+k4H3Oa66\nJQIDAQAB\n-----END PUBLIC KEY-----\n"
 WEBUI_X509_PRIVATE_KEY = "c:\\Users\\L\\Documents\\Projets_PYTHON\\SYNTRAF_NG\\syntraf\\crypto\\WEBUI_X509_SELFSIGNED_DIRECTORY\\private_key_webui.pem"
 WEBUI_X509_CERTIFICATE = "c:\\Users\\L\\Documents\\Projets_PYTHON\\SYNTRAF_NG\\syntraf\\crypto\\WEBUI_X509_SELFSIGNED_DIRECTORY\\certificate_webui.pem"
+BIND_ADDRESS = "0.0.0.0"
+PORT = 5000
+USE_SSL = true
+DEBUG = false
+SESSION_TIMEOUT = 30
 
 [SERVER.TOKEN."2026-02-02T18:40:47"]
 value = "sShvWD2eKFE5suRi9ZDfqbf4IAXS_9RSdbo3dO128lb25Dqf6AzJ3wV1XH9vYq4l"
@@ -101,3 +117,11 @@ description = "SITE E"
 [SERVER.TOKEN."2026-02-03T20:52:55"]
 value = "xqxqHb-oSys7g6-NohGZG06BfD3v6CC-b7bm0j3SNFEPJeGsakhoo8cnO2hxp6OS"
 description = "SYNTRAF_SERVER"
+
+[SERVER.TOKEN."2026-02-03T15:51:39"]
+value = "gf4zAz5T3ftN8acXDeDCBuRpc1zrR0Vo"
+description = "WSL"
+
+[SERVER.TOKEN."2026-02-04T21:08:24"]
+value = "OfYDMGW72l-MCk0rHxOEm3ZK3odry3hE"
+description = "ALPINE1"

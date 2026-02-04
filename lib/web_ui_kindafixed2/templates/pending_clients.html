@@ -1,0 +1,375 @@
+{% extends "base.html" %}
+{% block title %}{{ _('pending_clients.title') }}{% endblock %}
+{% block content %}
+<div class="container"><br>
+    <div class="table-responsive">
+        <h2>{{ _('pending_clients.title') }}</h2>
+        <p class="text-muted">{{ _('pending_clients.description') }}</p>
+
+        <!-- Alert Container -->
+        <div id="alert_container"></div>
+
+        <!-- Toolbar -->
+        <div id="toolbar">
+            <button id="btn_approve" type="button" class="btn btn-success" style="width:130px;" disabled>
+                <i class="fas fa-check"></i>&nbsp;&nbsp;&nbsp;{{ _('pending_clients.approve') }}
+            </button>
+            <button id="btn_reject" type="button" class="btn btn-warning" style="width:130px;" disabled>
+                <i class="fas fa-times"></i>&nbsp;&nbsp;&nbsp;{{ _('pending_clients.reject') }}
+            </button>
+            <button id="btn_delete" class="btn btn-danger" style="width:130px;" disabled>
+                <i class="fa fa-trash"></i>&nbsp;&nbsp;&nbsp;{{ _('common.delete') }}
+            </button>
+            <button id="btn_refresh" class="btn btn-primary" style="width:130px;">
+                <i class="fas fa-sync"></i>&nbsp;&nbsp;&nbsp;{{ _('common.refresh') }}
+            </button>
+        </div>
+
+        <table id="table" class="table-dark table-striped thead-dark table-hover table-sm vertical-align" style="width:100%"
+            data-toolbar="#toolbar"
+            data-search="true"
+            data-show-toggle="true"
+            data-show-columns="true"
+            data-click-to-select="true"
+            data-minimum-count-columns="2"
+            data-show-search-clear-button="true"
+            data-pagination="true"
+            data-id-field="CLIENT_UID"
+            data-page-list="[10, 25, 50, 100, all]"
+            data-show-footer="true">
+        </table>
+    </div>
+</div>
+
+<!-- Confirmation Modal -->
+<div aria-labelledby="modal_confirmation" class="modal fade" id="modal_confirmation" role="dialog" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="modal_confirmation_title_text">{{ _('common.confirm') }}</h4>
+            </div>
+            <div class="modal-body">
+                <p id="modal_confirmationText"></p>
+                <div id="rejection_reason_container" style="display: none;">
+                    <label for="rejection_reason" class="form-label">{{ _('pending_clients.rejection_reason') }}</label>
+                    <input type="text" class="form-control" id="rejection_reason" placeholder="{{ _('pending_clients.enter_reason') }}">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal" type="button">{{ _('common.no') }}</button>
+                <button class="btn btn-primary" id="btn_yes_modal_confirmation" type="button">{{ _('common.yes') }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Error Modal -->
+<div class="modal fade" id="modal_error" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content text-center">
+            <br>
+            <i class="fa fa-exclamation-triangle fa-2x" style="color:yellow" aria-hidden="true"></i>
+            <br>
+            <div id="error_modal_text"></div>
+            <br>
+            <div><button type="button" class="btn btn-light" data-bs-dismiss="modal">{{ _('common.close') }}</button></div>
+            <br>
+        </div>
+    </div>
+</div>
+
+<!-- Success Modal -->
+<div class="modal fade" id="modal_success" tabindex="-1" role="dialog" data-keyboard="false" data-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content text-center">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modal_success_label">{{ _('common.result') }}</h5>
+            </div>
+            <div id="success_modal_text" style="margin-right:15px; margin-left:15px; margin-top:15px;">
+            </div>
+            <br>
+            <div><button type="button" class="btn btn-light" id="btn_close_modal_success" data-bs-dismiss="modal">{{ _('common.close') }}</button></div>
+            <br>
+        </div>
+    </div>
+</div>
+
+<script>
+var $table = $("#table");
+var $modal_confirmation = $("#modal_confirmation");
+var $modal_confirmationText = $("#modal_confirmationText");
+var $success_modal_text = $("#success_modal_text");
+var $btn_approve = $("#btn_approve");
+var $btn_reject = $("#btn_reject");
+var $btn_delete = $("#btn_delete");
+var $btn_refresh = $("#btn_refresh");
+var currentAction = null;
+
+const pendingI18n = {
+    confirmApprove: "{{ _('pending_clients.confirm_approve') }}",
+    confirmReject: "{{ _('pending_clients.confirm_reject') }}",
+    confirmDelete: "{{ _('pending_clients.confirm_delete') }}",
+    approveSuccess: "{{ _('pending_clients.approve_success') }}",
+    rejectSuccess: "{{ _('pending_clients.reject_success') }}",
+    deleteSuccess: "{{ _('pending_clients.delete_success') }}",
+    noPending: "{{ _('pending_clients.no_pending') }}",
+    error: "{{ _('common.error') }}"
+};
+
+// Load pending clients on page load
+get_pending_clients();
+
+$(document).ready(function(){
+    $("#modal_confirmation").modal({backdrop: 'static', keyboard: false});
+    $("#modal_error").modal({backdrop: 'static', keyboard: false});
+    $("#modal_success").modal({backdrop: 'static', keyboard: false});
+});
+
+function getUidSelections() {
+    return $.map($table.bootstrapTable("getSelections"), function (row) {
+        return row.CLIENT_UID;
+    });
+}
+
+// Enable/disable buttons based on selection
+$table.on('check.bs.table uncheck.bs.table check-all.bs.table uncheck-all.bs.table', function() {
+    var selections = $table.bootstrapTable('getSelections');
+    var hasPendingSelected = selections.some(s => s.STATUS === 'PENDING');
+    $btn_approve.prop('disabled', !hasPendingSelected || selections.length !== 1);
+    $btn_reject.prop('disabled', !hasPendingSelected || selections.length !== 1);
+    $btn_delete.prop('disabled', !selections.length);
+});
+
+// Refresh button
+$btn_refresh.click(function() {
+    get_pending_clients();
+});
+
+// Approve button
+$btn_approve.click(function() {
+    currentAction = 'APPROVE';
+    var uid = getUidSelections()[0];
+    $('#modal_confirmation_title_text').text("{{ _('pending_clients.approve') }}");
+    $modal_confirmationText.text(pendingI18n.confirmApprove + " '" + uid + "'?");
+    $('#rejection_reason_container').hide();
+    $('#btn_yes_modal_confirmation').removeClass('btn-warning btn-danger').addClass('btn-success');
+
+    $('#btn_yes_modal_confirmation').unbind('click');
+    $('#btn_yes_modal_confirmation').click(function() {
+        approve_client(uid);
+        $modal_confirmation.modal('hide');
+    });
+
+    $modal_confirmation.modal('show');
+});
+
+// Reject button
+$btn_reject.click(function() {
+    currentAction = 'REJECT';
+    var uid = getUidSelections()[0];
+    $('#modal_confirmation_title_text').text("{{ _('pending_clients.reject') }}");
+    $modal_confirmationText.text(pendingI18n.confirmReject + " '" + uid + "'?");
+    $('#rejection_reason_container').show();
+    $('#rejection_reason').val('');
+    $('#btn_yes_modal_confirmation').removeClass('btn-success btn-danger').addClass('btn-warning');
+
+    $('#btn_yes_modal_confirmation').unbind('click');
+    $('#btn_yes_modal_confirmation').click(function() {
+        var reason = $('#rejection_reason').val().trim() || 'Rejected by administrator';
+        reject_client(uid, reason);
+        $modal_confirmation.modal('hide');
+    });
+
+    $modal_confirmation.modal('show');
+});
+
+// Delete button
+$btn_delete.click(function() {
+    currentAction = 'DELETE';
+    var uids = getUidSelections();
+    $('#modal_confirmation_title_text').text("{{ _('common.delete') }}");
+    $modal_confirmationText.text(pendingI18n.confirmDelete + (uids.length > 1 ? " " + uids.length + " clients?" : " '" + uids[0] + "'?"));
+    $('#rejection_reason_container').hide();
+    $('#btn_yes_modal_confirmation').removeClass('btn-success btn-warning').addClass('btn-danger');
+
+    $('#btn_yes_modal_confirmation').unbind('click');
+    $('#btn_yes_modal_confirmation').click(function() {
+        delete_clients(uids);
+        $modal_confirmation.modal('hide');
+    });
+
+    $modal_confirmation.modal('show');
+});
+
+// Refresh table on modal close
+$("#btn_close_modal_success").click(get_pending_clients);
+
+async function approve_client(client_uid) {
+    const fd = new FormData();
+    fd.append("ACTION", "APPROVE_PENDING_CLIENT");
+    fd.append("CLIENT_UID", client_uid);
+
+    try {
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        });
+        const result = await response.json();
+
+        if (result.status === 'OK') {
+            $success_modal_text.html('<p><i class="fas fa-check-circle text-success"></i> ' + result.message + '</p>');
+            $('#modal_success').modal('show');
+        } else {
+            document.getElementById("error_modal_text").innerHTML = result.message;
+            $('#modal_error').modal('show');
+        }
+    } catch (error) {
+        console.error('Error approving client:', error);
+        document.getElementById("error_modal_text").innerHTML = pendingI18n.error;
+        $('#modal_error').modal('show');
+    }
+}
+
+async function reject_client(client_uid, reason) {
+    const fd = new FormData();
+    fd.append("ACTION", "REJECT_PENDING_CLIENT");
+    fd.append("CLIENT_UID", client_uid);
+    fd.append("REASON", reason);
+
+    try {
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        });
+        const result = await response.json();
+
+        if (result.status === 'OK') {
+            $success_modal_text.html('<p><i class="fas fa-check-circle text-success"></i> ' + result.message + '</p>');
+            $('#modal_success').modal('show');
+        } else {
+            document.getElementById("error_modal_text").innerHTML = result.message;
+            $('#modal_error').modal('show');
+        }
+    } catch (error) {
+        console.error('Error rejecting client:', error);
+        document.getElementById("error_modal_text").innerHTML = pendingI18n.error;
+        $('#modal_error').modal('show');
+    }
+}
+
+async function delete_clients(client_uids) {
+    for (const uid of client_uids) {
+        const fd = new FormData();
+        fd.append("ACTION", "DELETE_PENDING_CLIENT");
+        fd.append("CLIENT_UID", uid);
+
+        try {
+            const response = await fetch('/api', {
+                method: 'POST',
+                body: fd
+            });
+            const result = await response.json();
+
+            if (result.status !== 'OK') {
+                document.getElementById("error_modal_text").innerHTML = result.message;
+                $('#modal_error').modal('show');
+                return;
+            }
+        } catch (error) {
+            console.error('Error deleting client:', error);
+            document.getElementById("error_modal_text").innerHTML = pendingI18n.error;
+            $('#modal_error').modal('show');
+            return;
+        }
+    }
+
+    $success_modal_text.html('<p><i class="fas fa-check-circle text-success"></i> ' + pendingI18n.deleteSuccess + '</p>');
+    $('#modal_success').modal('show');
+}
+
+async function get_pending_clients() {
+    const fd = new FormData();
+    fd.append("ACTION", "GET_PENDING_CLIENTS");
+
+    try {
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        });
+        const clients = await response.json();
+
+        if (clients.status === 'ERROR') {
+            showAlert('Error loading pending clients: ' + clients.message, 'danger');
+            return;
+        }
+
+        $table.bootstrapTable('destroy');
+        $table.bootstrapTable({
+            pagination: true,
+            search: true,
+            columns: [
+                { field: 'state', checkbox: true, align: 'center', valign: 'middle'},
+                { field: 'CLIENT_UID', title: "{{ _('pending_clients.client_uid') }}", align: 'center', sortable: true,
+                  formatter: function(value) {
+                    return '<strong>' + value + '</strong>';
+                  }
+                },
+                { field: 'IP_ADDRESS', title: "{{ _('pending_clients.ip_address') }}", align: 'center', sortable: true },
+                { field: 'SYNTRAF_VERSION', title: "{{ _('pending_clients.version') }}", align: 'center', sortable: true },
+                { field: 'STATUS', title: "{{ _('common.status') }}", align: 'center', sortable: true,
+                  formatter: function(value, row) {
+                    if (value === 'PENDING') return '<span class="badge bg-warning text-dark">Pending</span>';
+                    if (value === 'REJECTED') return '<span class="badge bg-danger">Rejected</span>';
+                    return '<span class="badge bg-secondary">' + value + '</span>';
+                  }
+                },
+                { field: 'TIMESTAMP', title: "{{ _('pending_clients.request_time') }}", align: 'center', sortable: true,
+                  formatter: function(value) {
+                    if (!value || value === 'UNKNOWN') return '<span class="text-muted">-</span>';
+                    try {
+                        var date = new Date(value);
+                        return date.toLocaleString();
+                    } catch (e) {
+                        return value;
+                    }
+                  }
+                },
+                { field: 'EXPIRATION', title: "{{ _('pending_clients.expires') }}", align: 'center', sortable: true,
+                  formatter: function(value) {
+                    if (!value || value === 'UNKNOWN') return '<span class="text-muted">-</span>';
+                    try {
+                        var date = new Date(value);
+                        var now = new Date();
+                        var diff = date - now;
+                        var days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                        if (days <= 0) return '<span class="text-danger">Expired</span>';
+                        if (days <= 1) return '<span class="text-warning">' + days + ' day</span>';
+                        return '<span class="text-muted">' + days + ' days</span>';
+                    } catch (e) {
+                        return value;
+                    }
+                  }
+                }
+            ],
+            data: clients
+        });
+
+        // Show message if no pending clients
+        if (clients.length === 0) {
+            $('#alert_container').html('<div class="alert alert-info">' + pendingI18n.noPending + '</div>');
+        } else {
+            $('#alert_container').empty();
+        }
+    } catch (error) {
+        console.error('Error fetching pending clients:', error);
+        showAlert('Error loading pending clients', 'danger');
+    }
+}
+
+function showAlert(message, type) {
+    $('#alert_container').html('<div class="alert alert-' + type + ' alert-dismissible fade show" role="alert">' +
+        message + '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>');
+}
+</script>
+
+{% endblock %}

@@ -34,6 +34,17 @@ if not CompilationOptions.client_only:
 log = logging.getLogger("syntraf." + __name__)
 
 
+def load_and_normalize_config(file_path):
+    """
+    Load TOML config file and normalize any PEM key strings.
+    This ensures keys stored with bytes representation (b'...') are cleaned up.
+    """
+    with open(file_path, 'r') as f:
+        config = toml.load(f)
+    # Use the normalize function from st_read_toml
+    return normalize_config_keys(config)
+
+
 def update_config_in_place(new_config):
     """
     Update the app config dictionary IN-PLACE so that all references
@@ -88,12 +99,10 @@ def save_tokens_to_config(config_path, tokens_dict):
     - New format: {"2018-01-01": {"value": "token_string", "description": "optional desc"}}
     """
     from datetime import date
-    import toml
 
     try:
-        # Read the original config file
-        with open(config_path, 'r') as f:
-            config = toml.load(f)
+        # Read the original config file and normalize PEM keys
+        config = load_and_normalize_config(config_path)
 
         # Ensure SERVER.TOKEN section exists
         if 'SERVER' not in config:
@@ -424,6 +433,18 @@ def client_config():
     return render_template('client_config.html', title='SYNTRAF WEBUI', config=app.config['config'])
 
 
+@st_home_bp.route('/pending_clients.html')
+def pending_clients():
+    if not session.get('logged_in'):
+        return redirect(url_for('st_home_bp.index'))
+    # Only admins can manage pending clients
+    if session.get('user_role') != user_mgmt.ROLE_ADMIN:
+        flash('Admin access required to manage pending clients')
+        return redirect('/home.html')
+    return render_template('pending_clients.html', title='SYNTRAF WEBUI',
+                           syntraf_version=DefaultValues.SYNTRAF_VERSION)
+
+
 @st_home_bp.route('/server.html')
 def server():
     if not session.get('logged_in'):
@@ -689,7 +710,8 @@ def api():
             'ADD_IPERF3_PROFILE', 'UPDATE_IPERF3_PROFILE', 'DELETE_IPERF3_PROFILE',
             'EXPORT_CONFIG_TOML', 'VALIDATE_CONFIG_TOML', 'IMPORT_CONFIG_TOML',
             'GENERATE_IPERF3_RSA_KEYS', 'GENERATE_X509_CERTIFICATES',
-            'SAVE_SERVER_NETWORK', 'SAVE_SERVER_AUTH', 'SAVE_WEBUI_CONFIG', 'SAVE_TLS_CONFIG'
+            'SAVE_SERVER_NETWORK', 'SAVE_SERVER_AUTH', 'SAVE_WEBUI_CONFIG', 'SAVE_TLS_CONFIG',
+            'GET_PENDING_CLIENTS', 'APPROVE_PENDING_CLIENT', 'REJECT_PENDING_CLIENT', 'DELETE_PENDING_CLIENT'
         ]
 
         # Check if user is logged in for all API actions
@@ -1932,9 +1954,8 @@ def api():
                 if not config_path:
                     return jsonify({"status": "ERROR", "message": "Config file path not set"})
 
-                # Read the current config file
-                with open(config_path, 'r') as f:
-                    config = toml.load(f)
+                # Read the current config file and normalize PEM keys
+                config = load_and_normalize_config(config_path)
 
                 # Run validation
                 result = validate_config_for_webui(config)
@@ -1962,9 +1983,8 @@ def api():
                 if not config_path:
                     return jsonify({"status": "ERROR", "message": "Config file path not set"})
 
-                # Read the original config file
-                with open(config_path, 'r') as f:
-                    config = toml.load(f)
+                # Read the original config file and normalize PEM keys
+                config = load_and_normalize_config(config_path)
 
                 # Update SERVER section (excluding TOKEN which is managed separately)
                 if 'SERVER' not in config:
@@ -2202,8 +2222,7 @@ def api():
                 if not config_path:
                     return jsonify({"status": "ERROR", "message": "Config file path not set"})
 
-                with open(config_path, 'r') as f:
-                    config = toml.load(f)
+                config = load_and_normalize_config(config_path)
 
                 if 'SERVER' not in config:
                     config['SERVER'] = {}
@@ -2250,8 +2269,7 @@ def api():
                 if not config_path:
                     return jsonify({"status": "ERROR", "message": "Config file path not set"})
 
-                with open(config_path, 'r') as f:
-                    config = toml.load(f)
+                config = load_and_normalize_config(config_path)
 
                 if 'SERVER' not in config:
                     config['SERVER'] = {}
@@ -2314,8 +2332,7 @@ def api():
                 if not config_path:
                     return jsonify({"status": "ERROR", "message": "Config file path not set"})
 
-                with open(config_path, 'r') as f:
-                    config = toml.load(f)
+                config = load_and_normalize_config(config_path)
 
                 if 'WEBUI' not in config:
                     config['WEBUI'] = {}
@@ -2360,8 +2377,7 @@ def api():
                 if not config_path:
                     return jsonify({"status": "ERROR", "message": "Config file path not set"})
 
-                with open(config_path, 'r') as f:
-                    config = toml.load(f)
+                config = load_and_normalize_config(config_path)
 
                 if 'SERVER' not in config:
                     config['SERVER'] = {}
@@ -2402,9 +2418,8 @@ def api():
                 if not config_path:
                     return jsonify({"status": "ERROR", "message": "Config file path not set"})
 
-                # Read the original config file
-                with open(config_path, 'r') as f:
-                    config = toml.load(f)
+                # Read the original config file and normalize PEM keys
+                config = load_and_normalize_config(config_path)
 
                 # Update GLOBAL section
                 if 'GLOBAL' not in config:
@@ -3163,6 +3178,164 @@ def api():
             except Exception as e:
                 log.error(f"Error duplicating iperf3 profile: {e}")
                 return jsonify({"status": "ERROR", "message": str(e)})
+
+        # ======================= PENDING CLIENT MANAGEMENT API =======================
+
+        elif requested_action == "GET_PENDING_CLIENTS":
+            ''' Get all pending client approval requests '''
+            pending_clients = []
+            dict_pending = app.config.get('dict_of_client_pending_acceptance', {})
+
+            # Clean up expired entries first
+            from lib.st_mesh import cleanup_expired_pending_clients
+            cleanup_expired_pending_clients(dict_pending)
+
+            for client_uid, data in dict_pending.items():
+                if isinstance(data, dict):
+                    client_info = {
+                        'CLIENT_UID': client_uid,
+                        'IP_ADDRESS': data.get('ip_address', 'UNKNOWN'),
+                        'SYNTRAF_VERSION': data.get('syntraf_version', 'UNKNOWN'),
+                        'TIMESTAMP': data.get('timestamp', 'UNKNOWN'),
+                        'EXPIRATION': data.get('expiration', 'UNKNOWN'),
+                        'STATUS': data.get('status', 'PENDING'),
+                        'PUBLIC_KEY': (data.get('public_key', '')[:50] + '...') if data.get('public_key') else ''
+                    }
+                else:
+                    # Legacy format - just public_key
+                    client_info = {
+                        'CLIENT_UID': client_uid,
+                        'IP_ADDRESS': 'UNKNOWN',
+                        'SYNTRAF_VERSION': 'UNKNOWN',
+                        'TIMESTAMP': 'UNKNOWN',
+                        'EXPIRATION': 'UNKNOWN',
+                        'STATUS': 'PENDING',
+                        'PUBLIC_KEY': (str(data)[:50] + '...') if data else ''
+                    }
+                pending_clients.append(client_info)
+
+            return jsonify(pending_clients)
+
+        elif requested_action == "APPROVE_PENDING_CLIENT":
+            ''' Approve a pending client - create SERVER_CLIENT entry '''
+            client_uid = request.values.get('CLIENT_UID', '').strip()
+            if not client_uid:
+                return jsonify({"status": "ERROR", "message": "Client UID is required"})
+
+            dict_pending = app.config.get('dict_of_client_pending_acceptance', {})
+
+            if client_uid not in dict_pending:
+                return jsonify({"status": "ERROR", "message": f"Pending client '{client_uid}' not found"})
+
+            pending_data = dict_pending[client_uid]
+
+            # Read config file
+            read_success, config = read_conf(app.config['config_file_path'])
+            if not read_success:
+                return jsonify({"status": "ERROR", "message": "Unable to read config file"})
+
+            # Check if client already exists
+            for client in config.get('SERVER_CLIENT', []):
+                if client.get('UID') == client_uid:
+                    return jsonify({"status": "ERROR", "message": f"Client '{client_uid}' already exists in config"})
+
+            # Get IP address from pending data or use 0.0.0.0 for dynamic IP
+            ip_address = request.values.get('IP_ADDRESS', '').strip()
+            if not ip_address:
+                ip_address = pending_data.get('ip_address', '0.0.0.0') if isinstance(pending_data, dict) else '0.0.0.0'
+
+            # Create new client entry with empty mesh group list
+            new_client = {
+                'UID': client_uid,
+                'IP_ADDRESS': ip_address,
+                'MESH_GROUP_UID_LIST': []  # Empty as per user requirements
+            }
+
+            # Add public key if available
+            public_key = pending_data.get('public_key') if isinstance(pending_data, dict) else pending_data
+            if public_key:
+                new_client['PUBLIC_KEY'] = public_key
+
+            if 'SERVER_CLIENT' not in config:
+                config['SERVER_CLIENT'] = []
+            config['SERVER_CLIENT'].append(new_client)
+
+            try:
+                # Save to file
+                with open(app.config['config_file_path'], "w") as toml_file:
+                    toml.dump(config, toml_file)
+
+                # Update in-memory config
+                update_config_in_place(config)
+
+                # Add client entry to dict_of_clients so server can handle connections immediately
+                dict_of_clients = app.config.get('dict_of_clients', {})
+                if client_uid not in dict_of_clients:
+                    dict_of_clients[client_uid] = cc_client(
+                        status="DISCONNECTED",
+                        status_since=dt.now(),
+                        status_explanation="Approved - awaiting connection",
+                        bool_dynamic_client=(ip_address == "0.0.0.0"),
+                        client_uid=client_uid,
+                        ip_address=ip_address
+                    )
+
+                # Remove from pending list
+                dict_pending.pop(client_uid, None)
+
+                log.info(f"Pending client '{client_uid}' approved and added to config by user '{session.get('username', 'unknown')}'")
+                return jsonify({"status": "OK", "message": f"Client '{client_uid}' approved and added. Client can now connect."})
+            except Exception as e:
+                log.error(f"Error approving pending client: {e}")
+                return jsonify({"status": "ERROR", "message": str(e)})
+
+        elif requested_action == "REJECT_PENDING_CLIENT":
+            ''' Reject a pending client - mark as rejected '''
+            client_uid = request.values.get('CLIENT_UID', '').strip()
+            rejection_reason = request.values.get('REASON', 'Rejected by administrator').strip()
+
+            if not client_uid:
+                return jsonify({"status": "ERROR", "message": "Client UID is required"})
+
+            dict_pending = app.config.get('dict_of_client_pending_acceptance', {})
+
+            if client_uid not in dict_pending:
+                return jsonify({"status": "ERROR", "message": f"Pending client '{client_uid}' not found"})
+
+            # Update status to rejected with reason
+            pending_data = dict_pending[client_uid]
+            if isinstance(pending_data, dict):
+                pending_data['status'] = 'REJECTED'
+                pending_data['rejection_reason'] = rejection_reason
+                pending_data['rejected_at'] = dt.now().isoformat()
+            else:
+                # Convert legacy format
+                dict_pending[client_uid] = {
+                    'public_key': pending_data,
+                    'status': 'REJECTED',
+                    'rejection_reason': rejection_reason,
+                    'rejected_at': dt.now().isoformat()
+                }
+
+            log.info(f"Pending client '{client_uid}' rejected by user '{session.get('username', 'unknown')}': {rejection_reason}")
+            return jsonify({"status": "OK", "message": f"Client '{client_uid}' rejected"})
+
+        elif requested_action == "DELETE_PENDING_CLIENT":
+            ''' Delete a pending client entry '''
+            client_uid = request.values.get('CLIENT_UID', '').strip()
+
+            if not client_uid:
+                return jsonify({"status": "ERROR", "message": "Client UID is required"})
+
+            dict_pending = app.config.get('dict_of_client_pending_acceptance', {})
+
+            if client_uid not in dict_pending:
+                return jsonify({"status": "ERROR", "message": f"Pending client '{client_uid}' not found"})
+
+            dict_pending.pop(client_uid, None)
+
+            log.info(f"Pending client '{client_uid}' deleted by user '{session.get('username', 'unknown')}'")
+            return jsonify({"status": "OK", "message": f"Pending client '{client_uid}' removed"})
 
         return "OK"
     else:

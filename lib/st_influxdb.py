@@ -411,7 +411,32 @@ class InfluxObj(object):
                 line = f"{measurement} {field_str}"
 
             if timestamp:
-                line += f" {timestamp}"
+                # Convert timestamp to nanoseconds for InfluxDB line protocol
+                if isinstance(timestamp, str):
+                    # Parse ISO format string to datetime
+                    try:
+                        # Handle ISO format with timezone (e.g., "2026-02-04 02:33:04+00:00")
+                        # Replace space with T for fromisoformat compatibility
+                        ts_str = timestamp.replace(' ', 'T')
+                        dt = datetime.fromisoformat(ts_str)
+                        ts_ns = int(dt.timestamp() * 1_000_000_000)
+                    except:
+                        # Fallback: try to use as-is if it's already numeric
+                        try:
+                            ts_ns = int(timestamp)
+                        except:
+                            ts_ns = int(datetime.now().timestamp() * 1_000_000_000)
+                elif isinstance(timestamp, datetime):
+                    ts_ns = int(timestamp.timestamp() * 1_000_000_000)
+                elif isinstance(timestamp, (int, float)):
+                    # Assume it's already in seconds or nanoseconds
+                    if timestamp > 1e15:  # Already nanoseconds
+                        ts_ns = int(timestamp)
+                    else:  # Seconds
+                        ts_ns = int(timestamp * 1_000_000_000)
+                else:
+                    ts_ns = int(datetime.now().timestamp() * 1_000_000_000)
+                line += f" {ts_ns}"
 
             return line
         else:

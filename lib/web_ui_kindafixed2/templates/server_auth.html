@@ -1,0 +1,431 @@
+{% extends "base.html" %}
+{% block title %}{{ _('server_auth.title') }}{% endblock %}
+{% block content %}
+<div class="mb-3">
+    <h2><i class="fas fa-shield-alt"></i> {{ _('server_auth.title') }}</h2>
+    <p class="text-muted">{{ _('server_auth.description') }}</p>
+</div>
+
+<form id="server_auth_form">
+<!-- TLS Certificates Section -->
+<div class="card mb-4">
+    <div class="card-header">
+        <i class="fas fa-certificate"></i> {{ _('server_auth.tls_certificates') }}
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info mb-3">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>{{ _('server_auth.x509_info_title') }}</strong> - {{ _('server_auth.x509_info_desc') }}
+                </div>
+                <button type="button" class="btn btn-warning" onclick="generateNewX509Certificates()">
+                    <i class="fas fa-sync-alt me-1"></i> {{ _('server_auth.generate_x509') }}
+                </button>
+            </div>
+        </div>
+
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label for="x509_private_key_content" class="form-label">{{ _('server_auth.x509_private_key') }}
+                    <button type="button" class="btn btn-sm btn-outline-info ms-2" onclick="exportX509('private_key')" title="{{ _('common.download') }}">
+                        <i class="fas fa-download"></i> {{ _('common.export') }}
+                    </button>
+                </label>
+                <textarea class="form-control" id="x509_private_key_content" rows="6"
+                          style="font-family: monospace; font-size: 0.85em;">{{ x509_private_key_content }}</textarea>
+                <small class="text-muted">{{ _('server_auth.x509_private_key_help') }}</small>
+            </div>
+            <div class="col-md-6">
+                <label for="x509_certificate_content" class="form-label">{{ _('server_auth.x509_certificate') }}
+                    <button type="button" class="btn btn-sm btn-outline-info ms-2" onclick="exportX509('certificate')" title="{{ _('common.download') }}">
+                        <i class="fas fa-download"></i> {{ _('common.export') }}
+                    </button>
+                </label>
+                <textarea class="form-control" id="x509_certificate_content" rows="6"
+                          style="font-family: monospace; font-size: 0.85em;">{{ x509_certificate_content }}</textarea>
+                <small class="text-muted">{{ _('server_auth.x509_certificate_help') }}</small>
+            </div>
+        </div>
+
+        <div class="row mb-3">
+            <div class="col-md-12">
+                <label for="public_key" class="form-label">{{ _('server_auth.public_key') }}
+                    <button type="button" class="btn btn-sm btn-outline-info ms-2" onclick="exportPublicKey()" title="{{ _('common.download') }}">
+                        <i class="fas fa-download"></i> {{ _('common.export') }}
+                    </button>
+                </label>
+                {% set raw_key = config['SERVER'].get('PUBLIC_KEY', '') or '' %}
+                {% if raw_key is string %}
+                    {% if raw_key.startswith("b'") and raw_key.endswith("'") %}
+                        {% set clean_key = raw_key[2:-1].replace('\\n', '\n') %}
+                    {% else %}
+                        {% set clean_key = raw_key %}
+                    {% endif %}
+                {% else %}
+                    {% set clean_key = raw_key.decode('utf-8') if raw_key else '' %}
+                {% endif %}
+                <textarea class="form-control" id="public_key" rows="4" readonly
+                          style="font-family: monospace; font-size: 0.85em;">{{ clean_key }}</textarea>
+                <small class="text-muted">{{ _('server_auth.public_key_help') }}</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- iperf3 RSA Authentication Section -->
+<div class="card">
+    <div class="card-header">
+        <i class="fas fa-key"></i> {{ _('server_auth.rsa_keys') }}
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info mb-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>{{ _('server_auth.rsa_info_title') }}</strong> - {{ _('server_auth.rsa_info_desc') }}
+                    </div>
+                    <button type="button" class="btn btn-warning" onclick="generateNewRsaKeys()">
+                        <i class="fas fa-sync-alt me-1"></i> {{ _('server_auth.generate_rsa') }}
+                    </button>
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="rsa_key_listeners" class="form-label">{{ _('server_auth.rsa_private') }}
+                        <button type="button" class="btn btn-sm btn-outline-info ms-2" onclick="exportRsaKey('listeners')" title="{{ _('common.download') }}">
+                            <i class="fas fa-download"></i> {{ _('common.export') }}
+                        </button>
+                    </label>
+                    {% set raw_rsa_listeners = config['SERVER'].get('RSA_KEY_LISTENERS', '') or '' %}
+                    {% if raw_rsa_listeners is string %}
+                        {% if raw_rsa_listeners.startswith("b'") and raw_rsa_listeners.endswith("'") %}
+                            {% set clean_rsa_listeners = raw_rsa_listeners[2:-1].replace('\\n', '\n') %}
+                        {% else %}
+                            {% set clean_rsa_listeners = raw_rsa_listeners %}
+                        {% endif %}
+                    {% else %}
+                        {% set clean_rsa_listeners = raw_rsa_listeners.decode('utf-8') if raw_rsa_listeners else '' %}
+                    {% endif %}
+                    <textarea class="form-control" id="rsa_key_listeners" rows="6"
+                              style="font-family: monospace; font-size: 0.85em;">{{ clean_rsa_listeners }}</textarea>
+                    <small class="text-muted">{{ _('server_auth.rsa_private_help') }}</small>
+                </div>
+                <div class="col-md-6">
+                    <label for="rsa_key_connectors" class="form-label">{{ _('server_auth.rsa_public') }}
+                        <button type="button" class="btn btn-sm btn-outline-info ms-2" onclick="exportRsaKey('connectors')" title="{{ _('common.download') }}">
+                            <i class="fas fa-download"></i> {{ _('common.export') }}
+                        </button>
+                    </label>
+                    {% set raw_rsa_connectors = config['SERVER'].get('RSA_KEY_CONNECTORS', '') or '' %}
+                    {% if raw_rsa_connectors is string %}
+                        {% if raw_rsa_connectors.startswith("b'") and raw_rsa_connectors.endswith("'") %}
+                            {% set clean_rsa_connectors = raw_rsa_connectors[2:-1].replace('\\n', '\n') %}
+                        {% else %}
+                            {% set clean_rsa_connectors = raw_rsa_connectors %}
+                        {% endif %}
+                    {% else %}
+                        {% set clean_rsa_connectors = raw_rsa_connectors.decode('utf-8') if raw_rsa_connectors else '' %}
+                    {% endif %}
+                    <textarea class="form-control" id="rsa_key_connectors" rows="6"
+                              style="font-family: monospace; font-size: 0.85em;">{{ clean_rsa_connectors }}</textarea>
+                    <small class="text-muted">{{ _('server_auth.rsa_public_help') }}</small>
+                </div>
+            </div>
+
+            <hr class="my-4">
+
+            <h5 class="text-info mb-3"><i class="fas fa-user"></i> {{ _('server_auth.credentials') }}</h5>
+
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label for="iperf3_username" class="form-label">{{ _('server_auth.username') }}</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="iperf3_username"
+                               value="{{ config['SERVER'].get('IPERF3_USERNAME', '') }}"
+                               placeholder="iperf3_user">
+                        <button type="button" class="btn btn-outline-warning" onclick="generateUsername()" title="{{ _('server_auth.generate') }}">
+                            <i class="fas fa-random"></i>
+                        </button>
+                    </div>
+                    <small class="text-muted">{{ _('server_auth.username_help') }}</small>
+                </div>
+                <div class="col-md-4">
+                    <label for="iperf3_password" class="form-label">{{ _('server_auth.password') }}</label>
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="iperf3_password"
+                               value="{{ config['SERVER'].get('IPERF3_PASSWORD', '') }}"
+                               placeholder="{{ _('server_auth.password_placeholder') }}">
+                        <button type="button" class="btn btn-outline-secondary" onclick="togglePasswordVisibility('iperf3_password')" title="{{ _('common.show_hide') }}">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-warning" onclick="generatePassword()" title="{{ _('server_auth.generate') }}">
+                            <i class="fas fa-random"></i>
+                        </button>
+                    </div>
+                    <small class="text-muted">{{ _('server_auth.password_help') }}</small>
+                </div>
+                <div class="col-md-4">
+                    <label for="iperf3_password_hash" class="form-label">{{ _('server_auth.password_hash') }}</label>
+                    <input type="text" class="form-control" id="iperf3_password_hash"
+                           value="{{ config['SERVER'].get('IPERF3_PASSWORD_HASH', '') }}" readonly
+                           style="font-family: monospace; font-size: 0.85em;">
+                    <small class="text-muted">{{ _('server_auth.password_hash_help') }}</small>
+                </div>
+            </div>
+
+            <hr class="my-4">
+
+        <div class="d-flex justify-content-between">
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save"></i> {{ _('common.save') }}
+            </button>
+        </div>
+    </div>
+</div>
+</form>
+
+<script>
+// X509 TLS Certificate Functions
+function exportX509(keyType) {
+    const elementId = keyType === 'private_key' ? 'x509_private_key_content' : 'x509_certificate_content';
+    const filename = keyType === 'private_key' ? 'server_private_key.pem' : 'server_certificate.pem';
+    const content = document.getElementById(elementId).value;
+    if (!content || content.trim() === '') {
+        showAlert('{{ _("server_auth.no_x509_content") }}', 'warning');
+        return;
+    }
+    const blob = new Blob([content], { type: 'application/x-pem-file' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    showAlert('{{ _("common.exported") }}: ' + filename, 'success');
+}
+
+function exportPublicKey() {
+    const content = document.getElementById('public_key').value;
+    if (!content || content.trim() === '') {
+        showAlert('{{ _("server_auth.no_public_key") }}', 'warning');
+        return;
+    }
+    const blob = new Blob([content], { type: 'application/x-pem-file' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'public_key_server.pem';
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    showAlert('{{ _("common.exported") }}: public_key_server.pem', 'success');
+}
+
+async function generateNewX509Certificates() {
+    if (!confirm({{ _("server_auth.x509_confirm")|tojson }})) {
+        return;
+    }
+
+    const btn = event.target.closest('button');
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> {{ _("common.generating") }}...';
+
+    try {
+        const fd = new FormData();
+        fd.append('ACTION', 'GENERATE_X509_CERTIFICATES');
+
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        });
+
+        const result = await response.json();
+
+        if (result.status === 'OK') {
+            if (result.private_key) {
+                document.getElementById('x509_private_key_content').value = result.private_key;
+            }
+            if (result.certificate) {
+                document.getElementById('x509_certificate_content').value = result.certificate;
+            }
+            if (result.public_key) {
+                document.getElementById('public_key').value = result.public_key;
+            }
+            showAlert('{{ _("server_auth.x509_generated") }}', 'success');
+        } else {
+            showAlert('{{ _("common.error") }}: ' + result.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error generating X509 certificates:', error);
+        showAlert('{{ _("common.error") }}', 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    }
+}
+
+// iperf3 RSA Authentication Functions
+function generateUsername() {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    let suffix = '';
+    for (let i = 0; i < 8; i++) {
+        suffix += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    const username = 'syntraf_' + suffix;
+    document.getElementById('iperf3_username').value = username;
+    showAlert('{{ _("server_auth.username_generated") }}: ' + username, 'info');
+}
+
+async function generatePassword() {
+    const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+    const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const numbers = '0123456789';
+    const symbols = '!@#$%^&*()_+-=[]{}|;:,.<>?';
+    const allChars = lowercase + uppercase + numbers + symbols;
+
+    let password = '';
+    password += lowercase.charAt(Math.floor(Math.random() * lowercase.length));
+    password += uppercase.charAt(Math.floor(Math.random() * uppercase.length));
+    password += numbers.charAt(Math.floor(Math.random() * numbers.length));
+    password += symbols.charAt(Math.floor(Math.random() * symbols.length));
+
+    for (let i = 4; i < 16; i++) {
+        password += allChars.charAt(Math.floor(Math.random() * allChars.length));
+    }
+
+    password = password.split('').sort(() => Math.random() - 0.5).join('');
+
+    document.getElementById('iperf3_password').value = password;
+    document.getElementById('iperf3_password').type = 'text';
+
+    const hash = await calculateSHA256(password);
+    document.getElementById('iperf3_password_hash').value = hash;
+
+    showAlert('{{ _("server_auth.password_generated") }}', 'info');
+}
+
+async function calculateSHA256(text) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(text);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function generateNewRsaKeys() {
+    if (!confirm({{ _("server_auth.rsa_confirm")|tojson }})) {
+        return;
+    }
+
+    const btn = event.target.closest('button');
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> {{ _("common.generating") }}...';
+
+    try {
+        const fd = new FormData();
+        fd.append('ACTION', 'GENERATE_IPERF3_RSA_KEYS');
+
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        });
+
+        const result = await response.json();
+
+        if (result.status === 'OK') {
+            if (result.private_key) {
+                document.getElementById('rsa_key_listeners').value = result.private_key;
+            }
+            if (result.public_key) {
+                document.getElementById('rsa_key_connectors').value = result.public_key;
+            }
+            showAlert('{{ _("server_auth.rsa_generated") }}', 'success');
+        } else {
+            showAlert('{{ _("common.error") }}: ' + result.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error generating RSA keys:', error);
+        showAlert('{{ _("common.error") }}', 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    }
+}
+
+function exportRsaKey(keyType) {
+    const elementId = keyType === 'listeners' ? 'rsa_key_listeners' : 'rsa_key_connectors';
+    const filename = keyType === 'listeners' ? 'rsa_private_key_listeners.pem' : 'rsa_public_key_connectors.pem';
+    const content = document.getElementById(elementId).value;
+    if (!content || content.trim() === '') {
+        showAlert('{{ _("server_auth.no_key") }}', 'warning');
+        return;
+    }
+    const blob = new Blob([content], { type: 'application/x-pem-file' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    showAlert('{{ _("common.exported") }}: ' + filename, 'success');
+}
+
+function togglePasswordVisibility(fieldId) {
+    const field = document.getElementById(fieldId);
+    const icon = field.nextElementSibling.querySelector('i');
+    if (field.type === 'password') {
+        field.type = 'text';
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+    } else {
+        field.type = 'password';
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+    }
+}
+
+document.getElementById('server_auth_form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const fd = new FormData();
+    fd.append('ACTION', 'SAVE_SERVER_AUTH');
+    // TLS Certificate fields
+    fd.append('SERVER_X509_PRIVATE_KEY_CONTENT', document.getElementById('x509_private_key_content').value);
+    fd.append('SERVER_X509_CERTIFICATE_CONTENT', document.getElementById('x509_certificate_content').value);
+    fd.append('PUBLIC_KEY', document.getElementById('public_key').value);
+    // iperf3 RSA Authentication fields
+    fd.append('RSA_KEY_LISTENERS', document.getElementById('rsa_key_listeners').value);
+    fd.append('RSA_KEY_CONNECTORS', document.getElementById('rsa_key_connectors').value);
+    fd.append('IPERF3_USERNAME', document.getElementById('iperf3_username').value);
+    fd.append('IPERF3_PASSWORD', document.getElementById('iperf3_password').value);
+
+    try {
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        });
+
+        const result = await response.json();
+
+        if (result.status === 'OK') {
+            showAlert('{{ _("common.saved_restart") }}', 'success');
+        } else {
+            showAlert('{{ _("common.error") }}: ' + result.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error saving config:', error);
+        showAlert('{{ _("common.error") }}', 'danger');
+    }
+});
+</script>
+
+{% endblock %}
