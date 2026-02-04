@@ -313,7 +313,7 @@ check_pip() {
 		pip_installed=`command -v $pip_binary_path >/dev/null && echo True || echo False`
 
 		if [[ $pip_installed = "True" ]]; then
-			version_raw=$($pip_binary_path -V 2>&1 | grep -Po '.+(?= +from\b)')
+			version_raw=$($pip_binary_path -V 2>&1 | sed 's/ from.*//')
 			version=`echo $version_raw | cut -d " " -f 2`
 			/usr/bin/printf "$green\xE2\x9C\x94 Python Package Index (pip) version $version found.\n$clear"
 			pip_ok="True"
@@ -623,7 +623,7 @@ check_iperf3() {
 	while [ $iperf3_ok = "False" ];
 	do
 		if [[ $iperf3_installed = "True" ]]; then
-			iperf3_version_raw=$($IPERF3_BINARY_PATH -v 2>&1 | grep -Po 'iperf (\d.\d+)')
+			iperf3_version_raw=$($IPERF3_BINARY_PATH -v 2>&1 | sed -n 's/.*\(iperf [0-9]*\.[0-9]*\).*/\1/p' | head -1)
 			iperf3_detected_version=`echo $iperf3_version_raw | cut -d " " -f 2`
 			
 			if version_gte $iperf3_min_req_version $iperf3_detected_version; then
