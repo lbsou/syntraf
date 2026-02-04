@@ -1,0 +1,325 @@
+{% extends "base.html" %}
+{% block title %}{{ _('bandwidth_calc.title') }}{% endblock %}
+{% block head %}
+<style>
+    .result-card {
+        transition: all 0.3s ease;
+    }
+    .result-value {
+        font-size: 2rem;
+        font-weight: bold;
+    }
+    .mesh-preview {
+        background: #1a1a2e;
+        border-radius: 8px;
+        padding: 20px;
+        min-height: 200px;
+    }
+    .warning-banner {
+        animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.7; }
+        100% { opacity: 1; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2 class="mb-4"><i class="fas fa-calculator me-2"></i>{{ _('bandwidth_calc.title') }}</h2>
+    <p class="text-muted">{{ _('bandwidth_calc.description') }}</p>
+
+    <div class="row">
+        <!-- Input Section -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <i class="fas fa-cog me-2"></i>{{ _('common.settings') }}
+                </div>
+                <div class="card-body">
+                    <div class="mb-4">
+                        <label for="num_nodes" class="form-label">{{ _('bandwidth_calc.num_nodes') }}</label>
+                        <input type="range" class="form-range" id="num_nodes_slider" min="2" max="64" value="4" oninput="updateCalculation()">
+                        <div class="d-flex justify-content-between">
+                            <input type="number" class="form-control form-control-sm w-25" id="num_nodes" min="2" max="100" value="4" oninput="syncSlider(); updateCalculation()">
+                            <span class="text-muted">{{ _('nav.clients') }}</span>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="bandwidth_per_link" class="form-label">{{ _('bandwidth_calc.bandwidth_per_link') }}</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="bandwidth_per_link" value="88" min="1" oninput="updateCalculation()">
+                            <select class="form-select" id="bandwidth_unit" style="max-width: 100px;" onchange="updateCalculation()">
+                                <option value="1" selected>Kbps</option>
+                                <option value="1000">Mbps</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>{{ _('bandwidth_calc.formula') }}</strong><br>
+                        <small>{{ _('bandwidth_calc.formula_desc') }}</small>
+                    </div>
+
+                    <button class="btn btn-primary w-100" onclick="updateCalculation()">
+                        <i class="fas fa-calculator me-2"></i>{{ _('bandwidth_calc.calculate') }}
+                    </button>
+                </div>
+            </div>
+
+            <!-- VoIP Preset -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <i class="fas fa-phone me-2"></i>VoIP G.711 Preset
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted">18B (Ethernet) + 20B (IP) + 8B (UDP) + 12B (RTP) + 160B (voice) = 218B @ 50pps = 87.2 Kbps</p>
+                    <button class="btn btn-outline-primary btn-sm" onclick="applyVoIPPreset()">
+                        <i class="fas fa-magic me-1"></i>Apply VoIP Preset
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div class="col-md-8">
+            <div id="warning_banner" class="alert alert-warning warning-banner mb-3" style="display: none;">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <strong>{{ _('bandwidth_calc.warning_high') }}</strong>
+                <span id="warning_text"></span>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="card result-card text-center">
+                        <div class="card-body">
+                            <i class="fas fa-network-wired fa-2x text-primary mb-2"></i>
+                            <h6>{{ _('bandwidth_calc.total_bandwidth') }}</h6>
+                            <div class="result-value text-primary" id="total_bandwidth">0</div>
+                            <small class="text-muted" id="total_bandwidth_unit">Kbps</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card result-card text-center">
+                        <div class="card-body">
+                            <i class="fas fa-desktop fa-2x text-success mb-2"></i>
+                            <h6>{{ _('bandwidth_calc.bandwidth_per_node') }}</h6>
+                            <div class="result-value text-success" id="bandwidth_per_node">0</div>
+                            <small class="text-muted" id="per_node_unit">Kbps</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card result-card text-center">
+                        <div class="card-body">
+                            <i class="fas fa-exchange-alt fa-2x text-info mb-2"></i>
+                            <h6>{{ _('bandwidth_calc.num_connections') }}</h6>
+                            <div class="result-value text-info" id="num_connections">0</div>
+                            <small class="text-muted">bidirectional</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mesh Visualization -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-project-diagram me-2"></i>Mesh Topology Preview
+                </div>
+                <div class="card-body">
+                    <div class="mesh-preview" id="mesh_preview">
+                        <canvas id="mesh_canvas" width="600" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scalability Table -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <i class="fas fa-table me-2"></i>Scalability Reference
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm table-striped">
+                        <thead>
+                            <tr>
+                                <th>Nodes</th>
+                                <th>Connections</th>
+                                <th>Total @ 88 Kbps</th>
+                                <th>Per Node</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>4</td><td>12</td><td>1,056 Kbps</td><td>264 Kbps</td></tr>
+                            <tr><td>8</td><td>56</td><td>4,928 Kbps</td><td>616 Kbps</td></tr>
+                            <tr><td>16</td><td>240</td><td>21,120 Kbps</td><td>1,320 Kbps</td></tr>
+                            <tr><td>32</td><td>992</td><td>87,296 Kbps</td><td>2,728 Kbps</td></tr>
+                            <tr><td>64</td><td>4,032</td><td>354,816 Kbps</td><td>5,544 Kbps</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function syncSlider() {
+    const value = parseInt(document.getElementById('num_nodes').value) || 2;
+    document.getElementById('num_nodes_slider').value = Math.min(64, Math.max(2, value));
+}
+
+function updateCalculation() {
+    const numNodes = parseInt(document.getElementById('num_nodes').value) || 2;
+    const bandwidthInput = parseFloat(document.getElementById('bandwidth_per_link').value) || 88;
+    const bandwidthMultiplier = parseInt(document.getElementById('bandwidth_unit').value);
+    const bandwidthKbps = bandwidthInput * bandwidthMultiplier;
+
+    // Sync slider
+    document.getElementById('num_nodes_slider').value = Math.min(64, Math.max(2, numNodes));
+    document.getElementById('num_nodes').value = numNodes;
+
+    // Calculate: N * (N-1) * bandwidth (bidirectional)
+    const numConnections = numNodes * (numNodes - 1);
+    const totalBandwidth = numConnections * bandwidthKbps;
+    const perNodeBandwidth = totalBandwidth / numNodes;
+
+    // Format output
+    let totalDisplay, totalUnit;
+    if (totalBandwidth >= 1000000) {
+        totalDisplay = (totalBandwidth / 1000000).toFixed(2);
+        totalUnit = 'Gbps';
+    } else if (totalBandwidth >= 1000) {
+        totalDisplay = (totalBandwidth / 1000).toFixed(2);
+        totalUnit = 'Mbps';
+    } else {
+        totalDisplay = totalBandwidth.toFixed(0);
+        totalUnit = 'Kbps';
+    }
+
+    let perNodeDisplay, perNodeUnit;
+    if (perNodeBandwidth >= 1000) {
+        perNodeDisplay = (perNodeBandwidth / 1000).toFixed(2);
+        perNodeUnit = 'Mbps';
+    } else {
+        perNodeDisplay = perNodeBandwidth.toFixed(0);
+        perNodeUnit = 'Kbps';
+    }
+
+    // Update display
+    document.getElementById('total_bandwidth').textContent = totalDisplay;
+    document.getElementById('total_bandwidth_unit').textContent = totalUnit;
+    document.getElementById('bandwidth_per_node').textContent = perNodeDisplay;
+    document.getElementById('per_node_unit').textContent = perNodeUnit;
+    document.getElementById('num_connections').textContent = numConnections.toLocaleString();
+
+    // Warning for high bandwidth
+    const warningBanner = document.getElementById('warning_banner');
+    if (totalBandwidth > 100000) { // > 100 Mbps
+        warningBanner.style.display = 'block';
+        document.getElementById('warning_text').textContent =
+            ` Total mesh bandwidth exceeds 100 Mbps. Consider reducing nodes or bandwidth per link.`;
+    } else {
+        warningBanner.style.display = 'none';
+    }
+
+    // Draw mesh preview
+    drawMeshPreview(numNodes);
+}
+
+function drawMeshPreview(numNodes) {
+    const canvas = document.getElementById('mesh_canvas');
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+
+    ctx.clearRect(0, 0, width, height);
+
+    // Limit visualization to 64 nodes for clarity
+    const maxDisplayNodes = 64;
+    const displayNodes = Math.min(numNodes, maxDisplayNodes);
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const radius = Math.min(width, height) / 2 - 40;
+
+    // Dynamic node size based on number of nodes
+    let nodeRadius = 12;
+    let fontSize = 10;
+    if (displayNodes > 32) {
+        nodeRadius = 6;
+        fontSize = 6;
+    } else if (displayNodes > 20) {
+        nodeRadius = 8;
+        fontSize = 7;
+    } else if (displayNodes > 16) {
+        nodeRadius = 10;
+        fontSize = 8;
+    }
+
+    // Calculate node positions
+    const nodes = [];
+    for (let i = 0; i < displayNodes; i++) {
+        const angle = (2 * Math.PI * i / displayNodes) - Math.PI / 2;
+        nodes.push({
+            x: centerX + radius * Math.cos(angle),
+            y: centerY + radius * Math.sin(angle)
+        });
+    }
+
+    // Draw connections (with transparency adjustment for many nodes)
+    const connectionOpacity = displayNodes > 32 ? 0.1 : (displayNodes > 20 ? 0.2 : 0.3);
+    ctx.strokeStyle = `rgba(0, 123, 255, ${connectionOpacity})`;
+    ctx.lineWidth = displayNodes > 32 ? 0.5 : 1;
+    for (let i = 0; i < displayNodes; i++) {
+        for (let j = i + 1; j < displayNodes; j++) {
+            ctx.beginPath();
+            ctx.moveTo(nodes[i].x, nodes[i].y);
+            ctx.lineTo(nodes[j].x, nodes[j].y);
+            ctx.stroke();
+        }
+    }
+
+    // Draw nodes
+    for (let i = 0; i < displayNodes; i++) {
+        ctx.beginPath();
+        ctx.arc(nodes[i].x, nodes[i].y, nodeRadius, 0, 2 * Math.PI);
+        ctx.fillStyle = '#0d6efd';
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = displayNodes > 32 ? 1 : 2;
+        ctx.stroke();
+
+        // Node number (only show if enough space)
+        if (displayNodes <= 40) {
+            ctx.fillStyle = '#fff';
+            ctx.font = `${fontSize}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(i + 1, nodes[i].x, nodes[i].y);
+        }
+    }
+
+    // If more than max nodes, show indicator
+    if (numNodes > maxDisplayNodes) {
+        ctx.fillStyle = '#6c757d';
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(`(showing ${maxDisplayNodes} of ${numNodes} nodes)`, centerX, height - 10);
+    }
+}
+
+function applyVoIPPreset() {
+    document.getElementById('bandwidth_per_link').value = 87.2;
+    document.getElementById('bandwidth_unit').value = '1';
+    updateCalculation();
+}
+
+// Initial calculation
+document.addEventListener('DOMContentLoaded', updateCalculation);
+</script>
+
+{% endblock %}

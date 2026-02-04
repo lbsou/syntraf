@@ -149,15 +149,21 @@
                     </div>
                 </div>
 
-                <div class="form-group mb-3">
-                    <label for="db_token" class="form-label">API Token <span class="text-danger">*</span></label>
+                <div class="form-group mb-3" id="db_token_container">
+                    <label for="db_token" class="form-label" id="db_token_label">API Token <span class="text-danger" id="db_token_required">*</span></label>
                     <div class="input-group">
                         <input class="form-control" id="db_token" type="password" placeholder="Your InfluxDB API token" name="db_token" required>
                         <button type="button" class="btn btn-outline-secondary" onclick="toggleTokenVisibility()" title="Show/hide token">
                             <i class="fas fa-eye" id="token_eye_icon"></i>
                         </button>
                     </div>
-                    <small class="text-muted">InfluxDB API token with write permissions</small>
+                    <small class="text-muted" id="db_token_help">InfluxDB API token with write permissions</small>
+                </div>
+
+                <div class="form-group mb-3" id="db_tenant_container" style="display: none;">
+                    <label for="db_tenant" class="form-label">Tenant ID</label>
+                    <input class="form-control" id="db_tenant" type="text" placeholder="0:0 (optional)" name="db_tenant">
+                    <small class="text-muted">VictoriaMetrics tenant for multi-tenancy cluster (format: accountID:projectID)</small>
                 </div>
 
                 <div class="form-check form-switch mb-3">
@@ -239,15 +245,27 @@
             $('#db_bucket').prop('required', true);
             $('#db_bucket_label').html('Database <span class="text-danger">*</span>');
             $('#db_bucket_help').text('InfluxDB database name');
+            $('#db_token_container').show();
             $('#db_token').prop('required', true);
+            $('#db_token_required').show();
+            $('#db_token_label').html('API Token <span class="text-danger">*</span>');
+            $('#db_token').attr('placeholder', 'Your InfluxDB API token');
+            $('#db_token_help').text('InfluxDB API token with write permissions');
+            $('#db_tenant_container').hide();
             $('#db_port').val('443');  // Default port for InfluxDB3 Cloud
         } else if (engine === 'VictoriaMetrics') {
-            // VictoriaMetrics: No org/bucket needed, token is optional
+            // VictoriaMetrics: No org/bucket needed, token is optional (Bearer auth)
             $('#db_org_container').hide();
             $('#db_org').prop('required', false);
             $('#db_bucket').parent().parent().hide();
             $('#db_bucket').prop('required', false);
+            $('#db_token_container').show();
             $('#db_token').prop('required', false);
+            $('#db_token_required').hide();
+            $('#db_token_label').html('Bearer Token');
+            $('#db_token').attr('placeholder', 'Optional authentication token');
+            $('#db_token_help').text('Optional Bearer token for authentication (leave empty if not required)');
+            $('#db_tenant_container').show();
             $('#db_port').val('8428');  // Default port for VictoriaMetrics
         } else {
             // InfluxDB 2: Organization and Bucket are required
@@ -259,7 +277,13 @@
             $('#db_bucket').prop('required', true);
             $('#db_bucket_label').html('Bucket <span class="text-danger">*</span>');
             $('#db_bucket_help').text('InfluxDB bucket name');
+            $('#db_token_container').show();
             $('#db_token').prop('required', true);
+            $('#db_token_required').show();
+            $('#db_token_label').html('API Token <span class="text-danger">*</span>');
+            $('#db_token').attr('placeholder', 'Your InfluxDB API token');
+            $('#db_token_help').text('InfluxDB API token with write permissions');
+            $('#db_tenant_container').hide();
             $('#db_port').val('8086');  // Default port for InfluxDB2
         }
     }
@@ -276,6 +300,7 @@
         $('#db_org').val('SYNTRAF');
         $('#db_bucket').val('SYNTRAF');
         $('#db_token').val('').attr('type', 'password');
+        $('#db_tenant').val('');
         $('#token_eye_icon').removeClass('fa-eye-slash').addClass('fa-eye');
         $('#db_use_ssl').prop('checked', false);
         $('#db_disabled').prop('checked', false);
@@ -304,6 +329,7 @@
         $('#db_org').val(row.DB_ORG || '');
         $('#db_bucket').val(row.DB_BUCKET || row.DB_DATABASE || '');
         $('#db_token').val(row.DB_TOKEN || '').attr('type', 'password');
+        $('#db_tenant').val(row.DB_TENANT || '');
         $('#token_eye_icon').removeClass('fa-eye-slash').addClass('fa-eye');
         $('#db_use_ssl').prop('checked', row.DB_SERVER_USE_SSL || false);
         $('#db_disabled').prop('checked', row.DISABLED || false);
@@ -339,6 +365,7 @@
         fd.append('DB_ORG', $('#db_org').val().trim());
         fd.append('DB_BUCKET', $('#db_bucket').val().trim());
         fd.append('DB_TOKEN', $('#db_token').val());
+        fd.append('DB_TENANT', $('#db_tenant').val().trim());
         fd.append('DB_SERVER_USE_SSL', $('#db_use_ssl').is(':checked') ? 'true' : 'false');
         if (editMode) {
             fd.append('DISABLED', $('#db_disabled').is(':checked') ? 'true' : 'false');

@@ -1273,7 +1273,8 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
 
     #MESH_LISTENERS_PORT_RANGE per client
     # Affect port range per node, affect global, then overwrite with specific if config exist.
-    listeners_ports = list(map(int, _config['SERVER']['MESH_LISTENERS_PORT_RANGE'].split('-')))
+    port_range_str = _config['SERVER'].get('MESH_LISTENERS_PORT_RANGE', DefaultValues.DEFAULT_PORT_RANGE)
+    listeners_ports = list(map(int, port_range_str.split('-')))
     for client in _config['SERVER_CLIENT']:
         _dict_port_ref[client['UID']] = listeners_ports
 

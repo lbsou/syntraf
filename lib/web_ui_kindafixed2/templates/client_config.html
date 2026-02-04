@@ -18,6 +18,11 @@
       <button id="btn_duplicate" class="btn btn-primary" style="width:120px;" disabled>
         <i class="far fa-clone"></i>&nbsp;&nbsp;&nbsp;Duplicate
       </button>
+      <span class="mx-2">|</span>
+      <a href="{{ url_for('st_home_bp.pending_clients') }}" class="btn btn-warning" id="btn_pending">
+        <i class="fas fa-user-clock"></i>&nbsp;&nbsp;&nbsp;{{ _('nav.pending_clients') }}
+        <span id="pending_count_badge" class="badge bg-danger ms-1" style="display:none;">0</span>
+      </a>
     </div>
       <table id="table" class="table-dark table-striped thead-dark table-hover table-sm vertical-align" style="width:100%"
           data-toolbar="#toolbar"
@@ -192,6 +197,27 @@
     // Load clients on page load
     get_clients();
     load_mesh_groups();
+    load_pending_count();
+
+    // Fetch pending client count and update badge
+    async function load_pending_count() {
+        try {
+            const fd = new FormData();
+            fd.append("ACTION", "GET_PENDING_CLIENTS");
+            const response = await fetch('/api', { method: 'POST', body: fd });
+            const data = await response.json();
+            const pendingCount = Array.isArray(data) ? data.filter(c => c.STATUS === 'PENDING').length : 0;
+            const badge = document.getElementById('pending_count_badge');
+            if (pendingCount > 0) {
+                badge.textContent = pendingCount;
+                badge.style.display = 'inline';
+            } else {
+                badge.style.display = 'none';
+            }
+        } catch (error) {
+            console.error('Error loading pending count:', error);
+        }
+    }
 
     $(document).ready(function(){
         $("#modal_confirmation").modal({backdrop: 'static', keyboard: false});

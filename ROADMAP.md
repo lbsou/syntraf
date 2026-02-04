@@ -14,17 +14,17 @@ v0.2 - Getting things done aka ANT
 v0.3 - A step back aka MOONWALK
  - iperf3 libiperf integration
  - run as a service in Windows
- - restart compatibility (Windows and Linux)
+ [X] restart compatibility (Windows and Linux)
  [X] fix high loss stability (db insertion not regular)
 
 
 v0.4 - The makeover aka CINDERELLA
- - Edit clients and groups from webui
+ [X] Edit clients and groups from webui
  - description field for group and client  
- X Show in webui the potential and actual client bandwidth usage  
+ [X] Show in webui the potential and actual client bandwidth usage  
  - Integrate client and group editing with visual map
  - Remote action : pause
- X fix memory leak in client status webui [FIXED 2022-07-13 - LBS]
+ [X] fix memory leak in client status webui [FIXED 2022-07-13 - LBS]
 
 
 v0.5 - On the other side lies the truth - SUBMARINE
@@ -38,11 +38,11 @@ v0.6 - Better understanding of what's going on - PULSAR
  - save client logs to server
  
 v0.7 - Add security aka K9
- - User login and user management
+ [X] User login and user management
  - Group  
- - API security
+ [X] API security
  - webui compartementalized access
- - client auth
+ [X] client auth
 
 v0.8
  - Edit database retention
@@ -52,7 +52,7 @@ v0.9
  - Update client
 
 v0.91
- - Traduction framework
+ [X] Traduction framework
 
 v1.0
  - mtr extension

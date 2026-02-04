@@ -93,7 +93,8 @@ def launch_and_respawn_workers(config, cli_parameters, threads_n_processes, obj_
                                              threads_n_processes, subprocess_iperf_dict, _dict_by_node_generated_config,
                                              _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server,
                                              config, cli_parameters, config_file_path, conn_db,
-                                             dict_of_commands_for_network_clients, dict_of_clients),
+                                             dict_of_commands_for_network_clients, dict_of_clients,
+                                             dict_of_client_pending_acceptance),
                                              daemon=True)
                 thr_webui.name = "WEBUI"
                 thr_webui.start()
@@ -126,11 +127,13 @@ def launch_and_respawn_workers(config, cli_parameters, threads_n_processes, obj_
 
 def launch_webui(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generated_config,
                  _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server, config, cli_parameters,
-                 config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients):
+                 config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients,
+                 dict_of_client_pending_acceptance=None):
     try:
         app = create_app(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generated_config,
                          _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server, config,
-                         config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients)
+                         config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients,
+                         dict_of_client_pending_acceptance)
         # app = ProfilerMiddleware(app)
         cert_path = os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, "crypto", "WEBUI_X509_SELFSIGNED_DIRECTORY")
 

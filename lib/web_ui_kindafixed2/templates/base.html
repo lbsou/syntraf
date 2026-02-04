@@ -32,23 +32,50 @@
                   <a class="dropdown-item" href="stats.html">{{ _('nav.clients') }}</a>
                   <a class="dropdown-item" href="maps.html">{{ _('nav.maps') }}</a>
                   <a class="dropdown-item" href="queue.html">{{ _('nav.queue') }}</a>
+                  <a class="dropdown-item" href="proc.html">{{ _('nav.processes') }}</a>
+                  <div class="dropdown-divider"></div>
+                  <a class="dropdown-item" href="diagnostics.html">{{ _('nav.diagnostics') }}</a>
                 </div>
               </li>
 
               <li class="nav-item dropdown">
                 <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">{{ _('nav.configurations') }}</a>
                 <div class="dropdown-menu">
-                  <a class="dropdown-item" href="client_config.html">{{ _('nav.clients') }}</a>
-                  <a class="dropdown-item" href="database_config.html">{{ _('nav.databases') }}</a>
-                  <a class="dropdown-item" href="global_config.html">{{ _('nav.global') }}</a>
-                  <a class="dropdown-item" href="mesh_group_config.html">{{ _('nav.groups') }}</a>
-                  <a class="dropdown-item" href="server.html">{{ _('nav.server') }}</a>
-                  <a class="dropdown-item" href="token_config.html">{{ _('nav.tokens') }}</a>
-                  <a class="dropdown-item" href="users_config.html">{{ _('nav.users') }}</a>
+                  <!-- Client Configuration -->
+                  <a class="dropdown-item" href="global_config.html"><i class="fas fa-laptop fa-fw me-2"></i>{{ _('nav.client') }}</a>
+                  <div class="dropdown-divider"></div>
+                  <!-- Server submenu -->
+                  <h6 class="dropdown-header"><i class="fas fa-server fa-fw me-1"></i>{{ _('nav.server') }}</h6>
+                  <a class="dropdown-item ps-4" href="server_network.html"><i class="fas fa-network-wired fa-fw me-2"></i>{{ _('nav.network_settings') }}</a>
+                  <a class="dropdown-item ps-4" href="server_auth.html"><i class="fas fa-shield-alt fa-fw me-2"></i>{{ _('nav.authentication') }}</a>
+                  <a class="dropdown-item ps-4" href="database_config.html"><i class="fas fa-database fa-fw me-2"></i>{{ _('nav.databases') }}</a>
+                  <a class="dropdown-item ps-4" href="client_config.html"><i class="fas fa-sitemap fa-fw me-2"></i>{{ _('nav.client_nodes') }}</a>
+                  <a class="dropdown-item ps-4" href="pending_clients.html"><i class="fas fa-user-clock fa-fw me-2"></i>{{ _('nav.pending_clients') }}</a>
+                  <a class="dropdown-item ps-4" href="mesh_group_config.html"><i class="fas fa-project-diagram fa-fw me-2"></i>{{ _('nav.mesh_groups') }}</a>
+                  <a class="dropdown-item ps-4" href="iperf3_profile_config.html"><i class="fas fa-sliders-h fa-fw me-2"></i>{{ _('nav.profiles') }}</a>
+                  <a class="dropdown-item ps-4" href="token_config.html"><i class="fas fa-key fa-fw me-2"></i>{{ _('nav.tokens') }}</a>
+                  <div class="dropdown-divider"></div>
+                  <!-- WebUI submenu -->
+                  <h6 class="dropdown-header"><i class="fas fa-globe fa-fw me-1"></i>{{ _('nav.webui') }}</h6>
+                  <a class="dropdown-item ps-4" href="webui_service.html"><i class="fas fa-cog fa-fw me-2"></i>{{ _('nav.web_service') }}</a>
+                  <a class="dropdown-item ps-4" href="users_config.html"><i class="fas fa-users fa-fw me-2"></i>{{ _('nav.user_management') }}</a>
                 </div>
               </li>
+
+              <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">{{ _('nav.tools') }}</a>
+                <div class="dropdown-menu">
+                  <a class="dropdown-item" href="bandwidth_calc.html">{{ _('nav.bandwidth_calc') }}</a>
+                  <a class="dropdown-item" href="config_export.html">{{ _('nav.config_export') }}</a>
+                </div>
+              </li>
+
               <li class="nav-item">
                 <a class="nav-link" href="logs.html">{{ _('nav.logs') }}</a>
+              </li>
+
+              <li class="nav-item">
+                <a class="nav-link" href="help.html">{{ _('nav.help') }}</a>
               </li>
 
               <li class="nav-item">

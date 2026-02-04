@@ -1,0 +1,369 @@
+{% extends "base.html" %}
+{% block title %}{{ _('help.title') }}{% endblock %}
+{% block head %}
+<style>
+    .help-nav {
+        position: sticky;
+        top: 80px;
+    }
+    .help-section {
+        scroll-margin-top: 80px;
+    }
+    .config-table td:first-child {
+        font-family: monospace;
+        font-weight: bold;
+        white-space: nowrap;
+    }
+    .config-table td:nth-child(3) {
+        font-family: monospace;
+        color: #6c757d;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Navigation Sidebar -->
+        <div class="col-md-3">
+            <div class="help-nav">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <i class="fas fa-book me-2"></i>{{ _('help.title') }}
+                    </div>
+                    <div class="list-group list-group-flush">
+                        <a href="#getting-started" class="list-group-item list-group-item-action">
+                            <i class="fas fa-rocket me-2"></i>{{ _('help.getting_started') }}
+                        </a>
+                        <a href="#config-reference" class="list-group-item list-group-item-action">
+                            <i class="fas fa-cog me-2"></i>{{ _('help.configuration') }}
+                        </a>
+                        <a href="#global-config" class="list-group-item list-group-item-action ps-4">
+                            {{ _('help.global_section') }}
+                        </a>
+                        <a href="#server-config" class="list-group-item list-group-item-action ps-4">
+                            {{ _('help.server_section') }}
+                        </a>
+                        <a href="#client-config" class="list-group-item list-group-item-action ps-4">
+                            {{ _('help.client_section') }}
+                        </a>
+                        <a href="#database-config" class="list-group-item list-group-item-action ps-4">
+                            {{ _('help.database_section') }}
+                        </a>
+                        <a href="#mesh-group-config" class="list-group-item list-group-item-action ps-4">
+                            {{ _('help.mesh_group_section') }}
+                        </a>
+                        <a href="#server-client-config" class="list-group-item list-group-item-action ps-4">
+                            {{ _('help.server_client_section') }}
+                        </a>
+                        <a href="#faq" class="list-group-item list-group-item-action">
+                            <i class="fas fa-question-circle me-2"></i>{{ _('help.faq') }}
+                        </a>
+                        <a href="#troubleshooting" class="list-group-item list-group-item-action">
+                            <i class="fas fa-wrench me-2"></i>{{ _('help.troubleshooting') }}
+                        </a>
+                        <a href="#about" class="list-group-item list-group-item-action">
+                            <i class="fas fa-info-circle me-2"></i>{{ _('help.about') }}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Content -->
+        <div class="col-md-9">
+            <!-- Getting Started -->
+            <section id="getting-started" class="help-section mb-5">
+                <h2><i class="fas fa-rocket me-2"></i>{{ _('help.getting_started') }}</h2>
+                <div class="card">
+                    <div class="card-body">
+                        <h5>What is SYNTRAF?</h5>
+                        <p>SYNTRAF (Synthetic Traffic) is a tool for generating synthetic network traffic to measure Quality of Experience (QoE). It creates mesh topologies of UDP traffic between nodes using iperf3, with centralized configuration management, InfluxDB for metrics storage, and Grafana for visualization.</p>
+
+                        <h5 class="mt-4">Quick Start</h5>
+                        <ol>
+                            <li><strong>Server Setup:</strong> Configure a SYNTRAF server with the [SERVER] section in your config file</li>
+                            <li><strong>Add Databases:</strong> Configure InfluxDB connections in [[DATABASE]] sections</li>
+                            <li><strong>Create Mesh Groups:</strong> Define test profiles in [[MESH_GROUP]] sections</li>
+                            <li><strong>Add Clients:</strong> Define client nodes in [[SERVER_CLIENT]] sections</li>
+                            <li><strong>Deploy Clients:</strong> Install SYNTRAF on client machines and configure them to connect to the server</li>
+                        </ol>
+
+                        <h5 class="mt-4">Command Line Usage</h5>
+                        <pre class="bg-dark text-light p-3 rounded">python3 syntraf.py -c /path/to/config.toml -l /path/to/logs/</pre>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Configuration Reference -->
+            <section id="config-reference" class="help-section mb-5">
+                <h2><i class="fas fa-cog me-2"></i>{{ _('help.configuration') }}</h2>
+                <p class="text-muted">Configuration files use TOML syntax. Below is a reference for all configuration options.</p>
+            </section>
+
+            <!-- Global Config -->
+            <section id="global-config" class="help-section mb-5">
+                <h3>{{ _('help.global_section') }} [GLOBAL]</h3>
+                <div class="card">
+                    <div class="card-body">
+                        <table class="table table-sm config-table">
+                            <thead>
+                                <tr><th>Variable</th><th>Description</th><th>Default</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>IPERF3_BINARY_PATH</td><td>Full path to iperf3 binary</td><td>Auto-detect</td></tr>
+                                <tr><td>IPERF3_TEMP_DIRECTORY</td><td>Directory for iperf3 output files</td><td>None</td></tr>
+                                <tr><td>IPERF3_RSA_KEY_DIRECTORY</td><td>Directory for RSA keypairs and credentials</td><td>crypto/rsa_key_iperf3</td></tr>
+                                <tr><td>IPERF3_TIME_SKEW_THRESHOLD</td><td>Max clock skew tolerance (seconds)</td><td>10</td></tr>
+                                <tr><td>IPERF3_AUTH</td><td>Enable iperf3 authentication (true/false)</td><td>true</td></tr>
+                                <tr><td>LOG_TO</td><td>Log output: stdout, file, all</td><td>all</td></tr>
+                                <tr><td>LOG_LEVEL</td><td>debug, info, warning, error, critical</td><td>info</td></tr>
+                                <tr><td>LOG_MAX_SIZE_PER_FILE_MB</td><td>Max log file size in MB</td><td>1</td></tr>
+                                <tr><td>LOG_FILE_TO_KEEP</td><td>Number of rotated log files to keep</td><td>1</td></tr>
+                                <tr><td>WATCHDOG_CHECK_RATE</td><td>Thread check interval (seconds)</td><td>2</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Server Config -->
+            <section id="server-config" class="help-section mb-5">
+                <h3>{{ _('help.server_section') }} [SERVER]</h3>
+                <div class="card">
+                    <div class="card-body">
+                        <table class="table table-sm config-table">
+                            <thead>
+                                <tr><th>Variable</th><th>Description</th><th>Default</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>BIND_ADDRESS</td><td>IPv4 address for control channel binding</td><td>Required</td></tr>
+                                <tr><td>SERVER_PORT</td><td>TCP port for control channel (1-65534)</td><td>6531</td></tr>
+                                <tr><td>TOKEN</td><td>Authentication tokens for clients (TOML inline table)</td><td>Required</td></tr>
+                                <tr><td>MESH_LISTENERS_PORT_RANGE</td><td>Port range for iperf3 listeners (e.g., "15000-16000")</td><td>15000-16000</td></tr>
+                                <tr><td>SERVER_X509_SELFSIGNED_DIRECTORY</td><td>Directory for auto-generated certificates</td><td>crypto/certificate...</td></tr>
+                                <tr><td>SERVER_X509_CERTIFICATE_CONTENT</td><td>X509 certificate content (PEM format, multiline string)</td><td>None</td></tr>
+                                <tr><td>SERVER_X509_CA_CHAIN</td><td>Path to CA chain file</td><td>None</td></tr>
+                                <tr><td>SERVER_X509_PRIVATE_KEY_CONTENT</td><td>X509 private key content (PEM format, multiline string)</td><td>None</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Client Config -->
+            <section id="client-config" class="help-section mb-5">
+                <h3>{{ _('help.client_section') }} [CLIENT]</h3>
+                <div class="card">
+                    <div class="card-body">
+                        <table class="table table-sm config-table">
+                            <thead>
+                                <tr><th>Variable</th><th>Description</th><th>Default</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>CLIENT_UID</td><td>Unique client identifier (A-Za-z0-9_-)</td><td>Required</td></tr>
+                                <tr><td>SERVER</td><td>IPv4 address or FQDN of the server</td><td>Required</td></tr>
+                                <tr><td>SERVER_PORT</td><td>Server TCP port (1-65534)</td><td>6531</td></tr>
+                                <tr><td>TOKEN</td><td>Authentication token (5-255 chars)</td><td>Required</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Database Config -->
+            <section id="database-config" class="help-section mb-5">
+                <h3>{{ _('help.database_section') }} [[DATABASE]]</h3>
+                <div class="card">
+                    <div class="card-body">
+                        <p class="text-info"><i class="fas fa-info-circle me-1"></i>Multiple database instances can be defined using [[DATABASE]] sections.</p>
+                        <table class="table table-sm config-table">
+                            <thead>
+                                <tr><th>Variable</th><th>Description</th><th>Default</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>DB_UID</td><td>Unique database identifier</td><td>Required</td></tr>
+                                <tr><td>DB_SERVER</td><td>Database server IP or hostname</td><td>Required</td></tr>
+                                <tr><td>DB_PORT</td><td>Database port</td><td>Required</td></tr>
+                                <tr><td>DB_TOKEN</td><td>InfluxDB2 authentication token</td><td>Required</td></tr>
+                                <tr><td>DB_ORG</td><td>InfluxDB2 organization name</td><td>Required</td></tr>
+                                <tr><td>DB_BUCKET</td><td>InfluxDB2 bucket name</td><td>Required</td></tr>
+                                <tr><td>DB_ENGINE</td><td>Database engine (influxdb2, victoriametrics)</td><td>influxdb2</td></tr>
+                                <tr><td>DB_SERVER_USE_SSL</td><td>Use HTTPS connection (true/false)</td><td>true</td></tr>
+                                <tr><td>DB_USE_WEB_PROXY</td><td>HTTP proxy URL if required</td><td>None</td></tr>
+                                <tr><td>DB_CONNECTION_POOL_MAXSIZE</td><td>Connection pool size (1-100000)</td><td>200</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Mesh Group Config -->
+            <section id="mesh-group-config" class="help-section mb-5">
+                <h3>{{ _('help.mesh_group_section') }} [[MESH_GROUP]]</h3>
+                <div class="card">
+                    <div class="card-body">
+                        <p class="text-info"><i class="fas fa-info-circle me-1"></i>Mesh groups define test profiles that clients can be assigned to.</p>
+                        <table class="table table-sm config-table">
+                            <thead>
+                                <tr><th>Variable</th><th>Description</th><th>Default</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>UID</td><td>Unique group identifier (A-Za-z0-9_-)</td><td>Required</td></tr>
+                                <tr><td>IPERF3_PROFILE</td><td>Reference to an [[IPERF3_PROFILE]] UID</td><td>None</td></tr>
+                                <tr><td>BANDWIDTH</td><td>Bandwidth per link (e.g., "100K", "1M")</td><td>100K</td></tr>
+                                <tr><td>DSCP</td><td>QoS DSCP value (0-63)</td><td>0</td></tr>
+                                <tr><td>PACKET_SIZE</td><td>UDP packet size in bytes (16-65507)</td><td>32</td></tr>
+                                <tr><td>INTERVAL</td><td>Metrics reporting interval (seconds)</td><td>10</td></tr>
+                                <tr><td>PACKET_PER_SECOND</td><td>Packets per second (optional)</td><td>Calculated</td></tr>
+                            </tbody>
+                        </table>
+                        <div class="alert alert-warning mt-3">
+                            <i class="fas fa-exclamation-triangle me-1"></i>
+                            Of BANDWIDTH, PACKET_SIZE, and PACKET_PER_SECOND, only two should be defined. The third will be calculated automatically.
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Server Client Config -->
+            <section id="server-client-config" class="help-section mb-5">
+                <h3>{{ _('help.server_client_section') }} [[SERVER_CLIENT]]</h3>
+                <div class="card">
+                    <div class="card-body">
+                        <p class="text-info"><i class="fas fa-info-circle me-1"></i>Server client definitions specify nodes and their mesh group memberships.</p>
+                        <table class="table table-sm config-table">
+                            <thead>
+                                <tr><th>Variable</th><th>Description</th><th>Default</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>UID</td><td>Unique client identifier (A-Za-z0-9_-)</td><td>Required</td></tr>
+                                <tr><td>IP_ADDRESS</td><td>Client IPv4 address or FQDN (use 0.0.0.0 for dynamic)</td><td>Required</td></tr>
+                                <tr><td>MESH_GROUP_UID_LIST</td><td>List of mesh group UIDs (e.g., ["LAB", "VoIP"])</td><td>Required</td></tr>
+                                <tr><td>MAX_BANDWIDTH</td><td>Total bandwidth limit for this client (e.g., "10M")</td><td>Unlimited</td></tr>
+                                <tr><td>BEHIND_NAT</td><td>Enable bidirectional connections for NAT traversal</td><td>false</td></tr>
+                                <tr><td>MESH_LISTENERS_PORT_RANGE</td><td>Override server-level port range</td><td>Inherited</td></tr>
+                                <tr><td>INCLUDE_ONLY_CLIENT_UID</td><td>Mutual inclusion filter per group</td><td>None</td></tr>
+                                <tr><td>EXCLUDED_CLIENT_UID</td><td>Mutual exclusion filter per group</td><td>None</td></tr>
+                                <tr><td>OVERRIDE_DST_NODE_IP</td><td>Override destination IP for specific clients</td><td>None</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- FAQ -->
+            <section id="faq" class="help-section mb-5">
+                <h2><i class="fas fa-question-circle me-2"></i>{{ _('help.faq') }}</h2>
+                <div class="accordion" id="faqAccordion">
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq1">
+                                How do I simulate VoIP traffic (G.711)?
+                            </button>
+                        </h2>
+                        <div id="faq1" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                            <div class="accordion-body">
+                                <p>For G.711 VoIP simulation, use these settings in your MESH_GROUP:</p>
+                                <pre class="bg-dark text-light p-2 rounded">BANDWIDTH = "87.2K"
+PACKET_SIZE = "218"</pre>
+                                <p class="small text-muted">218 bytes = 18 (Ethernet) + 20 (IP) + 8 (UDP) + 12 (RTP) + 160 (voice payload) @ 50 pps = 87.2 Kbps</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq2">
+                                What ports need to be opened in the firewall?
+                            </button>
+                        </h2>
+                        <div id="faq2" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                            <div class="accordion-body">
+                                <p><strong>Server:</strong></p>
+                                <pre class="bg-dark text-light p-2 rounded">TCP 6531 (control channel)</pre>
+                                <p><strong>Clients:</strong></p>
+                                <pre class="bg-dark text-light p-2 rounded">UDP/TCP 15000-16000 (iperf3 listeners)</pre>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq3">
+                                Can I run SYNTRAF without installing Python?
+                            </button>
+                        </h2>
+                        <div id="faq3" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                            <div class="accordion-body">
+                                <p>Yes! You can package SYNTRAF with PyInstaller:</p>
+                                <pre class="bg-dark text-light p-2 rounded">pip3 install pyinstaller
+pyinstaller syntraf.py --onedir</pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Troubleshooting -->
+            <section id="troubleshooting" class="help-section mb-5">
+                <h2><i class="fas fa-wrench me-2"></i>{{ _('help.troubleshooting') }}</h2>
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="text-danger">IPERF3: ERROR - TEST AUTHORIZATION FAILED</h5>
+                        <ul>
+                            <li>Clock skew between nodes exceeds 10 seconds - synchronize time using NTP</li>
+                            <li>Increase IPERF3_TIME_SKEW_THRESHOLD if time sync is not possible</li>
+                        </ul>
+
+                        <h5 class="text-warning mt-4">libuv timer resolution warning</h5>
+                        <p>This warning is harmless and appears on Windows due to gevent/libuv limitations.</p>
+
+                        <h5 class="text-info mt-4">safe_join deprecation error</h5>
+                        <p>Pin Flask to version 2.0.3: <code>pip install Flask==2.0.3</code></p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- About -->
+            <section id="about" class="help-section mb-5">
+                <h2><i class="fas fa-info-circle me-2"></i>{{ _('help.about') }}</h2>
+                <div class="card">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>{{ _('help.version') }}:</strong> v{{ syntraf_version }}</p>
+                                <p><strong>Author:</strong> Louis-Berthier Soulliere</p>
+                                <p><strong>License:</strong> Open Source</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p>
+                                    <a href="https://github.com/lbsou/syntraf" target="_blank" class="btn btn-outline-primary">
+                                        <i class="fab fa-github me-2"></i>{{ _('help.github') }}
+                                    </a>
+                                </p>
+                                <p>
+                                    <a href="https://github.com/lbsou/syntraf/issues" target="_blank" class="btn btn-outline-secondary">
+                                        <i class="fas fa-bug me-2"></i>{{ _('help.report_issue') }}
+                                    </a>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+
+<script>
+// Smooth scrolling for anchor links
+document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+    anchor.addEventListener('click', function (e) {
+        e.preventDefault();
+        document.querySelector(this.getAttribute('href')).scrollIntoView({
+            behavior: 'smooth'
+        });
+    });
+});
+</script>
+
+{% endblock %}

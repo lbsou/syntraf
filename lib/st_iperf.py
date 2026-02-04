@@ -221,14 +221,16 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes):
         args.append("--timestamps='%F %T '")
         args.extend([bidir_arg, "--forceflush"])
 
-        ''' 
+        '''
         --cntl-ka[=#/#/#] use control connection TCP keepalive - KEEPIDLE/KEEPINTV/KEEPCNT
-        control connection Keepalive period should be larger than retry period (interval * count) 
+        control connection Keepalive period should be larger than retry period (interval * count)
         TCP_KEEPIDLE = Interval of Keepalive
         TCP_KEEPINTV = Interval of Retry
         TCP_KEEPCNT = Drop connection after that amount of lost keepalive
+        Note: --cntl-ka is only supported on Linux/macOS/BSD, not on Windows
         '''
-        args.append('--cntl-ka=10/1/5')
+        if sys.platform != 'win32':
+            args.append('--cntl-ka=10/1/5')
 
         if config['GLOBAL']['IPERF3_AUTH']:
             args.append("--username")
@@ -293,14 +295,16 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes):
             args.extend(["-p", str(config['LISTENERS'][listener_key]['PORT'])])
             args.append("--timestamps='%F %T '")
 
-            ''' 
+            '''
             --cntl-ka[=#/#/#] use control connection TCP keepalive - KEEPIDLE/KEEPINTV/KEEPCNT
-            control connection Keepalive period should be larger than retry period (interval * count) 
+            control connection Keepalive period should be larger than retry period (interval * count)
             TCP_KEEPIDLE = Interval of Keepalive
             TCP_KEEPINTV = Interval of Retry
             TCP_KEEPCNT = Drop connection after that amount of lost keepalive
+            Note: --cntl-ka is only supported on Linux/macOS/BSD, not on Windows
             '''
-            args.append('--cntl-ka=10/1/5')
+            if sys.platform != 'win32':
+                args.append('--cntl-ka=10/1/5')
 
             if config['GLOBAL']['IPERF3_AUTH']:
                 args.append("--rsa-private-key-path")

@@ -1,0 +1,315 @@
+{% extends "base.html" %}
+{% block title %}{{ _('config_export.title') }}{% endblock %}
+{% block content %}
+<div class="container-fluid">
+    <h2 class="mb-4"><i class="fas fa-file-export me-2"></i>{{ _('config_export.title') }}</h2>
+
+    <!-- Alert Container -->
+    <div id="alert_container"></div>
+
+    <div class="row">
+        <!-- Export Section -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <i class="fas fa-download me-2"></i>{{ _('config_export.export_title') }}
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">{{ _('config_export.export_desc') }}</p>
+
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="export_include_tokens" checked>
+                            <label class="form-check-label" for="export_include_tokens">
+                                <i class="fas fa-key me-1"></i>{{ _('nav.tokens') }}
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="export_include_db" checked>
+                            <label class="form-check-label" for="export_include_db">
+                                <i class="fas fa-database me-1"></i>{{ _('nav.databases') }}
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="export_include_clients" checked>
+                            <label class="form-check-label" for="export_include_clients">
+                                <i class="fas fa-desktop me-1"></i>{{ _('nav.clients') }}
+                            </label>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-success w-100" onclick="exportConfig()">
+                        <i class="fas fa-download me-2"></i>{{ _('config_export.export_btn') }}
+                    </button>
+                </div>
+            </div>
+
+            <!-- Current Config Preview -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <i class="fas fa-eye me-2"></i>Current Configuration Preview
+                </div>
+                <div class="card-body">
+                    <pre id="config_preview" style="max-height: 300px; overflow-y: auto; background: #1a1a2e; padding: 10px; border-radius: 4px; font-size: 12px;">{{ _('common.loading') }}</pre>
+                    <button class="btn btn-outline-secondary btn-sm mt-2" onclick="loadConfigPreview()">
+                        <i class="fas fa-sync-alt me-1"></i>{{ _('common.refresh') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Import Section -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-warning text-dark">
+                    <i class="fas fa-upload me-2"></i>{{ _('config_export.import_title') }}
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">{{ _('config_export.import_desc') }}</p>
+
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>{{ _('common.warning') }}:</strong> {{ _('config_export.confirm_import') }}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="import_file" class="form-label">{{ _('config_export.select_file') }}</label>
+                        <input class="form-control" type="file" id="import_file" accept=".toml,.conf">
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="validate_before_import" checked>
+                        <label class="form-check-label" for="validate_before_import">
+                            {{ _('config_export.validate_first') }}
+                        </label>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-info" onclick="validateConfig()" id="btn_validate">
+                            <i class="fas fa-check-circle me-2"></i>Validate
+                        </button>
+                        <button class="btn btn-warning" onclick="importConfig()" id="btn_import" disabled>
+                            <i class="fas fa-upload me-2"></i>{{ _('config_export.import_btn') }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Validation Results -->
+            <div class="card mt-3" id="validation_results" style="display: none;">
+                <div class="card-header" id="validation_header">
+                    <i class="fas fa-clipboard-check me-2"></i>Validation Results
+                </div>
+                <div class="card-body">
+                    <div id="validation_content"></div>
+                </div>
+            </div>
+
+            <!-- Import Preview -->
+            <div class="card mt-3" id="import_preview_card" style="display: none;">
+                <div class="card-header">
+                    <i class="fas fa-file-alt me-2"></i>Import Preview
+                </div>
+                <div class="card-body">
+                    <pre id="import_preview" style="max-height: 200px; overflow-y: auto; background: #1a1a2e; padding: 10px; border-radius: 4px; font-size: 12px;"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const configExportI18n = {
+    validationSuccess: "{{ _('config_export.validation_success') }}",
+    validationError: "{{ _('config_export.validation_error') }}",
+    importSuccess: "{{ _('config_export.import_success') }}",
+    importError: "{{ _('config_export.import_error') }}",
+    backupCreated: "{{ _('config_export.backup_created') }}",
+    error: "{{ _('common.error') }}"
+};
+
+// Load config preview on page load
+document.addEventListener('DOMContentLoaded', loadConfigPreview);
+
+// Enable import button when file is selected
+document.getElementById('import_file').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        // Show preview
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            document.getElementById('import_preview').textContent = e.target.result;
+            document.getElementById('import_preview_card').style.display = 'block';
+        };
+        reader.readAsText(file);
+
+        // Reset validation
+        document.getElementById('validation_results').style.display = 'none';
+        document.getElementById('btn_import').disabled = document.getElementById('validate_before_import').checked;
+    }
+});
+
+async function loadConfigPreview() {
+    try {
+        const fd = new FormData();
+        fd.append('ACTION', 'GET_CONFIG_TOML');
+
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        });
+        const result = await response.json();
+
+        if (result.status === 'OK') {
+            document.getElementById('config_preview').textContent = result.content;
+        } else {
+            document.getElementById('config_preview').textContent = configExportI18n.error + ': ' + result.message;
+        }
+    } catch (error) {
+        console.error('Error loading config preview:', error);
+        document.getElementById('config_preview').textContent = configExportI18n.error;
+    }
+}
+
+async function exportConfig() {
+    const includeTokens = document.getElementById('export_include_tokens').checked;
+    const includeDb = document.getElementById('export_include_db').checked;
+    const includeClients = document.getElementById('export_include_clients').checked;
+
+    try {
+        const fd = new FormData();
+        fd.append('ACTION', 'EXPORT_CONFIG_TOML');
+        fd.append('INCLUDE_TOKENS', includeTokens);
+        fd.append('INCLUDE_DATABASE', includeDb);
+        fd.append('INCLUDE_CLIENTS', includeClients);
+
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        });
+        const result = await response.json();
+
+        if (result.status === 'OK') {
+            // Create download
+            const blob = new Blob([result.content], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'syntraf_config_' + new Date().toISOString().slice(0,10) + '.toml';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+            showAlert('Configuration exported successfully', 'success');
+        } else {
+            showAlert(configExportI18n.error + ': ' + result.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error exporting config:', error);
+        showAlert(configExportI18n.error, 'danger');
+    }
+}
+
+async function validateConfig() {
+    const fileInput = document.getElementById('import_file');
+    if (!fileInput.files[0]) {
+        showAlert('Please select a file first', 'warning');
+        return;
+    }
+
+    const file = fileInput.files[0];
+    const content = await file.text();
+
+    try {
+        const fd = new FormData();
+        fd.append('ACTION', 'VALIDATE_CONFIG_TOML');
+        fd.append('CONTENT', content);
+
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        });
+        const result = await response.json();
+
+        const validationDiv = document.getElementById('validation_results');
+        const validationHeader = document.getElementById('validation_header');
+        const validationContent = document.getElementById('validation_content');
+        validationDiv.style.display = 'block';
+
+        if (result.status === 'OK') {
+            validationHeader.className = 'card-header bg-success text-white';
+            validationContent.innerHTML = `
+                <div class="text-success">
+                    <i class="fas fa-check-circle me-2"></i>${configExportI18n.validationSuccess}
+                </div>
+                <hr>
+                <small class="text-muted">
+                    <strong>Summary:</strong><br>
+                    - GLOBAL: ${result.summary?.global ? 'OK' : 'Missing'}<br>
+                    - SERVER: ${result.summary?.server ? 'OK' : 'Not configured'}<br>
+                    - CLIENT: ${result.summary?.client ? 'OK' : 'Not configured'}<br>
+                    - Databases: ${result.summary?.databases || 0}<br>
+                    - Mesh Groups: ${result.summary?.mesh_groups || 0}<br>
+                    - Clients: ${result.summary?.clients || 0}
+                </small>
+            `;
+            document.getElementById('btn_import').disabled = false;
+        } else {
+            validationHeader.className = 'card-header bg-danger text-white';
+            validationContent.innerHTML = `
+                <div class="text-danger">
+                    <i class="fas fa-times-circle me-2"></i>${configExportI18n.validationError}
+                </div>
+                <hr>
+                <pre class="text-danger small">${result.errors?.join('\n') || result.message}</pre>
+            `;
+            document.getElementById('btn_import').disabled = true;
+        }
+    } catch (error) {
+        console.error('Error validating config:', error);
+        showAlert(configExportI18n.error, 'danger');
+    }
+}
+
+async function importConfig() {
+    const fileInput = document.getElementById('import_file');
+    if (!fileInput.files[0]) {
+        showAlert('Please select a file first', 'warning');
+        return;
+    }
+
+    if (!confirm('Are you sure you want to replace the current configuration? A backup will be created.')) {
+        return;
+    }
+
+    const file = fileInput.files[0];
+    const content = await file.text();
+
+    try {
+        const fd = new FormData();
+        fd.append('ACTION', 'IMPORT_CONFIG_TOML');
+        fd.append('CONTENT', content);
+
+        const response = await fetch('/api', {
+            method: 'POST',
+            body: fd
+        });
+        const result = await response.json();
+
+        if (result.status === 'OK') {
+            showAlert(configExportI18n.importSuccess + '. ' + configExportI18n.backupCreated + ': ' + result.backup_file, 'success');
+            setTimeout(() => {
+                loadConfigPreview();
+            }, 1000);
+        } else {
+            showAlert(configExportI18n.importError + ': ' + result.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Error importing config:', error);
+        showAlert(configExportI18n.error, 'danger');
+    }
+}
+</script>
+
+{% endblock %}
