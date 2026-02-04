@@ -1290,7 +1290,8 @@ def api():
                     "STATUS": database.status,
                     "STATUS_TIME": database.status_time,
                     "BACKLOG": len(database.write_queue.queue),
-                    "DISABLED": getattr(database, 'disabled', False)
+                    "DISABLED": getattr(database, 'disabled', False),
+                    "METRICS_TOTAL": getattr(database, 'metrics_written_total', 0)
                 }
             return jsonify(list_of_databases_infos)
 
