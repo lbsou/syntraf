@@ -962,7 +962,7 @@ display_banner
 check_if_root
 detect_os
 
-if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+if [[ "$OSTYPE" == "linux-gnu"* || "$OSTYPE" == "linux-musl"* || "$OSTYPE" == "linux" ]]; then
 	if [[ "$os_distroBasedOn" == "RedHat" || "$os_distroBasedOn" == "Debian" || "$os_distroBasedOn" == "Alpine" ]]; then
 		/usr/bin/printf "${green}\xE2\x9C\x94 $os_dist $os_pseudo $os_rev based on $os_distroBasedOn\n${clear}"
 
