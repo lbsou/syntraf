@@ -128,7 +128,12 @@ check_if_root() {
 } 
 
 detect_os() {
-	if [ -f /etc/redhat-release ] ; then
+	if [ -f /etc/alpine-release ] ; then
+		os_distroBasedOn='Alpine'
+		os_dist='Alpine'
+		os_rev=`cat /etc/alpine-release`
+		os_pseudo=''
+	elif [ -f /etc/redhat-release ] ; then
 		os_distroBasedOn='RedHat'
 		os_dist=`cat /etc/redhat-release |sed s/\ release.*//`
 		os_pseudo=`cat /etc/redhat-release | sed s/.*\(// | sed s/\)//`
@@ -258,17 +263,24 @@ check_python() {
 
 get_pip_path() {
 	exit_loop="False"
-	
+
 	while [ $exit_loop = "False" ];
 	do
 		read pip_binary_path
 		if [[ $pip_binary_path == "i" || $pip_binary_path == "I" ]]; then
-			if [[ "$os_distroBasedOn" == "RedHat" ]]; then
+			if [[ "$os_distroBasedOn" == "Alpine" ]]; then
+				update_apk_cache
+				apk add --no-cache py3-pip &>> install_syntraf.log
+				if [[ $? -ne 0 ]]; then
+					/usr/bin/printf "${red}An error occured while installing pip3, see install_syntraf.log for details.${clear}\n"
+					exit
+				fi
+			elif [[ "$os_distroBasedOn" == "RedHat" ]]; then
 				yum -y install python3-pip &>> install_syntraf.log
 				if [[ $? -ne 0 ]]; then
 					/usr/bin/printf "${red}An error occured while installing pip3, see install_syntraf.log for details.${clear}\n"
 					exit
-				fi			
+				fi
 			elif [[ "$os_distroBasedOn" == "Debian" ]]; then
 				update_apt_cache
 				export DEBIAN_FRONTEND=noninteractive
@@ -379,7 +391,15 @@ setup_syntraf_root() {
 
 create_python_env () {
 
-	if [[ "$os_distroBasedOn" == "Debian" ]]; then
+	if [[ "$os_distroBasedOn" == "Alpine" ]]; then
+		update_apk_cache
+		# Alpine needs python3-dev for building some packages and virtualenv support
+		apk add --no-cache python3-dev py3-virtualenv libffi-dev &>> install_syntraf.log
+		if [[ $? -ne 0 ]]; then
+			/usr/bin/printf "${red}An error occured while installing prerequisites for Python virtual environment, see install_syntraf.log for details.${clear}\n"
+			exit
+		fi
+	elif [[ "$os_distroBasedOn" == "Debian" ]]; then
 		update_apt_cache
 		export DEBIAN_FRONTEND=noninteractive
 		apt-get --yes install python3-venv &>> install_syntraf.log
@@ -390,8 +410,8 @@ create_python_env () {
 	fi
 
 	"$python_binary_path" -m venv "$base_dir_for_packages/$python_env_dir" &>> install_syntraf.log
-	
-	
+
+
 	if [[ $? -ne 0 ]]; then
 		/usr/bin/printf "${red}Creation of the Python virtual environement failed.\n${clear}"
 		exit
@@ -473,6 +493,8 @@ download_syntraf() {
 }
 
 apt_updated="False"
+apk_updated="False"
+
 update_apt_cache() {
 	if [[ "$os_distroBasedOn" == "Debian" && "$apt_updated" == "False" ]]; then
 		/usr/bin/printf "${cyan}Updating apt cache...${clear}\n"
@@ -486,8 +508,41 @@ update_apt_cache() {
 	fi
 }
 
+update_apk_cache() {
+	if [[ "$os_distroBasedOn" == "Alpine" && "$apk_updated" == "False" ]]; then
+		/usr/bin/printf "${cyan}Updating apk cache...${clear}\n"
+		apk update &>> install_syntraf.log
+		if [[ $? -eq 0 ]]; then
+			apk_updated="True"
+		else
+			/usr/bin/printf "${yellow}Warning: apk update failed, continuing anyway...${clear}\n"
+		fi
+	fi
+}
+
+install_alpine_base() {
+	if [[ "$os_distroBasedOn" == "Alpine" ]]; then
+		/usr/bin/printf "${cyan}Installing base packages for Alpine...${clear}\n"
+		update_apk_cache
+		apk add --no-cache bash coreutils wget tar python3 py3-pip &>> install_syntraf.log
+		if [[ $? -ne 0 ]]; then
+			/usr/bin/printf "${red}An error occured while installing base packages for Alpine, see install_syntraf.log for details.${clear}\n"
+			exit
+		fi
+		/usr/bin/printf "$green\xE2\x9C\x94 Alpine base packages installed.\n$clear"
+	fi
+}
+
 install_dev_essentials() {
-	if [[ "$os_distroBasedOn" == "RedHat" ]]; then
+	if [[ "$os_distroBasedOn" == "Alpine" ]]; then
+		update_apk_cache
+		apk add --no-cache build-base openssl-dev libtool autoconf automake wget bash coreutils &>> install_syntraf.log
+		if [[ $? -ne 0 ]]; then
+			/usr/bin/printf "${red}An error occured while installing prerequisites, see install_syntraf.log for details.${clear}\n"
+			exit
+		fi
+
+	elif [[ "$os_distroBasedOn" == "RedHat" ]]; then
 		yum -y groupinstall "Development Tools" &>> install_syntraf.log
 		if [[ $? -ne 0 ]]; then
 			/usr/bin/printf "${red}An error occured while installing prerequisites for iperf3, see install_syntraf.log for details.${clear}\n"
@@ -737,12 +792,24 @@ check_git () {
 
 get_git_path() {
 	exit_loop="False"
-	
+
 	while [ $exit_loop = "False" ];
 	do
 		read git_binary_path
 		if [[ $git_binary_path == "i" || $git_binary_path == "I" ]]; then
-			if [[ "$os_distroBasedOn" == "RedHat" ]]; then
+			if [[ "$os_distroBasedOn" == "Alpine" ]]; then
+				update_apk_cache
+				apk add --no-cache git &>> install_syntraf.log
+				if [[ $? -ne 0 ]]; then
+					/usr/bin/printf "${red}An error occured while installing git, see install_syntraf.log for details.${clear}\n"
+					exit
+				else
+					/usr/bin/printf "$green\xE2\x9C\x94 Git successfully installed.\n$clear"
+					git_binary_path=$(command -v git)
+					exit_loop="True"
+				fi
+
+			elif [[ "$os_distroBasedOn" == "RedHat" ]]; then
 				yum -y install git &>> install_syntraf.log
 				if [[ $? -ne 0 ]]; then
 					/usr/bin/printf "${red}An error occured while installing git, see install_syntraf.log for details.${clear}\n"
@@ -787,6 +854,54 @@ client_only_param() {
 	fi
 }
 
+setup_openrc_service() {
+	# Check if OpenRC is available (Alpine Linux)
+	if ! command -v rc-service &> /dev/null; then
+		/usr/bin/printf "${yellow}OpenRC not found, skipping service setup.${clear}\n"
+		return
+	fi
+
+	/usr/bin/printf "${cyan}Setting up SYNTRAF OpenRC service...${clear}\n"
+
+	cat > /etc/init.d/syntraf << 'EOFSCRIPT'
+#!/sbin/openrc-run
+
+name="syntraf"
+description="SYNTRAF - Synthetic Traffic Generator"
+
+command="PYTHON_PATH"
+command_args="SYNTRAF_PATH -c /etc/syntraf.conf -l SYNTRAF_LOG_PATH"
+command_background=true
+pidfile="/run/${RC_SVCNAME}.pid"
+
+directory="SYNTRAF_DIR"
+
+depend() {
+	need net
+	after firewall
+}
+
+start_pre() {
+	checkpath --directory --owner root:root --mode 0755 "SYNTRAF_LOG_PATH"
+}
+EOFSCRIPT
+
+	# Replace placeholders with actual paths
+	sed -i "s|PYTHON_PATH|${base_dir_for_packages}/${python_env_dir}/bin/python3|g" /etc/init.d/syntraf
+	sed -i "s|SYNTRAF_PATH|${syntraf_install_dir}syntraf.py|g" /etc/init.d/syntraf
+	sed -i "s|SYNTRAF_LOG_PATH|${syntraf_install_dir}log/|g" /etc/init.d/syntraf
+	sed -i "s|SYNTRAF_DIR|${syntraf_install_dir}|g" /etc/init.d/syntraf
+
+	chmod +x /etc/init.d/syntraf
+
+	# Create log directory
+	mkdir -p "${syntraf_install_dir}log/"
+
+	/usr/bin/printf "$green\xE2\x9C\x94 SYNTRAF OpenRC service created.\n$clear"
+	/usr/bin/printf "${cyan}To enable automatic start: ${clear}rc-update add syntraf default\n"
+	/usr/bin/printf "${cyan}To start SYNTRAF now: ${clear}rc-service syntraf start\n"
+}
+
 setup_systemd_service() {
 	# Check if systemd is available
 	if ! command -v systemctl &> /dev/null; then
@@ -827,6 +942,15 @@ EOF
 	fi
 }
 
+setup_init_service() {
+	# Determine which init system to use
+	if [[ "$os_distroBasedOn" == "Alpine" ]]; then
+		setup_openrc_service
+	else
+		setup_systemd_service
+	fi
+}
+
 
 #############
 ### START ###
@@ -839,9 +963,12 @@ check_if_root
 detect_os
 
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-	if [[ "$os_distroBasedOn" == "RedHat" || "$os_distroBasedOn" == "Debian" ]]; then
+	if [[ "$os_distroBasedOn" == "RedHat" || "$os_distroBasedOn" == "Debian" || "$os_distroBasedOn" == "Alpine" ]]; then
 		/usr/bin/printf "${green}\xE2\x9C\x94 $os_dist $os_pseudo $os_rev based on $os_distroBasedOn\n${clear}"
-		
+
+		# Install base packages for Alpine (wget, bash, etc.)
+		install_alpine_base
+
 		# Ask the user if this is a SYNTRAF server, a client or both
 		client_or_server
 				
@@ -893,8 +1020,8 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
 			#influxdb
 		fi
 
-		# Setup systemd service
-		setup_systemd_service
+		# Setup init service (systemd or OpenRC depending on distro)
+		setup_init_service
 
 		/usr/bin/printf "\n${green}═══════════════════════════════════════════════════════════════${clear}\n"
 		/usr/bin/printf "${green}  SYNTRAF installation completed successfully!${clear}\n"
