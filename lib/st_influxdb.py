@@ -47,6 +47,7 @@ class InfluxObj(object):
         self.status = "UNKNOWN"
         self.status_time = None
         self.disabled = False  # Track if database is disabled
+        self.metrics_written_total = 0  # Counter for total metrics written since startup
 
         try:
             self.write_queue = queue.Queue(maxsize=DefaultValues.DEFAULT_WRITE_QUEUE_BUFFER_DEPTH)
@@ -284,6 +285,9 @@ class InfluxObj(object):
                 print(traceback.format_exc())
                 raise
 
+        # Count metrics written
+        self.metrics_written_total += len(payload) if isinstance(payload, list) else 1
+
         if self.status != "ONLINE":
             self.status = "ONLINE"
             self.status_time = datetime.now()
@@ -297,8 +301,12 @@ class InfluxObj(object):
             if isinstance(payload, list):
                 for record in payload:
                     self._write_single_record_influxdb3(record)
+                # Count metrics written
+                self.metrics_written_total += len(payload)
             else:
                 self._write_single_record_influxdb3(payload)
+                # Count metrics written
+                self.metrics_written_total += 1
 
             if self.status != "ONLINE":
                 self.status = "ONLINE"
@@ -382,6 +390,9 @@ class InfluxObj(object):
             if response.status_code not in (200, 204):
                 log.error(f"VictoriaMetrics write failed: HTTP {response.status_code} - {response.text}")
                 raise Exception(f"VictoriaMetrics write failed: HTTP {response.status_code}")
+
+            # Count metrics written
+            self.metrics_written_total += len(lines)
 
             if self.status != "ONLINE":
                 self.status = "ONLINE"

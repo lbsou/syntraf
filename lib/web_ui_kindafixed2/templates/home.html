@@ -25,6 +25,7 @@
                 <p class="card-text">
                     <p class="card-text" id="{{ database.DB_UID }}_status_since">{{ _('home.since') }} {{ database.status_time }}</p>
                     <p class="card-text" id="{{ database.DB_UID }}_backlog">{{ _('home.queue_label') }} {{ database.write_queue.queue | length }}</p>
+                    <p class="card-text" id="{{ database.DB_UID }}_metrics_total">{{ _('home.metrics_total') }} {{ database.metrics_written_total | default(0) }}</p>
                 </p>
               </div>
          </div>
@@ -61,6 +62,7 @@
 const homeI18n = {
     since: "{{ _('home.since') }}",
     queue: "{{ _('home.queue_label') }}",
+    metricsTotal: "{{ _('home.metrics_total') }}",
     disabled: "{{ _('common.disabled') | upper }}"
 };
 
@@ -147,6 +149,7 @@ async function get_list_of_databases_infos()
 
         document.getElementById(key + '_status_since').innerHTML = homeI18n.since + " " + value['STATUS_TIME'];
         document.getElementById(key + '_backlog').innerHTML = homeI18n.queue + " " + value['BACKLOG'];
+        document.getElementById(key + '_metrics_total').innerHTML = homeI18n.metricsTotal + " " + (value['METRICS_TOTAL'] || 0).toLocaleString();
     }
 
 

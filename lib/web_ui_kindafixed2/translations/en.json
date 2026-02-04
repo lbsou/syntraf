@@ -105,6 +105,7 @@
     "database_status": "Status of database",
     "since": "Since:",
     "queue_label": "Queue:",
+    "metrics_total": "Metrics written:",
     "online_clients": "Online clients",
     "offline_clients": "Offline clients",
     "no_database": "No database configured"

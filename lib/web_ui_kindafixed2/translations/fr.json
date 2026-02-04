@@ -105,6 +105,7 @@
     "database_status": "État de la base de données",
     "since": "Depuis :",
     "queue_label": "File d'attente :",
+    "metrics_total": "Métriques écrites :",
     "online_clients": "Clients en ligne",
     "offline_clients": "Clients hors ligne",
     "no_database": "Aucune base de données configurée"
