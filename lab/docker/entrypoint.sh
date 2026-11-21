@@ -13,9 +13,6 @@ tar -C /src \
 
 subst() {
     sed -e "s|\${LAB_TOKEN}|${LAB_TOKEN}|g" \
-        -e "s|\${INFLUX_TOKEN}|${INFLUX_TOKEN}|g" \
-        -e "s|\${INFLUX_ORG}|${INFLUX_ORG}|g" \
-        -e "s|\${INFLUX_BUCKET}|${INFLUX_BUCKET}|g" \
         -e "s|\${CLIENT_UID}|${CLIENT_UID:-}|g" \
         "$1" > /etc/syntraf/config.toml
 }

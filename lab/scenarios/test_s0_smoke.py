@@ -13,9 +13,9 @@ def urlopen_status(url: str) -> int:
         return exc.code
 
 
-def test_s0_all_flows_write(lab_up, influx):
+def test_s0_all_flows_write(lab_up, metrics):
     for flow in topology.expected_flows():
-        assert influx.last_point_time(flow) is not None, flow
+        assert metrics.last_point_time(flow) is not None, flow
 
 
 def test_s0_webui_answers(lab_up):

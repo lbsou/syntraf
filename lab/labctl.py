@@ -39,7 +39,7 @@ def cmd_up(args) -> int:
         return 1
     print("Conteneurs démarrés ; attente de l'état sain (12 flux qui écrivent)…")
     try:
-        health.wait_healthy(health.influx_client(), timeout_s=args.timeout)
+        health.wait_healthy(health.metrics_client(), timeout_s=args.timeout)
     except TimeoutError as exc:
         print(f"ÉCHEC : {exc}")
         _print_tail("server")
@@ -102,15 +102,16 @@ def collect_status() -> dict:
         nodes[svc] = entry
     flows = {}
     try:
-        client = health.influx_client()
+        client = health.metrics_client()
         now = datetime.now(timezone.utc)
         for f in topology.expected_flows():
             t = client.last_point_time(f, lookback_s=600)
             flows[f] = None if t is None else round((now - t).total_seconds(), 1)
     except Exception as exc:
         flows = {"erreur": str(exc)}
-    return {"influxdb": containers.get("influxdb", "absent"), "influxdb_mem": mem.get("influxdb", "-"),
-            "nodes": nodes, "flow_age_s": flows}
+    infra = {svc: {"state": containers.get(svc, "absent"), "mem": mem.get(svc, "-")}
+             for svc in ("victoriametrics", "grafana")}
+    return {"infra": infra, "nodes": nodes, "flow_age_s": flows}
 
 
 def cmd_status(args) -> int:
@@ -118,7 +119,8 @@ def cmd_status(args) -> int:
     if args.json:
         print(json.dumps(st, indent=2, ensure_ascii=False))
         return 0
-    print(f"influxdb : {st['influxdb']}  RAM {st['influxdb_mem']}")
+    for svc, n in st["infra"].items():
+        print(f"{svc:15} : {n['state']:8} RAM {n['mem']}")
     for svc, n in st["nodes"].items():
         extra = ""
         if "iperf3_count" in n:
@@ -252,7 +254,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--signal", default="KILL")
     s.set_defaults(func=cmd_kill_iperf)
     s = sub.add_parser("restart", help="redémarre un service")
-    s.add_argument("service", choices=nodes + ["influxdb"])
+    s.add_argument("service", choices=nodes + ["victoriametrics", "grafana"])
     s.set_defaults(func=cmd_restart)
     return p
 

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import docker, influx, topology
+from . import docker, topology, vm
 
 
 @dataclass
@@ -26,10 +26,9 @@ def read_env(path: Path = docker.ENV_FILE) -> dict[str, str]:
     return env
 
 
-def influx_client() -> influx.Client:
+def metrics_client() -> vm.Client:
     env = read_env()
-    return influx.Client(f"http://127.0.0.1:{env.get('INFLUX_HOST_PORT', '18086')}",
-                         env["INFLUX_TOKEN"], env["INFLUX_ORG"], env["INFLUX_BUCKET"])
+    return vm.Client(f"http://127.0.0.1:{env.get('VM_HOST_PORT', '18428')}")
 
 
 def snapshot(service: str) -> NodeSnapshot:
@@ -61,13 +60,13 @@ def stale_flows(client, flows: list[str], max_age_s: float) -> list[str]:
     return stale
 
 
-def wait_healthy(client: influx.Client, timeout_s: float = 180) -> None:
-    """Sain = InfluxDB répond et chacun des 12 flux a un point de moins de 3·INTERVAL s."""
+def wait_healthy(client: vm.Client, timeout_s: float = 180) -> None:
+    """Sain = VictoriaMetrics répond et chacun des 12 flux a un point de moins de FRESH_S s."""
     deadline = time.monotonic() + timeout_s
     stale = topology.expected_flows()
     while time.monotonic() < deadline:
         if client.ping():
-            stale = stale_flows(client, topology.expected_flows(), 3 * topology.INTERVAL)
+            stale = stale_flows(client, topology.expected_flows(), topology.FRESH_S)
             if not stale:
                 return
         time.sleep(2)

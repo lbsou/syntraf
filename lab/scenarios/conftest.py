@@ -9,15 +9,15 @@ from lablib import docker, health  # noqa: E402
 
 
 @pytest.fixture(scope="session")
-def influx():
-    return health.influx_client()
+def metrics():
+    return health.metrics_client()
 
 
 @pytest.fixture(scope="session")
-def lab_up(influx):
+def lab_up(metrics):
     """Le lab doit être démarré (labctl up) ; on attend seulement qu'il soit sain."""
     r = docker.compose(["ps", "--status", "running", "-q"], check=False)
-    if len([line for line in r.stdout.splitlines() if line.strip()]) < 6:
+    if len([line for line in r.stdout.splitlines() if line.strip()]) < 7:
         pytest.fail("lab non démarré : lancer `python lab/labctl.py up` d'abord")
-    health.wait_healthy(influx, timeout_s=180)
+    health.wait_healthy(metrics, timeout_s=180)
     return True

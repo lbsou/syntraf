@@ -12,7 +12,7 @@ def test_no_deprecation_warning_from_syntraf_code(lab_up):
         assert offending == [], (svc, offending[:3])
 
 
-def test_points_are_utc_now(lab_up, influx):
-    t = influx.last_point_time(topology.expected_flows()[0])
+def test_points_are_utc_now(lab_up, metrics):
+    t = metrics.last_point_time(topology.expected_flows()[0])
     assert t is not None
-    assert abs((datetime.now(timezone.utc) - t).total_seconds()) < 2 + 3 * topology.INTERVAL
+    assert abs((datetime.now(timezone.utc) - t).total_seconds()) < topology.FRESH_S
