@@ -126,11 +126,8 @@ def run():
     if "SERVER" in config:
         if "DATABASE" in config:
             for database in config['DATABASE']:
-                if database['DB_ENGINE'].upper() == "VICTORIAMETRICS":
-                    from lib.st_victoriametrics import VictoriaMetricsObj
-                    new_conn = VictoriaMetricsObj(config, database['DB_UID'])
-                else:
-                    new_conn = InfluxObj(config, database['DB_UID'])
+                from lib.st_db_factory import make_db_connection
+                new_conn = make_db_connection(config, database['DB_UID'])
                 conn_db.append(new_conn)
                 if new_conn.status == "ONLINE":
                     flag_at_least_one_db_online = True

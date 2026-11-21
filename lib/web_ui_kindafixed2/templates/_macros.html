@@ -23,3 +23,47 @@
     </tbody>
 </table>
 {%- endmacro %}
+
+{# Barre d'outils et tableau d'une page de configuration éditable (voir static/js/st_crud.js). #}
+{% macro crud_table(noun) -%}
+<div id="toolbar" class="d-flex flex-wrap gap-2" role="toolbar" aria-label="{{ noun }} actions">
+    <button id="btn_new" type="button" class="btn btn-primary"><i class="fas fa-plus me-1"></i>New</button>
+    <button id="btn_edit" type="button" class="btn btn-secondary" disabled><i class="fas fa-edit me-1"></i>Edit</button>
+    <button id="btn_delete" type="button" class="btn btn-danger" disabled><i class="fas fa-trash me-1"></i>Delete</button>
+</div>
+<table id="table" class="table table-hover table-sm" data-toolbar="#toolbar"></table>
+{%- endmacro %}
+
+{# Fenêtre de saisie en deux étapes : les champs (caller), puis l'aperçu du changement. #}
+{% macro crud_modal() -%}
+<div class="modal fade" id="modal_form" tabindex="-1" aria-labelledby="modal_form_title" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+    <div class="modal-content">
+      <form id="cfg_form" novalidate>
+        <div class="modal-header"><h5 class="modal-title" id="modal_form_title"></h5></div>
+        <div class="modal-body">
+          <div id="cfg_review" hidden></div>
+          <div id="cfg_fields">{{ caller() }}</div>
+        </div>
+        <div class="modal-footer">
+            {{ kwargs.get("extra_buttons", "")|safe }}
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-outline-light" id="btn_back" hidden><i class="fas fa-arrow-left me-1"></i>Back</button>
+            <button type="submit" class="btn btn-primary" id="btn_save">Review changes…</button>
+            <button type="button" class="btn btn-success" id="btn_apply" hidden>Apply</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{%- endmacro %}
+
+{# Champ de formulaire avec aide et message d'erreur associé au nom du paramètre. #}
+{% macro field(id, name, label, type="text", help="", attrs="") -%}
+<div class="mb-3">
+    <label for="{{ id }}" class="form-label">{{ label }}</label>
+    <input class="form-control" id="{{ id }}" data-field="{{ name }}" type="{{ type }}" {{ attrs|safe }}{% if help %} aria-describedby="{{ id }}_help"{% endif %}>
+    {% if help %}<div id="{{ id }}_help" class="form-text">{{ help }}</div>{% endif %}
+    <div class="invalid-feedback" data-feedback="{{ name }}"></div>
+</div>
+{%- endmacro %}

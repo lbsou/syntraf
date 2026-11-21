@@ -41,6 +41,12 @@
                 <input class="form-control" id="mg_description" type="text" maxlength="200">
             </div>
             <div class="mb-3">
+                <label for="mg_profile" class="form-label">iperf3 profile <span class="text-white-50">(optional)</span></label>
+                <select class="form-select" id="mg_profile" data-field="IPERF3_PROFILE" aria-describedby="mg_profile_help"></select>
+                <div id="mg_profile_help" class="form-text">The profile's values replace the values below. Profiles are managed on the Profiles page.</div>
+                <div class="invalid-feedback" data-feedback="IPERF3_PROFILE"></div>
+            </div>
+            <div class="mb-3">
                 <label for="mg_bandwidth" class="form-label">Bandwidth per flow</label>
                 <div class="input-group has-validation">
                     <input class="form-control" id="mg_bandwidth" data-field="BANDWIDTH" type="number" min="0" step="any" required>
@@ -109,6 +115,7 @@ async function load() {
             {field: "DISABLED", title: "Status", sortable: true,
              formatter: v => v ? '<span class="badge bg-warning text-dark">Disabled</span>' : '<span class="badge bg-success">Enabled</span>'},
             {field: "DESCRIPTION", title: "Description", formatter: v => st.esc(v || "")},
+            {field: "IPERF3_PROFILE", title: "Profile", formatter: v => v ? `<span class="badge bg-info text-dark">${st.esc(v)}</span>` : ""},
             {field: "BANDWIDTH", title: "Bandwidth"},
             {field: "PACKET_SIZE", title: "Packet size", sortable: true},
             {field: "DSCP", title: "DSCP"},
@@ -139,7 +146,16 @@ function report(result, okMessage) {
     return true;
 }
 
+async function fillProfiles(selected) {
+    const r = await st.api("GET", "/api/v1/config/profiles");
+    const profiles = r.ok ? r.data : [];
+    document.getElementById("mg_profile").innerHTML = '<option value="">None: use the values below</option>' +
+        profiles.map(p => `<option value="${st.esc(p.UID)}">${st.esc(p.UID)}${p.DESCRIPTION ? " — " + st.esc(p.DESCRIPTION) : ""}</option>`).join("");
+    document.getElementById("mg_profile").value = selected || "";
+}
+
 function openForm(group) {
+    fillProfiles(group ? group.IPERF3_PROFILE : "");
     editing = group ? group.UID : null;
     form.reset();
     stage(false);
@@ -183,6 +199,7 @@ form.addEventListener("submit", async e => {
         UID: v("mg_name"), DESCRIPTION: v("mg_description"),
         BANDWIDTH: v("mg_bandwidth") + document.getElementById("mg_bandwidth_unit").value,
         DSCP: v("mg_dscp"), PACKET_SIZE: v("mg_packet_size"), INTERVAL: v("mg_interval"),
+        IPERF3_PROFILE: document.getElementById("mg_profile").value,
     };
     const btn = document.getElementById("btn_save");
     st.setBusy(btn, true);

@@ -1,14 +1,130 @@
 {% extends "base.html" %}
-{% from "_macros.html" import page_header, kv_table %}
+{% from "_macros.html" import page_header, crud_table, crud_modal, field %}
 {% block title %}Databases{% endblock %}
+{% block head %}<script src="{{ url_for('static', filename='js/st_crud.js') }}"></script>{% endblock %}
 {% block content %}
-{{ page_header("Databases", "Where measurements are written. Live state is on the Dashboard.") }}
-{% for database in config.get('DATABASE', []) %}
-<section class="st-card">
-    <h2><i class="fas fa-database me-2"></i>{{ database['DB_UID'] }}</h2>
-    {{ kv_table(database, skip=('DB_UID',)) }}
-</section>
-{% else %}
-<div class="st-empty"><i class="fas fa-database"></i>No database configured. Add a [[DATABASE]] section to the configuration file.</div>
-{% endfor %}
+{{ page_header("Databases", "Where measurements are written (DATABASE). Changes apply live: the connection of a changed database is re-created. Tokens are never sent back to the browser.") }}
+{{ crud_table("Database") }}
+
+{% call crud_modal(extra_buttons='<button type="button" class="btn btn-outline-info me-auto" id="btn_test"><i class="fas fa-plug me-1"></i>Test connection</button><span id="test_result" class="me-auto small" aria-live="polite"></span>') %}
+    <div class="row">
+        <div class="col-md-6">{{ field("d_uid", "DB_UID", "Name", help="4 to 50 characters: letters, digits, '_' or '-'. Cannot be changed later.", attrs='required maxlength="50"') }}</div>
+        <div class="col-md-6 mb-3">
+            <label for="d_engine" class="form-label">Engine</label>
+            <select class="form-select" id="d_engine" data-field="DB_ENGINE">
+                <option value="VictoriaMetrics">VictoriaMetrics</option>
+                <option value="InfluxDB2">InfluxDB 2</option>
+            </select>
+            <div class="invalid-feedback" data-feedback="DB_ENGINE"></div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-6">{{ field("d_server", "DB_SERVER", "Server", help="IP address or host name.", attrs='required') }}</div>
+        <div class="col-md-3">{{ field("d_port", "DB_PORT", "Port", attrs='required inputmode="numeric"') }}</div>
+        <div class="col-md-3 mb-3 d-flex align-items-end">
+            <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" role="switch" id="d_ssl">
+                <label class="form-check-label" for="d_ssl">HTTPS</label>
+            </div>
+        </div>
+    </div>
+    <div class="mb-3">
+        <label for="d_token" class="form-label">Token <span class="text-white-50" id="d_token_hint">(optional for VictoriaMetrics)</span></label>
+        <input class="form-control" id="d_token" data-field="DB_TOKEN" type="password" autocomplete="new-password">
+        <div class="form-text" id="d_token_help"></div>
+        <div class="form-check mt-1" id="d_token_clear_wrap" hidden>
+            <input class="form-check-input" type="checkbox" id="d_token_clear">
+            <label class="form-check-label small" for="d_token_clear">Remove the saved token</label>
+        </div>
+        <div class="invalid-feedback" data-feedback="DB_TOKEN"></div>
+    </div>
+    <div class="row" id="d_influx">
+        <div class="col-md-4">{{ field("d_org", "DB_ORG", "Organization") }}</div>
+        <div class="col-md-4">{{ field("d_bucket", "DB_BUCKET", "Bucket") }}</div>
+        <div class="col-md-4">{{ field("d_pool", "DB_CONNECTION_POOL_MAXSIZE", "Connection pool size", attrs='inputmode="numeric" placeholder="100"') }}</div>
+    </div>
+    <div class="row">
+        <div class="col-md-8">{{ field("d_proxy", "DB_USE_WEB_PROXY", "Web proxy (optional)", attrs='placeholder="http://proxy:3128"') }}</div>
+        <div class="col-md-4">{{ field("d_retention", "DB_RETENTION", "Target retention (optional)", help="e.g. 30d, 12w, 1y. Compared with the database's actual retention on the Data page.") }}</div>
+    </div>
+{% endcall %}
+
+<script>
+const el = id => document.getElementById(id);
+let current = null;
+
+function syncEngine() {
+    const influx = el("d_engine").value === "InfluxDB2";
+    el("d_influx").hidden = !influx;
+    el("d_token_hint").textContent = influx ? "(required)" : "(optional for VictoriaMetrics)";
+}
+el("d_engine").addEventListener("change", syncEngine);
+
+function read() {
+    return {
+        DB_UID: el("d_uid").value.trim(), DB_ENGINE: el("d_engine").value, DB_SERVER: el("d_server").value.trim(),
+        DB_PORT: el("d_port").value.trim(), DB_SERVER_USE_SSL: el("d_ssl").checked, DB_TOKEN: el("d_token").value,
+        DB_TOKEN_CLEAR: el("d_token_clear").checked,
+        DB_ORG: el("d_engine").value === "InfluxDB2" ? el("d_org").value.trim() : "",
+        DB_BUCKET: el("d_engine").value === "InfluxDB2" ? el("d_bucket").value.trim() : "",
+        DB_CONNECTION_POOL_MAXSIZE: el("d_engine").value === "InfluxDB2" ? el("d_pool").value.trim() : "",
+        DB_USE_WEB_PROXY: el("d_proxy").value.trim(), DB_RETENTION: el("d_retention").value.trim(),
+    };
+}
+
+el("btn_test").addEventListener("click", async () => {
+    const btn = el("btn_test"), out = el("test_result");
+    st.setBusy(btn, true);
+    out.textContent = "";
+    const r = await st.api("POST", "/api/v1/config/databases/test", read());
+    st.setBusy(btn, false);
+    if (!r.ok) {
+        st.showFieldErrors(el("cfg_form"), r.error.fields);
+        out.innerHTML = `<span class="text-danger">${st.esc(r.error.message)}</span>`;
+        return;
+    }
+    st.showFieldErrors(el("cfg_form"), {});
+    out.innerHTML = st.badge(r.data.status) + (r.data.message ? ` ${st.esc(r.data.message)}` : "");
+});
+
+st.crud({
+    listUrl: "/api/v1/config/databases",
+    itemUrl: uid => `/api/v1/config/databases/${encodeURIComponent(uid)}`,
+    idField: "DB_UID",
+    emptyText: "No database configured: measurements are not stored. Click “New” to add one.",
+    titleNew: "Add a database",
+    titleEdit: uid => `Edit database “${uid}”`,
+    deleteTitle: uid => `Remove database “${uid}”?`,
+    deleteWarning: "Measurements are no longer written to it; the data already stored stays in the database.",
+    columns: [
+        {field: "DB_UID", title: "Name", sortable: true},
+        {field: "DB_ENGINE", title: "Engine"},
+        {field: "DB_SERVER", title: "Server", formatter: (v, row) => `${row.DB_SERVER_USE_SSL ? "https" : "http"}://${st.esc(v)}:${st.esc(row.DB_PORT)}`},
+        {field: "DB_TOKEN_SET", title: "Token", formatter: v => v ? '<span class="badge bg-secondary">set</span>' : ""},
+        {field: "DB_RETENTION", title: "Target retention", formatter: v => st.esc(v || "")},
+    ],
+    fill(row) {
+        current = row;
+        el("test_result").textContent = "";
+        el("d_uid").value = row ? row.DB_UID : "";
+        el("d_uid").readOnly = !!row;
+        el("d_engine").value = row ? row.DB_ENGINE : "VictoriaMetrics";
+        el("d_server").value = row ? row.DB_SERVER : "";
+        el("d_port").value = row ? row.DB_PORT : "8428";
+        el("d_ssl").checked = row ? !!row.DB_SERVER_USE_SSL : false;
+        el("d_token").value = "";
+        el("d_token").placeholder = row && row.DB_TOKEN_SET ? "•••••••• (unchanged)" : "";
+        el("d_token_help").textContent = row && row.DB_TOKEN_SET ? "A token is saved. Leave empty to keep it." : "";
+        el("d_token_clear_wrap").hidden = !(row && row.DB_TOKEN_SET);
+        el("d_token_clear").checked = false;
+        el("d_org").value = row ? (row.DB_ORG || "") : "";
+        el("d_bucket").value = row ? (row.DB_BUCKET || "") : "";
+        el("d_pool").value = row ? (row.DB_CONNECTION_POOL_MAXSIZE || "") : "";
+        el("d_proxy").value = row ? (row.DB_USE_WEB_PROXY || "") : "";
+        el("d_retention").value = row ? (row.DB_RETENTION || "") : "";
+        syncEngine();
+    },
+    read: read,
+});
+</script>
 {% endblock %}

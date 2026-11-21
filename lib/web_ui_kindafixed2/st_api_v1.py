@@ -108,6 +108,95 @@ def duplicate_mesh_group(uid):
     return jsonify(result), (200 if result["dry_run"] else 201)
 
 
+# ------------------------------------------------------------------------------- clients et bases (configuration)
+
+def _created(result):
+    return jsonify(result), (200 if result["dry_run"] else 201)
+
+
+@st_api_v1.get("/config/clients")
+def list_client_configs():
+    return jsonify(ops.list_clients(_state()))
+
+
+@st_api_v1.get("/config/clients/<uid>")
+def get_client_config(uid):
+    row = next((c for c in ops.list_clients(_state()) if c["UID"] == uid), None)
+    return jsonify(row) if row else _error(404, f"Client '{uid}' not found")
+
+
+@st_api_v1.post("/config/clients")
+def create_client_config():
+    return _created(ops.create_client(_state(), _body(), _actor(), _dry_run()))
+
+
+@st_api_v1.put("/config/clients/<uid>")
+def update_client_config(uid):
+    return jsonify(ops.update_client(_state(), uid, _body(), _actor(), _dry_run()))
+
+
+@st_api_v1.delete("/config/clients/<uid>")
+def delete_client_config(uid):
+    return jsonify(ops.delete_client(_state(), uid, _actor(), _dry_run()))
+
+
+@st_api_v1.get("/config/profiles")
+def list_profile_configs():
+    return jsonify(ops.list_profiles(_state()))
+
+
+@st_api_v1.get("/config/profiles/<uid>")
+def get_profile_config(uid):
+    row = next((p for p in ops.list_profiles(_state()) if p["UID"] == uid), None)
+    return jsonify(row) if row else _error(404, f"Profile '{uid}' not found")
+
+
+@st_api_v1.post("/config/profiles")
+def create_profile_config():
+    return _created(ops.create_profile(_state(), _body(), _actor(), _dry_run()))
+
+
+@st_api_v1.put("/config/profiles/<uid>")
+def update_profile_config(uid):
+    return jsonify(ops.update_profile(_state(), uid, _body(), _actor(), _dry_run()))
+
+
+@st_api_v1.delete("/config/profiles/<uid>")
+def delete_profile_config(uid):
+    return jsonify(ops.delete_profile(_state(), uid, _actor(), _dry_run()))
+
+
+@st_api_v1.get("/config/databases")
+def list_database_configs():
+    return jsonify(ops.list_databases(_state()))
+
+
+@st_api_v1.get("/config/databases/<uid>")
+def get_database_config(uid):
+    row = next((d for d in ops.list_databases(_state()) if d["DB_UID"] == uid), None)
+    return jsonify(row) if row else _error(404, f"Database '{uid}' not found")
+
+
+@st_api_v1.post("/config/databases")
+def create_database_config():
+    return _created(ops.create_database(_state(), _body(), _actor(), _dry_run()))
+
+
+@st_api_v1.post("/config/databases/test")
+def test_database_config():
+    return jsonify(ops.test_database(_state(), _body()))
+
+
+@st_api_v1.put("/config/databases/<uid>")
+def update_database_config(uid):
+    return jsonify(ops.update_database(_state(), uid, _body(), _actor(), _dry_run()))
+
+
+@st_api_v1.delete("/config/databases/<uid>")
+def delete_database_config(uid):
+    return jsonify(ops.delete_database(_state(), uid, _actor(), _dry_run()))
+
+
 # ------------------------------------------------------------------------------------------- état et supervision
 
 @st_api_v1.get("/status")
@@ -260,6 +349,24 @@ OPENAPI = {
             "patch": _op("Enable or disable a mesh group ({\"DISABLED\": true|false})", False, True, ("uid",)),
             "delete": _op("Delete an unused mesh group", False, True, ("uid",))},
         "/api/v1/mesh-groups/{uid}/duplicate": {"post": _op("Duplicate a mesh group", False, True, ("uid",))},
+        "/api/v1/config/clients": {"get": _op("Declared clients (SERVER_CLIENT)"),
+                                   "post": _op("Declare a client", False, True)},
+        "/api/v1/config/clients/{uid}": {"get": _op("Get a client declaration", params=("uid",)),
+                                         "put": _op("Update a client declaration", False, True, ("uid",)),
+                                         "delete": _op("Remove a client", False, True, ("uid",))},
+        "/api/v1/config/profiles": {"get": _op("iperf3 profiles and the mesh groups using them"),
+                                    "post": _op("Create a profile", False, True)},
+        "/api/v1/config/profiles/{uid}": {"get": _op("Get a profile", params=("uid",)),
+                                          "put": _op("Update a profile (applied live to its mesh groups)",
+                                                     False, True, ("uid",)),
+                                          "delete": _op("Delete an unused profile", False, True, ("uid",))},
+        "/api/v1/config/databases": {"get": _op("Declared databases (tokens are never returned)"),
+                                     "post": _op("Declare a database", False, True)},
+        "/api/v1/config/databases/test": {"post": _op("Test database parameters without saving them")},
+        "/api/v1/config/databases/{uid}": {"get": _op("Get a database declaration", params=("uid",)),
+                                           "put": _op("Update a database (empty DB_TOKEN keeps the current one)",
+                                                      False, True, ("uid",)),
+                                           "delete": _op("Remove a database", False, True, ("uid",))},
         "/api/v1/status": {"get": _op("Server status snapshot (clients, databases, threads, queue)")},
         "/api/v1/events": {"get": _op("Status snapshots as Server-Sent Events")},
         "/api/v1/clients": {"get": _op("Clients and their state")},

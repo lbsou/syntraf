@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% from "_macros.html" import page_header, crud_table, crud_modal, field %}
+{% block title %}Profiles{% endblock %}
+{% block head %}<script src="{{ url_for('static', filename='js/st_crud.js') }}"></script>{% endblock %}
+{% block content %}
+{{ page_header("iperf3 profiles", "Reusable traffic settings (IPERF3_PROFILE). A mesh group that uses a profile takes the profile's values instead of its own; editing a profile applies it live to every group using it.") }}
+{{ crud_table("Profile") }}
+
+{% call crud_modal() %}
+    {{ field("p_uid", "UID", "Name", help="4 to 50 characters: letters, digits, '_' or '-'. Cannot be changed later: mesh groups refer to it.", attrs='required maxlength="50"') }}
+    <div class="mb-3">
+        <label for="p_description" class="form-label">Description <span class="text-white-50">(optional)</span></label>
+        <input class="form-control" id="p_description" type="text" maxlength="200">
+    </div>
+    <p class="small text-white-50">Fill only the values the profile imposes; an empty value leaves the mesh group's own value.</p>
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label for="p_bandwidth" class="form-label">Bandwidth per flow</label>
+            <div class="input-group has-validation">
+                <input class="form-control" id="p_bandwidth" data-field="BANDWIDTH" type="number" min="0" step="any">
+                <select class="form-select flex-grow-0 w-auto" id="p_bandwidth_unit" aria-label="Bandwidth unit">
+                    <option value="">bps</option><option value="K" selected>Kbps</option><option value="M">Mbps</option>
+                </select>
+                <div class="invalid-feedback" data-feedback="BANDWIDTH"></div>
+            </div>
+        </div>
+        <div class="col-md-6">{{ field("p_dscp", "DSCP", "DSCP", type="number", attrs='min="0" max="63"', help="e.g. 46 (EF) for voice.") }}</div>
+    </div>
+    <div class="row">
+        <div class="col-md-6">{{ field("p_packet_size", "PACKET_SIZE", "Packet size (bytes)", type="number", attrs='min="16" max="65507"') }}</div>
+        <div class="col-md-6">{{ field("p_interval", "INTERVAL", "Interval (s)", type="number", attrs='min="1" max="60"') }}</div>
+    </div>
+{% endcall %}
+
+<script>
+const el = id => document.getElementById(id);
+
+st.crud({
+    listUrl: "/api/v1/config/profiles",
+    itemUrl: uid => `/api/v1/config/profiles/${encodeURIComponent(uid)}`,
+    idField: "UID",
+    emptyText: "No profile yet. A profile lets several mesh groups share the same traffic settings.",
+    titleNew: "Create a profile",
+    titleEdit: uid => `Edit profile “${uid}”`,
+    deleteTitle: uid => `Delete profile “${uid}”?`,
+    deleteWarning: "Only a profile that no mesh group uses can be deleted.",
+    columns: [
+        {field: "UID", title: "Name", sortable: true},
+        {field: "DESCRIPTION", title: "Description", formatter: v => st.esc(v || "")},
+        {field: "BANDWIDTH", title: "Bandwidth", formatter: v => st.esc(v || "—")},
+        {field: "DSCP", title: "DSCP", formatter: v => st.esc(v || "—")},
+        {field: "PACKET_SIZE", title: "Packet size", formatter: v => st.esc(v || "—")},
+        {field: "INTERVAL", title: "Interval", formatter: v => st.esc(v || "—")},
+        {field: "USED_BY", title: "Used by", formatter: v => (v || []).map(st.esc).join(", ") || '<span class="text-white-50">unused</span>'},
+    ],
+    fill(row) {
+        el("p_uid").value = row ? row.UID : "";
+        el("p_uid").readOnly = !!row;
+        el("p_description").value = row ? (row.DESCRIPTION || "") : "";
+        const bw = row && row.BANDWIDTH ? String(row.BANDWIDTH) : "", suffix = bw.slice(-1).toUpperCase();
+        const hasUnit = suffix === "K" || suffix === "M";
+        el("p_bandwidth").value = hasUnit ? bw.slice(0, -1) : bw;
+        el("p_bandwidth_unit").value = bw ? (hasUnit ? suffix : "") : "K";
+        el("p_dscp").value = row ? (row.DSCP || "") : "";
+        el("p_packet_size").value = row ? (row.PACKET_SIZE || "") : "";
+        el("p_interval").value = row ? (row.INTERVAL || "") : "";
+    },
+    read: () => ({
+        UID: el("p_uid").value.trim(), DESCRIPTION: el("p_description").value.trim(),
+        BANDWIDTH: el("p_bandwidth").value.trim() ? el("p_bandwidth").value.trim() + el("p_bandwidth_unit").value : "",
+        DSCP: el("p_dscp").value.trim(), PACKET_SIZE: el("p_packet_size").value.trim(), INTERVAL: el("p_interval").value.trim(),
+    }),
+});
+</script>
+{% endblock %}

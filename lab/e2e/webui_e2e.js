@@ -50,13 +50,36 @@ async function nextToast(page, action) {
     return page.$$eval("#st-toasts .toast", els => els.map(e => e.className + " | " + e.textContent.trim()).pop());
 }
 
+// Pages éditables (st_crud.js) : formulaire, aperçu, application. Renvoie le texte de l'aperçu.
+async function reviewAndApply(page) {
+    await page.click("#btn_save");
+    await page.waitForSelector("#btn_apply", {visible: true});
+    const preview = await page.$eval("#cfg_review", e => e.textContent);
+    await nextToast(page, () => page.click("#btn_apply"));
+    await page.waitForFunction(() => !document.querySelector(".modal-backdrop, .modal.show"), {timeout: 15000});
+    return preview;
+}
+
+async function crudCreate(page, fill) {
+    await page.click("#btn_new");
+    await page.waitForSelector("#modal_form.show", {visible: true});
+    await fill();
+    return reviewAndApply(page);
+}
+
+async function rowExists(page, field, uid) {
+    await page.waitForFunction(u => $("#table").bootstrapTable("getRowByUniqueId", u) !== null, {timeout: 15000}, uid);
+    return true;
+}
+
 async function selectRow(page, uid) {
     // Comme un utilisateur : attendre qu'aucune fenêtre ni son fond assombri ne couvre la page.
     await page.waitForFunction(() => !document.querySelector(".modal-backdrop, .modal.show"), {timeout: 15000});
     await page.waitForFunction(u => [...document.querySelectorAll("#table tbody tr")].some(tr => tr.textContent.includes(u)), {}, uid);
     await page.evaluate(u => {
         $("#table").bootstrapTable("uncheckAll");
-        $("#table").bootstrapTable("checkBy", {field: "UID", values: [u]});
+        const field = $("#table").bootstrapTable("getOptions").uniqueId || "UID";  // UID ou DB_UID
+        $("#table").bootstrapTable("checkBy", {field: field, values: [u]});
     }, uid);
 }
 
@@ -138,6 +161,67 @@ async function selectRow(page, uid) {
     await page.click("#tab-versions");
     await page.waitForSelector("#versions-body button[data-act=restore]");
     check(true, "versions tab lists restorable versions");
+
+    // Profil temporaire (inutilisé, donc sans effet sur les mesures) : création, modification, suppression.
+    const PROFILE = "E2E_PROFILE";
+    errors = [];
+    await page.goto(BASE + "/profile_config.html", {waitUntil: "domcontentloaded"});
+    await page.waitForSelector('body[data-table-loaded="1"]');
+    await page.waitForSelector("#table");
+    await crudCreate(page, async () => {
+        await page.type("#p_uid", PROFILE);
+        await page.type("#p_dscp", "46");
+    });
+    check(await rowExists(page, "UID", PROFILE), "profile created");
+    await selectRow(page, PROFILE);
+    await page.click("#btn_edit");
+    await page.waitForSelector("#modal_form.show #p_dscp", {visible: true});
+    await page.$eval("#p_dscp", e => { e.value = ""; });
+    await page.type("#p_dscp", "34");
+    const profilePreview = await reviewAndApply(page);
+    check(profilePreview.includes('DSCP = "34"') && profilePreview.includes("No client measurement is affected"),
+          "profile edit preview shows the new DSCP and no affected client");
+    await selectRow(page, PROFILE);
+    await page.click("#btn_delete");
+    await nextToast(page, () => confirmModal(page));
+    await page.waitForFunction(u => $("#table").bootstrapTable("getRowByUniqueId", u) === null, {timeout: 15000}, PROFILE);
+    check(errors.length === 0, `profile cycle without error ${errors.join(" ; ")}`);
+
+    // Client : aperçu d'une modification (MAX_BANDWIDTH), puis abandon sans appliquer.
+    await page.goto(BASE + "/client_config.html", {waitUntil: "domcontentloaded"});
+    await page.waitForSelector('body[data-table-loaded="1"]');
+    await page.waitForSelector("#table tbody tr");
+    const firstClient = await page.evaluate(() => $("#table").bootstrapTable("getData")[0].UID);
+    await selectRow(page, firstClient);
+    await page.click("#btn_edit");
+    await page.waitForSelector("#modal_form.show #c_max_bw", {visible: true});
+    await page.type("#c_max_bw", "50M");
+    await page.click("#btn_save");
+    await page.waitForSelector("#btn_apply", {visible: true});
+    const clientPreview = await page.$eval("#cfg_review", e => e.textContent);
+    check(clientPreview.includes('MAX_BANDWIDTH = "50M"'), `client edit preview shows MAX_BANDWIDTH for ${firstClient}`);
+    await page.click("#modal_form [data-bs-dismiss=modal]");
+    await page.waitForFunction(() => !document.querySelector(".modal.show"), {timeout: 15000});
+
+    // Base de données : test de connexion sans enregistrer.
+    await page.goto(BASE + "/database_config.html", {waitUntil: "domcontentloaded"});
+    await page.waitForSelector('body[data-table-loaded="1"]');
+    await page.waitForSelector("#table tbody tr");
+    const firstDb = await page.evaluate(() => $("#table").bootstrapTable("getData")[0].DB_UID);
+    await selectRow(page, firstDb);
+    await page.click("#btn_edit");
+    try {
+        await page.waitForSelector("#modal_form.show #btn_test", {visible: true, timeout: 15000});
+    } catch (e) {
+        console.log("errors so far:", errors.join(" ; "));
+        await dump(page, "database edit form expected");
+        throw e;
+    }
+    await page.click("#btn_test");
+    await page.waitForFunction(() => document.getElementById("test_result").textContent.trim().length > 0, {timeout: 20000});
+    const tested = await page.$eval("#test_result", e => e.textContent.trim());
+    check(tested.includes("ONLINE"), `database ${firstDb} connection test: ${tested}`);
+    await page.click("#modal_form [data-bs-dismiss=modal]");
 
     // 3. Tableau de bord en direct, journaux
     await page.goto(BASE + "/home.html", {waitUntil: "domcontentloaded"});

@@ -1,14 +1,92 @@
 {% extends "base.html" %}
-{% from "_macros.html" import page_header, kv_table %}
+{% from "_macros.html" import page_header, crud_table, crud_modal, field %}
 {% block title %}Clients{% endblock %}
+{% block head %}<script src="{{ url_for('static', filename='js/st_crud.js') }}"></script>{% endblock %}
 {% block content %}
-{{ page_header("Clients", "Clients declared in the configuration file (SERVER_CLIENT). Live state is on the Dashboard and Monitoring › Clients.") }}
-{% for client in config['SERVER_CLIENT'] %}
-<section class="st-card">
-    <h2><i class="fas fa-network-wired me-2"></i>{{ client['UID'] }}</h2>
-    {{ kv_table(client, skip=('UID',)) }}
-</section>
-{% else %}
-<div class="st-empty"><i class="fas fa-network-wired"></i>No client declared. Add a [[SERVER_CLIENT]] section to the configuration file.</div>
-{% endfor %}
+{{ page_header("Clients", "Clients allowed to connect (SERVER_CLIENT). Changes apply live: only the clients whose measurements change reconnect.") }}
+{{ crud_table("Client") }}
+
+{% call crud_modal() %}
+    {{ field("c_uid", "UID", "Name", help="4 to 50 characters: letters, digits, '_' or '-'. The client announces this name when it connects; it cannot be changed later.", attrs='required maxlength="50"') }}
+    <fieldset class="mb-3">
+        <legend class="form-label fs-6">Address</legend>
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="c_ip_mode" id="c_ip_static" value="static" checked>
+            <label class="form-check-label" for="c_ip_static">Fixed IP address or host name</label>
+        </div>
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="c_ip_mode" id="c_ip_dynamic" value="dynamic">
+            <label class="form-check-label" for="c_ip_dynamic">Dynamic (learned when the client connects)</label>
+        </div>
+        <input class="form-control mt-2" id="c_ip" data-field="IP_ADDRESS" type="text" placeholder="10.0.0.1 or probe.example.org" aria-label="IP address or host name">
+        <div class="invalid-feedback" data-feedback="IP_ADDRESS"></div>
+    </fieldset>
+    <fieldset class="mb-3">
+        <legend class="form-label fs-6">Mesh groups</legend>
+        <div id="c_groups" data-field="MESH_GROUP_UID_LIST" class="d-flex flex-wrap gap-3"></div>
+        <div class="invalid-feedback d-block" data-feedback="MESH_GROUP_UID_LIST"></div>
+    </fieldset>
+    <div class="row">
+        <div class="col-md-6">{{ field("c_max_bw", "MAX_BANDWIDTH", "Maximum outgoing bandwidth (optional)", help="e.g. 10M. Changes that would exceed it are refused.") }}</div>
+        <div class="col-md-6">{{ field("c_ports", "MESH_LISTENERS_PORT_RANGE", "Listener port range (optional)", help="e.g. 15000-15100. Empty: the server's range.") }}</div>
+    </div>
+    <p class="small text-white-50 mb-0" id="c_advanced" hidden><i class="fas fa-info-circle me-1"></i>This client also has advanced settings (<span id="c_advanced_keys"></span>) edited in the configuration file; they are kept.</p>
+{% endcall %}
+
+<script>
+const el = id => document.getElementById(id);
+const ADVANCED = ["EXCLUDED_CLIENT_UID", "OVERRIDE_DST_NODE_IP", "PUBLIC_KEY"];
+
+function syncIpMode() {
+    const dynamic = el("c_ip_dynamic").checked;
+    el("c_ip").disabled = dynamic;
+    if (dynamic) el("c_ip").value = "";
+}
+document.querySelectorAll('input[name="c_ip_mode"]').forEach(r => r.addEventListener("change", syncIpMode));
+
+st.crud({
+    listUrl: "/api/v1/config/clients",
+    itemUrl: uid => `/api/v1/config/clients/${encodeURIComponent(uid)}`,
+    idField: "UID",
+    emptyText: "No client declared yet. Click “New” to allow a first client to connect.",
+    titleNew: "Declare a client",
+    titleEdit: uid => `Edit client “${uid}”`,
+    deleteTitle: uid => `Remove client “${uid}”?`,
+    deleteWarning: "A connected client is disconnected and refused from then on.",
+    columns: [
+        {field: "UID", title: "Name", sortable: true},
+        {field: "IP_ADDRESS", title: "Address", formatter: (v, row) => row.DYNAMIC ? '<span class="badge bg-secondary">dynamic</span>' : st.esc(v)},
+        {field: "MESH_GROUP_UID_LIST", title: "Mesh groups", formatter: v => (v || []).map(st.esc).join(", ") || '<span class="text-white-50">none</span>'},
+        {field: "MAX_BANDWIDTH", title: "Max bandwidth", formatter: v => st.esc(v || "")},
+        {field: "MESH_LISTENERS_PORT_RANGE", title: "Port range", formatter: v => st.esc(v || "")},
+    ],
+    async fill(row) {
+        const r = await st.api("GET", "/api/v1/mesh-groups");
+        const groups = r.ok ? r.data.map(g => g.UID) : [];
+        const selected = row ? row.MESH_GROUP_UID_LIST : [];
+        el("c_groups").innerHTML = groups.length ? groups.map((g, i) => `<div class="form-check">
+            <input class="form-check-input" type="checkbox" id="c_g${i}" value="${st.esc(g)}"${selected.includes(g) ? " checked" : ""}>
+            <label class="form-check-label" for="c_g${i}">${st.esc(g)}</label></div>`).join("")
+            : '<span class="text-white-50">No mesh group yet: create one on the Mesh groups page.</span>';
+        el("c_uid").value = row ? row.UID : "";
+        el("c_uid").readOnly = !!row;
+        const dynamic = row ? row.DYNAMIC : false;
+        el(dynamic ? "c_ip_dynamic" : "c_ip_static").checked = true;
+        el("c_ip").value = row && !dynamic ? row.IP_ADDRESS : "";
+        syncIpMode();
+        el("c_max_bw").value = row ? (row.MAX_BANDWIDTH || "") : "";
+        el("c_ports").value = row ? (row.MESH_LISTENERS_PORT_RANGE || "") : "";
+        const advanced = row ? ADVANCED.filter(k => k in row) : [];
+        el("c_advanced").hidden = !advanced.length;
+        el("c_advanced_keys").textContent = advanced.join(", ");
+    },
+    read: () => ({
+        UID: el("c_uid").value.trim(),
+        IP_ADDRESS: el("c_ip_dynamic").checked ? "0.0.0.0" : el("c_ip").value.trim(),
+        MESH_GROUP_UID_LIST: [...el("c_groups").querySelectorAll("input:checked")].map(i => i.value),
+        MAX_BANDWIDTH: el("c_max_bw").value.trim(),
+        MESH_LISTENERS_PORT_RANGE: el("c_ports").value.trim(),
+    }),
+});
+</script>
 {% endblock %}

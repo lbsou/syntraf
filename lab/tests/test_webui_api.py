@@ -185,7 +185,7 @@ def test_openapi_lists_the_mesh_group_routes(env):
 
 @pytest.mark.parametrize("page", ["/home.html", "/stats.html", "/mesh_group_config.html", "/token_config.html",
                                   "/queue.html", "/log_viewer.html", "/server.html", "/client_config.html",
-                                  "/database_config.html", "/audit.html"])
+                                  "/database_config.html", "/audit.html", "/profile_config.html"])
 def test_every_page_renders(env, page):
     assert env["client"].get(page).status_code == 200
 
@@ -206,3 +206,33 @@ def test_version_view_and_diffs_hide_tokens(env):
     original = c.get("/api/v1/config/versions").json[-1]["version"]
     assert 'T1 = "tok"' not in c.get(f"/api/v1/config/versions/{original}").get_data(as_text=True)
     assert "T1 = " in c.get(f"/api/v1/config/versions/{original}").get_data(as_text=True)
+
+
+def test_client_declarations_can_be_created_edited_and_removed(env):
+    c = env["client"]
+    body = {"UID": "NODE_C", "IP_ADDRESS": "10.0.0.3", "MESH_GROUP_UID_LIST": ["GROUP1"]}
+    assert c.post("/api/v1/config/clients?dry_run=1", json=body).json["affected_clients"] == ["NODE_A", "NODE_B", "NODE_C"]
+    assert c.post("/api/v1/config/clients", json=body).status_code == 201
+    r = c.put("/api/v1/config/clients/NODE_C", json=dict(body, IP_ADDRESS="bad ip!"))
+    assert r.status_code == 400 and list(r.json["error"]["fields"]) == ["IP_ADDRESS"]
+    assert c.put("/api/v1/config/clients/NODE_C", json=dict(body, MAX_BANDWIDTH="5M")).status_code == 200
+    assert c.get("/api/v1/config/clients/NODE_C").json["MAX_BANDWIDTH"] == "5M"
+    assert c.delete("/api/v1/config/clients/NODE_C").status_code == 200
+    assert c.get("/api/v1/config/clients/NODE_C").status_code == 404
+
+
+def test_database_declarations_never_expose_the_token(env):
+    class Conn:
+        def __init__(self, config, uid):
+            self.DB_UID, self.status, self.status_time = uid, "ONLINE", dt.datetime(2026, 11, 21)
+            self.write_queue = queue.Queue()
+    env["app"].config["db_factory"] = Conn
+    c = env["client"]
+    body = {"DB_UID": "VM_TWO", "DB_ENGINE": "VictoriaMetrics", "DB_SERVER": "10.0.0.20", "DB_PORT": "8428",
+            "DB_TOKEN": "t0psecret"}
+    assert c.post("/api/v1/config/databases/test", json=body).json["status"] == "ONLINE"
+    r = c.post("/api/v1/config/databases", json=body)
+    assert r.status_code == 201 and "t0psecret" not in r.get_data(as_text=True)
+    listed = c.get("/api/v1/config/databases").get_data(as_text=True)
+    assert "t0psecret" not in listed and '"DB_TOKEN_SET":true' in listed.replace(" ", "")
+    assert "VM_TWO" in [d["uid"] for d in c.get("/api/v1/databases").json]

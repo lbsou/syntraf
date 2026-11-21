@@ -14,13 +14,17 @@ Principe de chaque changement :
      reconnexion aux clients connectés dont la config a changé (chacun ne relance que les flux modifiés).
 """
 import copy
+import ipaddress
 import logging
+import re
 
 import toml
 
 from lib import st_config_store as store
 from lib.st_conf_validation import (validate_bandwidth, validate_dscp, validate_packet_size, validate_interval,
-                                    validate_uid, validate_group, generate_client_config_mesh)
+                                    validate_uid, validate_group, generate_client_config_mesh,
+                                    validate_excluded_client, validate_override_dst_node_ip,
+                                    config_validation_database, FQDN)
 
 log = logging.getLogger("syntraf." + __name__)
 
@@ -100,6 +104,7 @@ def create(state, values, actor, dry_run=False):
     uid = str(values.get("UID", "")).strip()
     _raise_on_field_errors(values, with_uid=True)
     cfg = read_disk(state)
+    _check_profile_reference(cfg, values)
     if _find(cfg, uid) is not None:
         raise OpError(409, f"Mesh group '{uid}' already exists", {"UID": "This name is already used"})
     new = {"UID": uid}
@@ -111,6 +116,7 @@ def create(state, values, actor, dry_run=False):
 def update(state, uid, values, actor, dry_run=False):
     _raise_on_field_errors(values)
     cfg = read_disk(state)
+    _check_profile_reference(cfg, values)
     g = _require(cfg, uid)
     _apply_form(g, values)
     return dict(_commit(state, cfg, actor, "UPDATE_MESH_GROUP", f"Mesh group '{uid}' updated", dry_run), uid=uid)
@@ -159,11 +165,430 @@ def save_map(state, uid, cyto_json, actor):
     return _commit(state, cfg, actor, "SAVE_MAP", f"Map of mesh group '{uid}' saved", False)
 
 
+# ------------------------------------------------------------------------------------------------ profils iperf3
+
+PROFILE_FIELDS = ("BANDWIDTH", "DSCP", "PACKET_SIZE", "INTERVAL")
+
+
+def list_profiles(state):
+    """Profils iperf3 tels qu'écrits dans le fichier, avec les mesh groups qui les utilisent (USED_BY)."""
+    cfg = read_disk(state)
+    rows = copy.deepcopy(cfg.get("IPERF3_PROFILE", []))
+    for p in rows:
+        p["USED_BY"] = [g["UID"] for g in cfg.get("MESH_GROUP", []) if g.get("IPERF3_PROFILE") == p.get("UID")]
+    return rows
+
+
+def create_profile(state, values, actor, dry_run=False):
+    cfg = read_disk(state)
+    uid = str(values.get("UID", "")).strip()
+    _raise(_profile_field_errors(values, with_uid=True))
+    if _find_by(cfg.get("IPERF3_PROFILE", []), "UID", uid) is not None:
+        raise OpError(409, f"Profile '{uid}' already exists", {"UID": "This name is already used"})
+    p = {"UID": uid}
+    _apply_profile_form(p, values)
+    cfg.setdefault("IPERF3_PROFILE", []).append(p)
+    return dict(_commit(state, cfg, actor, "CREATE_PROFILE", f"Profile '{uid}' created", dry_run), uid=uid)
+
+
+def update_profile(state, uid, values, actor, dry_run=False):
+    """Modifie un profil : les mesh groups qui l'utilisent sont régénérés et leurs membres se reconnectent."""
+    cfg = read_disk(state)
+    p = _find_by(cfg.get("IPERF3_PROFILE", []), "UID", uid)
+    if p is None:
+        raise OpError(404, f"Profile '{uid}' not found")
+    _raise(_profile_field_errors(values))
+    _apply_profile_form(p, values)
+    return dict(_commit(state, cfg, actor, "UPDATE_PROFILE", f"Profile '{uid}' updated", dry_run), uid=uid)
+
+
+def delete_profile(state, uid, actor, dry_run=False):
+    cfg = read_disk(state)
+    p = _find_by(cfg.get("IPERF3_PROFILE", []), "UID", uid)
+    if p is None:
+        raise OpError(404, f"Profile '{uid}' not found")
+    used_by = [g["UID"] for g in cfg.get("MESH_GROUP", []) if g.get("IPERF3_PROFILE") == uid]
+    if used_by:
+        raise OpError(409, f"Profile '{uid}' is used by mesh group(s): {', '.join(used_by)}")
+    cfg["IPERF3_PROFILE"].remove(p)
+    return dict(_commit(state, cfg, actor, "DELETE_PROFILE", f"Profile '{uid}' deleted", dry_run), uid=uid)
+
+
+def _profile_field_errors(values, with_uid=False):
+    """Chaque valeur est facultative (le mesh group garde alors la sienne), mais il en faut au moins une."""
+    present = {k: str(values.get(k, "") or "").strip() for k in PROFILE_FIELDS}
+    present = {k: v for k, v in present.items() if v}
+    errors = {k: m for k, m in field_errors(dict(values, **{f: "1" for f in PROFILE_FIELDS if f not in present}),
+                                             with_uid).items() if k in present or k == "UID"}
+    if not present and not errors:
+        raise OpError(400, "A profile needs at least one value (bandwidth, DSCP, packet size or interval)",
+                      {k: "At least one value is needed" for k in PROFILE_FIELDS})
+    return errors
+
+
+def _apply_profile_form(p, values):
+    for key in PROFILE_FIELDS + ("DESCRIPTION",):
+        value = str(values.get(key, "") or "").strip()
+        if value:
+            p[key] = value
+        else:
+            p.pop(key, None)
+    p.pop("PACKET_PER_SECOND", None)  # recalculé depuis le débit et la taille, comme pour les mesh groups
+
+
+def _check_profile_reference(cfg, values):
+    profile = str(values.get("IPERF3_PROFILE", "") or "").strip()
+    if profile and _find_by(cfg.get("IPERF3_PROFILE", []), "UID", profile) is None:
+        raise OpError(400, "Some fields are invalid", {"IPERF3_PROFILE": f"Profile '{profile}' does not exist"})
+
+
+# --------------------------------------------------------------------------------------------------------- clients
+
+LIVE_SECTIONS = ("MESH_GROUP", "IPERF3_PROFILE", "SERVER_CLIENT", "DATABASE")
+DYNAMIC_IP = "0.0.0.0"
+CLIENT_MESSAGES = {
+    "UID": FIELD_MESSAGES["UID"],
+    "IP_ADDRESS": "An IP address or a host name, or 0.0.0.0 for a client with a dynamic IP",
+    "MESH_GROUP_UID_LIST": "Existing mesh groups only",
+    "MAX_BANDWIDTH": "Empty, or a positive rate such as 10M",
+    "MESH_LISTENERS_PORT_RANGE": "Empty, or a port range such as 15000-15100",
+}
+
+
+def list_clients(state):
+    """Clients tels que déclarés dans le fichier (SERVER_CLIENT)."""
+    rows = copy.deepcopy(read_disk(state).get("SERVER_CLIENT", []))
+    for c in rows:
+        c["DYNAMIC"] = c.get("IP_ADDRESS") == DYNAMIC_IP
+        c.setdefault("MESH_GROUP_UID_LIST", [])
+    return rows
+
+
+def create_client(state, values, actor, dry_run=False):
+    cfg = read_disk(state)
+    uid = str(values.get("UID", "")).strip()
+    _raise(_client_field_errors(values, cfg, with_uid=True))
+    if _find_by(cfg.get("SERVER_CLIENT", []), "UID", uid) is not None:
+        raise OpError(409, f"Client '{uid}' already exists", {"UID": "This name is already used"})
+    c = {"UID": uid}
+    _apply_client_form(c, values)
+    cfg.setdefault("SERVER_CLIENT", []).append(c)
+    return dict(_commit(state, cfg, actor, "CREATE_CLIENT", f"Client '{uid}' created", dry_run), uid=uid)
+
+
+def update_client(state, uid, values, actor, dry_run=False):
+    cfg = read_disk(state)
+    c = _find_by(cfg.get("SERVER_CLIENT", []), "UID", uid)
+    if c is None:
+        raise OpError(404, f"Client '{uid}' not found")
+    _raise(_client_field_errors(values, cfg))
+    _apply_client_form(c, values)
+    return dict(_commit(state, cfg, actor, "UPDATE_CLIENT", f"Client '{uid}' updated", dry_run), uid=uid)
+
+
+def delete_client(state, uid, actor, dry_run=False):
+    """Retire un client ; s'il est connecté, il est invité à se reconnecter et sera alors refusé."""
+    cfg = read_disk(state)
+    c = _find_by(cfg.get("SERVER_CLIENT", []), "UID", uid)
+    if c is None:
+        raise OpError(404, f"Client '{uid}' not found")
+    cfg["SERVER_CLIENT"].remove(c)
+    return dict(_commit(state, cfg, actor, "DELETE_CLIENT", f"Client '{uid}' deleted", dry_run), uid=uid)
+
+
+def _client_field_errors(values, cfg, with_uid=False):
+    errors = {}
+    if with_uid and not _ok(validate_uid, str(values.get("UID", "")).strip()):
+        errors["UID"] = CLIENT_MESSAGES["UID"]
+    if not _valid_host(str(values.get("IP_ADDRESS", "")).strip()):
+        errors["IP_ADDRESS"] = CLIENT_MESSAGES["IP_ADDRESS"]
+    known = {g["UID"] for g in cfg.get("MESH_GROUP", [])}
+    if any(g not in known for g in _as_list(values.get("MESH_GROUP_UID_LIST"))):
+        errors["MESH_GROUP_UID_LIST"] = CLIENT_MESSAGES["MESH_GROUP_UID_LIST"]
+    max_bw = str(values.get("MAX_BANDWIDTH", "") or "").strip()
+    if max_bw and not _ok(lambda x: validate_bandwidth(x) > 0, max_bw):
+        errors["MAX_BANDWIDTH"] = CLIENT_MESSAGES["MAX_BANDWIDTH"]
+    port_range = str(values.get("MESH_LISTENERS_PORT_RANGE", "") or "").strip()
+    if port_range and not _valid_port_range(port_range):
+        errors["MESH_LISTENERS_PORT_RANGE"] = CLIENT_MESSAGES["MESH_LISTENERS_PORT_RANGE"]
+    return errors
+
+
+def _apply_client_form(c, values):
+    c["IP_ADDRESS"] = str(values.get("IP_ADDRESS", "")).strip()
+    c["MESH_GROUP_UID_LIST"] = _as_list(values.get("MESH_GROUP_UID_LIST"))
+    for key in ("MAX_BANDWIDTH", "MESH_LISTENERS_PORT_RANGE"):
+        value = str(values.get(key, "") or "").strip()
+        if value:
+            c[key] = value
+        else:
+            c.pop(key, None)
+    # Les autres clés (EXCLUDED_CLIENT_UID, OVERRIDE_DST_NODE_IP...) ne sont pas dans le formulaire : conservées.
+
+
+def _validate_clients(cfg):
+    clients = cfg.get("SERVER_CLIENT", [])
+    uids = [c.get("UID") for c in clients]
+    if len(uids) != len(set(uids)):
+        raise OpError(409, "Client names must be unique")
+    probe = copy.deepcopy(cfg)
+    for c in probe.get("SERVER_CLIENT", []):
+        if _client_field_errors(c, probe):
+            raise OpError(422, f"Invalid declaration for client '{c.get('UID')}'")
+        if "EXCLUDED_CLIENT_UID" in c and not validate_excluded_client(c, probe):
+            raise OpError(422, f"EXCLUDED_CLIENT_UID of client '{c['UID']}' refers to an unknown client or group")
+        if "OVERRIDE_DST_NODE_IP" in c and not validate_override_dst_node_ip(c, probe):
+            raise OpError(422, f"OVERRIDE_DST_NODE_IP of client '{c['UID']}' is invalid")
+
+
+def _live_clients(disk_clients, live, dynamic_uids):
+    """Clients pour la config en mémoire : ceux du fichier, avec l'IP apprise des clients déjà dynamiques."""
+    learned = {c["UID"]: c.get("IP_ADDRESS") for c in live.get("SERVER_CLIENT", [])}
+    clients = copy.deepcopy(disk_clients)
+    for c in clients:
+        if (c.get("IP_ADDRESS") == DYNAMIC_IP and c["UID"] in dynamic_uids
+                and learned.get(c["UID"]) not in (None, DYNAMIC_IP)):
+            c["IP_ADDRESS"] = learned[c["UID"]]
+    return clients
+
+
+def _dynamic_uids(state):
+    """Clients dynamiques du serveur (st_mesh.DYNAMIC_UIDS), ensemble partagé avec la boucle de contrôle."""
+    if "dynamic_uids" not in state:
+        try:
+            from lib import st_mesh
+            state["dynamic_uids"] = st_mesh.DYNAMIC_UIDS
+        except Exception:  # noqa: BLE001 - hors serveur (outils, tests) : un ensemble local suffit
+            state["dynamic_uids"] = set()
+    return state["dynamic_uids"]
+
+
+# ------------------------------------------------------------------------------------------------------- databases
+
+DB_ENGINES = {"VICTORIAMETRICS": "VictoriaMetrics", "INFLUXDB2": "InfluxDB2"}
+DB_OPTIONAL = ("DB_ORG", "DB_BUCKET", "DB_USE_WEB_PROXY", "DB_CONNECTION_POOL_MAXSIZE", "DB_RETENTION")
+DB_NOT_CONNECTION = ("DB_RETENTION",)  # réglages qui ne demandent pas de recréer la connexion
+DB_MESSAGES = {
+    "DB_UID": FIELD_MESSAGES["UID"],
+    "DB_ENGINE": "VictoriaMetrics or InfluxDB2",
+    "DB_SERVER": "An IP address or a host name",
+    "DB_PORT": "A port between 1 and 65534",
+    "DB_TOKEN": "Required for InfluxDB2",
+    "DB_ORG": "Required for InfluxDB2",
+    "DB_BUCKET": "Required for InfluxDB2",
+    "DB_USE_WEB_PROXY": "Empty, or a proxy URL such as http://proxy:3128",
+    "DB_CONNECTION_POOL_MAXSIZE": "Empty, or a positive integer",
+    "DB_RETENTION": "Empty, or a duration such as 30d, 12w or 1y",
+}
+
+
+def list_databases(state):
+    """Bases déclarées, sans jamais renvoyer le jeton (DB_TOKEN_SET dit seulement s'il y en a un)."""
+    rows = []
+    for d in read_disk(state).get("DATABASE", []):
+        row = {k: v for k, v in d.items() if k != "DB_TOKEN"}
+        row["DB_TOKEN_SET"] = bool(d.get("DB_TOKEN"))
+        rows.append(row)
+    return rows
+
+
+def create_database(state, values, actor, dry_run=False):
+    cfg = read_disk(state)
+    uid = str(values.get("DB_UID", "")).strip()
+    _raise(_db_field_errors(values, None, with_uid=True))
+    if _find_by(cfg.get("DATABASE", []), "DB_UID", uid) is not None:
+        raise OpError(409, f"Database '{uid}' already exists", {"DB_UID": "This name is already used"})
+    d = {"DB_UID": uid}
+    _apply_db_form(d, values)
+    cfg.setdefault("DATABASE", []).append(d)
+    return dict(_commit(state, cfg, actor, "CREATE_DATABASE", f"Database '{uid}' created", dry_run), uid=uid)
+
+
+def update_database(state, uid, values, actor, dry_run=False):
+    cfg = read_disk(state)
+    d = _find_by(cfg.get("DATABASE", []), "DB_UID", uid)
+    if d is None:
+        raise OpError(404, f"Database '{uid}' not found")
+    _raise(_db_field_errors(values, d))
+    _apply_db_form(d, values)
+    return dict(_commit(state, cfg, actor, "UPDATE_DATABASE", f"Database '{uid}' updated", dry_run), uid=uid)
+
+
+def delete_database(state, uid, actor, dry_run=False):
+    cfg = read_disk(state)
+    d = _find_by(cfg.get("DATABASE", []), "DB_UID", uid)
+    if d is None:
+        raise OpError(404, f"Database '{uid}' not found")
+    cfg["DATABASE"].remove(d)
+    return dict(_commit(state, cfg, actor, "DELETE_DATABASE", f"Database '{uid}' deleted", dry_run), uid=uid)
+
+
+def test_database(state, values):
+    """Ouvre une connexion d'essai avec ces paramètres, sans rien enregistrer : {"status": "ONLINE", ...}."""
+    uid = str(values.get("DB_UID", "")).strip() or "CONNECTION_TEST"
+    existing = _find_by(read_disk(state).get("DATABASE", []), "DB_UID", uid)
+    _raise(_db_field_errors(values, existing))
+    d = dict(copy.deepcopy(existing or {}), DB_UID=uid)
+    _apply_db_form(d, values)
+    probe = {"DATABASE": [d]}
+    if not config_validation_database(probe):
+        raise OpError(422, "Invalid database parameters (see the server log)")
+    try:
+        conn = _db_factory(state)(probe, uid)
+    except Exception as exc:  # noqa: BLE001 - un pilote de base peut lever n'importe quoi
+        return {"status": "ERROR", "message": f"{type(exc).__name__}: {exc}"}
+    return {"status": getattr(conn, "status", "UNKNOWN")}
+
+
+def _db_field_errors(values, existing, with_uid=False):
+    keys = ("DB_UID", "DB_ENGINE", "DB_SERVER", "DB_PORT", "DB_TOKEN") + DB_OPTIONAL
+    v = {k: str(values.get(k, "") or "").strip() for k in keys}
+    errors = {}
+    if with_uid and not _ok(validate_uid, v["DB_UID"]):
+        errors["DB_UID"] = DB_MESSAGES["DB_UID"]
+    engine = DB_ENGINES.get(v["DB_ENGINE"].upper())
+    if engine is None:
+        errors["DB_ENGINE"] = DB_MESSAGES["DB_ENGINE"]
+    if not _valid_host(v["DB_SERVER"]):
+        errors["DB_SERVER"] = DB_MESSAGES["DB_SERVER"]
+    if not (v["DB_PORT"].isdigit() and 1 <= int(v["DB_PORT"]) <= 65534):
+        errors["DB_PORT"] = DB_MESSAGES["DB_PORT"]
+    if engine == "InfluxDB2":
+        has_token = bool(v["DB_TOKEN"]) or (bool((existing or {}).get("DB_TOKEN"))
+                                            and not _truthy(values.get("DB_TOKEN_CLEAR")))
+        if not has_token:
+            errors["DB_TOKEN"] = DB_MESSAGES["DB_TOKEN"]
+        for key in ("DB_ORG", "DB_BUCKET"):
+            if not v[key]:
+                errors[key] = DB_MESSAGES[key]
+    if v["DB_USE_WEB_PROXY"] and not re.match(r"^https?://[^\s:/]+(:\d+)?/?$", v["DB_USE_WEB_PROXY"]):
+        errors["DB_USE_WEB_PROXY"] = DB_MESSAGES["DB_USE_WEB_PROXY"]
+    pool = v["DB_CONNECTION_POOL_MAXSIZE"]
+    if pool and not (pool.isdigit() and int(pool) > 0):
+        errors["DB_CONNECTION_POOL_MAXSIZE"] = DB_MESSAGES["DB_CONNECTION_POOL_MAXSIZE"]
+    if v["DB_RETENTION"] and parse_retention(v["DB_RETENTION"]) is None:
+        errors["DB_RETENTION"] = DB_MESSAGES["DB_RETENTION"]
+    return errors
+
+
+def _apply_db_form(d, values):
+    d["DB_ENGINE"] = DB_ENGINES[str(values.get("DB_ENGINE", "")).strip().upper()]
+    d["DB_SERVER"] = str(values.get("DB_SERVER", "")).strip()
+    d["DB_PORT"] = str(values.get("DB_PORT", "")).strip()
+    d["DB_SERVER_USE_SSL"] = _truthy(values.get("DB_SERVER_USE_SSL"))
+    token = str(values.get("DB_TOKEN", "") or "").strip()
+    if token:
+        d["DB_TOKEN"] = token  # laissé vide : le jeton enregistré est gardé
+    elif _truthy(values.get("DB_TOKEN_CLEAR")):
+        d.pop("DB_TOKEN", None)
+    for key in DB_OPTIONAL:
+        value = str(values.get(key, "") or "").strip()
+        if value:
+            d[key] = value
+        else:
+            d.pop(key, None)
+    if d["DB_ENGINE"] == "InfluxDB2":
+        d.setdefault("DB_CONNECTION_POOL_MAXSIZE", "100")
+
+
+def _db_connection_params(d):
+    return None if d is None else {k: v for k, v in d.items() if k not in DB_NOT_CONNECTION}
+
+
+def _db_factory(state):
+    factory = state.get("db_factory")
+    if factory is None:
+        from lib.st_db_factory import make_db_connection
+        factory = make_db_connection
+    return factory
+
+
+def _rebuild_connections(state, live, recreated):
+    """Met à jour la liste des connexions, partagée avec le thread serveur : garde celles qui n'ont pas changé."""
+    conn_db = state.get("conn_db")
+    if conn_db is None:
+        return
+    existing = {getattr(c, "DB_UID", None): c for c in conn_db}
+    rebuilt = []
+    for d in live.get("DATABASE", []):
+        uid = d["DB_UID"]
+        if uid in recreated or uid not in existing:
+            try:
+                rebuilt.append(_db_factory(state)(live, uid))
+            except Exception as exc:  # noqa: BLE001
+                log.error(f"DATABASE '{uid}': CONNECTION COULD NOT BE CREATED: {type(exc).__name__}:{exc}")
+        else:
+            rebuilt.append(existing[uid])
+    conn_db[:] = rebuilt
+
+
+_RETENTION_RE = re.compile(r"^(\d+)([hdwy])$", re.IGNORECASE)
+_RETENTION_HOURS = {"h": 1, "d": 24, "w": 24 * 7, "y": 24 * 365}
+
+
+def parse_retention(value):
+    """Durée au format -retentionPeriod de VictoriaMetrics (48h, 30d, 12w, 1y ; un nombre seul compte en mois),
+    convertie en heures. None si invalide."""
+    value = str(value or "").strip()
+    if value.isdigit():
+        return int(value) * 24 * 31 if int(value) > 0 else None
+    m = _RETENTION_RE.match(value)
+    if not m or int(m.group(1)) == 0:
+        return None
+    return int(m.group(1)) * _RETENTION_HOURS[m.group(2).lower()]
+
+
+# ---------------------------------------------------------------------------------------------------- utilitaires
+
+def _raise(errors):
+    if errors:
+        raise OpError(400, "Some fields are invalid", errors)
+
+
+def _ok(check, value):
+    try:
+        return bool(value) and bool(check(value))
+    except Exception:  # noqa: BLE001 - les fonctions de validation lèvent parfois sur une entrée invalide
+        return False
+
+
+def _truthy(value):
+    return value is True or str(value).strip().lower() in ("true", "1", "yes", "on")
+
+
+def _as_list(value):
+    if value is None or value == "":
+        return []
+    if isinstance(value, str):
+        return [x.strip() for x in value.split(",") if x.strip()]
+    return [str(x).strip() for x in value if str(x).strip()]
+
+
+def _valid_host(value):
+    if not value:
+        return False
+    try:
+        ipaddress.ip_address(value)
+        return True
+    except ValueError:
+        pass
+    return bool(re.match(r"^[A-Za-z0-9.-]+$", value)) and FQDN(value).is_valid
+
+
+def _valid_port_range(value):
+    m = re.match(r"^(\d+)-(\d+)$", value)
+    return bool(m) and 1 <= int(m.group(1)) < int(m.group(2)) <= 65534
+
+
+def _find_by(items, key, uid):
+    return next((i for i in items if i.get(key) == uid), None)
+
+
 # -------------------------------------------------------------------------------------------------------- versions
 
 def restore(state, version, actor, dry_run=False):
-    """Revient à une version gardée du fichier. Les mesh groups sont appliqués à chaud ; les autres sections
-    (clients, bases de données, réglages globaux) sont écrites mais demandent un redémarrage du serveur."""
+    """Revient à une version gardée du fichier. Mesh groups, clients et bases de données sont appliqués à chaud ;
+    les autres sections (SERVER, GLOBAL) sont écrites mais demandent un redémarrage du serveur."""
     try:
         text = store.read_version(state["config_file_path"], version)
     except KeyError:
@@ -173,7 +598,7 @@ def restore(state, version, actor, dry_run=False):
     except toml.TomlDecodeError as exc:
         raise OpError(422, f"Version '{version}' is not valid TOML: {exc}")
     current = read_disk(state)
-    restart_required = any(target.get(k) != current.get(k) for k in set(target) | set(current) if k != "MESH_GROUP")
+    restart_required = any(target.get(k) != current.get(k) for k in set(target) | set(current) if k not in LIVE_SECTIONS)
     result = _commit(state, target, actor, "RESTORE_CONFIG", f"Configuration restored to version {version}", dry_run)
     return dict(result, restart_required=restart_required, version=version)
 
@@ -182,24 +607,48 @@ def restore(state, version, actor, dry_run=False):
 
 def _commit(state, disk_cfg, actor, action, summary, dry_run):
     live = state["config"]
+    old_disk = read_disk(state)
     groups = copy.deepcopy(disk_cfg.get("MESH_GROUP", []))
-    if not validate_group(dict(live, MESH_GROUP=groups), "MESH_GROUP"):
+    profiles = copy.deepcopy(disk_cfg.get("IPERF3_PROFILE", []))
+    if not validate_group(dict(live, MESH_GROUP=groups, IPERF3_PROFILE=profiles), "MESH_GROUP"):
         raise OpError(422, "Invalid mesh group parameters (see the server log)")
+
+    # Clients : remplacés seulement si leur déclaration a changé ; l'IP apprise d'un client dynamique est gardée.
+    old_clients = {c["UID"]: c for c in old_disk.get("SERVER_CLIENT", [])}
+    new_clients = {c["UID"]: c for c in disk_cfg.get("SERVER_CLIENT", [])}
+    changed_clients = {u for u in set(old_clients) | set(new_clients) if old_clients.get(u) != new_clients.get(u)}
+    live_clients = live.get("SERVER_CLIENT", [])
+    if changed_clients:
+        _validate_clients(disk_cfg)
+        live_clients = _live_clients(disk_cfg.get("SERVER_CLIENT", []), live, _dynamic_uids(state))
+
+    # Bases de données : connexion recréée pour chaque base ajoutée ou dont les paramètres de connexion changent.
+    old_dbs = {d["DB_UID"]: d for d in old_disk.get("DATABASE", [])}
+    new_dbs = {d["DB_UID"]: d for d in disk_cfg.get("DATABASE", [])}
+    recreated = [u for u in new_dbs if _db_connection_params(old_dbs.get(u)) != _db_connection_params(new_dbs[u])]
+    live_dbs = None
+    if old_dbs != new_dbs:
+        live_dbs = copy.deepcopy(disk_cfg.get("DATABASE", []))
+        if not config_validation_database({"DATABASE": live_dbs}):
+            raise OpError(422, "Invalid database parameters (see the server log)")
 
     scratch = {}
     try:
-        _, tuples = generate_client_config_mesh(dict(copy.deepcopy(live), MESH_GROUP=copy.deepcopy(groups)), scratch)
+        _, tuples = generate_client_config_mesh(
+            dict(copy.deepcopy(live), MESH_GROUP=copy.deepcopy(groups), SERVER_CLIENT=copy.deepcopy(live_clients)),
+            scratch)
     except (SystemExit, Exception) as exc:  # noqa: BLE001 - sys.exit() quand un client dépasse son MAX_BANDWIDTH
         log.error(f"{action} REFUSED, CLIENT CONFIG GENERATION FAILED: {type(exc).__name__}:{exc}")
         raise OpError(409, "Not applied: a client would exceed its MAX_BANDWIDTH, or the client configuration "
                            "could not be generated (see the server log)")
 
     current = state["_dict_by_node_generated_config"]
-    affected = sorted(uid for uid in set(current) | set(scratch) if _edges(current.get(uid)) != _edges(scratch.get(uid)))
+    affected = sorted({uid for uid in set(current) | set(scratch) if _edges(current.get(uid)) != _edges(scratch.get(uid))}
+                      | changed_clients)
     old_text = _read_text(state["config_file_path"])
     new_text = toml.dumps(disk_cfg)
     result = {"message": summary, "diff": store.redacted_diff(old_text, new_text), "affected_clients": affected,
-              "reconnected_clients": [], "dry_run": dry_run}
+              "reconnected_clients": [], "recreated_databases": recreated, "dry_run": dry_run}
     if dry_run:
         return result
 
@@ -209,14 +658,28 @@ def _commit(state, disk_cfg, actor, action, summary, dry_run):
         log.error(f"{action} NOT APPLIED, UNABLE TO WRITE THE CONFIGURATION FILE: {exc}")
         raise OpError(500, f"Not applied: unable to write the configuration file ({exc})")
 
-    live["MESH_GROUP"][:] = groups  # sur place : les autres threads gardent une référence à cette liste
+    # Sur place : les autres threads gardent une référence à ces listes.
+    live["MESH_GROUP"][:] = groups
+    live.setdefault("IPERF3_PROFILE", [])[:] = profiles
+    if changed_clients:
+        live.setdefault("SERVER_CLIENT", [])[:] = live_clients
+        dynamic = _dynamic_uids(state)
+        dynamic.clear()
+        dynamic.update(c["UID"] for c in disk_cfg.get("SERVER_CLIENT", []) if c.get("IP_ADDRESS") == DYNAMIC_IP)
+        for uid in [u for u in current if u not in new_clients]:
+            current.pop(uid, None)  # client retiré : plus de config générée pour lui
     _, state["_dict_by_group_of_generated_tuple_for_map"] = generate_client_config_mesh(live, current)
+    if live_dbs is not None:
+        live.setdefault("DATABASE", [])[:] = live_dbs
+        _rebuild_connections(state, live, recreated)
+
     for uid in affected:
         client = state["dict_of_clients"].get(uid)
         if client is not None and client.status == "CONNECTED":
             state["dict_of_commands_for_network_clients"].setdefault(uid, []).append({"ACTION": "RECONNECT_CLIENT"})
             result["reconnected_clients"].append(uid)
-    log.info(f"{action} BY {actor}: {summary}; RECONNECTING {result['reconnected_clients']}")
+    log.info(f"{action} BY {actor}: {summary}; RECONNECTING {result['reconnected_clients']}; "
+             f"RECREATED DATABASE CONNECTIONS {recreated}")
     return dict(result, version=entry["version"])
 
 
@@ -231,11 +694,12 @@ def _apply_form(g, values):
     for k in EDITABLE_FIELDS:
         g[k] = str(values.get(k, "")).strip()
     g.pop("PACKET_PER_SECOND", None)  # le formulaire fixe le débit et la taille : le 3e est recalculé
-    description = str(values.get("DESCRIPTION", "") or "").strip()
-    if description:
-        g["DESCRIPTION"] = description
-    else:
-        g.pop("DESCRIPTION", None)
+    for key in ("DESCRIPTION", "IPERF3_PROFILE"):
+        value = str(values.get(key, "") or "").strip()
+        if value:
+            g[key] = value
+        else:
+            g.pop(key, None)
 
 
 def _raise_on_field_errors(values, with_uid=False):

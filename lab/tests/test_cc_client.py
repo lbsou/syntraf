@@ -14,4 +14,6 @@ def test_asjson_serializes_datetime_status_since():
                   status_explanation="", bool_dynamic_client=False, client_uid="LAB_C1")
     data = json.loads(c.asjson())
     assert data["status"] == "CONNECTED"
-    assert data["status_since"] == "2026-11-21 02:53:37"
+    # ISO avec fuseau : la webui l'affiche à l'heure du navigateur, même quand le serveur tourne en UTC.
+    assert data["status_since"].startswith("2026-11-21T02:53:37")
+    assert datetime.fromisoformat(data["status_since"]).tzinfo is not None

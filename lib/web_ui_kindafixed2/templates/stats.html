@@ -271,7 +271,7 @@ async function update_system_stats() {
                 document.getElementById(client_uid + '_ip_address').className = "text-muted";
             }
 
-            document.getElementById(client_uid + '_status_since').innerHTML= data['status_since'];
+            document.getElementById(client_uid + '_status_since').textContent = st.time(data['status_since']);
             document.getElementById(client_uid + '_syntraf_version').innerHTML= data['syntraf_version'];
             document.getElementById(client_uid + '_ip_address').innerHTML= data['ip_address'];
 

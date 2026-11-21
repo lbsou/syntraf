@@ -29,7 +29,9 @@ class cc_client:
         o_dict = self.__dict__
         j_dump = {}
         j_dump['status'] = self._status
-        j_dump['status_since'] = self._status_since
+        # Avec son fuseau : la webui l'affiche à l'heure du navigateur (le serveur tourne souvent en UTC).
+        since = self._status_since
+        j_dump['status_since'] = since.astimezone().isoformat(timespec="seconds") if hasattr(since, "astimezone") else since
         j_dump['status_explanation'] = self._status_explanation
         j_dump['bool_dynamic_client'] = self._bool_dynamic_client
         j_dump['client_uid'] = self._client_uid

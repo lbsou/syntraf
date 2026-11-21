@@ -23,7 +23,9 @@ def display_value(value, key=""):
 
 
 def _s(value):
-    return value.isoformat(sep=" ", timespec="seconds") if isinstance(value, dt.datetime) else value
+    """Horodatage ISO avec son fuseau (un datetime naïf est l'heure locale du serveur) : le navigateur l'affiche à
+    l'heure de l'utilisateur, même quand le serveur tourne en UTC."""
+    return value.astimezone().isoformat(timespec="seconds") if isinstance(value, dt.datetime) else value
 
 
 def clients(state):
@@ -78,7 +80,7 @@ def snapshot(state, refresh_databases=False):
     groups = state["config"].get("MESH_GROUP", [])
     th = threads(state)
     return {
-        "time": _s(dt.datetime.now()),
+        "time": _s(dt.datetime.now().astimezone()),
         "version": DefaultValues.SYNTRAF_VERSION,
         "clients": cl,
         "clients_summary": {
