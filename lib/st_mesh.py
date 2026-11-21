@@ -6,6 +6,7 @@ from lib.st_process_and_thread import *
 from lib.st_read_toml import read_conf
 from lib.st_conf_validation import valid_dir_rsa_keypair, validate_ipv4
 from lib.st_obj_cc_client import cc_client
+from lib.st_cc_commands import queue_client_ip_update, next_command
 
 from tabulate import tabulate
 # SYNTRAF SERVER IMPORT
@@ -754,24 +755,10 @@ def server_auth(received_data, obj_client, _config, address, dict_of_commands_fo
                 _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map = generate_client_config_mesh(
                     _config, _dict_by_node_generated_config)
 
-                # Telling to every other client to update their config
-                for server_client2 in _config['SERVER_CLIENT']:
-
-                    # If there is an existing OVERRIDE_DST_NODE_IP, do not update the config
-                    skip_flag = False
-                    if 'OVERRIDE_DST_NODE_IP' in server_client2:
-                        if server_client2['OVERRIDE_DST_NODE_IP']:
-                            for override_ip_client_uid in server_client2['OVERRIDE_DST_NODE_IP']:
-                                if override_ip_client_uid == obj_client.client_uid:
-                                    skip_flag = True
-
-                    if not skip_flag:
-                        # Do not update the client itself
-                        if not server_client2['UID'] == obj_client.client_uid:
-                            dict_of_commands_for_network_clients[server_client2['UID']] = []
-                            dict_of_commands_for_network_clients[server_client2['UID']].append(
-                                {"ACTION": "UPDATED_CONFIG", "ELEMENT": "CLIENT_IP",
-                                 "CLIENT_UID": obj_client.client_uid, "IP_ADDRESS": obj_client.ip_address})
+                # Telling to every other client to update their config. The update is appended to their
+                # pending commands, never replacing them: another dynamic client may have just been announced.
+                queue_client_ip_update(_config, dict_of_commands_for_network_clients, obj_client.client_uid,
+                                       obj_client.ip_address)
 
     # Show an alert in the log when the clock skew is too great
     server_log.debug(f"CONTEXT: {obj_client.client_uid} - STARTING VALIDATION OF CLOCK SKEW")
@@ -831,32 +818,23 @@ def server_awaiting_commands(client_uid, dict_of_commands_for_network_clients, s
     :param dict_of_commands_for_network_clients: A dictionary of all the pending command. It's organized by client_uid and each command are a sub dictionnary that contain mandatorily the key "ACTION"
     :param sckt: The current socket connected to the client
     """
-    # The client is waiting, if there is no explicit action, send a NOP
+    # The client reads exactly one answer per AWAITING_COMMAND: hand out at most one action, the oldest.
+    # The others stay queued for the next polls.
     sent_an_action = False
-    # Do we have action to send to client?
-    if client_uid in dict_of_commands_for_network_clients:
-        if len(dict_of_commands_for_network_clients[client_uid]) >= 1:
-            for action in dict_of_commands_for_network_clients[client_uid]:
-                server_log.info(f"SENDING THE ACTION '{action}' TO THE CLIENT {client_uid}")
-                if action['ACTION'] == "RECONNECT_CLIENT":
-                    server_log.debug(f"CONTEXT: {client_uid} - SENDING A 'RECONNECT_CLIENT' COMMAND")
-                    sock_send(sckt, "", "RECONNECT_CLIENT")
-                    server_log.debug(f"CONTEXT: {client_uid} - 'RECONNECT' COMMAND FOR A CLIENT_IP SENT")
-                    sent_an_action = True
-                    dict_of_commands_for_network_clients[client_uid].remove(action)
-                elif action['ACTION'] == "RESTART_CLIENT":
-                    server_log.debug(f"CONTEXT: {client_uid} - SENDING A 'RESTART_CLIENT' COMMAND")
-                    sock_send(sckt, "", "RESTART_CLIENT")
-                    server_log.debug(f"CONTEXT: {client_uid} - 'RESTART_CLIENT' COMMAND FOR A CLIENT_IP SENT")
-                    sent_an_action = True
-                    dict_of_commands_for_network_clients[client_uid].remove(action)
-                elif action['ACTION'] == "UPDATED_CONFIG":
-                    if action['ELEMENT'] == "CLIENT_IP":
-                        server_log.debug(f"CONTEXT: {client_uid} - SENDING AN 'UPDATE_CONFIG' ACTION FOR A CLIENT_IP")
-                        sock_send(sckt, action, "DIFFCONFIG")
-                        server_log.debug(f"CONTEXT: {client_uid} - 'UPDATE_CONFIG' COMMAND FOR A CLIENT_IP SENT")
-                        sent_an_action = True
-                        dict_of_commands_for_network_clients[client_uid].remove(action)
+    action = next_command(dict_of_commands_for_network_clients, client_uid)
+    if action is not None:
+        server_log.info(f"SENDING THE ACTION '{action}' TO THE CLIENT {client_uid}")
+        if action['ACTION'] == "RECONNECT_CLIENT":
+            sock_send(sckt, "", "RECONNECT_CLIENT")
+            sent_an_action = True
+        elif action['ACTION'] == "RESTART_CLIENT":
+            sock_send(sckt, "", "RESTART_CLIENT")
+            sent_an_action = True
+        elif action['ACTION'] == "UPDATED_CONFIG" and action.get('ELEMENT') == "CLIENT_IP":
+            sock_send(sckt, action, "DIFFCONFIG")
+            sent_an_action = True
+        else:
+            server_log.warning(f"CONTEXT: {client_uid} - UNKNOWN ACTION DROPPED: {action}")
 
     # The client is waiting for a command, if we don't have any, we should send a NOP to unblock it.
     if not sent_an_action:
@@ -896,24 +874,7 @@ def server_forget_dynamic_client_ip(obj_client, _config, dict_of_commands_for_ne
         # Telling every client to update their config, as this client is gone and his real IP is no longer kown for sure.
         # It will trigger on the client, a termination of the running CONNECTORS associated with that IP and prevent it from restarting because "0.0.0.0" is use as a condition in
         # process_and_thread to not launch a CONNECTOR
-        for server_client in _config['SERVER_CLIENT']:
-
-            # If there is an existing OVERRIDE_DST_NODE_IP, do not update the IP
-            skip_flag = False
-            if 'OVERRIDE_DST_NODE_IP' in server_client:
-                if server_client['OVERRIDE_DST_NODE_IP']:
-                    for override_ip_client_uid in server_client['OVERRIDE_DST_NODE_IP']:
-                        if override_ip_client_uid == obj_client.client_uid:
-                            skip_flag = True
-
-            if not skip_flag:
-                # Make sure we are not updating the dynamic client itself
-                if not obj_client.client_uid == server_client['UID']:
-                    if not server_client['UID'] in dict_of_commands_for_network_clients:
-                        dict_of_commands_for_network_clients[server_client['UID']] = []
-                    dict_of_commands_for_network_clients[server_client['UID']].append(
-                        {"ACTION": "UPDATED_CONFIG", "ELEMENT": "CLIENT_IP", "CLIENT_UID": obj_client.client_uid,
-                         "IP_ADDRESS": "0.0.0.0"})
+        queue_client_ip_update(_config, dict_of_commands_for_network_clients, obj_client.client_uid, "0.0.0.0")
 
 
 def server_save_thread_status(obj_client, received_data):
