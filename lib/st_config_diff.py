@@ -26,3 +26,23 @@ def edges_to_restart(old_config: dict, new_config: dict) -> tuple:
         return list(old_listeners), list(old_connectors)
     return (_changed(old_listeners, new_config.get('LISTENERS') or {}),
             _changed(old_connectors, new_config.get('CONNECTORS') or {}))
+
+
+def reuse_keys(old_edges: dict, new_edges: dict) -> dict:
+    """new_edges, où chaque entrée nouvelle au contenu identique à une ancienne entrée disparue garde l'ancienne clé.
+
+    La clé d'un connecteur contient un hash de l'IP de destination : celle d'un client dynamique, mise à jour
+    par DIFFCONFIG sans changer la clé, ne correspond plus à la clé régénérée par le serveur. Sans cela, le
+    connecteur, pourtant identique, serait arrêté et relancé à chaque reconnexion.
+    """
+    old_edges = old_edges or {}
+    spare = {k: v for k, v in old_edges.items() if k not in new_edges}
+    result = {}
+    for key, value in new_edges.items():
+        if key not in old_edges:
+            match = next((k for k, v in spare.items() if v == value), None)
+            if match is not None:
+                del spare[match]
+                key = match
+        result[key] = value
+    return result

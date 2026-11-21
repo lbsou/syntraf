@@ -73,3 +73,30 @@ def test_next_command_hands_out_one_command_per_call_in_order():
 
 def test_next_command_for_unknown_client_is_none():
     assert cc.next_command({}, "LAB_C9") is None
+
+
+def test_forget_happens_only_if_client_did_not_come_back():
+    sched = cc.ForgetScheduler()
+    token = sched.schedule("LAB_C3")
+    assert sched.should_forget("LAB_C3", token)
+
+
+def test_reconnection_cancels_the_pending_forget():
+    sched = cc.ForgetScheduler()
+    token = sched.schedule("LAB_C3")
+    sched.cancel("LAB_C3")
+    assert not sched.should_forget("LAB_C3", token)
+
+
+def test_only_the_latest_disconnection_counts():
+    sched = cc.ForgetScheduler()
+    old = sched.schedule("LAB_C3")
+    sched.cancel("LAB_C3")
+    new = sched.schedule("LAB_C3")
+    assert not sched.should_forget("LAB_C3", old)
+    assert sched.should_forget("LAB_C3", new)
+    assert not sched.should_forget("LAB_C3", new)   # une seule fois
+
+
+def test_dynamic_clients_are_those_declared_without_ip():
+    assert cc.dynamic_client_uids(config()) == {"LAB_C3", "LAB_C4"}

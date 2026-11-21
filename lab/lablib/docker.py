@@ -30,5 +30,6 @@ def inspect_state(service: str) -> dict:
     return {
         "running": bool(data["State"]["Running"]),
         "paused": bool(data["State"]["Paused"]),
+        "started_at": data["State"]["StartedAt"],
         "networks": {name: n.get("IPAddress", "") for name, n in nets.items()},
     }

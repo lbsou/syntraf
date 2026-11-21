@@ -6,9 +6,10 @@ from lib.st_process_and_thread import *
 from lib.st_read_toml import read_conf
 from lib.st_conf_validation import valid_dir_rsa_keypair, validate_ipv4
 from lib.st_obj_cc_client import cc_client
-from lib.st_cc_commands import queue_client_ip_update, next_command
+from lib.st_cc_commands import queue_client_ip_update, next_command, dynamic_client_uids, ForgetScheduler
 from lib.st_sockutil import recv_exact
-from lib.st_config_diff import edges_to_restart
+from lib.st_config_diff import edges_to_restart, reuse_keys
+from lib.st_iperf3_credentials import load_or_create
 
 from tabulate import tabulate
 # SYNTRAF SERVER IMPORT
@@ -165,11 +166,11 @@ def client_sck_init(_config):
             f"ERROR CONNECTING TO {_config['CLIENT']['SERVER']}:{_config['CLIENT']['SERVER_PORT']} : CONNECTION REFUSED")
         sys.exit()
     except OSError as exc:
-        # Network is unreachable
-        if exc.errno == 101:
-            client_log.error(
-                f"ERROR CONNECTING TO {_config['CLIENT']['SERVER']}:{_config['CLIENT']['SERVER_PORT']} : NETWORK UNREACHABLE")
-            sys.exit()
+        # Any failure (unreachable, connect timeout...) ends this attempt: the watchdog retries shortly.
+        # Continuing used to hand back an unconnected socket that then waited for nothing.
+        reason = "NETWORK UNREACHABLE" if exc.errno == 101 else f"{type(exc).__name__.upper()}: {exc}"
+        client_log.error(f"ERROR CONNECTING TO {_config['CLIENT']['SERVER']}:{_config['CLIENT']['SERVER_PORT']} : {reason}")
+        sys.exit()
     except Exception as exc:
         client_log.error(f"client:{type(exc).__name__}:{exc}", exc_info=True)
         sys.exit()
@@ -254,6 +255,12 @@ def client_receive_configuration(_config, ssl_conn, threads_n_processes, config_
                 client_log.warning(f"THE SERVER DOES NOT HAVE CONFIG FOR THIS NODE FOR NOW")
             else:
                 client_log.info(f"NEW CONFIG RECEIVED FROM SERVER")
+
+                # Keep our current key for an identical edge: a connector key contains a hash of the destination IP,
+                # which a DIFFCONFIG updates without renaming the key.
+                for edge_type in ('LISTENERS', 'CONNECTORS'):
+                    received_data['PAYLOAD'][edge_type] = reuse_keys(_config.get(edge_type),
+                                                                     received_data['PAYLOAD'][edge_type])
 
                 # PROJ-A
                 # If there is no changes, don't restart!
@@ -489,6 +496,11 @@ def client_command_diffconfig(_config, received_data, threads_n_processes):
         raise exc
 
 
+# Server side: clients declared without IP (set when the server starts), and the delayed forgetting of their IP
+DYNAMIC_UIDS = set()
+DYNAMIC_IP_FORGET = ForgetScheduler()
+
+
 #################################################################################
 ###  MESH CLIENT SOCKET
 #################################################################################
@@ -572,7 +584,7 @@ def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processe
         elif exc.errno == 8:
             client_log.error(f"INVALID SSL CONNECTION. SERVER PROBABLY TERMINATED THE CONNECTION.")
         else:
-            client_log.error(f"UNHANDLE OSError (st_mesh:sock_rcv): {address}:", exc, exc.errno, exc.strerror)
+            client_log.error(f"UNHANDLED OSError (st_mesh:client): {address}: {type(exc).__name__}: {exc} (errno {exc.errno})")
     except json.JSONDecodeError as exc:
         client_log.error(f"JSON DECODING FAILED FOR STRING")
     except ConnectionResetError as exc:
@@ -756,14 +768,17 @@ def server_auth(received_data, obj_client, _config, address, dict_of_commands_fo
     for server_client in _config['SERVER_CLIENT']:
         if server_client['UID'] == obj_client.client_uid:
 
-            # If this is a dynamic IP client
-            if server_client['IP_ADDRESS'] == "0.0.0.0":
+            # If this is a dynamic IP client (declared without IP; its IP may still be known from a recent connection)
+            if server_client['UID'] in DYNAMIC_UIDS:
+                # So that we can track that this is a dynamic client and rollback the ip when disconnection occur.
+                obj_client.bool_dynamic_client = True
+                # Back before its IP was forgotten: the other clients kept their connectors, nothing to announce
+                DYNAMIC_IP_FORGET.cancel(obj_client.client_uid)
+                if server_client['IP_ADDRESS'] == obj_client.ip_address:
+                    break
 
                 server_log.debug(
                     f"CONTEXT: {obj_client.client_uid} - THIS CLIENT HAS DYNAMIC IP, UPDATING LOCAL CONFIG AND PUSHING TO OTHER CLIENTS")
-
-                # So that we can track that this is a dynamic client and rollback the ip when disconnection occur.
-                obj_client.bool_dynamic_client = True
 
                 # Updating the client object with the ip address he's coming from
                 server_client['IP_ADDRESS'] = obj_client.ip_address
@@ -1023,8 +1038,9 @@ class Handler(StreamRequestHandler):
                     f"{type(exc).__name__.upper()}:{exc.errno}: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
             else:
                 dict_of_clients[uid].status_explanation = "UNKNOWN OSError"
-                server_log.error(f"UNHANDLE OSError (st_mesh:sock_rcv): {dict_of_clients[uid].ip_address}:", exc,
-                                 exc.errno, exc.strerror)
+                # e.g. a TLS handshake that failed because the client vanished in the middle of it
+                server_log.error(f"UNHANDLED OSError (st_mesh:handle): {dict_of_clients[uid].ip_address}: "
+                                 f"{type(exc).__name__}: {exc} (errno {exc.errno})")
         except Exception as exc:
             dict_of_clients[uid].status_explanation = "UNKNOWN"
             server_log.error(f"Handler:handle:{type(exc).__name__}:{exc}", exc_info=True)
@@ -1034,8 +1050,20 @@ class Handler(StreamRequestHandler):
             server_log.error(f"CLIENT: {dict_of_clients[uid].ip_address} DISCONNECTED")
 
             try:
-                # If this is a dynamic client, once disconnected, we should forget about the ip address
-                server_forget_dynamic_client_ip(dict_of_clients[uid], _config, dict_of_commands_for_network_clients)
+                # If this is a dynamic client, forget its ip address, but only if it has not come back within the
+                # grace delay: after a short outage it is usually back with the same IP, and the other clients'
+                # connectors resume by themselves.
+                if dict_of_clients[uid].bool_dynamic_client:
+                    obj_gone, token = dict_of_clients[uid], DYNAMIC_IP_FORGET.schedule(dict_of_clients[uid].client_uid)
+
+                    def forget_if_not_back(obj_gone=obj_gone, token=token):
+                        if DYNAMIC_IP_FORGET.should_forget(obj_gone.client_uid, token):
+                            server_log.info(f"CONTEXT: {obj_gone.client_uid} - NOT BACK AFTER {DefaultValues.DYNAMIC_IP_FORGET_GRACE} S, FORGETTING ITS IP")
+                            server_forget_dynamic_client_ip(obj_gone, _config, dict_of_commands_for_network_clients)
+
+                    timer = threading.Timer(DefaultValues.DYNAMIC_IP_FORGET_GRACE, forget_if_not_back)
+                    timer.daemon = True
+                    timer.start()
 
                 # Updating the status
                 # We don't want to overwrite a reason for failed authentication, so we overwrite only when the client was connected
@@ -1104,9 +1132,24 @@ class SSLnThreadingTCPServer(ThreadingMixIn, SSL_TCPServer):
 #################################################################################
 def server(_config, threads_n_processes, stop_thread, dict_by_node_generated_config, obj_stats, conn_db,
            dict_of_commands_for_network_clients, dict_of_clients, dict_of_client_pending_acceptance):
-    # Generating the rsa keypair for iperf3 authentication
-    gen_rsa_iperf3(server_log, _config)
-    gen_user_pass_iperf3(server_log, _config)
+    global DYNAMIC_UIDS
+    # Union: if this thread is restarted, the IPs of connected dynamic clients are already filled in _config
+    DYNAMIC_UIDS |= dynamic_client_uids(_config)
+
+    # iperf3 authentication: rsa keypair and user/password, kept across server restarts (otherwise every
+    # client has to restart all its iperf3 after a server restart)
+    def generate_iperf3_credentials():
+        gen_rsa_iperf3(server_log, _config)
+        gen_user_pass_iperf3(server_log, _config)
+        return {"username": _config['SERVER']['IPERF3_USERNAME'], "password": _config['SERVER']['IPERF3_PASSWORD'],
+                "private_pem": _config['SERVER']['RSA_KEY_LISTENERS'].decode(),
+                "public_pem": _config['SERVER']['RSA_KEY_CONNECTORS'].decode()}
+
+    creds = load_or_create(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], generate_iperf3_credentials)
+    _config['SERVER']['IPERF3_USERNAME'] = creds['username']
+    _config['SERVER']['IPERF3_PASSWORD'] = creds['password']
+    _config['SERVER']['RSA_KEY_LISTENERS'] = creds['private_pem'].encode()
+    _config['SERVER']['RSA_KEY_CONNECTORS'] = creds['public_pem'].encode()
     _config['SERVER']['IPERF3_PASSWORD_HASH'] = gen_iperf3_password_hash(_config['SERVER']['IPERF3_USERNAME'],
                                                                          _config['SERVER']['IPERF3_PASSWORD'])
     server_address = (_config['SERVER']['BIND_ADDRESS'], int(_config['SERVER']['SERVER_PORT']))

@@ -52,6 +52,8 @@ class DefaultValues:
     # A peer silent for this long is considered gone (the client sends a heartbeat every second)
     CONTROL_CHANNEL_TIMEOUT = 15
     CONTROL_CHANNEL_CONNECT_TIMEOUT = 5
+    # A disconnected dynamic-IP client's IP is forgotten only if it is not back within this delay (seconds)
+    DYNAMIC_IP_FORGET_GRACE = 60
 
     # WEBUI
     DEFAULT_WEBUI_UPLOAD_BG_FOLDER = "uploaded_background"

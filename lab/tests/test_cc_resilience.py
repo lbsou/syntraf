@@ -82,3 +82,18 @@ def test_new_iperf3_credentials_without_auth_restart_nothing():
 
 def test_first_config_has_nothing_to_restart():
     assert edges_to_restart({"CLIENT": {}, "GLOBAL": {}}, cfg({"l1": L1})) == ([], [])
+
+
+def test_reuse_keys_keeps_old_key_for_identical_content():
+    from lib.st_config_diff import reuse_keys
+    # Connecteur vers une IP dynamique : l'ancienne clé (hash de 0.0.0.0) a reçu l'IP par DIFFCONFIG.
+    old = {"old_key": C1, "other": dict(C1, UID_SERVER="LAB_C4")}
+    new = {"new_key": dict(C1), "other": dict(C1, UID_SERVER="LAB_C4"), "brand_new": dict(C1, PORT=1)}
+    assert reuse_keys(old, new) == {"old_key": C1, "other": dict(C1, UID_SERVER="LAB_C4"), "brand_new": dict(C1, PORT=1)}
+
+
+def test_reuse_keys_then_nothing_to_restart():
+    from lib.st_config_diff import reuse_keys
+    old = cfg(connectors={"old_key": C1})
+    new = cfg(connectors=reuse_keys(old["CONNECTORS"], {"new_key": dict(C1)}))
+    assert edges_to_restart(old, new) == ([], [])

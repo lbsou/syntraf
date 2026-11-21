@@ -32,8 +32,8 @@ def test_exec_targets_prefixed_container(monkeypatch):
 
 
 def test_inspect_state_parses_networks_and_pause(monkeypatch):
-    payload = [{"State": {"Running": True, "Paused": False},
+    payload = [{"State": {"Running": True, "Paused": False, "StartedAt": "2026-11-21T15:32:27Z"},
                 "NetworkSettings": {"Networks": {"syntraf_lab": {"IPAddress": "172.30.0.33"}}}}]
     capture(monkeypatch, stdout=json.dumps(payload))
-    assert docker.inspect_state("c3") == {"running": True, "paused": False,
+    assert docker.inspect_state("c3") == {"running": True, "paused": False, "started_at": "2026-11-21T15:32:27Z",
                                           "networks": {"syntraf_lab": "172.30.0.33"}}

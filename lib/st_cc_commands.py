@@ -37,3 +37,36 @@ def next_command(commands, client_uid):
     if not pending:
         return None
     return pending.pop(0)
+
+
+def dynamic_client_uids(_config) -> set:
+    """Clients déclarés sans IP (0.0.0.0) dans la config : leur IP n'est connue que lorsqu'ils sont connectés."""
+    return {c['UID'] for c in _config.get('SERVER_CLIENT', []) if c.get('IP_ADDRESS') == "0.0.0.0"}
+
+
+class ForgetScheduler:
+    """Oubli différé de l'IP d'un client dynamique déconnecté.
+
+    Oublier l'IP fait arrêter aux autres clients leurs connecteurs vers lui ; après une courte panne, il revient
+    presque toujours avec la même IP, et ces connecteurs auraient repris seuls en quelques secondes. On n'oublie
+    donc qu'au terme d'un délai de grâce, si le client n'est pas revenu entre-temps.
+    """
+
+    def __init__(self):
+        self._tokens = {}
+        self._next = 0
+
+    def schedule(self, uid) -> int:
+        self._next += 1
+        self._tokens[uid] = self._next
+        return self._next
+
+    def cancel(self, uid) -> None:
+        self._tokens.pop(uid, None)
+
+    def should_forget(self, uid, token) -> bool:
+        """True une seule fois, et seulement si aucune reconnexion ni nouvelle déconnexion n'a eu lieu depuis."""
+        if self._tokens.get(uid) == token:
+            del self._tokens[uid]
+            return True
+        return False

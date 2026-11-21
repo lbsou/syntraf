@@ -23,8 +23,10 @@ def test_s0_webui_answers(lab_up):
 
 
 def test_s0_no_traceback_in_logs(lab_up):
+    # Depuis le démarrage courant seulement : `docker restart` conserve les journaux des exécutions précédentes.
     for svc in topology.SYNTRAF_NODES:
-        assert "Traceback" not in docker.compose(["logs", "--no-color", svc]).stdout, svc
+        since = docker.inspect_state(svc)["started_at"]
+        assert "Traceback" not in docker.compose(["logs", "--no-color", "--since", since, svc]).stdout, svc
 
 
 def test_s0_client_status_api(lab_up):
