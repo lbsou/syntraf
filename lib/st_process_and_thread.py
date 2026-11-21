@@ -73,6 +73,11 @@ def launch_and_respawn_workers(config, cli_parameters, threads_n_processes, obj_
         # CONNECTORS
         manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_server, conn_db)
 
+        # SILENCE DETECTION: 100% losses for the flows where iperf3 stopped reporting
+        if 'LISTENERS' in config or 'CONNECTORS' in config:
+            from lib.st_iperf3_readlog import fill_silences
+            fill_silences(config, dict_data_to_send_to_server)
+
         # SERVER
         if "SERVER" in config:
             manage_mesh(config, threads_n_processes, "SERVER", obj_stats, config_file_path, cli_parameters,

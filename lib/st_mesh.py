@@ -7,6 +7,8 @@ from lib.st_read_toml import read_conf
 from lib.st_conf_validation import valid_dir_rsa_keypair, validate_ipv4
 from lib.st_obj_cc_client import cc_client
 from lib.st_cc_commands import queue_client_ip_update, next_command
+from lib.st_sockutil import recv_exact
+from lib.st_config_diff import edges_to_restart
 
 from tabulate import tabulate
 # SYNTRAF SERVER IMPORT
@@ -63,18 +65,16 @@ client_log = logging.getLogger("syntraf." + "lib.st_client")
 def sock_rcv(sckt):
     try:
         # Waiting for a size in binary (long addressed on 4bytes)
-        size = sckt.recv(4)
-        if not size: return None
+        size = recv_exact(sckt, 4)
+        if size is None: return None
 
         # Unpacking the 4 bytes to get the size
         # https://docs.python.org/3/library/struct.html
         size_decoded = struct.unpack(">l", size)[0]
 
-        bytes_left = size_decoded
-        data = b''
-        while bytes_left >= 1:
-            data = data + sckt.recv(bytes_left)
-            bytes_left = size_decoded - len(data)
+        # None if the peer closed the connection in the middle of the message (used to spin forever)
+        data = recv_exact(sckt, size_decoded)
+        if data is None: return None
 
         result = json.loads(data)
         return result
@@ -149,8 +149,11 @@ def client_sck_init(_config):
                     logging.error(f"TEMPORARY FAILURE IN NAME RESOLUTION OF {server_ip_addr}")
             time.sleep(1)
 
-        # CONNECT
+        # CONNECT: short timeout so that a connection attempt started during an outage does not delay the
+        # reconnection long after the network is back; then the control channel timeout applies.
+        ssl_conn.settimeout(DefaultValues.CONTROL_CHANNEL_CONNECT_TIMEOUT)
         ssl_conn.connect((server_ip_addr, int(_config['CLIENT']['SERVER_PORT'])))
+        ssl_conn.settimeout(DefaultValues.CONTROL_CHANNEL_TIMEOUT)
 
         if server_ip_addr != _config['CLIENT']['SERVER']:
             client_log.info(f"CONNECTED TO : {_config['CLIENT']['SERVER']}({server_ip_addr}):{_config['CLIENT']['SERVER_PORT']}")
@@ -269,10 +272,24 @@ def client_receive_configuration(_config, ssl_conn, threads_n_processes, config_
                     else:
                         client_log.debug("DIFF DIFF DIFF DIFF")
 
-                # got new config, close all listeners and connectors because if the server has restarted, all the credentials has been re-initialized
-                client_log.debug(f"CLOSING LISTENERS AND CONNECTORS BEFORE APPLYING NEW CONFIG")
-                from lib.st_process_and_thread import close_listeners_and_connectors
-                close_listeners_and_connectors(threads_n_processes, _config)
+                # Stop only the listeners and connectors that changed (all of them if the iperf3 credentials changed
+                # with IPERF3_AUTH): a reconnection to the server must not interrupt the measurements.
+                new_config = {'LISTENERS': received_data['PAYLOAD']['LISTENERS'],
+                              'CONNECTORS': received_data['PAYLOAD']['CONNECTORS'],
+                              'CLIENT': {'IPERF3_USERNAME': received_data['PAYLOAD']['CLIENT']['IPERF3_USERNAME'],
+                                         'IPERF3_PASSWORD': received_data['PAYLOAD']['CLIENT']['IPERF3_PASSWORD'],
+                                         'IPERF3_HASH': received_data['PAYLOAD']['CLIENT']['IPERF3_PASSWORD_HASH']},
+                              'GLOBAL': {'IPERF3_AUTH': _config['GLOBAL'].get('IPERF3_AUTH')}}
+                listeners_to_stop, connectors_to_stop = edges_to_restart(_config, new_config)
+                client_log.info(f"NEW CONFIG: RESTARTING {len(listeners_to_stop)} LISTENER(S) AND {len(connectors_to_stop)} CONNECTOR(S)")
+                from lib.st_process_and_thread import terminate_listener_and_childs, terminate_connector_and_childs
+                for thr in list(threads_n_processes):
+                    if thr.syntraf_instance_type == "LISTENER" and thr.name in listeners_to_stop:
+                        thr.close()  # kill first: reading the stderr of a live iperf3 would block
+                        terminate_listener_and_childs(threads_n_processes, thr.name, thr, _config)
+                    elif thr.syntraf_instance_type == "CONNECTOR" and thr.name in connectors_to_stop:
+                        thr.close()
+                        terminate_connector_and_childs(threads_n_processes, thr.name, thr, _config)
 
                 # update local config
                 client_log.debug(f"UPDATING LOCAL CONFIG WITH CONFIG SENT BY SERVER")
@@ -906,6 +923,7 @@ class Handler(StreamRequestHandler):
                                          bool_dynamic_client=False, tcp_port=address[1], ip_address=address[0])
 
         try:
+            sckt.do_handshake()
             while True:
                 # no need to loop if no server_client
                 if "SERVER_CLIENT" in _config:
@@ -1059,9 +1077,13 @@ class SSL_TCPServer(TCPServer):
 
     def get_request(self):
         newsocket, fromaddr = self.socket.accept()
+        # Timeout + keepalive: a client that vanished is detected instead of blocking its thread forever.
+        set_tcp_ka(newsocket, server_log)
+        # The TLS handshake is done in the client's own thread (Handler.handle): a client stalled in the
+        # middle of it must not block the accept loop for every other client.
         connstream = self.context.wrap_socket(newsocket,
                                               server_side=True,
-                                              do_handshake_on_connect=True)
+                                              do_handshake_on_connect=False)
         return connstream, fromaddr
 
     def get_config(self):
@@ -1143,8 +1165,8 @@ def server(_config, threads_n_processes, stop_thread, dict_by_node_generated_con
         sys.exit()
 
 
-def set_tcp_ka(sckt, log):
-    sckt.settimeout(60)
+def set_tcp_ka(sckt, log, timeout_s=None):
+    sckt.settimeout(DefaultValues.CONTROL_CHANNEL_TIMEOUT if timeout_s is None else timeout_s)
     """
     Setting socket parameters
     SO_KEEPALIVE: activate keepalive
@@ -1190,29 +1212,26 @@ def set_tcp_ka(sckt, log):
     ka_after_idle_sec = 1
     ka_interval_sec = 2
     ka_max_fails = 5
-    tcp_user_timeout = 1
-    tcp_buffer = 0
+    # Unacknowledged data for longer than this (ms) closes the connection: keepalive alone never fires
+    # because the client always has data in flight.
+    tcp_user_timeout = DefaultValues.CONTROL_CHANNEL_TIMEOUT * 1000
 
     if platform == "linux":
         ka_after_idle_sec_before = sckt.getsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE)
         ka_interval_sec_before = sckt.getsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL)
         ka_max_fails_before = sckt.getsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT)
-        tcp_user_timeout_before = sckt.getsockopt(socket.SOL_SOCKET, socket.TCP_USER_TIMEOUT)
-        tcp_buffer_before = sckt.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF)
+        tcp_user_timeout_before = sckt.getsockopt(socket.IPPROTO_TCP, socket.TCP_USER_TIMEOUT)
 
         sckt.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, ka_after_idle_sec)
         sckt.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, ka_interval_sec)
         sckt.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, ka_max_fails)
-        sckt.setsockopt(socket.SOL_SOCKET, socket.TCP_USER_TIMEOUT, tcp_user_timeout)
-        sckt.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, tcp_buffer)
+        sckt.setsockopt(socket.IPPROTO_TCP, socket.TCP_USER_TIMEOUT, tcp_user_timeout)
 
         ka_after_idle_sec_after = sckt.getsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE)
         ka_interval_sec_after = sckt.getsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL)
         ka_max_fails_after = sckt.getsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT)
-        tcp_user_timeout_after = sckt.getsockopt(socket.SOL_SOCKET, socket.TCP_USER_TIMEOUT)
-        tcp_buffer_after = sckt.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF)
+        tcp_user_timeout_after = sckt.getsockopt(socket.IPPROTO_TCP, socket.TCP_USER_TIMEOUT)
 
-        log.debug(f"MODIFYING SO_SNDBUF ON SOCKET FROM '{tcp_buffer_before}' to '{tcp_buffer_after}'")
         log.debug(
             f"MODIFYING TCP_USER_TIMEOUT ON SOCKET FROM '{tcp_user_timeout_before}' to '{tcp_user_timeout_after}'")
         log.debug(f"MODIFYING TCP_KEEPIDLE ON SOCKET FROM '{ka_after_idle_sec_before}' to '{ka_after_idle_sec_after}'")

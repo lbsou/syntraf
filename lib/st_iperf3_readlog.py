@@ -7,7 +7,37 @@ import re
 from datetime import datetime
 import pytz
 import logging
+from lib import st_outage
 log = logging.getLogger("syntraf." + __name__)
+
+# Shared by every READ_LOG thread (record) and the watchdog loop (fill_silences).
+SILENCE = st_outage.SilenceTracker()
+
+
+def _flow_ctx(_config, edge_type, edge_key, uid_client, uid_server):
+    edge = _config[edge_type][edge_key]
+    return {"MESH_GROUP": edge['MESH_GROUP'], "CLIENT": uid_client, "SERVER": uid_server, "DSCP": edge['DSCP']}
+
+
+def _active_flow_uids(_config):
+    """UIDs of the flows this node measures with its current config (listeners, and bidirectional connectors)."""
+    uids = set()
+    for key, edge in _config.get('LISTENERS', {}).items():
+        uids.add(st_outage.flow_uid(_flow_ctx(_config, 'LISTENERS', key, edge['UID_CLIENT'], edge['UID_SERVER'])))
+    for key, edge in _config.get('CONNECTORS', {}).items():
+        if edge.get('BIDIR'):
+            uids.add(st_outage.flow_uid(_flow_ctx(_config, 'CONNECTORS', key, edge['UID_SERVER'], edge['UID_CLIENT'])))
+    return uids
+
+
+def fill_silences(_config, dict_data_to_send_to_server, now=None):
+    """Called by the watchdog loop: 100% losses for every interval where iperf3 reported nothing."""
+    try:
+        active = _active_flow_uids(_config)
+        for point in SILENCE.fill(time.time() if now is None else now, active=lambda uid: uid in active):
+            st_outage.enqueue(dict_data_to_send_to_server, point, DefaultValues.DEFAULT_CLIENT_METRICS_QUEUE_SIZE)
+    except Exception as exc:
+        log.error(f"fill_silences:{type(exc).__name__}:{exc}", exc_info=True)
 
 
 #################################################################################
@@ -55,9 +85,8 @@ def tail(config: {}, edge_type: string, edge_key: string, exit_boolean: [], thre
             # I/O operation on closed file
             except ValueError:
                 #log.debug("11111111111111111111111111111111111111111111111")
+                # Silences are detected by the watchdog loop (fill_silences), not here: this read blocks.
                 pass
-                # Possible outage
-                #utime_last_event = outage_management(config, edge_type, edge_key, utime_last_event, dict_data_to_send_to_server)
             except Exception as exc:
                 #log.debug("22222222222222222222222222222222222222222222222")
                 iperf3_obj_process_n_thread = wait_iperf3(config, edge_type, edge_key, exit_boolean, threads_n_processes)
@@ -125,6 +154,14 @@ def parse_line(line: string, _config: {}, edge_key: string, edge_type: string, d
             if bitrate == "0.00" and loss == "0" and packet_loss == "0" and packet_total == "0":
                 loss = "100"
                 jitter = "0"
+
+            # Remember the last real report of this flow, for the silence detection (fill_silences)
+            if edge_type == "CONNECTORS":
+                flow = (_config['CONNECTORS'][edge_key]['UID_SERVER'], _config['CONNECTORS'][edge_key]['UID_CLIENT'])
+            else:
+                flow = (_config['LISTENERS'][edge_key]['UID_CLIENT'], _config['LISTENERS'][edge_key]['UID_SERVER'])
+            SILENCE.record(st_outage.flow_uid(_flow_ctx(_config, edge_type, edge_key, *flow)), utime,
+                           int(_config[edge_type][edge_key]['INTERVAL']), _flow_ctx(_config, edge_type, edge_key, *flow))
 
             # When we have bidir activated, the server will transmit
             if edge_type == "CONNECTORS":
@@ -229,45 +266,3 @@ def grab_bidir_src_port(_config: {}, line: string, iperf3_obj_process_n_thread: 
             iperf3_obj_process_n_thread.bidir_local_addr = m_laddr.groups()[0]
             log.info(f"GOT A SRC_IP AND SRC_PORT FOR UDP_HOLE_PUNCH:{m_laddr.groups()[0]}/{m_lport.groups()[0]}")
             iperf3_obj_process_n_thread.bidir_src_port_cpt = -1
-
-
-def outage_management(config: {}, edge_type: string, edge_key: string,  utime_last_event, dict_data_to_send_to_server):
-    utime_now = time.time()
-
-    interval = int(config[f"{edge_type}S"][edge_key]['INTERVAL'])
-    uid_client = config[f"{edge_type}S"][edge_key]['UID_CLIENT']
-    uid_server = config[f"{edge_type}S"][edge_key]['UID_SERVER']
-
-    '''
-    When iperf3 stop generating logs, we want to record 100% losses
-    For that, we need to already have received a log in the past (utime_last_event != None) and the current log file of iperf3 must not yield line (not line)
-    '''
-    # log.debug(f"OUTAGE_MECHANISM DEBUG utime_last_event:{utime_last_event}")
-    # log.debug(f"{utime_last_event}{line}{listener_just_started_or_absent}")
-
-    log.debug(utime_last_event)
-    if utime_last_event:
-        log.debug(f"OUTAGE_MECHANISM DEBUG utime_now:{utime_now} utime_last_event:{utime_last_event} utime_now - utime_last_event: {(utime_now - utime_last_event)}")
-
-        # If iperf3 did not write any events for the double of the interval he's supposed to
-        if (utime_now - utime_last_event) >= (2 * interval):
-            # Save new event to database with 100% loss for every time interval
-            qty_of_event_to_report = (utime_now - utime_last_event) / interval
-            log.warning(f"{edge_key} - SYNTRAF HAS DETECTED AN OUTAGE, {qty_of_event_to_report} EVENTS WHERE LOST. GENERATING 100% LOSSES VALUES.")
-
-            for utime_generated in range(int(utime_last_event) + interval, int(utime_now), interval):
-                dt_generated = datetime.fromtimestamp(utime_generated)
-                timezone = pytz.timezone(DefaultValues.TIMEZONE)
-                dt_tz_generated = timezone.localize(dt_generated)
-                timestamp_generated = dt_tz_generated.astimezone(pytz.timezone("UTC"))
-                utime_generated_utc = dt_tz_generated.astimezone(pytz.timezone("UTC")).timestamp()
-
-                # save
-                save_to_server([uid_client, uid_server, timestamp_generated, utime_generated_utc, "0", "0", "100"], config, edge_type, edge_key, "0", "0", dict_data_to_send_to_server)
-
-                log.debug(f"WRITING_TO_QUEUE ({len(dict_data_to_send_to_server)}) - {edge_key}")
-                log.debug(f"timestamp:{timestamp_generated}, bitrate: 0, jitter: 0, loss: 100, packet_loss: 0, packet_total: 0")
-
-            return utime_now
-
-

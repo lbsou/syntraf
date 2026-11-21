@@ -49,6 +49,9 @@ class DefaultValues:
     DEFAULT_CLIENT_METRICS_QUEUE_SIZE = 86_400
     DEFAULT_CLIENT_METRICS_UPDATE_FREQUENCY = 1
     CONTROL_CHANNEL_HEARTBEAT = 1
+    # A peer silent for this long is considered gone (the client sends a heartbeat every second)
+    CONTROL_CHANNEL_TIMEOUT = 15
+    CONTROL_CHANNEL_CONNECT_TIMEOUT = 5
 
     # WEBUI
     DEFAULT_WEBUI_UPLOAD_BG_FOLDER = "uploaded_background"
