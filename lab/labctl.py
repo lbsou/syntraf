@@ -258,6 +258,26 @@ def cmd_install_shortcut(args) -> int:
     return 0
 
 
+def cmd_test(args) -> int:
+    py = LAB_DIR / ".venv" / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+    if not py.exists():
+        print("lab/.venv absent : lancer d'abord `python lab/labctl.py bootstrap`")
+        return 1
+    report = LAB_DIR / "reports" / datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    cmd = [str(py), "-m", "pytest", str(LAB_DIR / "scenarios"), "-p", "no:cacheprovider",
+           f"--report-dir={report}", f"--junitxml={report / 'junit.xml'}", "-q", "-rA"]
+    if args.k:
+        cmd += ["-k", args.k]
+    if args.quick:
+        cmd += ["-m", "not slow"]
+    print(f"Rapport : {report}")
+    code = subprocess.run(cmd, cwd=LAB_DIR).returncode
+    summary = report / "summary.md"
+    if summary.exists():
+        print(summary.read_text(encoding="utf-8").split("## Détails", 1)[0])
+    return code
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="labctl", description="Pilote du lab de robustesse SYNTRAF")
     sub = p.add_subparsers(dest="command", required=True)
@@ -321,6 +341,10 @@ def build_parser() -> argparse.ArgumentParser:
     s.set_defaults(func=cmd_versions)
     s = sub.add_parser("install-shortcut", help="crée les raccourcis du Bureau (démarrage et arrêt)")
     s.set_defaults(func=cmd_install_shortcut)
+    s = sub.add_parser("test", help="lance les scénarios ; rapport dans lab/reports/<date>/")
+    s.add_argument("-k", help="filtre pytest (ex. s3)")
+    s.add_argument("--quick", action="store_true", help="exclut les scénarios longs (S1, S8)")
+    s.set_defaults(func=cmd_test)
     return p
 
 

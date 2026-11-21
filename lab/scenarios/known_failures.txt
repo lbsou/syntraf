@@ -1,0 +1,3 @@
+# Échecs connus des scénarios sur le code actuel de SYNTRAF.
+# Format : <nodeid> | <raison observée>
+# Un test listé qui réussit est signalé « fixed » : le retirer alors de la liste.
