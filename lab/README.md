@@ -82,9 +82,9 @@ Les trois modes de coupure ne sont pas équivalents pour iperf3 :
 
 ## Budget RAM
 
-Plafonds : victoriametrics 192 Mio, server 192 Mio, c1–c4 192 Mio chacun, grafana 384 Mio,
-soit environ 1,5 Go. Consommation mesurée : environ 135 Mio par client, 75 à 90 Mio pour le
-serveur, environ 110 Mio pour VictoriaMetrics, et pour Grafana 130 Mio au repos mais plus de 200 Mio dès
+Plafonds : victoriametrics 256 Mio, server 192 Mio, c1–c4 192 Mio chacun, grafana 384 Mio,
+soit environ 1,6 Go. Consommation mesurée : environ 135 Mio par client, 75 à 90 Mio pour le
+serveur, 110 à 165 Mio pour VictoriaMetrics (croît avec les données), et pour Grafana 130 Mio au repos mais plus de 200 Mio dès
 qu'un navigateur affiche le tableau de bord.
 
 ## Ce que le lab ne touche pas

@@ -22,7 +22,7 @@ services:
     container_name: syntraf-lab-victoriametrics
     restart: "no"
     init: true
-    mem_limit: 192m
+    mem_limit: 256m
     command:
       - -storageDataPath=/storage
       - -retentionPeriod=30d
