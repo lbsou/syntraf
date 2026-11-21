@@ -1,0 +1,4 @@
+*
+!requirements_server.txt
+!requirements_client.txt
+!lab/docker/entrypoint.sh

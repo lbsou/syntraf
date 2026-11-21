@@ -16,3 +16,7 @@ lib/web_ui/static/* -linguist-detectable
 lib/web_ui_kindafixed2/static/* -linguist-detectable
 lib/webui_kindafixed/static/* -linguist-detectable
 *.html -linguist-detectable
+
+# Lab : fichiers lus dans les conteneurs Linux
+lab/docker/* text eol=lf
+lab/config/* text eol=lf

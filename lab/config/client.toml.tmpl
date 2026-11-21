@@ -1,0 +1,14 @@
+# Gabarit de config client SYNTRAF du lab. Les ${...} sont remplacés par entrypoint.sh.
+[CLIENT]
+CLIENT_UID = "${CLIENT_UID}"
+SERVER = "172.30.0.20"
+SERVER_PORT = "6531"
+TOKEN = "${LAB_TOKEN}"
+
+[GLOBAL]
+IPERF3_BINARY_PATH = "/usr/local/bin/iperf3"
+LOG_TO = "all"
+LOG_LEVEL = "INFO"
+LOG_MAX_SIZE_PER_FILE_MB = "10"
+LOG_FILE_TO_KEEP = "1"
+WATCHDOG_CHECK_RATE = "2"

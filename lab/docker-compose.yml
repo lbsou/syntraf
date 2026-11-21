@@ -1,0 +1,122 @@
+# Lab de robustesse SYNTRAF. Piloter avec : python lab/labctl.py <commande>
+name: syntraf-lab
+
+x-syntraf: &syntraf
+  image: syntraf-lab:latest
+  env_file: config/lab.env
+  init: true
+  restart: "no"
+  cap_add: [NET_ADMIN]
+  mem_limit: 128m
+  volumes:
+    - ../:/src:ro
+
+x-client-depends: &client-depends
+  depends_on:
+    server:
+      condition: service_started
+
+services:
+  influxdb:
+    image: influxdb:2.7-alpine
+    container_name: syntraf-lab-influxdb
+    restart: "no"
+    init: true
+    mem_limit: 400m
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUX_USER}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUX_PASSWORD}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUX_ORG}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUX_BUCKET}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUX_TOKEN}
+      TZ: UTC
+    ports:
+      - "127.0.0.1:${INFLUX_HOST_PORT}:8086"
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+    networks:
+      syntraf_lab:
+        ipv4_address: 172.30.0.10
+
+  server:
+    <<: *syntraf
+    build:
+      context: ..
+      dockerfile: lab/docker/Dockerfile
+      args:
+        PYTHON_VERSION: ${PYTHON_VERSION}
+        IPERF3_SOURCE: ${IPERF3_SOURCE}
+        IPERF3_REF: ${IPERF3_REF}
+        IPERF3_FORK_REPO: ${IPERF3_FORK_REPO}
+        IPERF3_FORK_BRANCH: ${IPERF3_FORK_BRANCH}
+    container_name: syntraf-lab-server
+    mem_limit: 256m
+    environment:
+      ROLE: server
+    volumes:
+      - ../:/src:ro
+      - ./reports/logs/server:/logs
+    ports:
+      - "127.0.0.1:${WEBUI_HOST_PORT}:5000"
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    networks:
+      syntraf_lab:
+        ipv4_address: 172.30.0.20
+
+  c1:
+    <<: [*syntraf, *client-depends]
+    container_name: syntraf-lab-c1
+    environment: {ROLE: client, CLIENT_UID: LAB_C1}
+    volumes: ["../:/src:ro", "./reports/logs/c1:/logs"]
+    networks: {syntraf_lab: {ipv4_address: 172.30.0.31}}
+
+  c2:
+    <<: [*syntraf, *client-depends]
+    container_name: syntraf-lab-c2
+    environment: {ROLE: client, CLIENT_UID: LAB_C2}
+    volumes: ["../:/src:ro", "./reports/logs/c2:/logs"]
+    networks: {syntraf_lab: {ipv4_address: 172.30.0.32}}
+
+  c3:
+    <<: [*syntraf, *client-depends]
+    container_name: syntraf-lab-c3
+    environment: {ROLE: client, CLIENT_UID: LAB_C3}
+    volumes: ["../:/src:ro", "./reports/logs/c3:/logs"]
+    networks: {syntraf_lab: {ipv4_address: 172.30.0.33}}
+
+  c4:
+    <<: [*syntraf, *client-depends]
+    container_name: syntraf-lab-c4
+    environment: {ROLE: client, CLIENT_UID: LAB_C4}
+    volumes: ["../:/src:ro", "./reports/logs/c4:/logs"]
+    networks: {syntraf_lab: {ipv4_address: 172.30.0.34}}
+
+  grafana:
+    image: grafana/grafana-oss:latest
+    container_name: syntraf-lab-grafana
+    profiles: [viz]
+    restart: "no"
+    mem_limit: 200m
+    ports:
+      - "127.0.0.1:18300:3000"
+    networks:
+      syntraf_lab:
+        ipv4_address: 172.30.0.40
+
+volumes:
+  influxdb-data:
+
+networks:
+  syntraf_lab:
+    name: syntraf_lab
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
