@@ -203,6 +203,61 @@ def cmd_restart(args) -> int:
     return 0
 
 
+VERSION_KEYS = {"iperf3": "IPERF3_REF", "python": "PYTHON_VERSION",
+                "victoriametrics": "VM_VERSION", "grafana": "GRAFANA_VERSION"}
+
+
+def set_env_value(path: Path, key: str, value: str) -> None:
+    """Remplace la valeur d'une clé existante de lab.env en conservant toutes les autres lignes."""
+    lines = Path(path).read_text(encoding="utf-8").splitlines(keepends=True)
+    for i, line in enumerate(lines):
+        if line.split("=", 1)[0].strip() == key and not line.lstrip().startswith("#"):
+            lines[i] = f"{key}={value}\n"
+            Path(path).write_text("".join(lines), encoding="utf-8")
+            return
+    raise KeyError(f"{key} absent de {path}")
+
+
+def cmd_set_version(args) -> int:
+    set_env_value(docker.ENV_FILE, VERSION_KEYS[args.component], args.value)
+    if args.component == "iperf3" and args.source:
+        set_env_value(docker.ENV_FILE, "IPERF3_SOURCE", args.source)
+    print(f"{VERSION_KEYS[args.component]}={args.value} écrit dans {docker.ENV_FILE}")
+    if args.no_restart:
+        return 0
+    args.build, args.timeout = True, 300
+    return cmd_up(args)
+
+
+def cmd_versions(args) -> int:
+    def first_line(r):
+        return (r.stdout or r.stderr).strip().splitlines()[0] if (r.stdout or r.stderr).strip() else "?"
+    print("iperf3          :", first_line(docker.exec_("c1", ["iperf3", "--version"], check=False)))
+    print("python          :", first_line(docker.exec_("c1", ["python", "--version"], check=False)))
+    env = health.read_env()
+    print("victoriametrics :", env.get("VM_VERSION"))
+    print("grafana         :", env.get("GRAFANA_VERSION"))
+    return 0
+
+
+def cmd_install_shortcut(args) -> int:
+    import os
+    targets = {"SYNTRAF Lab.lnk": LAB_DIR / "start-lab.ps1",
+               "SYNTRAF Lab - arrêt.lnk": LAB_DIR / "stop-lab.ps1"}
+    for name, script in targets.items():
+        # Le Bureau peut être redirigé (OneDrive) : Windows en donne le vrai chemin.
+        ps = ("$lnk = Join-Path ([Environment]::GetFolderPath('Desktop')) $env:LNK_NAME; "
+              "$s = (New-Object -ComObject WScript.Shell).CreateShortcut($lnk); "
+              "$s.TargetPath = 'pwsh.exe'; "
+              "$s.Arguments = '-NoExit -ExecutionPolicy Bypass -File \"' + $env:SCRIPT + '\"'; "
+              "$s.WorkingDirectory = $env:WORKDIR; $s.Save(); $lnk")
+        env = dict(os.environ, LNK_NAME=name, SCRIPT=str(script), WORKDIR=str(LAB_DIR.parent))
+        r = subprocess.run(["pwsh", "-NoProfile", "-Command", ps], check=True, env=env,
+                           capture_output=True, text=True, encoding="utf-8")
+        print(f"raccourci créé : {r.stdout.strip()}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="labctl", description="Pilote du lab de robustesse SYNTRAF")
     sub = p.add_subparsers(dest="command", required=True)
@@ -256,6 +311,16 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("restart", help="redémarre un service")
     s.add_argument("service", choices=nodes + ["victoriametrics", "grafana"])
     s.set_defaults(func=cmd_restart)
+    s = sub.add_parser("set-version", help="change une version dans lab.env puis reconstruit/redémarre")
+    s.add_argument("component", choices=list(VERSION_KEYS))
+    s.add_argument("value")
+    s.add_argument("--source", choices=["esnet", "fork"], help="iperf3 seulement")
+    s.add_argument("--no-restart", action="store_true")
+    s.set_defaults(func=cmd_set_version)
+    s = sub.add_parser("versions", help="versions en service")
+    s.set_defaults(func=cmd_versions)
+    s = sub.add_parser("install-shortcut", help="crée les raccourcis du Bureau (démarrage et arrêt)")
+    s.set_defaults(func=cmd_install_shortcut)
     return p
 
 
