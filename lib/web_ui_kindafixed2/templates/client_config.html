@@ -1,25 +1,14 @@
 {% extends "base.html" %}
-{% block title %}Client config{% endblock %}
+{% from "_macros.html" import page_header, kv_table %}
+{% block title %}Clients{% endblock %}
 {% block content %}
-<h2>Clients configurations</h2>
-<br/>
-    {% for clients in config['SERVER_CLIENT'] %}
-        <h4><p class="text-info">{{ clients['UID'] }}</p></h4>
-        <table class="table table-striped table-hover table-bordered table-sm">
-            <thead>
-                <th style="width: 50%">PARAMETER</th>
-                <th style="width: 50%">VALUE</th>
-            </thead>
-            <tbody>
-                {% for item in clients %}
-                    <tr>
-                        <td>{{ item }}</td>
-                        <td>{{ clients[item] }}</td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        <br/>
-    {% endfor %}
-
+{{ page_header("Clients", "Clients declared in the configuration file (SERVER_CLIENT). Live state is on the Dashboard and Monitoring › Clients.") }}
+{% for client in config['SERVER_CLIENT'] %}
+<section class="st-card">
+    <h2><i class="fas fa-network-wired me-2"></i>{{ client['UID'] }}</h2>
+    {{ kv_table(client, skip=('UID',)) }}
+</section>
+{% else %}
+<div class="st-empty"><i class="fas fa-network-wired"></i>No client declared. Add a [[SERVER_CLIENT]] section to the configuration file.</div>
+{% endfor %}
 {% endblock %}

@@ -3,6 +3,7 @@ from flask import Flask
 #from flask_login import LoginManager
 from lib.web_ui_kindafixed2 import st_config
 import os
+import secrets
 from lib.st_global import DefaultValues
 
 # Globally accessible libraries
@@ -17,7 +18,11 @@ def create_app(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generat
     os.chdir(DefaultValues.SYNTRAF_ROOT_DIR)
 
     app = Flask(__name__, instance_relative_config=False, static_folder=os.path.abspath('lib/web_ui_kindafixed2/static/'), static_url_path="/static")
-    app.config.from_object(st_config.DevelopmentConfig)
+    app.config.from_object(st_config.ProductionConfig)
+    if not app.config.get("SECRET_KEY"):
+        # Sans SECRET_KEY dans l'environnement (.env), une clé aléatoire par démarrage : rien ne repose encore sur
+        # des sessions persistantes.
+        app.config["SECRET_KEY"] = secrets.token_hex(32)
 
     # Initialize flask-login plugin
     # login_manager.login_view = "users.login"
@@ -38,8 +43,19 @@ def create_app(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generat
 
         #db.create_all()  # Create sql tables for our data models
 
+        from lib.web_ui_kindafixed2.st_api_v1 import st_api_v1, st_ops_bp
+
         # Register Blueprints
         app.register_blueprint(st_home_bp)
+        app.register_blueprint(st_api_v1)
+        app.register_blueprint(st_ops_bp)
+
+        from lib.web_ui_kindafixed2.st_status import display_value
+        app.jinja_env.filters["st_display"] = display_value
+
+        @app.context_processor
+        def _globals():
+            return {"syntraf_version": DefaultValues.SYNTRAF_VERSION}
         #app.register_blueprint(st_auth_bp)
 
         """ Converting a dict of tuple to a dict of arrays for javascript """

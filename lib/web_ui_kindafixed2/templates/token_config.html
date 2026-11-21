@@ -1,36 +1,59 @@
 {% extends "base.html" %}
-{% block title %}Token{% endblock %}
+{% from "_macros.html" import page_header %}
+{% block title %}Tokens{% endblock %}
 {% block content %}
-<h2>Token configuration</h2>
-<br/>
-    <table id="table_tokens" class="table table-striped table-hover table-sm">
-        <thead>
-            <th style="width: 50%">DESCRIPTION</th>
-            <th style="width: 50%">TOKEN</th>
-        </thead>
-        <tbody id="table_tokens_body">
-        </tbody>
+{{ page_header("Tokens", "Clients authenticate to the server with one of these tokens. They are hidden until you reveal them.") }}
+<section class="st-card">
+    <table class="table table-sm table-hover mb-0">
+        <thead><tr><th scope="col" class="w-25">Description</th><th scope="col">Token</th><th scope="col" class="text-end">Actions</th></tr></thead>
+        <tbody id="tokens"><tr><td colspan="3" class="st-empty"><span class="spinner-border spinner-border-sm"></span> Loading…</td></tr></tbody>
     </table>
+</section>
 
 <script>
-// Le tableau est rempli à la main : la page utilisait l'API DataTables, qui n'est plus chargée depuis le passage
-// à bootstrap-table (2022), et le tableau restait vide.
-window.addEventListener('load', get_tokens);
+const MASK = "••••••••••••••••";
 
-async function get_tokens()
-{
+async function loadTokens() {
     const fd = new FormData();
-    fd.append('ACTION', "GET_TOKENS");
-    const response = await fetch('/api', {method: 'POST', body: fd});
-    const tokens = await response.json();
-    const body = document.getElementById('table_tokens_body');
+    fd.append("ACTION", "GET_TOKENS");
+    const response = await fetch("/api", {method: "POST", body: fd});
+    const body = document.getElementById("tokens");
+    if (!response.ok) { st.toast(`Unable to load the tokens (HTTP ${response.status})`, "danger"); return; }
+    const tokens = Object.entries(await response.json());
+    if (!tokens.length) {
+        body.innerHTML = `<tr><td colspan="3" class="st-empty"><i class="fas fa-key"></i>No token. Add one under [SERVER.TOKEN] in the configuration file.</td></tr>`;
+        return;
+    }
     body.replaceChildren();
-    for (const [description, token] of Object.entries(tokens)) {
+    for (const [description, token] of tokens) {
         const tr = body.insertRow();
         tr.insertCell().textContent = description;
-        tr.insertCell().textContent = token;
+        const cell = tr.insertCell();
+        const code = document.createElement("code");
+        code.textContent = MASK;
+        cell.appendChild(code);
+        const actions = tr.insertCell();
+        actions.className = "text-end text-nowrap";
+        const reveal = document.createElement("button");
+        reveal.className = "btn btn-sm btn-outline-light me-1";
+        reveal.innerHTML = '<i class="fas fa-eye me-1"></i>Show';
+        reveal.setAttribute("aria-label", `Show token ${description}`);
+        reveal.addEventListener("click", () => {
+            const hidden = code.textContent === MASK;
+            code.textContent = hidden ? token : MASK;
+            reveal.innerHTML = hidden ? '<i class="fas fa-eye-slash me-1"></i>Hide' : '<i class="fas fa-eye me-1"></i>Show';
+        });
+        const copy = document.createElement("button");
+        copy.className = "btn btn-sm btn-outline-light";
+        copy.innerHTML = '<i class="fas fa-copy me-1"></i>Copy';
+        copy.setAttribute("aria-label", `Copy token ${description}`);
+        copy.addEventListener("click", async () => {
+            try { await navigator.clipboard.writeText(token); st.toast(`Token “${description}” copied.`, "info"); }
+            catch (e) { st.toast("Copy refused by the browser (the page must be served over HTTPS or localhost).", "warning"); }
+        });
+        actions.append(reveal, copy);
     }
 }
+loadTokens();
 </script>
-
 {% endblock %}

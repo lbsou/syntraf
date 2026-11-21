@@ -1,61 +1,94 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
     <head>
         <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
         <link rel="stylesheet" href="{{ url_for('static', filename='bootstrap5/bootswatch_darkly_5.min.css')}}">
-        <link rel='stylesheet' href="{{ url_for('static', filename='fontawesome-free-5.15.3-web/css/all.css')}}">
+        <link rel="stylesheet" href="{{ url_for('static', filename='fontawesome-free-5.15.3-web/css/all.css')}}">
         <link rel="stylesheet" href="{{ url_for('static', filename='bootstrap-table/bootstrap-table.min.css')}}">
-
-        <title>SYNTRAF</title>
-        <style>body { padding-top: 70px; }</style>
-        {% block head %}{% endblock %}
-    </head>
-
-    <body class="px-3">
-        <nav class="navbar navbar-expand-lg fixed-top navbar-dark bg-primary">
-          <a class="navbar-brand" href="home.html">Home</a>
-          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarColor01" aria-controls="navbarColor01" aria-expanded="false" aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon"></span>
-          </button>
-
-          <div class="collapse navbar-collapse" id="navbarColor01">
-            <ul class="navbar-nav mr-auto">
-
-              <li class="nav-item dropdown">
-                <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" id="dropMenuStatus" role="button" aria-expanded="false">Status</a>
-                <div class="dropdown-menu" aria-labelledby="dropMenuStatus">
-                  <a class="dropdown-item" href="stats.html">Clients</a>
-                  <a class="dropdown-item" href="home.html">Databases</a>
-                  <a class="dropdown-item" href="queue.html">Queue</a>
-                  <a class="dropdown-item" href="log_viewer.html">Logs</a>
-                </div>
-              </li>
-
-              <li class="nav-item dropdown">
-                <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">Configurations</a>
-                <div class="dropdown-menu">
-                  <a class="dropdown-item" href="client_config.html">Clients</a>
-                  <a class="dropdown-item" href="database_config.html">Databases</a>
-                  <a class="dropdown-item" href="mesh_group_config.html">Groups</a>
-                  <a class="dropdown-item" href="server.html">Server</a>
-                  <a class="dropdown-item" href="token_config.html">Tokens</a>
-                </div>
-              </li>
-            </ul>
-          </div>
-            <div>
-                SYNTRAF v{{ syntraf_version }}<br>
-            </div>
-        </nav>
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/st_app.css')}}">
+        <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+        <title>{% block title %}SYNTRAF{% endblock %} · SYNTRAF</title>
         <script src="{{ url_for('static', filename='bootstrap5/bootstrap.bundle.min.js')}}"></script>
         <script src="{{ url_for('static', filename='jquery/jquery-3.6.1.min.js')}}"></script>
         <script src="{{ url_for('static', filename='jquery/jquery.validate.min.js')}}"></script>
         <script src="{{ url_for('static', filename='bootstrap-table/bootstrap-table.min.js')}}"></script>
-        <script src="https://unpkg.com/tableexport.jquery.plugin/tableExport.min.js"></script>
+        <script src="{{ url_for('static', filename='tableexport/tableExport.min.js')}}"></script>
         <script src="{{ url_for('static', filename='bootstrap-table/extensions/export/bootstrap-table-export.min.js')}}"></script>
-        <script src="{{ url_for('static', filename='fontawesome-free-5.15.3-web/js/fontawesome.min.js')}}"></script>
+        <script src="{{ url_for('static', filename='js/st_app.js')}}"></script>
+        {% block head %}{% endblock %}
+    </head>
 
-        {% block content %}{% endblock %}
+    <body>
+        <a class="visually-hidden-focusable st-skip" href="#st-main">Skip to content</a>
+        {% set nav = [
+            ("Overview", [("/home.html", "fa-tachometer-alt", "Dashboard")]),
+            ("Monitoring", [("/stats.html", "fa-desktop", "Clients"),
+                            ("/queue.html", "fa-stream", "Queue"),
+                            ("/log_viewer.html", "fa-file-alt", "Logs")]),
+            ("Configuration", [("/mesh_group_config.html", "fa-project-diagram", "Mesh groups"),
+                               ("/client_config.html", "fa-network-wired", "Clients"),
+                               ("/database_config.html", "fa-database", "Databases"),
+                               ("/server.html", "fa-server", "Server"),
+                               ("/token_config.html", "fa-key", "Tokens")]),
+            ("Governance", [("/audit.html", "fa-history", "Audit & versions")]),
+        ] %}
+        <header class="st-topbar navbar navbar-dark bg-primary px-3">
+            <button class="btn btn-sm btn-outline-light d-lg-none me-2" type="button" data-bs-toggle="offcanvas"
+                    data-bs-target="#st-sidebar" aria-controls="st-sidebar" aria-label="Open navigation">
+                <i class="fas fa-bars"></i>
+            </button>
+            <a class="navbar-brand fw-bold" href="/home.html">SYNTRAF</a>
+            <div class="ms-auto d-flex align-items-center gap-3 small">
+                <span id="st-live" class="st-live" title="Live status updates"><span class="st-dot"></span><span class="st-live-text">connecting…</span></span>
+                <a class="link-light" href="/api/v1/openapi.json" target="_blank" rel="noopener" title="REST API description (OpenAPI)"><i class="fas fa-code"></i> API</a>
+                <span class="text-white-50">v{{ syntraf_version }}</span>
+            </div>
+        </header>
+
+        <div class="st-shell">
+            <nav id="st-sidebar" class="st-sidebar offcanvas-lg offcanvas-start" tabindex="-1" aria-label="Main navigation">
+                <div class="offcanvas-header d-lg-none">
+                    <span class="fw-bold">Navigation</span>
+                    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#st-sidebar" aria-label="Close"></button>
+                </div>
+                <div class="offcanvas-body d-block p-0">
+                {% for section, items in nav %}
+                    <div class="st-nav-section">{{ section }}</div>
+                    <ul class="nav flex-column">
+                    {% for href, icon, label in items %}
+                        <li class="nav-item">
+                            <a class="nav-link{% if request.path == href %} active{% endif %}" href="{{ href }}"
+                               {% if request.path == href %}aria-current="page"{% endif %}>
+                                <i class="fas {{ icon }} fa-fw me-2"></i>{{ label }}
+                            </a>
+                        </li>
+                    {% endfor %}
+                    </ul>
+                {% endfor %}
+                </div>
+            </nav>
+
+            <main id="st-main" class="st-main">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+
+        <div class="toast-container position-fixed bottom-0 end-0 p-3" id="st-toasts" aria-live="polite" aria-atomic="true"></div>
+
+        <div class="modal fade" id="st-confirm" tabindex="-1" aria-labelledby="st-confirm-title" aria-hidden="true" data-bs-backdrop="static">
+            <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+                <div class="modal-content">
+                    <div class="modal-header"><h5 class="modal-title" id="st-confirm-title"></h5></div>
+                    <div class="modal-body" id="st-confirm-body"></div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="st-confirm-cancel">Cancel</button>
+                        <button type="button" class="btn btn-primary" id="st-confirm-ok">Confirm</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% block scripts %}{% endblock %}
     </body>
 </html>

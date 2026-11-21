@@ -1,0 +1,25 @@
+{# Composants communs des pages de configuration. #}
+{% macro page_header(title, subtitle="") -%}
+<div class="st-page-header">
+    <div>
+        <h1>{{ title }}</h1>
+        {% if subtitle %}<div class="st-subtitle">{{ subtitle }}</div>{% endif %}
+    </div>
+    {{ caller() if caller }}
+</div>
+{%- endmacro %}
+
+{# Tableau paramètre / valeur ; les valeurs dont le nom évoque un secret sont masquées. #}
+{% macro kv_table(items, skip=()) -%}
+<table class="table table-sm table-hover mb-0">
+    <thead><tr><th scope="col" class="w-50">Parameter</th><th scope="col">Value</th></tr></thead>
+    <tbody>
+    {% for key, value in items.items() if key not in skip %}
+        <tr><td><code>{{ key }}</code></td>
+            <td>{% set shown = value | st_display(key) %}{% if shown == '••••••••' %}<span class="text-white-50" title="Hidden">{{ shown }}</span>{% elif shown is string and shown[:1] in '[{' %}<code>{{ shown }}</code>{% else %}{{ shown }}{% endif %}</td></tr>
+    {% else %}
+        <tr><td colspan="2" class="st-empty">No parameter.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+{%- endmacro %}

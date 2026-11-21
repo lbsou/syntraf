@@ -1,24 +1,14 @@
 {% extends "base.html" %}
-{% block title %}Client config{% endblock %}
+{% from "_macros.html" import page_header, kv_table %}
+{% block title %}Databases{% endblock %}
 {% block content %}
-<h2>Databases configurations</h2>
-<br/>
-    {% for database in config['DATABASE'] %}
-        <h4><p class="text-info">{{ database['DB_UID'] }}</p></h4>
-        <table class="table table-striped table-hover table-sm">
-            <thead>
-                <th style="width: 50%">PARAMETER</th>
-                <th style="width: 50%">VALUE</th>
-            </thead>
-            <tbody>
-                {% for item in database %}
-                    <tr>
-                        <td>{{ item }}</td>
-                        <td>{{ database[item] }}</td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        <br/>
-    {% endfor %}
+{{ page_header("Databases", "Where measurements are written. Live state is on the Dashboard.") }}
+{% for database in config.get('DATABASE', []) %}
+<section class="st-card">
+    <h2><i class="fas fa-database me-2"></i>{{ database['DB_UID'] }}</h2>
+    {{ kv_table(database, skip=('DB_UID',)) }}
+</section>
+{% else %}
+<div class="st-empty"><i class="fas fa-database"></i>No database configured. Add a [[DATABASE]] section to the configuration file.</div>
+{% endfor %}
 {% endblock %}

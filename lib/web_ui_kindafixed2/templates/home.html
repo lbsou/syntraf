@@ -1,140 +1,112 @@
 {% extends "base.html" %}
-{% block title %}Home Page{% endblock %}
+{% block title %}Dashboard{% endblock %}
 {% block content %}
-<h1>SYNTRAF</h1>
-<p class="text-info">Welcome, have a nice troubleshooting...</p>
-
-<div class="container">
-  <div class="row">
-    {% for database in conn_db %}
-        <div class="col-sm-3">
-          {% if database.status == "ONLINE" %}
-            <div class="card text-white bg-success mb-3" style="max-width: 30rem;" id="{{ database.DB_UID }}_status_color">
-          {%- else -%}
-            <div class="card text-white bg-danger mb-3" style="max-width: 30rem;" id="{{ database.DB_UID }}_status_color">
-          {%- endif %}
-              <div class="card-header">Status of database: '{{ database.DB_UID }}'</div>
-              <div class="card-body">
-                <h4 class="card-title" id="{{ database.DB_UID }}_status">{{ database.status }}</h4>
-                <p class="card-text">
-                    <p class="card-text" id="{{ database.DB_UID }}_status_since">Since: {{ database.status_time }}</p>
-                    <p class="card-text" id="{{ database.DB_UID }}_backlog">Data backlog: {{ database.write_queue.queue | length }}</p>
-                </p>
-              </div>
-         </div>
-        </div>
-    {% endfor %}
-  </div>
+<div class="st-page-header">
+    <div>
+        <h1>Dashboard</h1>
+        <div class="st-subtitle">Server state, refreshed live every few seconds.</div>
+    </div>
+    <div class="st-actions">
+        <a class="btn btn-outline-light btn-sm" href="/healthz" target="_blank" rel="noopener"><i class="fas fa-heartbeat me-1"></i>Health check</a>
+        <a class="btn btn-outline-light btn-sm" href="/metrics" target="_blank" rel="noopener"><i class="fas fa-chart-line me-1"></i>Prometheus metrics</a>
+    </div>
 </div>
 
-<div class="container">
-  <div class="row">
-        <div class="col-sm-3">
-            <div class="card text-white bg-success mb-3" style="max-width: 30rem;">
-              <div class="card-header"><a href="/stats.html">Online clients</a></div>
-              <div class="card-body">
-                <h4 class="card-title" id="ONLINE_CLIENTS"></h4>
-                <p class="card-text"></p>
-              </div>
+<div class="st-kpis" id="kpis" aria-live="polite">
+    <div class="st-kpi" id="kpi-clients"><div class="st-kpi-label">Clients connected</div><div class="st-kpi-value">–</div><div class="st-kpi-note"></div></div>
+    <div class="st-kpi" id="kpi-groups"><div class="st-kpi-label">Mesh groups enabled</div><div class="st-kpi-value">–</div><div class="st-kpi-note"></div></div>
+    <div class="st-kpi" id="kpi-databases"><div class="st-kpi-label">Databases online</div><div class="st-kpi-value">–</div><div class="st-kpi-note"></div></div>
+    <div class="st-kpi" id="kpi-threads"><div class="st-kpi-label">Server threads alive</div><div class="st-kpi-value">–</div><div class="st-kpi-note"></div></div>
+    <div class="st-kpi" id="kpi-queue"><div class="st-kpi-label">Queued points</div><div class="st-kpi-value">–</div><div class="st-kpi-note">waiting to be forwarded</div></div>
+</div>
+
+<div class="row g-4">
+    <div class="col-xl-8">
+        <section class="st-card" aria-labelledby="clients-title">
+            <h2 id="clients-title"><i class="fas fa-desktop me-2"></i>Clients</h2>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead><tr><th scope="col">Client</th><th scope="col">Status</th><th scope="col">Since</th><th scope="col">Address</th>
+                        <th scope="col">Mesh groups</th><th scope="col" class="text-end">Flows (in / out)</th><th scope="col">Version</th></tr></thead>
+                    <tbody id="clients-body"><tr><td colspan="7" class="st-empty"><span class="spinner-border spinner-border-sm"></span> Loading…</td></tr></tbody>
+                </table>
             </div>
-        </div>
-        <div class="col-sm-3">
-            <div class="card text-white bg-danger mb-3" style="max-width: 30rem;">
-              <div class="card-header"><a href="/stats.html">Offline clients</a></div>
-              <div class="card-body">
-                <h4 class="card-title" id="OFFLINE_CLIENTS"></h4>
-                <p class="card-text"></p>
-              </div>
-            </div>
-        </div>
-  </div>
+        </section>
+    </div>
+    <div class="col-xl-4">
+        <section class="st-card" aria-labelledby="db-title">
+            <h2 id="db-title"><i class="fas fa-database me-2"></i>Databases</h2>
+            <div id="db-body"></div>
+        </section>
+        <section class="st-card" aria-labelledby="audit-title">
+            <h2 id="audit-title"><i class="fas fa-history me-2"></i>Recent configuration changes</h2>
+            <div id="audit-body"></div>
+            <a class="small" href="/audit.html">All changes and versions →</a>
+        </section>
+    </div>
 </div>
 
 <script>
-get_online_clients()
-get_offline_clients()
-get_list_of_databases_infos()
-
-setInterval(get_online_clients, 5000)
-setInterval(get_offline_clients, 5000)
-setInterval(get_list_of_databases_infos, 5000)
-
-
-async function get_online_clients()
-{
-    const fd = new FormData();
-    fd.append('ACTION', "GET_NUMBER_OF_ONLINE_CLIENT");
-
-    // send `POST` request
-    const response = await fetch('/api', {
-        method: 'POST',
-        body: fd
-    })
-
-    retval = await response.text();
-    retval = JSON.parse(retval);
-
-    //console.log(retval);
-    //alert(retval);
-
-    document.getElementById('ONLINE_CLIENTS').innerHTML = retval
+function kpi(id, value, note, level) {
+    const el = document.getElementById(id);
+    el.querySelector(".st-kpi-value").textContent = value;
+    if (note !== null) el.querySelector(".st-kpi-note").textContent = note;
+    el.classList.remove("st-ok", "st-warn", "st-bad");
+    el.classList.add("st-" + level);
 }
 
-async function get_offline_clients()
-{
-    const fd = new FormData();
-    fd.append('ACTION', "GET_NUMBER_OF_OFFLINE_CLIENT");
+function render(snap) {
+    const cs = snap.clients_summary;
+    kpi("kpi-clients", `${cs.connected} / ${cs.total}`, cs.disconnected ? `${cs.disconnected} disconnected` : "all connected",
+        cs.disconnected === 0 ? "ok" : (cs.connected === 0 ? "bad" : "warn"));
+    const gs = snap.mesh_groups_summary;
+    kpi("kpi-groups", `${gs.enabled} / ${gs.total}`, gs.disabled ? `${gs.disabled} disabled` : "none disabled", gs.disabled ? "warn" : "ok");
+    const online = snap.databases.filter(d => d.status === "ONLINE").length;
+    kpi("kpi-databases", `${online} / ${snap.databases.length}`, null,
+        online === snap.databases.length ? "ok" : (online === 0 ? "bad" : "warn"));
+    const dead = snap.threads.filter(t => !t.alive);
+    kpi("kpi-threads", `${snap.threads.length - dead.length} / ${snap.threads.length}`,
+        dead.length ? "dead: " + dead.map(t => t.name).join(", ") : "all alive", dead.length ? "bad" : "ok");
+    kpi("kpi-queue", snap.queue_length, null, snap.queue_length > 1000 ? "warn" : "ok");
 
-    // send `POST` request
-    const response = await fetch('/api', {
-        method: 'POST',
-        body: fd
-    })
-
-    retval = await response.text();
-    retval = JSON.parse(retval);
-
-    //console.log(retval);
-    //alert(retval);
-
-    document.getElementById('OFFLINE_CLIENTS').innerHTML = retval
-}
-
-async function get_list_of_databases_infos()
-{
-    const fd = new FormData();
-    fd.append('ACTION', "GET_LIST_OF_DATABASES_INFOS");
-
-    // send `POST` request
-    const response = await fetch('/api', {
-        method: 'POST',
-        body: fd
-    })
-
-    retval = await response.text();
-    retval = JSON.parse(retval);
-
-    //console.log(retval);
-    //alert(retval);
-
-    for (const [key, value] of Object.entries(retval)) {
-
-        document.getElementById(key + '_status').innerHTML = value['STATUS'];
-        if (value['STATUS'] == "ONLINE"){
-            document.getElementById(key + '_status_color').className = "card text-white bg-success mb-3";
-        } else{
-            document.getElementById(key + '_status_color').className = "card text-white bg-danger mb-3";
-        }
-
-        document.getElementById(key + '_status_since').innerHTML = value['STATUS_TIME'];
-        document.getElementById(key + '_backlog').innerHTML = value['BACKLOG'];
+    const body = document.getElementById("clients-body");
+    if (!snap.clients.length) {
+        body.innerHTML = `<tr><td colspan="7" class="st-empty"><i class="fas fa-plug"></i>No client is declared yet. Add one in the server configuration file (SERVER_CLIENT).</td></tr>`;
+    } else {
+        body.innerHTML = snap.clients.map(c => `<tr>
+            <th scope="row">${st.esc(c.uid)}</th>
+            <td>${st.badge(c.status)}</td>
+            <td class="small text-white-50">${st.esc(c.status_since || "")}</td>
+            <td>${st.esc(c.ip_address || "")}${c.dynamic_ip ? ' <span class="badge bg-secondary" title="Dynamic IP address">dynamic</span>' : ""}</td>
+            <td>${c.mesh_groups.map(st.esc).join(", ")}</td>
+            <td class="text-end">${c.listeners} / ${c.connectors}</td>
+            <td class="small">${st.esc(c.syntraf_version || "")}</td></tr>`).join("");
     }
 
-
+    const db = document.getElementById("db-body");
+    db.innerHTML = snap.databases.length ? snap.databases.map(d => `
+        <div class="d-flex justify-content-between align-items-center border-bottom border-secondary py-2">
+            <div><strong>${st.esc(d.uid)}</strong><div class="small text-white-50">since ${st.esc(d.status_since)}</div></div>
+            <div class="text-end">${st.badge(d.status)}<div class="small text-white-50">backlog ${d.backlog}</div></div>
+        </div>`).join("") : `<div class="st-empty"><i class="fas fa-database"></i>No database configured.</div>`;
 }
 
+async function loadAudit() {
+    const r = await st.api("GET", "/api/v1/audit?limit=5");
+    const el = document.getElementById("audit-body");
+    if (!r.ok) { el.innerHTML = `<div class="text-danger">${st.esc(r.error.message)}</div>`; return; }
+    el.innerHTML = r.data.length ? `<ul class="list-unstyled small mb-2">${r.data.map(e => `
+        <li class="py-1 border-bottom border-secondary"><span class="text-white-50">${st.esc(st.time(e.time))}</span>
+        · ${st.esc(e.summary)} <span class="text-white-50">by ${st.esc(e.actor)}</span></li>`).join("")}</ul>`
+        : `<div class="st-empty py-3"><i class="fas fa-history"></i>No change made from the web interface yet.</div>`;
+}
 
-
+(async () => {
+    const r = await st.api("GET", "/api/v1/status?refresh=1");
+    if (r.ok) render(r.data); else st.toast(r.error.message, "danger");
+    loadAudit();
+    st.live(render);
+    setInterval(loadAudit, 30000);
+})();
 </script>
-
 {% endblock %}

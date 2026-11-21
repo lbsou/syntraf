@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Audit & versions{% endblock %}
+{% block content %}
+<div class="st-page-header">
+    <div>
+        <h1>Audit &amp; versions</h1>
+        <div class="st-subtitle">Every change made to the configuration file from the web interface or the API, and the saved versions of that file.</div>
+    </div>
+</div>
+
+<ul class="nav nav-tabs mb-3" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="tab-changes" data-bs-toggle="tab" data-bs-target="#pane-changes" type="button" role="tab" aria-controls="pane-changes" aria-selected="true">
+            <i class="fas fa-list me-1"></i>Changes</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-versions" data-bs-toggle="tab" data-bs-target="#pane-versions" type="button" role="tab" aria-controls="pane-versions" aria-selected="false">
+            <i class="fas fa-code-branch me-1"></i>Versions</button>
+    </li>
+</ul>
+
+<div class="tab-content">
+    <div class="tab-pane fade show active" id="pane-changes" role="tabpanel" aria-labelledby="tab-changes">
+        <div class="d-flex gap-2 mb-2">
+            <input type="search" class="form-control form-control-sm w-auto" id="audit-filter" placeholder="Filter (action, author, text)…" aria-label="Filter changes">
+        </div>
+        <div id="audit-list"></div>
+    </div>
+    <div class="tab-pane fade" id="pane-versions" role="tabpanel" aria-labelledby="tab-versions">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover">
+                <thead><tr><th scope="col">Saved at</th><th scope="col">Change</th><th scope="col" class="text-end">Size</th><th scope="col" class="text-end">Actions</th></tr></thead>
+                <tbody id="versions-body"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+let auditEntries = [];
+
+function renderAudit() {
+    const q = document.getElementById("audit-filter").value.toLowerCase();
+    const rows = auditEntries.filter(e => !q || [e.action, e.actor, e.summary].join(" ").toLowerCase().includes(q));
+    const el = document.getElementById("audit-list");
+    if (!rows.length) {
+        el.innerHTML = `<div class="st-empty"><i class="fas fa-history"></i>${auditEntries.length ? "No change matches the filter." : "No change made from the web interface yet."}</div>`;
+        return;
+    }
+    el.innerHTML = "";
+    const acc = document.createElement("div");
+    acc.className = "accordion";
+    rows.forEach((e, i) => {
+        const item = document.createElement("div");
+        item.className = "accordion-item";
+        item.innerHTML = `<h2 class="accordion-header" id="h${i}">
+            <button class="accordion-button collapsed py-2" type="button" data-bs-toggle="collapse" data-bs-target="#c${i}" aria-expanded="false" aria-controls="c${i}">
+                <span class="text-white-50 me-3">${st.esc(st.time(e.time))}</span>
+                <span class="badge bg-secondary me-2">${st.esc(e.action)}</span>${st.esc(e.summary)}
+                <span class="ms-auto me-3 small text-white-50">by ${st.esc(e.actor)}</span></button></h2>
+            <div id="c${i}" class="accordion-collapse collapse" aria-labelledby="h${i}"><div class="accordion-body"></div></div>`;
+        item.querySelector(".accordion-body").appendChild(st.diffNode(e.diff));
+        acc.appendChild(item);
+    });
+    el.appendChild(acc);
+}
+
+async function loadAudit() {
+    const r = await st.api("GET", "/api/v1/audit?limit=500");
+    if (!r.ok) { st.toast(r.error.message, "danger"); return; }
+    auditEntries = r.data;
+    renderAudit();
+}
+document.getElementById("audit-filter").addEventListener("input", renderAudit);
+
+async function loadVersions() {
+    const r = await st.api("GET", "/api/v1/config/versions");
+    const body = document.getElementById("versions-body");
+    if (!r.ok) { st.toast(r.error.message, "danger"); return; }
+    const byVersion = Object.fromEntries(auditEntries.map(e => [e.version, e]));
+    if (!r.data.length) {
+        body.innerHTML = `<tr><td colspan="4" class="st-empty"><i class="fas fa-code-branch"></i>No saved version yet: the first change made from the web interface keeps the original file.</td></tr>`;
+        return;
+    }
+    body.innerHTML = r.data.map((v, i) => {
+        const e = byVersion[v.version];
+        const label = i === 0 ? '<span class="badge bg-success ms-1">current</span>' : "";
+        return `<tr><td>${st.esc(st.time(v.time))}${label}</td>
+            <td>${e ? st.esc(e.summary) + ' <span class="small text-white-50">by ' + st.esc(e.actor) + "</span>" : '<span class="text-white-50">Original file</span>'}</td>
+            <td class="text-end">${v.size} B</td>
+            <td class="text-end text-nowrap">
+                <button class="btn btn-sm btn-outline-light" data-act="view" data-v="${st.esc(v.version)}"><i class="fas fa-eye me-1"></i>View</button>
+                <button class="btn btn-sm btn-outline-light" data-act="diff" data-v="${st.esc(v.version)}"><i class="fas fa-exchange-alt me-1"></i>Compare</button>
+                ${i === 0 ? "" : `<button class="btn btn-sm btn-warning" data-act="restore" data-v="${st.esc(v.version)}"><i class="fas fa-undo me-1"></i>Restore</button>`}
+            </td></tr>`;
+    }).join("");
+}
+
+document.getElementById("versions-body").addEventListener("click", async ev => {
+    const btn = ev.target.closest("button[data-act]");
+    if (!btn) return;
+    const v = btn.dataset.v, url = `/api/v1/config/versions/${encodeURIComponent(v)}`;
+    if (btn.dataset.act === "view" || btn.dataset.act === "diff") {
+        const r = await st.api("GET", btn.dataset.act === "view" ? url : url + "/diff");
+        if (!r.ok) { st.toast(r.error.message, "danger"); return; }
+        let node;
+        if (btn.dataset.act === "view") { node = document.createElement("pre"); node.className = "st-diff"; node.textContent = r.data; }
+        else node = st.diffNode(r.data);
+        await st.confirm({title: btn.dataset.act === "view" ? `Version ${v}` : `Current file → version ${v}`, body: node, confirmText: "Close", hideCancel: true});
+        return;
+    }
+    st.setBusy(btn, true);
+    const preview = await st.api("POST", url + "/restore?dry_run=1");
+    st.setBusy(btn, false);
+    if (!preview.ok) { st.toast(preview.error.message, "danger"); return; }
+    const ok = await st.confirm({title: `Restore version ${v}?`, body: st.previewNode(preview.data), confirmText: "Restore", danger: true});
+    if (!ok) return;
+    const r = await st.api("POST", url + "/restore");
+    if (!r.ok) { st.toast(r.error.message, "danger"); return; }
+    st.toast(`Configuration restored. ${r.data.reconnected_clients.length} connected client(s) applying it.` +
+             (r.data.restart_required ? " Restart the server for the other sections." : ""), r.data.restart_required ? "warning" : "success");
+    await loadAudit();
+    loadVersions();
+});
+
+document.getElementById("tab-versions").addEventListener("shown.bs.tab", loadVersions);
+loadAudit();
+</script>
+{% endblock %}

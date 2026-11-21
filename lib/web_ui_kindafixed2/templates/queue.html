@@ -1,8 +1,11 @@
 {% extends "base.html" %}
 {% block title %}Queue{% endblock %}
+{% from "_macros.html" import page_header %}
 {% block content %}
-<h2>Queue</h2>
-<p class="text-info">{{ dict_data_to_send_to_server | length }} point(s) waiting to be written.</p>
+{{ page_header("Queue", (dict_data_to_send_to_server | length) ~ " point(s) received from clients and waiting to be written to the databases.") }}
+{% if not dict_data_to_send_to_server %}
+<div class="st-empty"><i class="fas fa-check-circle"></i>The queue is empty: every measurement has been forwarded.</div>
+{% else %}
 <table class="table table-striped table-hover table-bordered table-sm">
     <thead>
         <tr>
@@ -21,4 +24,5 @@
     {% endfor %}
     </tbody>
 </table>
+{% endif %}
 {% endblock %}

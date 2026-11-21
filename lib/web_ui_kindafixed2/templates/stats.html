@@ -2,13 +2,13 @@
 {% block title %}Stats{% endblock %}
 {% block head %}
 <link rel="stylesheet" href="/static/st.css">
-<meta http-equiv="refresh" content="3000" >
 <script type="text/javascript" src='/static/js/d3_6_7_0.min.js'></script>
 <script type="text/javascript" src='/static/js/crossfilter_1_5_4.min.js'></script>
 <script type="text/javascript" src='/static/js/dc_4_2_7.min.js'></script>
 {% endblock %}
 {% block content %}
-<h2>Clients status</h2>
+{% from "_macros.html" import page_header %}
+{{ page_header("Clients", "Control-channel state of each client, its system information and its running threads.") }}
 
 <div class="modal fade" id="modal_system_stats_empty" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-dialog-centered" role="document">

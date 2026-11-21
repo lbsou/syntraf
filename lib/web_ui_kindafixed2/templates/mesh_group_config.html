@@ -1,533 +1,261 @@
 {% extends "base.html" %}
-{% block title %}Groups{% endblock %}
+{% block title %}Mesh groups{% endblock %}
 {% block content %}
-  <div class="container"><br>
-    <div class="table-responsive">
-      <h2>Mesh groups</h2>
-
-    <div id="toolbar">
-      <button id="btn_new" type="button" class="btn btn-primary" style="width:120px;">
-          <i class="fas fa-plus"></i>&nbsp;&nbsp;&nbsp;New
-      </button>
-      <button id="btn_edit" type="button" class="btn btn-primary" style="width:120px;" disabled>
-          <i class="fa fa-edit"></i>&nbsp;&nbsp;&nbsp;Edit
-      </button>
-      <button id="btn_delete" class="btn btn-danger" style="width:120px;" disabled>
-        <i class="fa fa-trash"></i>&nbsp;&nbsp;&nbsp;Delete
-      </button>
-      <button id="btn_duplicate" class="btn btn-primary" style="width:120px;" disabled>
-        <i class="far fa-clone"></i>&nbsp;&nbsp;&nbsp;Duplicate
-      </button>
-      <button id="btn_disable" class="btn btn-primary" style="width:120px;" disabled>
-        <i class="fas fa-slash"></i>&nbsp;&nbsp;&nbsp;<span id="btn_disable_text">Disable</span>
-      </button>
-
-    </div>
-      <table id="table" class="table-dark table-striped thead-dark table-hover table-sm vertical-align" style="width:100%"
-          data-toolbar="#toolbar"
-          data-search="true"
-          data-show-toggle="true"
-          data-show-columns="true"
-          data-show-export="true"
-          data-click-to-select="true"
-          data-minimum-count-columns="2"
-          data-show-search-clear-button="true"
-          data-pagination="true"
-          data-id-field="UID"
-          data-page-list="[10, 25, 50, 100, all]"
-          data-show-footer="true">
-      </table>
-    </div>
-  </div>
-  <div aria-labelledby="modal_confirmation" class="modal fade" id="modal_confirmation" role="dialog" tabindex="-1">
-      <div class="modal-dialog modal-dialog-centered" role="document">
-          <div class="modal-content">
-              <input type="hidden" id="groupID" value="">
-              <div class="modal-header">
-                  <h4 class="modal-title" id="modal_confirmation_title_text">Delete group</h4>
-              </div>
-              <div class="modal-body" >
-                  <p id="modal_confirmationText">Are you sure you wish to delete this group?</p>
-              </div>
-              <div class="modal-footer">
-                  <button class="btn btn-default" data-bs-dismiss="modal" type="button">No</button>
-                  <button class="btn btn-danger" id="btn_yes_modal_confirmation" type="button">Yes</button>
-              </div>
-          </div><!-- end modal-content -->
-      </div><!-- end modal-dialog -->
-  </div><!-- end modal -->
-
-<div class="modal fade" id="modal_delete_error" tabindex="-1" role="dialog">
-    <div class="modal-dialog modal-dialog-centered" role="document">
-        <div  class="modal-content text-center">
-            </br>
-            <i class="fa fa-exclamation-triangle fa-2x" style="color:yellow" aria-hidden="true"></i>
-            </br>
-            <div id="error_modal_text"></div>
-            </br>
-            <div><button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button></div>
-            </br>
-        </div>
+<div class="st-page-header">
+    <div>
+        <h1>Mesh groups</h1>
+        <div class="st-subtitle">Every member of a group measures towards every other member. Changes are previewed, then applied live to the connected clients.</div>
     </div>
 </div>
 
-<div class="modal fade" id="modal_success" tabindex="-1" role="dialog" data-keyboard="false" data-backdrop="static">
-    <div class="modal-dialog modal-dialog-centered" role="document">
-        <div  class="modal-content text-center">
-          <div class="modal-header">
-            <h5 class="modal-title" id="modal_success_group_label">Deletion result(s)</h5>
-          </div>
-            <div id="success_modal_text" style="margin-right:15px; margin-left:15px">
-
-            </div>
-            </br>
-            <div><button type="button" class="btn btn-light" id="btn_close_modal_success" data-bs-dismiss="modal">Close</button></div>
-            </br>
-        </div>
-    </div>
+<div id="toolbar" class="d-flex flex-wrap gap-2" role="toolbar" aria-label="Mesh group actions">
+    <button id="btn_new" type="button" class="btn btn-primary"><i class="fas fa-plus me-1"></i>New</button>
+    <button id="btn_edit" type="button" class="btn btn-secondary" disabled><i class="fas fa-edit me-1"></i>Edit</button>
+    <button id="btn_duplicate" type="button" class="btn btn-secondary" disabled><i class="far fa-clone me-1"></i>Duplicate</button>
+    <button id="btn_disable" type="button" class="btn btn-warning" disabled><i class="fas fa-power-off me-1"></i><span id="btn_disable_text">Disable</span></button>
+    <button id="btn_delete" type="button" class="btn btn-danger" disabled><i class="fas fa-trash me-1"></i>Delete</button>
 </div>
+<table id="table" class="table table-hover table-sm"
+       data-toolbar="#toolbar" data-search="true" data-show-columns="true" data-show-export="true"
+       data-click-to-select="true" data-pagination="true" data-id-field="UID" data-unique-id="UID"
+       data-page-list="[10, 25, 50, 100, all]" data-show-search-clear-button="true"></table>
+<p class="small text-white-50 mt-2">* Outgoing bandwidth of each member: (members − 1) × group bandwidth.</p>
 
-<div class="modal fade" id="modal_new_mesh_group" tabindex="-1" role="dialog" aria-labelledby="modal_new_mesh_group" aria-hidden="true">
+<div class="modal fade" id="modal_form" tabindex="-1" aria-labelledby="modal_form_title" aria-hidden="true" data-bs-backdrop="static">
   <div class="modal-dialog modal-dialog-centered" role="document">
     <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="modal_new_mesh_group_label">Create mesh group</h5>
-      </div>
-      <form action="" id="new_mg_form" class="g-3" novalidate>
-          <div class="modal-body">
-                <div class="table-responsive">
-                    <div class="form-group">
-                        <label for="mg_name" class="form-label mt-4">Name</label>
-<!--                        pattern='^[A-Za-z0-9_-]{5,50}$'-->
-                        <input class="form-control" id="mg_name" type="text" oninput="check_validity_uid()" autofocus placeholder="Enter a unique mesh group name" name="mg_name" required>
-                        <div id="mg_name-feedback" class="invalid-feedback">
-                            Please specify a unique and valid name (A-Za-z0-9_-), 5-50 characters long.
-                        </div>
-
-                        <label for="mg_description" class="form-label mt-4">Description</label>
-<!--                        pattern='^[A-Za-z0-9_-]{0,100}$'-->
-                        <input class="form-control"  id="mg_description" type="text" placeholder="Enter a description" name="mg_description">
-                        <div id="mg_description-feedback" class="invalid-feedback">
-                            You can enter a description for this mesh group.
-                        </div>
-
-                        <div style="display: inline-block;">
-                            <label for="mg_bandwidth" class="form-label mt-4">Bandwidth</label>
-<!--                            data-rule-min="0.00000001" data-rule-max="1000000000" -->
-                            <input class="form-control"  id="mg_bandwidth" type="text" placeholder="200" name="mg_bandwidth" required>
-<!--                            pattern='^[1-9][0-9]*$'-->
-                        </div>
-                        <div id="mg_bandwidth-feedback" class="invalid-feedback">
-                            Please specify a positive number.
-                        </div>
-                        <div style="display: inline-block;">
-                          <select class="form-select" id="select_bw">
-                            <option>bps</option>
-                            <option selected>Kbps</option>
-                            <option>Mbps</option>
-                          </select>
-                        </div>
-                        <br>
-
-                        <label for="mg_dscp" class="form-label mt-4">DSCP</label>
-                        <input class="form-control" id="mg_dscp" type="text" placeholder="0" name="mg_dscp" required>
-                        <div class="invalid-feedback">
-                            Please specify a DSCP code between 0 and 63.
-                        </div>
-
-                        <label for="mg_packet_size" class="form-label mt-4">Packet size (bytes)</label>
-                        <input class="form-control" id="mg_packet_size" type="text" placeholder="32" name="mg_packet_size" required>
-                        <div class="invalid-feedback">
-                            Please specify a packet size between 16 and 65507.
-                        </div>
-
-                        <label for="mg_interval" class="form-label mt-4">Metric interval (seconds)</label>
-                        <input class="form-control" id="mg_interval" type="text" placeholder="1" name="mg_interval" required>
-                        <div class="invalid-feedback">
-                            Please specify an interval between 1 and 60.
-                        </div>
-
-                    </div>
+      <form id="mg_form" novalidate>
+        <div class="modal-header"><h5 class="modal-title" id="modal_form_title">Create mesh group</h5></div>
+        <div class="modal-body">
+          <div id="mg_review" hidden></div>
+          <div id="mg_fields">
+            <div class="mb-3">
+                <label for="mg_name" class="form-label">Name</label>
+                <input class="form-control" id="mg_name" data-field="UID" type="text" required maxlength="50"
+                       pattern="[A-Za-z0-9_\-]{4,50}" aria-describedby="mg_name_help">
+                <div id="mg_name_help" class="form-text">4 to 50 characters: letters, digits, '_' or '-'. Cannot be changed later: clients refer to it.</div>
+                <div class="invalid-feedback" data-feedback="UID"></div>
+            </div>
+            <div class="mb-3">
+                <label for="mg_description" class="form-label">Description <span class="text-white-50">(optional)</span></label>
+                <input class="form-control" id="mg_description" type="text" maxlength="200">
+            </div>
+            <div class="mb-3">
+                <label for="mg_bandwidth" class="form-label">Bandwidth per flow</label>
+                <div class="input-group has-validation">
+                    <input class="form-control" id="mg_bandwidth" data-field="BANDWIDTH" type="number" min="0" step="any" required>
+                    <select class="form-select flex-grow-0 w-auto" id="mg_bandwidth_unit" aria-label="Bandwidth unit">
+                        <option value="">bps</option><option value="K" selected>Kbps</option><option value="M">Mbps</option>
+                    </select>
+                    <div class="invalid-feedback" data-feedback="BANDWIDTH"></div>
                 </div>
+            </div>
+            <div class="row">
+                <div class="col-4 mb-3">
+                    <label for="mg_dscp" class="form-label">DSCP</label>
+                    <input class="form-control" id="mg_dscp" data-field="DSCP" type="number" min="0" max="63" required>
+                    <div class="invalid-feedback" data-feedback="DSCP"></div>
+                </div>
+                <div class="col-4 mb-3">
+                    <label for="mg_packet_size" class="form-label">Packet size (bytes)</label>
+                    <input class="form-control" id="mg_packet_size" data-field="PACKET_SIZE" type="number" min="16" max="65507" required>
+                    <div class="invalid-feedback" data-feedback="PACKET_SIZE"></div>
+                </div>
+                <div class="col-4 mb-3">
+                    <label for="mg_interval" class="form-label">Interval (s)</label>
+                    <input class="form-control" id="mg_interval" data-field="INTERVAL" type="number" min="1" max="60" required>
+                    <div class="invalid-feedback" data-feedback="INTERVAL"></div>
+                </div>
+            </div>
           </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-primary" data-bs-dismiss="modal" style="width:100px;">Cancel</button>
-            <button class="btn btn-primary" id="btn_save_new_mesh_group"style="width:100px;" type="button">Save</button>
-          </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-outline-light" id="btn_back" hidden><i class="fas fa-arrow-left me-1"></i>Back</button>
+            <button type="submit" class="btn btn-primary" id="btn_save">Review changes…</button>
+            <button type="button" class="btn btn-success" id="btn_apply" hidden>Apply</button>
+        </div>
       </form>
-
-
     </div>
   </div>
 </div>
 
 <script>
-    var $table = $("#table");
-    var $table_modal_success = $("#table_modal_success");
-    var $modal_confirmation = $("#modal_confirmation");
-    var $modal_confirmationText = $("#modal_confirmationText");
-    var $modal_new_mesh_group = $("#modal_new_mesh_group");
-    var $success_modal_text = $("#success_modal_text");
-    var $btn_delete = $("#btn_delete");
-    var $btn_new = $("#btn_new");
-    var $btn_duplicate = $("#btn_duplicate");
-    var $btn_disable = $("#btn_disable");
-    var selections = [];
-    let form = document.querySelector('.needs-validation')
+const $table = $("#table");
+const form = document.getElementById("mg_form");
+const formModal = new bootstrap.Modal(document.getElementById("modal_form"));
+let editing = null;   // UID modifié, ou null pour une création
 
+const enc = encodeURIComponent;
+const selection = () => $table.bootstrapTable("getSelections");
 
+function refreshButtons() {
+    const sel = selection();
+    $("#btn_edit").prop("disabled", sel.length !== 1);
+    $("#btn_duplicate").prop("disabled", sel.length !== 1);
+    $("#btn_disable, #btn_delete").prop("disabled", sel.length === 0);
+    $("#btn_disable_text").text(sel.length && sel.every(g => g.DISABLED) ? "Enable" : "Disable");
+}
 
-    function check_validity_uid(){
-        let mg_uid = $('#mg_name').val()
-        const re = new RegExp('^[A-Za-z0-9_-]{5,100}$');
-
-<!--        if(re.test(mg_uid) == true){-->
-<!--            $('#mg_name-feedback').text("");-->
-<!--            $('#mg_name').removeClass("is-invalid").addClass('is-valid');-->
-
-<!--        }-->
-<!--        else {-->
-<!--            $('#new_mg_form').prop('data-feedback', '{"success": "fa-times", "error":"fa-check"}');-->
-<!--            $('#mg_name-feedback').text("Please specify a unique and valid name (A-Za-z0-9_-), 5-50 characters long.");-->
-<!--            $('#mg_name').removeClass("is-valid").addClass('is-invalid');-->
-<!--        }-->
-        // Does it already exist?
-    }
-
-
-    get_mesh_groups();
-
-    $(document).ready(function(){
-        // Prevent dismiss when user click outside of modal
-        $("#modal_confirmation").modal({backdrop: 'static', keyboard: false});
-        $("#modal_new_mesh_group").modal({backdrop: 'static', keyboard: false});
-        $("#modal_delete_error").modal({backdrop: 'static', keyboard: false});
-        $("#modal_success").modal({backdrop: 'static', keyboard: false});
+async function load() {
+    const r = await st.api("GET", "/api/v1/mesh-groups");
+    if (!r.ok) { st.toast(r.error.message, "danger"); return; }
+    $table.bootstrapTable("destroy").bootstrapTable({
+        data: r.data,
+        formatNoMatches: () => "No mesh group yet. Click “New” to create the first one.",
+        columns: [
+            {field: "state", checkbox: true},
+            {field: "UID", title: "Name", sortable: true},
+            {field: "DISABLED", title: "Status", sortable: true,
+             formatter: v => v ? '<span class="badge bg-warning text-dark">Disabled</span>' : '<span class="badge bg-success">Enabled</span>'},
+            {field: "DESCRIPTION", title: "Description", formatter: v => st.esc(v || "")},
+            {field: "BANDWIDTH", title: "Bandwidth"},
+            {field: "PACKET_SIZE", title: "Packet size", sortable: true},
+            {field: "DSCP", title: "DSCP"},
+            {field: "INTERVAL", title: "Interval", sortable: true},
+            {field: "MEMBERS", title: "Members", sortable: true},
+            {field: "BW_PER_NODE_KBPS", title: "Kbps per member*", sortable: true, formatter: v => Math.round(v * 10) / 10},
+        ],
     });
+    refreshButtons();
+}
+$table.on("check.bs.table uncheck.bs.table check-all.bs.table uncheck-all.bs.table check-some.bs.table uncheck-some.bs.table load-success.bs.table post-body.bs.table", refreshButtons);
 
-    function getUidSelections() {
-        return $.map($table.bootstrapTable("getSelections"), function (row) {
-            return row.UID;
-        });
+// Aperçu (dry_run), confirmation, puis application. Renvoie true si appliqué.
+async function previewAndApply(method, url, body, title, confirmText, danger) {
+    const sep = url.includes("?") ? "&" : "?";
+    const preview = await st.api(method, url + sep + "dry_run=1", body);
+    if (!preview.ok) return preview;
+    const ok = await st.confirm({title: title, body: st.previewNode(preview.data), confirmText: confirmText, danger: danger});
+    if (!ok) return {ok: false, cancelled: true};
+    return await st.api(method, url, body);
+}
+
+function report(result, okMessage) {
+    if (result.cancelled) return false;
+    if (!result.ok) { st.toast(result.error.message, "danger"); return false; }
+    const n = (result.data.reconnected_clients || []).length;
+    st.toast(okMessage || `${result.data.message}. ${n} connected client(s) applying the change.`, "success");
+    return true;
+}
+
+function openForm(group) {
+    editing = group ? group.UID : null;
+    form.reset();
+    stage(false);
+    st.showFieldErrors(form, {});
+    document.getElementById("modal_form_title").textContent = group ? `Edit mesh group “${group.UID}”` : "Create mesh group";
+    const name = document.getElementById("mg_name");
+    name.value = group ? group.UID : "";
+    name.readOnly = !!group;
+    if (group) {
+        const bw = String(group.BANDWIDTH), suffix = bw.slice(-1).toUpperCase();
+        const hasUnit = suffix === "K" || suffix === "M";
+        document.getElementById("mg_bandwidth").value = hasUnit ? bw.slice(0, -1) : bw;
+        document.getElementById("mg_bandwidth_unit").value = hasUnit ? suffix : "";
+        document.getElementById("mg_description").value = group.DESCRIPTION || "";
+        document.getElementById("mg_dscp").value = group.DSCP;
+        document.getElementById("mg_packet_size").value = group.PACKET_SIZE;
+        document.getElementById("mg_interval").value = group.INTERVAL;
+    } else {
+        document.getElementById("mg_dscp").value = 0;
+        document.getElementById("mg_interval").value = 1;
     }
+    formModal.show();
+    setTimeout(() => (group ? document.getElementById("mg_bandwidth") : name).focus(), 300);
+}
 
-    function responseHandler(res) {
-        $.each(res.rows, function (i, row) {
-            row.state = $.inArray(row.id, selections) !== -1;
-        });
-        return res;
+// Deux étapes dans la même fenêtre : saisie, puis aperçu (diff et clients touchés) avant d'appliquer.
+let pending = null;   // {method, url, body} validé par l'aperçu
+
+function stage(review) {
+    document.getElementById("mg_fields").hidden = review;
+    document.getElementById("mg_review").hidden = !review;
+    document.getElementById("btn_save").hidden = review;
+    document.getElementById("btn_back").hidden = !review;
+    document.getElementById("btn_apply").hidden = !review;
+}
+
+form.addEventListener("submit", async e => {
+    e.preventDefault();
+    const v = id => document.getElementById(id).value.trim();
+    const body = {
+        UID: v("mg_name"), DESCRIPTION: v("mg_description"),
+        BANDWIDTH: v("mg_bandwidth") + document.getElementById("mg_bandwidth_unit").value,
+        DSCP: v("mg_dscp"), PACKET_SIZE: v("mg_packet_size"), INTERVAL: v("mg_interval"),
+    };
+    const btn = document.getElementById("btn_save");
+    st.setBusy(btn, true);
+    const method = editing ? "PUT" : "POST";
+    const url = editing ? `/api/v1/mesh-groups/${enc(editing)}` : "/api/v1/mesh-groups";
+    const preview = await st.api(method, url + "?dry_run=1", body);
+    st.setBusy(btn, false);
+    if (!preview.ok) {
+        st.showFieldErrors(form, preview.error.fields);
+        if (!Object.keys(preview.error.fields || {}).length) st.toast(preview.error.message, "danger");
+        return;
     }
+    st.showFieldErrors(form, {});
+    pending = {method, url, body};
+    const review = document.getElementById("mg_review");
+    review.replaceChildren(st.previewNode(preview.data, editing ? `Changes to “${editing}”:` : `New mesh group “${body.UID}”:`));
+    stage(true);
+    document.getElementById("btn_apply").focus();
+});
 
-    $('#modal_success').on('hidden.bs.modal', function (e) {
-        $table_modal_success.bootstrapTable('destroy');
-    })
+document.getElementById("btn_back").addEventListener("click", () => stage(false));
 
-    // Création et modification partagent le même formulaire ; le nom n'est pas modifiable (les clients y font référence).
-    var mesh_group_mode = "NEW_MESH_GROUP";
+document.getElementById("btn_apply").addEventListener("click", async () => {
+    const btn = document.getElementById("btn_apply");
+    st.setBusy(btn, true);
+    const r = await st.api(pending.method, pending.url, pending.body);
+    st.setBusy(btn, false);
+    if (!r.ok) { stage(false); st.showFieldErrors(form, r.error.fields); st.toast(r.error.message, "danger"); return; }
+    st.hideModal(document.getElementById("modal_form"));
+    report(r);
+    load();
+});
 
-    function open_mesh_group_form(mg) {
-        mesh_group_mode = mg ? "EDIT_MESH_GROUP" : "NEW_MESH_GROUP";
-        $('#modal_new_mesh_group_label').text(mg ? `Edit mesh group '${mg.UID}'` : "Create mesh group");
-        $('#mg_name').val(mg ? mg.UID : "").prop('readonly', !!mg);
-        $('#mg_description').val(mg && mg.DESCRIPTION ? mg.DESCRIPTION : "");
-        let bw = mg ? String(mg.BANDWIDTH) : "", unit = "bps";
-        const suffix = bw.slice(-1).toUpperCase();
-        if (suffix == "K") { unit = "Kbps"; bw = bw.slice(0, -1); }
-        else if (suffix == "M") { unit = "Mbps"; bw = bw.slice(0, -1); }
-        $('#mg_bandwidth').val(bw);
-        $('#select_bw').val(mg ? unit : "Kbps").data('pre', mg ? unit : "Kbps");
-        $('#mg_dscp').val(mg ? mg.DSCP : "");
-        $('#mg_packet_size').val(mg ? mg.PACKET_SIZE : "");
-        $('#mg_interval').val(mg ? mg.INTERVAL : "");
-        $modal_new_mesh_group.modal('show');
+$("#btn_new").on("click", () => openForm(null));
+$("#btn_edit").on("click", () => openForm(selection()[0]));
+
+$("#btn_duplicate").on("click", async () => {
+    const uid = selection()[0].UID;
+    if (report(await previewAndApply("POST", `/api/v1/mesh-groups/${enc(uid)}/duplicate`, undefined,
+                                     `Duplicate “${uid}”?`, "Duplicate"))) load();
+});
+
+// Plusieurs groupes : aperçu du premier, puis application un par un.
+async function applyToSelection(method, makeBody, title, confirmText, danger) {
+    const uids = selection().map(g => g.UID);
+    const url = uid => `/api/v1/mesh-groups/${enc(uid)}`;
+    if (uids.length === 1) {
+        if (report(await previewAndApply(method, url(uids[0]), makeBody(), title(uids), confirmText, danger))) load();
+        return;
     }
-
-    $("#btn_new").click(function() { open_mesh_group_form(null); });
-
-    $("#btn_edit").click(function() {
-        const selected = $table.bootstrapTable("getSelections");
-        if (selected.length == 1) open_mesh_group_form(selected[0]);
-    });
-
-    $("#btn_save_new_mesh_group").click(async function() {
-        const suffix = {"bps": "", "Kbps": "K", "Mbps": "M"}[$('#select_bw').val()];
-        const fd = new FormData();
-        fd.append("ACTION", mesh_group_mode);
-        fd.append("UID", $('#mg_name').val());
-        fd.append("DESCRIPTION", $('#mg_description').val());
-        fd.append("BANDWIDTH", $('#mg_bandwidth').val().trim() + suffix);
-        fd.append("DSCP", $('#mg_dscp').val());
-        fd.append("PACKET_SIZE", $('#mg_packet_size').val());
-        fd.append("INTERVAL", $('#mg_interval').val());
-        const answer = await (await fetch('/api', {method: 'POST', body: fd})).json();
-        if (!answer.OK) {
-            document.getElementById("error_modal_text").textContent = answer.MSG;
-            $('#modal_delete_error').modal('show');
-            return;
-        }
-        $modal_new_mesh_group.modal('hide');
-        document.getElementById("success_modal_text").textContent = answer.MSG;
-        $('#modal_success_group_label').text("Mesh group saved");
-        $('#modal_success').modal('show');
-    });
-
-
-
-
-
-
-
-    // Read the bw and modify it according to the unit of measurement selected
-    $("#select_bw").change(function(e){
-        var previous = $(this).data('pre');//get the pre data
-
-        bw = $('#mg_bandwidth').val();
-        bw = parseFloat(bw);
-        bw.toFixed();
-
-        // We know our initial value is Kbps
-        if (previous === undefined){
-            previous = "Kbps";
-        }
-
-        if (bw !== null && bw !== "" && !isNaN(bw)){
-            if(previous == "Kbps" && this.value == "Mbps"){
-                $('#mg_bandwidth').val(bw/1000);
-            }
-            else if (previous == "Kbps" && this.value == "bps"){
-                $('#mg_bandwidth').val(bw*1000);
-            }
-            else if (previous == "Mbps" && this.value == "Kbps"){
-                $('#mg_bandwidth').val(bw*1000);
-            }
-            else if (previous == "Mbps" && this.value == "bps"){
-                $('#mg_bandwidth').val(bw*1000*1000);
-            }
-            else if (previous == "bps" && this.value == "Kbps"){
-                $('#mg_bandwidth').val(bw/1000);
-            }
-            else if (previous == "bps" && this.value == "Mbps"){
-                $('#mg_bandwidth').val(bw/1000/1000);
-            }
-        }
-
-        // Make sure the previous value is updated
-        previous = this.value;
-        $(this).data('pre', $(this).val());//update the pre data
-    })
-
-
-
-    $table.on('check.bs.table uncheck.bs.table ' + 'check-all.bs.table uncheck-all.bs.table',
-    function () {
-      $("#btn_edit").prop('disabled', $table.bootstrapTable('getSelections').length != 1)
-      $btn_delete.prop('disabled', !$table.bootstrapTable('getSelections').length)
-      $btn_duplicate.prop('disabled', !$table.bootstrapTable('getSelections').length)
-      $btn_disable.prop('disabled', !$table.bootstrapTable('getSelections').length)
-      $("#btn_disable_text").text(selection_should_enable() ? "Enable" : "Disable")
-    })
-
-    // Réactiver si tous les groupes sélectionnés sont désactivés, sinon désactiver.
-    function selection_should_enable() {
-        const selected = $table.bootstrapTable('getSelections');
-        return selected.length > 0 && selected.every(mg => mg.DISABLED === true);
+    const ok = await st.confirm({title: title(uids), body: `${uids.length} groups: ${uids.join(", ")}`, confirmText: confirmText, danger: danger});
+    if (!ok) return;
+    let failures = 0;
+    for (const uid of uids) {
+        const r = await st.api(method, url(uid), makeBody());
+        if (!r.ok) { failures++; st.toast(`${uid}: ${r.error.message}`, "danger"); }
     }
+    st.toast(`${uids.length - failures} of ${uids.length} group(s) done.`, failures ? "warning" : "success");
+    load();
+}
 
-    $btn_disable.click(function () {
-        const uids = getUidSelections();
-        const enable = selection_should_enable();
-        $('#btn_yes_modal_confirmation').unbind('click');
-        $("#btn_yes_modal_confirmation").click(function() {
-            $modal_confirmation.modal('hide');
-            set_mesh_groups_disabled(uids, !enable);
-        });
-        $('#modal_confirmation_title_text').text(enable ? "Enable group" : "Disable group");
-        $modal_confirmationText.text(enable
-            ? `Enable '${uids}'? Its members will start measuring again.`
-            : `Disable '${uids}'? Its members will stop measuring until it is enabled again.`);
-        $modal_confirmation.modal('show');
-    })
+$("#btn_disable").on("click", () => {
+    const enable = selection().every(g => g.DISABLED);
+    applyToSelection("PATCH", () => ({DISABLED: !enable}),
+        uids => enable ? `Enable ${uids.join(", ")}? Members start measuring again.`
+                       : `Disable ${uids.join(", ")}? Members stop measuring until it is enabled again.`,
+        enable ? "Enable" : "Disable", !enable);
+});
 
-    async function set_mesh_groups_disabled(uids, disabled) {
-        const fd = new FormData();
-        fd.append("ACTION", "SET_MESH_GROUPS_DISABLED");
-        fd.append("MESH_GROUP_UIDS", uids);
-        fd.append("DISABLED", disabled ? "true" : "false");
-        const answer = await (await fetch('/api', {method: 'POST', body: fd})).json();
-        $btn_disable.prop('disabled', true);
-        $('#modal_success_group_label').text(disabled ? "Disable result(s)" : "Enable result(s)");
-        $("#success_modal_text").html("<table id='table_modal_success'></table>");
-        $("#table_modal_success").bootstrapTable({
-            columns: [{field: 'ID', title: 'Mesh group'}, {field: 'MSG', title: 'Message'}],
-            data: answer
-        });
-        $('#modal_success').modal('show');
-    }
+$("#btn_delete").on("click", () => applyToSelection("DELETE", () => undefined,
+    uids => `Delete ${uids.join(", ")}? This cannot be undone from this page (use Audit & versions to restore).`,
+    "Delete", true));
 
-    $table.on('all.bs.table', function (e, name, args) {
-      console.log(name, args)
-    })
-
-    $btn_duplicate.click(function () {
-        // Change the onclick of the confirmation modal
-        $("#btn_yes_modal_confirmation").unbind('click');
-        $("#btn_yes_modal_confirmation").click(function() {
-            duplicate_mesh_groups(mesh_group_uid);
-            $modal_confirmation.modal('hide');
-        });
-
-        var mesh_group_uid = getUidSelections();
-        $('#modal_confirmation_title_text').text("Duplicate group");
-        $modal_confirmationText.text(`Are you sure you wish to clone the mesh group '${mesh_group_uid}'?`);
-        $btn_duplicate.prop('disabled', true);
-        $modal_confirmation.modal('show');
-    })
-
-    $btn_delete.click(function () {
-      $("#modal_confirmation_title_text").text("Delete group");
-      // Change the onclick of the confirmation modal
-      $('#btn_yes_modal_confirmation').unbind('click');
-      $("#btn_yes_modal_confirmation").click(function() {
-          delete_mesh_groups(getUidSelections());
-          $btn_delete.prop('disabled', true);
-          $modal_confirmation.modal('hide');
-      });
-
-      var uids_to_delete = getUidSelections();
-
-      if (uids_to_delete.length == 1){
-        $modal_confirmationText.text(`Are you sure you wish to delete the mesh group '${uids_to_delete}'?`);
-      }
-      else{
-        $modal_confirmationText.text(`Are you sure you wish to delete these ${uids_to_delete.length} mesh groups?`);
-      }
-
-      $modal_confirmation.modal('show');
-    })
-
-    // If group click 'delete' call the API to delete the group
-    $("#btn_close_modal_success").click(get_mesh_groups);
-
-
-
-<!--    //Clear table and re-populate it-->
-<!--    function refresh_table() {-->
-<!--        get_mesh_groups();-->
-<!--    }-->
-
-    async function duplicate_mesh_groups(mesh_group_uid) {
-            const API_URL = "/api";
-            const xhr = new XMLHttpRequest();
-            const fd = new FormData();
-
-            fd.append("ACTION", "DUPLICATE_MESH_GROUP");
-            fd.append("MESH_GROUP_UID", mesh_group_uid);
-
-            const response = await fetch('/api', {
-                method: 'POST',
-                body: fd
-            })
-            answer_json = await response.text();
-            var answer = JSON.parse(answer_json);
-
-            //Do we have a fatal_error?
-            for(var i = 0; i < answer.length; i++) {
-                if (answer[i]['ID'] == "FATAL_ERROR"){
-                    document.getElementById("error_modal_text").innerHTML = answer[i]['ID'] + " - " + answer[i]['MSG'];
-                    $("#modal_confirmation").modal('hide');
-                    $('#modal_delete_error').modal('show');
-                    $btn_duplicate.prop('disabled', false);
-                    return;
-                }
-            }
-            document.getElementById("success_modal_text").innerHTML = mesh_group_uid + " successfully duplicated!";
-            $('#modal_success').modal('show');
-            $("#removegroup").modal('hide');
-    }
-
-    async function delete_mesh_groups(mesh_group_uids) {
-            const API_URL = "/api";
-            const xhr = new XMLHttpRequest();
-            const fd = new FormData();
-
-            fd.append("ACTION", "DELETE_MESH_GROUPS");
-            fd.append("MESH_GROUP_UIDS", mesh_group_uids);
-
-            const response = await fetch('/api', {
-                method: 'POST',
-                body: fd
-            })
-            answer_json = await response.text();
-            var answer = JSON.parse(answer_json);
-
-            //Do we have a fatal_error?
-            for(var i = 0; i < answer.length; i++) {
-                if (answer[i]['ID'] == "FATAL_ERROR"){
-                    document.getElementById("error_modal_text").innerHTML = answer[i]['ID'] + " - " + answer[i]['MSG'];
-                    $("#removegroup").modal('hide');
-                    $('#modal_delete_error').modal('show');
-                    $btn_delete.prop('disabled', false);
-                    return;
-                }
-            }
-
-            $('#modal_success_group_label').text("Deletion result(s)");
-            $("#success_modal_text").html("<table id='table_modal_success' data-search='true' data-pagination='true' data-page-size='5'></table>");
-
-            $("#table_modal_success").bootstrapTable({
-              columns: [{ field: 'ID', title: 'Mesh group', sortable: false},
-                        { field: 'MSG', title: 'Message', sortable: true}],
-              data: answer
-            })
-
-            $('#modal_success').modal('show');
-            $("#removegroup").modal('hide');
-    }
-
-    async function get_mesh_groups() {
-        console.log("get_mesh_groups");
-        const API_URL = "/api";
-        const xhr = new XMLHttpRequest();
-        const fd = new FormData();
-        fd.append("ACTION", "GET_MESH_GROUPS");
-
-        const response = await fetch('/api', {
-            method: 'POST',
-            body: fd
-        })
-        mesh_groups = await response.text();
-
-        if ("E1001" == mesh_groups) {
-            $('#modal_system_stats_empty').modal('show');
-        }
-        else {
-
-            // Get mesh_groups back as list
-            var mesh_groups = JSON.parse(mesh_groups);
-            $table.bootstrapTable('destroy');
-            $("#btn_edit").prop('disabled', true);
-            $table.bootstrapTable({
-              pagination: true,
-              search: true,
-              columns: [
-                        { field: 'state', checkbox: true, align: 'center', valign: 'middle'},
-                        { field: 'UID', title: 'Name', align: 'center', sortable: true},
-                        { field: 'DISABLED', title: 'Status', align: 'center', sortable: true,
-                          formatter: value => value === true ? '<span class="text-warning">Disabled</span>' : 'Enabled'},
-                        { field: 'BANDWIDTH', title: 'Bandwidth', align: 'center', sortable: false},
-                        { field: 'PACKET_SIZE', title: 'Packet size', align: 'center', sortable: true},
-                        { field: 'DSCP', title: 'DSCP', align: 'center', sortable: false},
-                        { field: 'INTERVAL', title: 'Interval', align: 'center', sortable: true},
-                        { field: 'MEMBERS', title: 'Members', align: 'center', sortable: true},
-                        { field: 'BW_PER_NODE_KBPS', title: 'Bandwidth per node (Kbps)*', align: 'center', sortable: true}
-                       ],
-              data: mesh_groups
-            })
-        }
-    }
-
+load();
 </script>
-
 {% endblock %}
-
-

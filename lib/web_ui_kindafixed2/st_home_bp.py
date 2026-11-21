@@ -2,7 +2,7 @@
 #from flask_login import *
 #from . import db
 #from .st_models import User
-from lib.st_conf_validation import validate_bandwidth, validate_dscp, validate_packet_size, validate_interval, validate_uid, validate_group, generate_client_config_mesh
+from lib import st_mesh_group_ops
 from lib.st_global import CompilationOptions, DefaultValues
 
 # SYNTRAF SERVER IMPORT
@@ -44,11 +44,6 @@ st_home_bp = Blueprint(
     static_folder='static'
 )
 
-
-@st_home_bp.route('/test.html')
-def test():
-    print(dt.now())
-    return render_template('test.html')
 
 @st_home_bp.route('/home.html')
 def home():
@@ -122,6 +117,11 @@ def home():
 # def server_error():
 #     """Internal server error."""
 #     return make_response(render_template("500.html"), 500)
+
+
+@st_home_bp.route('/favicon.ico')
+def favicon():
+    return redirect(url_for('static', filename='favicon.svg'))
 
 
 @st_home_bp.route('/')
@@ -223,17 +223,16 @@ def server():
 
 
 
+@st_home_bp.route('/audit.html')
+def audit():
+    return render_template('audit.html', syntraf_version=DefaultValues.SYNTRAF_VERSION)
+
+
 @st_home_bp.route('/stats.html')
 def stats():
     return render_template('stats.html', title='SYNTRAF WEBUI', config=app.config['config'],
                            _dict_by_node_generated_config=app.config['_dict_by_node_generated_config'],
                            dict_of_clients=app.config['dict_of_clients'])
-
-
-@st_home_bp.route('/clients_configuration.html')
-def clients_configurations():
-    return render_template('clients_configuration.html', title='SYNTRAF WEBUI', config=app.config['config'],
-                           _dict_by_node_generated_config=app.config['_dict_by_node_generated_config'])
 
 
 @st_home_bp.route('/api', methods=['GET', 'POST'])
@@ -242,183 +241,12 @@ def api():
         requested_action = request.values.get('ACTION', '')
         if requested_action == "SAVE_MAPS_JSON":
             ''' =============================================================================================== '''
-            # read json and write JSON with new value
-            read_success, config = read_conf(app.config['config_file_path'])
-            if read_success:
-                for mg in config['MESH_GROUP']:
-                    if request.values.get('MESH_GROUP', '') == mg['UID']:
-                        config['MESH_GROUP'][config['MESH_GROUP'].index(mg)]['WEBUI_JSON'] = request.values.get(
-                            'CYTO_JSON', '')
-                        with open(app.config['config_file_path'], "w") as toml_file:
-                            # print("writing to disk")
-                            # print(config, self.config_file_path)
-                            toml.dump(config, toml_file)
-                            log.debug(f"RECEIVED A REQUEST TO SAVE MAPS CONFIG OF GROUP '{mg['UID']}' TO DISK")
-
-        elif requested_action == "DELETE_MESH_GROUPS":
-            ''' =============================================================================================== '''
-            mesh_group_uids_list = request.values.get('MESH_GROUP_UIDS', '').split(",")
-            read_success, config = read_conf(app.config['config_file_path'])
-            results_delete_list = []
-
             try:
-                if read_success:
-                    for mg_uid in mesh_group_uids_list:
-                        # Does this group have members?
-                        cpt_members = 0
-                        for client in config['SERVER_CLIENT']:
-                            if mg_uid in client['MESH_GROUP_UID_LIST']:
-                                cpt_members += 1
+                st_mesh_group_ops.save_map(app.config, request.values.get('MESH_GROUP', ''),
+                                           request.values.get('CYTO_JSON', ''), request.remote_addr or "unknown")
+            except st_mesh_group_ops.OpError as exc:
+                return Response(exc.message, status=exc.status, mimetype="text/plain")
 
-                        if cpt_members >= 1:
-                            # Cannot delete, this mesh group is in use.
-                            results_delete_list.append({"ID": mg_uid, "MSG": "not deleted (in use)"})
-                        else:
-                            # Delete the group from config (live and disk)
-                            for mesh_group in config['MESH_GROUP']:
-                                if mesh_group['UID'] == mg_uid:
-                                    app.config['config']['MESH_GROUP'].remove(mesh_group)
-                                    config['MESH_GROUP'].remove(mesh_group)
-                                    results_delete_list.append({"ID": mg_uid, "MSG": "deleted"})
-                else:
-                    # Unable to open config file
-                    log.debug(f"UNABLE TO READ CONFIG FILE WHILE TRYING TO DELETE MESH_GROUP '{mesh_group_uids_list}'")
-                    results_delete_list.append({"ID": "FATAL_ERROR", "MSG": f"UNABLE TO READ CONFIG FILE WHILE TRYING TO DELETE MESH_GROUP '{mesh_group_uids_list}'"})
-                    return jsonify(results_delete_list)
-            except Exception as exc:
-                log.debug(exc)
-                results_delete_list.append({"ID": "FATAL_ERROR", "MSG": exc})
-                return jsonify(results_delete_list)
-
-            try:
-                with open(app.config['config_file_path'], "w") as toml_file:
-                    toml.dump(config, toml_file)
-                    log.debug(f"CONFIG FILE SUCCESSFULLY OVERWRITTEN")
-            except Exception as exc:
-                results_delete_list.append({"ID": "FATAL_ERROR", "MSG": f"AN ERROR OCCURRED WHILE TRYING TO SAVE CONFIG FILE"})
-                log.debug(f"AN ERROR OCCURRED WHILE TRYING TO SAVE CONFIG FILE", exc)
-                return jsonify(results_delete_list)
-
-            try:
-                for msg in results_delete_list:
-                    if "FATAL_ERROR" == msg['ID']:
-                        log.debug(f"MESH_GROUP {msg['ID']} : {msg['MSG']}")
-            except Exception as exc:
-                results_delete_list.append({"ID": "FATAL_ERROR", "MSG": f"AN ERROR OCCURRED WHILE"})
-                log.debug(f"AN ERROR OCCURRED WHILE ", exc)
-                return jsonify(results_delete_list)
-
-            return jsonify(results_delete_list)
-
-        elif requested_action == "GET_MESH_GROUPS":
-            ''' =============================================================================================== '''
-            read_success, config = read_conf(app.config['config_file_path'])
-            if read_success:
-                # deepcopy for eventually add packet per seconds
-                mesh_groups = copy.deepcopy(config['MESH_GROUP'])
-
-                for mg in mesh_groups:
-                    mg['MEMBERS'] = 0
-                    for client in config['SERVER_CLIENT']:
-                        if mg['UID'] in client['MESH_GROUP_UID_LIST']:
-                            if mg['MEMBERS'] >= 1:
-                                mg['MEMBERS'] += 1
-                            else:
-                                mg['MEMBERS'] = 1
-
-                for mg in mesh_groups:
-                    if mg['MEMBERS'] >= 1:
-                        bw_mg = validate_bandwidth(mg['BANDWIDTH'])
-                        bw_total = mg['MEMBERS'] * (mg['MEMBERS']-1) * bw_mg
-                        bw_per_node = bw_total / mg['MEMBERS']
-                        bw_per_node_kbps = bw_per_node / 1000
-                        mg['BW_PER_NODE_KBPS'] = bw_per_node_kbps
-                    else:
-                        mg['BW_PER_NODE_KBPS'] = 0
-
-
-                return jsonify(mesh_groups)
-            else:
-                log.debug(f"UNABLE TO READ CONFIG FILE WHILE TRYING TO GET MESH GROUPS")
-                # Unable to open config file
-                return "E1004"
-
-        elif requested_action == "DUPLICATE_MESH_GROUP":
-            ''' =============================================================================================== '''
-            mesh_group_uid = request.values.get('MESH_GROUP_UID', '')
-            read_success, config = read_conf(app.config['config_file_path'])
-            result = []
-
-            try:
-                if read_success:
-                    for mg in config['MESH_GROUP']:
-
-                        if mg['UID'] == mesh_group_uid:
-                            # Copy mesh group
-                            mg_clone = copy.deepcopy(mg)
-
-                            # We have to make sure that the new name is unique
-                            no_valid_name = True
-                            suffix = "_COPY"
-                            suffix2 = 0
-                            try:
-                                while no_valid_name:
-                                    found = False
-                                    for mg2 in config['MESH_GROUP']:
-                                        if suffix2 != 0:
-                                            if mg2['UID'] == mg['UID'] + suffix + str(suffix2):
-                                                found = True
-                                                suffix2 += 1
-                                                break
-                                        else:
-                                            if mg2['UID'] == mg['UID'] + suffix or mg2['UID'] == mg['UID'] + suffix + str(suffix2):
-                                                found = True
-                                                suffix2 += 1
-                                                break
-                                    if not found:
-                                        no_valid_name = False
-                            except Exception as exc:
-                                log.error(exc)
-
-                            if suffix2 >= 1:
-                                mg_clone['UID'] = mg['UID'] + suffix + str(suffix2)
-                            else:
-                                mg_clone['UID'] = mg['UID'] + suffix
-
-                            # Put it in config file (live and disk)
-                            app.config['config']['MESH_GROUP'].append(mg_clone)
-                            config['MESH_GROUP'].append(mg_clone)
-                            result.append({"ID": mesh_group_uid, "MSG": "cloned"})
-
-                else:
-                    # Unable to open config file
-                    log.debug(f"UNABLE TO READ CONFIG FILE WHILE TRYING TO CLONE MESH_GROUP '{mesh_group_uid}'")
-                    result.append({"ID": "FATAL_ERROR", "MSG": f"UNABLE TO READ CONFIG FILE WHILE TRYING TO CLONE MESH_GROUP '{mesh_group_uid}'"})
-                    return jsonify(result)
-            except Exception as exc:
-                log.debug(exc)
-                result.append({"ID": "FATAL_ERROR", "MSG": exc})
-                return jsonify(result)
-
-            try:
-                with open(app.config['config_file_path'], "w") as toml_file:
-                    toml.dump(config, toml_file)
-                    log.debug(f"CONFIG FILE SUCCESSFULLY OVERWRITTEN")
-            except Exception as exc:
-                result.append({"ID": "FATAL_ERROR", "MSG": f"AN ERROR OCCURRED WHILE TRYING TO SAVE CONFIG FILE"})
-                log.debug(f"AN ERROR OCCURRED WHILE TRYING TO SAVE CONFIG FILE", exc)
-                return jsonify(result)
-
-            return jsonify(result)
-
-        elif requested_action in ("EDIT_MESH_GROUP", "NEW_MESH_GROUP"):
-            ''' =============================================================================================== '''
-            return jsonify(_save_mesh_group(request.values, requested_action == "NEW_MESH_GROUP"))
-
-        elif requested_action == "SET_MESH_GROUPS_DISABLED":
-            ''' =============================================================================================== '''
-            uids = [u for u in request.values.get('MESH_GROUP_UIDS', '').split(",") if u]
-            return jsonify(_set_mesh_groups_disabled(uids, request.values.get('DISABLED', '') == "true"))
         elif requested_action == "RECONNECT_CLIENT":
             ''' =============================================================================================== '''
 
@@ -538,129 +366,7 @@ def api():
 
         return "OK"
     else:
-        # Visionneuse de logs (log_viewer.html) : liste des fichiers du dossier de logs, puis fin du fichier choisi.
-        if 'getlogfilename' in request.args:
-            return jsonify(_log_files())
-        if 'readlog' in request.args:
-            name = request.args.get('file', '')
-            if name not in _log_files():
-                return Response("unknown log file", status=404, mimetype="text/plain")
-            with open(os.path.join(app.config['config']['GLOBAL']['LOGDIR'], name), encoding='utf-8', errors='replace') as f:
-                return Response(''.join(collections.deque(f, maxlen=500)), mimetype="text/plain")
         return "OK"
-
-
-MESH_GROUP_EDITABLE = ("BANDWIDTH", "DSCP", "PACKET_SIZE", "INTERVAL")
-
-
-def _save_mesh_group(values, is_new):
-    """Crée ou modifie un mesh group depuis le formulaire. Renvoie {"OK": bool, "MSG": str}.
-
-    Le nom (UID) n'est pas modifiable : les clients y font référence.
-    """
-    uid = values.get('UID', '').strip()
-    fields = {k: values.get(k, '').strip() for k in MESH_GROUP_EDITABLE}
-    description = values.get('DESCRIPTION', '').strip()
-    checks = (("UID", validate_uid(uid)), ("BANDWIDTH", validate_bandwidth(fields['BANDWIDTH'])),
-              ("DSCP", validate_dscp(fields['DSCP'])), ("PACKET_SIZE", validate_packet_size(fields['PACKET_SIZE'])),
-              ("INTERVAL", fields['INTERVAL'].isdigit() and validate_interval(fields['INTERVAL'])))
-    invalid = [name for name, ok in checks if not ok]
-    if invalid:
-        return {"OK": False, "MSG": f"Invalid value for: {', '.join(invalid)}"}
-
-    def edit(group):
-        group.update(fields)
-        group.pop('PACKET_PER_SECOND', None)   # le formulaire fixe le débit et la taille : le 3e est recalculé
-        if description:
-            group['DESCRIPTION'] = description
-        else:
-            group.pop('DESCRIPTION', None)
-
-    return _change_mesh_group(uid, edit, is_new)
-
-
-def _set_mesh_groups_disabled(uids, disabled):
-    """Désactive (ou réactive) des mesh groups : leurs flux s'arrêtent chez tous les membres."""
-    results = []
-    for uid in uids:
-        def toggle(group):
-            if disabled:
-                group['DISABLED'] = True
-            else:
-                group.pop('DISABLED', None)
-        results.append(dict(_change_mesh_group(uid, toggle, False), ID=uid))
-    return results
-
-
-def _change_mesh_group(uid, change, is_new):
-    """Applique change(groupe) au mesh group uid, tel qu'écrit dans le fichier de config, puis :
-    revalide le groupe comme au démarrage (champs calculés : paquets par seconde, espacement), régénère la config
-    des clients (annulé si un client dépasserait son MAX_BANDWIDTH), écrit le fichier, et demande aux membres
-    connectés de se reconnecter ; chacun ne relance que les iperf3 dont la config a changé.
-    """
-    read_success, disk_config = read_conf(app.config['config_file_path'])
-    if not read_success:
-        return {"OK": False, "MSG": "Unable to read the configuration file"}
-    live_config = app.config['config']
-    disk_idx = next((i for i, mg in enumerate(disk_config['MESH_GROUP']) if mg['UID'] == uid), None)
-    live_idx = next((i for i, mg in enumerate(live_config['MESH_GROUP']) if mg['UID'] == uid), None)
-    if is_new and (disk_idx is not None or live_idx is not None):
-        return {"OK": False, "MSG": f"Mesh group '{uid}' already exists"}
-    if not is_new and (disk_idx is None or live_idx is None):
-        return {"OK": False, "MSG": f"Mesh group '{uid}' not found"}
-
-    disk_group = {"UID": uid} if is_new else copy.deepcopy(disk_config['MESH_GROUP'][disk_idx])
-    change(disk_group)
-    live_group = copy.deepcopy(disk_group)
-    if not validate_group(dict(live_config, MESH_GROUP=[live_group]), "MESH_GROUP"):
-        return {"OK": False, "MSG": f"Invalid parameters for mesh group '{uid}' (see the server log)"}
-
-    previous = None if is_new else live_config['MESH_GROUP'][live_idx]
-    if is_new:
-        live_config['MESH_GROUP'].append(live_group)
-    else:
-        live_config['MESH_GROUP'][live_idx] = live_group
-    try:
-        _, app.config['_dict_by_group_of_generated_tuple_for_map'] = generate_client_config_mesh(
-            live_config, app.config['_dict_by_node_generated_config'])
-    except (SystemExit, Exception) as exc:
-        # generate_client_config_mesh appelle sys.exit() quand un client dépasse son MAX_BANDWIDTH ; il n'a alors
-        # encore rien modifié. On revient au groupe précédent.
-        if is_new:
-            live_config['MESH_GROUP'].remove(live_group)
-        else:
-            live_config['MESH_GROUP'][live_idx] = previous
-        log.error(f"MESH GROUP '{uid}' NOT APPLIED, CLIENT CONFIG GENERATION FAILED: {type(exc).__name__}:{exc}")
-        return {"OK": False, "MSG": "Not applied: a member would exceed its MAX_BANDWIDTH, or the generation failed (see the server log)"}
-
-    if is_new:
-        disk_config['MESH_GROUP'].append(disk_group)
-    else:
-        disk_config['MESH_GROUP'][disk_idx] = disk_group
-    try:
-        with open(app.config['config_file_path'], "w") as toml_file:
-            toml.dump(disk_config, toml_file)
-    except OSError as exc:
-        log.error(f"UNABLE TO SAVE CONFIG FILE AFTER CHANGING MESH GROUP '{uid}': {exc}")
-        return {"OK": False, "MSG": "Applied, but unable to write the configuration file"}
-
-    members = [c['UID'] for c in live_config['SERVER_CLIENT'] if uid in c.get('MESH_GROUP_UID_LIST', [])]
-    reconnected = []
-    for client_uid in members:
-        client = app.config['dict_of_clients'].get(client_uid)
-        if client is not None and client.status == "CONNECTED":
-            app.config['dict_of_commands_for_network_clients'].setdefault(client_uid, []).append(
-                {"ACTION": "RECONNECT_CLIENT"})
-            reconnected.append(client_uid)
-    log.info(f"MESH GROUP '{uid}' CHANGED FROM THE WEBUI, APPLYING TO: {reconnected}")
-    return {"OK": True, "MSG": f"Mesh group '{uid}' saved; applied to {len(reconnected)} connected member(s)"}
-
-
-def _log_files():
-    logdir = app.config['config']['GLOBAL'].get('LOGDIR', '')
-    if not logdir or not os.path.isdir(logdir):
-        return []
-    return sorted(f for f in os.listdir(logdir) if os.path.isfile(os.path.join(logdir, f)))
 
 
 def flask_logger(logfile):
@@ -694,7 +400,7 @@ def maps():
                 background = mesh_group[0]["WEBUI_BACKGROUND"]
 
                 # We must get the width and height of the background
-                bg_path = os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, "lib", "web_ui/static", "maps",
+                bg_path = os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, "lib", "web_ui_kindafixed2", "static", "maps",
                                        mesh_group[0]["WEBUI_BACKGROUND"])
                 im = Image.open(bg_path)
                 background_size = im.size

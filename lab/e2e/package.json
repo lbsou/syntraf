@@ -1,0 +1,7 @@
+{
+  "name": "syntraf-webui-e2e",
+  "private": true,
+  "description": "Test de bout en bout de la webui SYNTRAF (voir webui_e2e.js)",
+  "scripts": {"test": "node webui_e2e.js"},
+  "dependencies": {"puppeteer-core": "^23.0.0"}
+}

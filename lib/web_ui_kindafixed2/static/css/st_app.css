@@ -1,0 +1,66 @@
+/* SYNTRAF webui : mise en page commune (barre du haut, barre latérale, contenu) et composants partagés. */
+:root { --st-topbar-h: 52px; --st-sidebar-w: 220px; }
+
+body { min-height: 100vh; }
+.st-skip { position: absolute; left: 1rem; top: .5rem; z-index: 2000; background: #fff; color: #000; padding: .25rem .5rem; }
+
+.st-topbar { position: fixed; top: 0; left: 0; right: 0; height: var(--st-topbar-h); z-index: 1030; }
+.st-shell { display: flex; padding-top: var(--st-topbar-h); min-height: 100vh; }
+
+.st-sidebar { width: var(--st-sidebar-w); flex: 0 0 var(--st-sidebar-w); background: #222; border-right: 1px solid #333; }
+@media (min-width: 992px) {
+    .st-sidebar { position: sticky; top: var(--st-topbar-h); height: calc(100vh - var(--st-topbar-h)); overflow-y: auto; }
+}
+.st-nav-section { text-transform: uppercase; font-size: .7rem; letter-spacing: .08em; color: #888; padding: 1rem 1rem .25rem; }
+.st-sidebar .nav-link { color: #ccc; padding: .4rem 1rem; border-left: 3px solid transparent; }
+.st-sidebar .nav-link:hover, .st-sidebar .nav-link:focus { color: #fff; background: #2c2c2c; }
+.st-sidebar .nav-link.active { color: #fff; background: #303030; border-left-color: #00bc8c; }
+
+.st-main { flex: 1 1 auto; min-width: 0; padding: 1.5rem; }
+.st-page-header { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+.st-page-header h1 { font-size: 1.5rem; margin: 0; }
+.st-page-header .st-subtitle { color: #999; font-size: .9rem; }
+.st-page-header .st-actions { margin-left: auto; display: flex; gap: .5rem; flex-wrap: wrap; }
+
+/* Indicateur de mise à jour en direct */
+.st-live { display: inline-flex; align-items: center; gap: .4rem; color: #ddd; }
+.st-dot { width: .6rem; height: .6rem; border-radius: 50%; background: #888; display: inline-block; }
+.st-live.ok .st-dot { background: #00bc8c; box-shadow: 0 0 6px #00bc8c; }
+.st-live.down .st-dot { background: #e74c3c; }
+
+/* Tuiles d'indicateurs */
+.st-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+.st-kpi { background: #2b2b2b; border: 1px solid #3a3a3a; border-radius: .5rem; padding: 1rem; }
+.st-kpi .st-kpi-label { color: #aaa; font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; }
+.st-kpi .st-kpi-value { font-size: 1.9rem; font-weight: 600; line-height: 1.2; }
+.st-kpi .st-kpi-note { color: #999; font-size: .8rem; }
+.st-kpi.st-ok { border-left: 4px solid #00bc8c; }
+.st-kpi.st-warn { border-left: 4px solid #f39c12; }
+.st-kpi.st-bad { border-left: 4px solid #e74c3c; }
+
+.st-card { background: #2b2b2b; border: 1px solid #3a3a3a; border-radius: .5rem; padding: 1rem; margin-bottom: 1.5rem; }
+.st-card > h2 { font-size: 1.1rem; margin-bottom: .75rem; }
+
+.st-empty { text-align: center; color: #999; padding: 2rem 1rem; }
+.st-empty i { font-size: 2rem; display: block; margin-bottom: .5rem; color: #666; }
+
+/* Diff de configuration */
+.st-diff { background: #1e1e1e; border: 1px solid #333; border-radius: .25rem; padding: .5rem; max-height: 50vh; overflow: auto;
+           font-family: SFMono-Regular, Consolas, "Liberation Mono", monospace; font-size: .8rem; white-space: pre; margin: 0; }
+.st-diff .add { color: #5fd38d; }
+.st-diff .del { color: #ff7b72; }
+.st-diff .hunk { color: #79c0ff; }
+
+.st-log { background: #1e1e1e; border: 1px solid #333; border-radius: .25rem; padding: .5rem; height: 65vh; overflow: auto;
+          font-family: SFMono-Regular, Consolas, "Liberation Mono", monospace; font-size: .78rem; white-space: pre; margin: 0; }
+.st-log .lv-ERROR, .st-log .lv-CRITICAL { color: #ff7b72; }
+.st-log .lv-WARNING { color: #f0b72f; }
+.st-log .lv-DEBUG { color: #8b949e; }
+
+.badge.st-status-CONNECTED { background: #00bc8c; }
+.badge.st-status-DISCONNECTED, .badge.st-status-NEVER_SEEN, .badge.st-status-UNKNOWN { background: #e74c3c; }
+.badge.st-status-ONLINE { background: #00bc8c; }
+.badge.st-status-OFFLINE { background: #e74c3c; }
+
+.table td, .table th { vertical-align: middle; }
+:focus-visible { outline: 2px solid #3498db; outline-offset: 2px; }

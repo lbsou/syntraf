@@ -1,68 +1,95 @@
 {% extends "base.html" %}
-{% block title %}Log viewer{% endblock %}
-{% block head %}
-<style>
-    .logging_window{
-        display: block;
-        padding: 9.5px;
-        font-size: 13px;
-        line-height: 1.42857143;
-        color: #333;
-        word-break: break-all;
-        word-wrap: break-word;
-        background-color: #f5f5f5;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        width: 50%;
-        margin: auto;
-    }
-</style>
-
-{% endblock %}
-
+{% block title %}Logs{% endblock %}
 {% block content %}
-<h2>Log viewer</h2>
-
-<div class="content-wrapper">
-   <div class="form-group w-50">
-      <form>
-           <select class="custom-select" name="log_filename" id="log_filename" onchange="read_log()"></select>
-      </form>
-   </div>
+<div class="st-page-header">
+    <div>
+        <h1>Logs</h1>
+        <div class="st-subtitle">End of the server log files, filtered on the server side.</div>
+    </div>
+    <div class="st-actions">
+        <a class="btn btn-outline-light btn-sm" id="download" href="#"><i class="fas fa-download me-1"></i>Download file</a>
+    </div>
 </div>
 
-    <div class="row">
-        <div class="logging_window">
-            <pre id="output"></pre>
-        </div>
+<form class="row g-2 align-items-end mb-2" id="filters" role="search" aria-label="Log filters">
+    <div class="col-auto">
+        <label class="form-label small mb-0" for="file">File</label>
+        <select class="form-select form-select-sm" id="file"></select>
     </div>
+    <div class="col-auto">
+        <label class="form-label small mb-0" for="level">Minimum level</label>
+        <select class="form-select form-select-sm" id="level">
+            <option value="">All</option><option>DEBUG</option><option>INFO</option>
+            <option selected>WARNING</option><option>ERROR</option><option>CRITICAL</option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <label class="form-label small mb-0" for="q">Contains</label>
+        <input class="form-control form-control-sm" id="q" type="search" placeholder="text…">
+    </div>
+    <div class="col-auto">
+        <label class="form-label small mb-0" for="lines">Lines</label>
+        <select class="form-select form-select-sm" id="lines"><option>200</option><option selected>500</option><option>2000</option><option>10000</option></select>
+    </div>
+    <div class="col-auto form-check form-switch ms-2 mb-1">
+        <input class="form-check-input" type="checkbox" role="switch" id="follow" checked>
+        <label class="form-check-label small" for="follow">Follow (every 5 s)</label>
+    </div>
+    <div class="col-auto ms-auto small text-white-50" id="meta" aria-live="polite"></div>
+</form>
 
-<script type="text/javascript">
-    window.addEventListener("load", get_log_filename);
+<pre class="st-log" id="log" tabindex="0" aria-label="Log content"></pre>
 
-    /*
-    Use onload to populate the list of logs filename
-    it use the api to get that list
-    */
-    async function get_log_filename()
-    {
-        const response = await fetch('/api?getlogfilename');
-        const select = document.getElementById("log_filename");
-        select.replaceChildren();
-        for (const filename of await response.json()) {
-            select.add(new Option(filename, filename));
-        }
-        if (select.options.length) read_log();
+<script>
+const el = id => document.getElementById(id);
+let timer = null;
+
+async function loadFiles() {
+    const r = await st.api("GET", "/api/v1/logs");
+    if (!r.ok) { st.toast(r.error.message, "danger"); return; }
+    if (!r.data.length) {
+        el("log").innerHTML = '<div class="st-empty"><i class="fas fa-file-alt"></i>No log file in the log directory (GLOBAL.LOGDIR).</div>';
+        return;
     }
+    el("file").innerHTML = r.data.map(f => `<option value="${st.esc(f.name)}">${st.esc(f.name)} (${Math.round(f.size / 1024)} KiB, ${st.esc(f.modified)})</option>`).join("");
+    loadLog();
+}
 
-    async function read_log()
-    {
-        const name = document.getElementById("log_filename").value;
-        const response = await fetch('/api?readlog&file=' + encodeURIComponent(name));
-        const output = document.getElementById('output');
-        output.textContent = await response.text();
-        output.scrollIntoView({block: "end"});
-    }
+function colorize(text) {
+    return text.split("\n").map(line => {
+        const m = line.match(/ - (DEBUG|INFO|WARNING|ERROR|CRITICAL) - /);
+        return m ? `<span class="lv-${m[1]}">${st.esc(line)}</span>` : st.esc(line);
+    }).join("\n");
+}
+
+async function loadLog() {
+    const name = el("file").value;
+    if (!name) return;
+    const params = new URLSearchParams({lines: el("lines").value, level: el("level").value, q: el("q").value.trim()});
+    const base = `/api/v1/logs/${encodeURIComponent(name)}`;
+    el("download").href = base + "?download=1";
+    const r = await st.api("GET", `${base}?${params}`);
+    if (!r.ok) { st.toast(r.error.message, "danger"); return; }
+    const pre = el("log");
+    const atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 20;
+    const text = r.data.replace(/\n$/, "");
+    pre.innerHTML = text ? colorize(text) : '<div class="st-empty"><i class="fas fa-filter"></i>No line matches these filters.</div>';
+    el("meta").textContent = `${text ? text.split("\n").length : 0} line(s) · ${new Date().toLocaleTimeString()}`;
+    if (atBottom) pre.scrollTop = pre.scrollHeight;
+}
+
+function schedule() {
+    clearInterval(timer);
+    if (el("follow").checked) timer = setInterval(loadLog, 5000);
+}
+
+let debounce = null;
+el("q").addEventListener("input", () => { clearTimeout(debounce); debounce = setTimeout(loadLog, 400); });
+["file", "level", "lines"].forEach(id => el(id).addEventListener("change", loadLog));
+el("follow").addEventListener("change", schedule);
+el("filters").addEventListener("submit", e => { e.preventDefault(); loadLog(); });
+
+loadFiles();
+schedule();
 </script>
-
 {% endblock %}

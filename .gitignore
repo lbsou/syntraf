@@ -4,3 +4,7 @@ lab/reports/
 lab/.venv/
 __pycache__/
 .pytest_cache/
+
+# Historique et journal d’audit écrits à côté du fichier de configuration par la webui
+*.toml.history/
+*.toml.audit.jsonl

@@ -1,0 +1,161 @@
+"""État du serveur pour le tableau de bord, /healthz et /metrics. Lit les objets partagés, ne les modifie pas."""
+import datetime as dt
+import json
+
+from lib.st_global import DefaultValues
+
+# Threads du serveur dont la mort rend le service inutilisable (les flux iperf3 vivent chez les clients).
+CORE_THREAD_TYPES = ("SERVER", "SERVER_SOCKET", "STATS", "WEBUI", "UDP_HOLE")
+LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
+
+
+SECRET_MARKERS = ("TOKEN", "PASSWORD", "SECRET", "KEY")
+MASK = "••••••••"
+
+
+def display_value(value, key=""):
+    """Valeur d'un paramètre de configuration à afficher : secrets et valeurs binaires masqués."""
+    if any(m in str(key).upper() for m in SECRET_MARKERS) or isinstance(value, (bytes, bytearray)):
+        return MASK
+    if isinstance(value, (dict, list, tuple)):
+        return json.dumps(value, default=lambda o: MASK if isinstance(o, (bytes, bytearray)) else str(o))
+    return value
+
+
+def _s(value):
+    return value.isoformat(sep=" ", timespec="seconds") if isinstance(value, dt.datetime) else value
+
+
+def clients(state):
+    """Un élément par client déclaré (SERVER_CLIENT) ou connu de la boucle de contrôle."""
+    declared = {c["UID"]: c for c in state["config"].get("SERVER_CLIENT", [])}
+    known = state["dict_of_clients"]
+    generated = state["_dict_by_node_generated_config"]
+    rows = []
+    for uid in sorted(set(declared) | set(known)):
+        obj, decl, gen = known.get(uid), declared.get(uid, {}), generated.get(uid) or {}
+        rows.append({
+            "uid": uid,
+            "status": getattr(obj, "status", "NEVER_SEEN") if obj is not None else "NEVER_SEEN",
+            "status_since": _s(getattr(obj, "status_since", None)),
+            "status_explanation": getattr(obj, "status_explanation", None),
+            "ip_address": getattr(obj, "ip_address", "") or decl.get("IP_ADDRESS", ""),
+            "dynamic_ip": decl.get("IP_ADDRESS", "") in ("", "0.0.0.0"),
+            "syntraf_version": getattr(obj, "syntraf_version", "") if obj is not None else "",
+            "clock_skew_seconds": getattr(obj, "clock_skew_in_seconds", None) if obj is not None else None,
+            "mesh_groups": decl.get("MESH_GROUP_UID_LIST", []),
+            "listeners": len(gen.get("LISTENERS") or {}),
+            "connectors": len(gen.get("CONNECTORS") or {}),
+            "declared": uid in declared,
+        })
+    return rows
+
+
+def databases(state, refresh=False):
+    rows = []
+    for db in state.get("conn_db") or []:
+        if refresh:
+            db.force_status_check()
+        rows.append({"uid": db.DB_UID, "status": db.status, "status_since": _s(db.status_time),
+                     "backlog": len(db.write_queue.queue)})
+    return rows
+
+
+def threads(state):
+    rows = []
+    for t in state.get("threads_n_processes") or []:
+        try:
+            alive = bool(t.getstatus())
+        except Exception:  # noqa: BLE001 - un objet à moitié initialisé ne doit pas casser la page
+            alive = False
+        rows.append({"name": getattr(t, "name", "?"), "type": getattr(t, "syntraf_instance_type", "?"),
+                     "alive": alive})
+    return rows
+
+
+def snapshot(state, refresh_databases=False):
+    cl = clients(state)
+    groups = state["config"].get("MESH_GROUP", [])
+    th = threads(state)
+    return {
+        "time": _s(dt.datetime.now()),
+        "version": DefaultValues.SYNTRAF_VERSION,
+        "clients": cl,
+        "clients_summary": {
+            "total": len(cl),
+            "connected": sum(c["status"] == "CONNECTED" for c in cl),
+            "disconnected": sum(c["status"] != "CONNECTED" for c in cl),
+        },
+        "mesh_groups_summary": {
+            "total": len(groups),
+            "disabled": sum(g.get("DISABLED") is True for g in groups),
+            "enabled": sum(g.get("DISABLED") is not True for g in groups),
+        },
+        "databases": databases(state, refresh_databases),
+        "threads": th,
+        "queue_length": len(state.get("dict_data_to_send_to_server") or {}),
+    }
+
+
+def health(state):
+    """(statut HTTP, corps) : 503 si un thread essentiel est mort ou si aucune base n'est en ligne."""
+    th = threads(state)
+    dead = [t["name"] for t in th if t["type"] in CORE_THREAD_TYPES and not t["alive"]]
+    dbs = databases(state)
+    offline = [d["uid"] for d in dbs if d["status"] != "ONLINE"]
+    checks = {
+        "threads": {"ok": not dead, "dead": dead},
+        "databases": {"ok": not dbs or len(offline) < len(dbs), "offline": offline},
+    }
+    ok = all(c["ok"] for c in checks.values())
+    return (200 if ok else 503), {"status": "ok" if ok else "degraded", "version": DefaultValues.SYNTRAF_VERSION,
+                                  "checks": checks}
+
+
+def _label(value):
+    return str(value).replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ")
+
+
+def metrics(state):
+    """Texte au format d'exposition Prometheus."""
+    snap = snapshot(state)
+    out = []
+
+    def metric(name, help_text, kind, samples):
+        out.append(f"# HELP {name} {help_text}")
+        out.append(f"# TYPE {name} {kind}")
+        for labels, value in samples:
+            lab = ",".join(f'{k}="{_label(v)}"' for k, v in labels.items())
+            out.append(f"{name}{{{lab}}} {value}" if lab else f"{name} {value}")
+
+    metric("syntraf_build_info", "SYNTRAF server version.", "gauge", [({"version": snap["version"]}, 1)])
+    metric("syntraf_client_connected", "1 if the client control channel is connected.", "gauge",
+           [({"client": c["uid"]}, int(c["status"] == "CONNECTED")) for c in snap["clients"]])
+    metric("syntraf_client_flows", "iperf3 flows generated for the client.", "gauge",
+           [({"client": c["uid"], "role": role}, c[role]) for c in snap["clients"] for role in ("listeners", "connectors")])
+    metric("syntraf_mesh_groups", "Mesh groups by state.", "gauge",
+           [({"state": s}, snap["mesh_groups_summary"][s]) for s in ("enabled", "disabled")])
+    metric("syntraf_database_up", "1 if the database is reachable.", "gauge",
+           [({"database": d["uid"]}, int(d["status"] == "ONLINE")) for d in snap["databases"]])
+    metric("syntraf_database_backlog", "Points waiting to be written to the database.", "gauge",
+           [({"database": d["uid"]}, d["backlog"]) for d in snap["databases"]])
+    metric("syntraf_thread_up", "1 if the server thread is alive.", "gauge",
+           [({"thread": t["name"], "type": t["type"]}, int(t["alive"])) for t in snap["threads"]])
+    metric("syntraf_queue_length", "Points received from clients and not yet forwarded.", "gauge",
+           [({}, snap["queue_length"])])
+    return "\n".join(out) + "\n"
+
+
+def filter_log_lines(lines, level="", query=""):
+    """Garde les lignes du niveau demandé ou plus grave, et contenant query (sans tenir compte de la casse)."""
+    level = (level or "").upper()
+    accepted = LEVELS[LEVELS.index(level):] if level in LEVELS else None
+    q = (query or "").lower()
+    kept = []
+    for line in lines:
+        if accepted is not None and not any(f" - {lv} - " in line for lv in accepted):
+            continue
+        if q and q not in line.lower():
+            continue
+        kept.append(line)
+    return kept
