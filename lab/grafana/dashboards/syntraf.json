@@ -14,6 +14,18 @@
     "from": "now-15m",
     "to": "now"
   },
+  "links": [
+    {
+      "title": "Tableaux de bord SYNTRAF",
+      "type": "dashboards",
+      "tags": [
+        "syntraf"
+      ],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true
+    }
+  ],
   "templating": {
     "list": [
       {
@@ -129,7 +141,7 @@
           },
           "instant": true,
           "legendFormat": "{{CLIENT}} → {{SERVER}}",
-          "expr": "time() - timestamp(last_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[1h]))"
+          "expr": "time() - tlast_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[1h])"
         }
       ],
       "fieldConfig": {

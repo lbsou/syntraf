@@ -27,6 +27,17 @@ def test_grafana_datasource_healthy(lab_up):
     assert status == 200 and body["status"] == "OK"
 
 
+def test_matrix_dashboard_provisioned(lab_up):
+    status, body = get_json("/api/dashboards/uid/syntraf-matrix")
+    assert status == 200
+    tables = [p for p in body["dashboard"]["panels"] if p["type"] == "table"]
+    assert len(tables) >= 4
+    for p in tables:
+        matrix = p["transformations"][-1]
+        assert matrix["id"] == "groupingToMatrix", p["title"]
+        assert (matrix["options"]["rowField"], matrix["options"]["columnField"]) == ("CLIENT", "SERVER")
+
+
 def test_dashboard_provisioned(lab_up):
     status, body = get_json("/api/dashboards/uid/syntraf-lab")
     assert status == 200

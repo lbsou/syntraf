@@ -15,9 +15,20 @@ dégradations et aux coupures réseau. Conception : `docs/superpowers/specs/2026
 
 | Service | Adresse depuis le PC | Rôle |
 |---|---|---|
-| Grafana | http://127.0.0.1:18300 | Tableau de bord « SYNTRAF — mesures du maillage » (lecture anonyme ; admin : mot de passe de `config/lab.env`) |
+| Grafana | http://127.0.0.1:18300 | Tableaux de bord « SYNTRAF — mesures du maillage » (séries temporelles) et « SYNTRAF — matrice source × destination » (lecture anonyme ; admin : mot de passe de `config/lab.env`) |
 | Webui SYNTRAF | http://127.0.0.1:18080 | Interface du serveur |
 | VictoriaMetrics | http://127.0.0.1:18428 | Base des mesures (`SYNTRAF_RX_PCT_LOSS{UID=…}`, etc.) |
+
+## Tableaux de bord Grafana
+
+Les deux tableaux de bord sont générés par `lab/grafana/build_dashboards.py` : ne pas éditer les
+JSON à la main. Après une modification : `python lab/grafana/build_dashboards.py`, puis
+`python lab/labctl.py restart grafana`, puis Ctrl+F5 dans le navigateur.
+
+La matrice reprend le principe de grallama-panel (plugin Angular, incompatible avec Grafana 13)
+avec des tables natives : sources (CLIENT, émetteur iperf3) en lignes, destinations (SERVER, qui
+mesure) en colonnes, cellules colorées selon des seuils. Elle montre les pertes (30 s et sur la
+période), le silence, la gigue, le débit et les paquets perdus.
 
 ## Topologie
 
@@ -71,9 +82,10 @@ Les trois modes de coupure ne sont pas équivalents pour iperf3 :
 
 ## Budget RAM
 
-Plafonds : victoriametrics 192 Mio, server 192 Mio, c1–c4 192 Mio chacun, grafana 200 Mio,
-soit environ 1,35 Go. Consommation mesurée : environ 135 Mio par client, 75 à 90 Mio pour le
-serveur, environ 110 Mio pour VictoriaMetrics et 130 Mio pour Grafana.
+Plafonds : victoriametrics 192 Mio, server 192 Mio, c1–c4 192 Mio chacun, grafana 384 Mio,
+soit environ 1,5 Go. Consommation mesurée : environ 135 Mio par client, 75 à 90 Mio pour le
+serveur, environ 110 Mio pour VictoriaMetrics, et pour Grafana 130 Mio au repos mais plus de 200 Mio dès
+qu'un navigateur affiche le tableau de bord.
 
 ## Ce que le lab ne touche pas
 
