@@ -2,7 +2,7 @@
 #from flask_login import *
 #from . import db
 #from .st_models import User
-from lib.st_conf_validation import validate_bandwidth, validate_dscp, validate_packet_size, validate_interval, validate_uid, generate_client_config_mesh
+from lib.st_conf_validation import validate_bandwidth, validate_dscp, validate_packet_size, validate_interval, validate_uid, validate_group, generate_client_config_mesh
 from lib.st_global import CompilationOptions, DefaultValues
 
 # SYNTRAF SERVER IMPORT
@@ -414,6 +414,11 @@ def api():
         elif requested_action in ("EDIT_MESH_GROUP", "NEW_MESH_GROUP"):
             ''' =============================================================================================== '''
             return jsonify(_save_mesh_group(request.values, requested_action == "NEW_MESH_GROUP"))
+
+        elif requested_action == "SET_MESH_GROUPS_DISABLED":
+            ''' =============================================================================================== '''
+            uids = [u for u in request.values.get('MESH_GROUP_UIDS', '').split(",") if u]
+            return jsonify(_set_mesh_groups_disabled(uids, request.values.get('DISABLED', '') == "true"))
         elif requested_action == "RECONNECT_CLIENT":
             ''' =============================================================================================== '''
 
@@ -549,9 +554,9 @@ MESH_GROUP_EDITABLE = ("BANDWIDTH", "DSCP", "PACKET_SIZE", "INTERVAL")
 
 
 def _save_mesh_group(values, is_new):
-    """Crée ou modifie un mesh group (config en mémoire et fichier TOML), puis l'applique aux clients membres.
+    """Crée ou modifie un mesh group depuis le formulaire. Renvoie {"OK": bool, "MSG": str}.
 
-    Renvoie {"OK": bool, "MSG": str}. Le nom (UID) n'est pas modifiable : les clients y font référence.
+    Le nom (UID) n'est pas modifiable : les clients y font référence.
     """
     uid = values.get('UID', '').strip()
     fields = {k: values.get(k, '').strip() for k in MESH_GROUP_EDITABLE}
@@ -563,39 +568,82 @@ def _save_mesh_group(values, is_new):
     if invalid:
         return {"OK": False, "MSG": f"Invalid value for: {', '.join(invalid)}"}
 
+    def edit(group):
+        group.update(fields)
+        group.pop('PACKET_PER_SECOND', None)   # le formulaire fixe le débit et la taille : le 3e est recalculé
+        if description:
+            group['DESCRIPTION'] = description
+        else:
+            group.pop('DESCRIPTION', None)
+
+    return _change_mesh_group(uid, edit, is_new)
+
+
+def _set_mesh_groups_disabled(uids, disabled):
+    """Désactive (ou réactive) des mesh groups : leurs flux s'arrêtent chez tous les membres."""
+    results = []
+    for uid in uids:
+        def toggle(group):
+            if disabled:
+                group['DISABLED'] = True
+            else:
+                group.pop('DISABLED', None)
+        results.append(dict(_change_mesh_group(uid, toggle, False), ID=uid))
+    return results
+
+
+def _change_mesh_group(uid, change, is_new):
+    """Applique change(groupe) au mesh group uid, tel qu'écrit dans le fichier de config, puis :
+    revalide le groupe comme au démarrage (champs calculés : paquets par seconde, espacement), régénère la config
+    des clients (annulé si un client dépasserait son MAX_BANDWIDTH), écrit le fichier, et demande aux membres
+    connectés de se reconnecter ; chacun ne relance que les iperf3 dont la config a changé.
+    """
     read_success, disk_config = read_conf(app.config['config_file_path'])
     if not read_success:
         return {"OK": False, "MSG": "Unable to read the configuration file"}
     live_config = app.config['config']
-    disk_mg = next((mg for mg in disk_config['MESH_GROUP'] if mg['UID'] == uid), None)
-    live_mg = next((mg for mg in live_config['MESH_GROUP'] if mg['UID'] == uid), None)
-    if is_new and (disk_mg or live_mg):
+    disk_idx = next((i for i, mg in enumerate(disk_config['MESH_GROUP']) if mg['UID'] == uid), None)
+    live_idx = next((i for i, mg in enumerate(live_config['MESH_GROUP']) if mg['UID'] == uid), None)
+    if is_new and (disk_idx is not None or live_idx is not None):
         return {"OK": False, "MSG": f"Mesh group '{uid}' already exists"}
-    if not is_new and not (disk_mg and live_mg):
+    if not is_new and (disk_idx is None or live_idx is None):
         return {"OK": False, "MSG": f"Mesh group '{uid}' not found"}
+
+    disk_group = {"UID": uid} if is_new else copy.deepcopy(disk_config['MESH_GROUP'][disk_idx])
+    change(disk_group)
+    live_group = copy.deepcopy(disk_group)
+    if not validate_group(dict(live_config, MESH_GROUP=[live_group]), "MESH_GROUP"):
+        return {"OK": False, "MSG": f"Invalid parameters for mesh group '{uid}' (see the server log)"}
+
+    previous = None if is_new else live_config['MESH_GROUP'][live_idx]
     if is_new:
-        disk_mg, live_mg = {"UID": uid}, {"UID": uid}
-        disk_config['MESH_GROUP'].append(disk_mg)
-        live_config['MESH_GROUP'].append(live_mg)
-
-    for mg in (disk_mg, live_mg):
-        mg.update(fields)
-        if description:
-            mg['DESCRIPTION'] = description
+        live_config['MESH_GROUP'].append(live_group)
+    else:
+        live_config['MESH_GROUP'][live_idx] = live_group
+    try:
+        _, app.config['_dict_by_group_of_generated_tuple_for_map'] = generate_client_config_mesh(
+            live_config, app.config['_dict_by_node_generated_config'])
+    except (SystemExit, Exception) as exc:
+        # generate_client_config_mesh appelle sys.exit() quand un client dépasse son MAX_BANDWIDTH ; il n'a alors
+        # encore rien modifié. On revient au groupe précédent.
+        if is_new:
+            live_config['MESH_GROUP'].remove(live_group)
         else:
-            mg.pop('DESCRIPTION', None)
+            live_config['MESH_GROUP'][live_idx] = previous
+        log.error(f"MESH GROUP '{uid}' NOT APPLIED, CLIENT CONFIG GENERATION FAILED: {type(exc).__name__}:{exc}")
+        return {"OK": False, "MSG": "Not applied: a member would exceed its MAX_BANDWIDTH, or the generation failed (see the server log)"}
 
+    if is_new:
+        disk_config['MESH_GROUP'].append(disk_group)
+    else:
+        disk_config['MESH_GROUP'][disk_idx] = disk_group
     try:
         with open(app.config['config_file_path'], "w") as toml_file:
             toml.dump(disk_config, toml_file)
     except OSError as exc:
-        log.error(f"UNABLE TO SAVE CONFIG FILE AFTER EDITING MESH GROUP '{uid}': {exc}")
-        return {"OK": False, "MSG": "Saved in memory, but unable to write the configuration file"}
+        log.error(f"UNABLE TO SAVE CONFIG FILE AFTER CHANGING MESH GROUP '{uid}': {exc}")
+        return {"OK": False, "MSG": "Applied, but unable to write the configuration file"}
 
-    # Nouvelle config des clients, puis reconnexion des membres connectés : à la reconnexion, chaque client ne
-    # relance que les iperf3 dont la config a changé.
-    _, app.config['_dict_by_group_of_generated_tuple_for_map'] = generate_client_config_mesh(
-        live_config, app.config['_dict_by_node_generated_config'])
     members = [c['UID'] for c in live_config['SERVER_CLIENT'] if uid in c.get('MESH_GROUP_UID_LIST', [])]
     reconnected = []
     for client_uid in members:
@@ -604,7 +652,7 @@ def _save_mesh_group(values, is_new):
             app.config['dict_of_commands_for_network_clients'].setdefault(client_uid, []).append(
                 {"ACTION": "RECONNECT_CLIENT"})
             reconnected.append(client_uid)
-    log.info(f"MESH GROUP '{uid}' {'CREATED' if is_new else 'UPDATED'} FROM THE WEBUI, APPLYING TO: {reconnected}")
+    log.info(f"MESH GROUP '{uid}' CHANGED FROM THE WEBUI, APPLYING TO: {reconnected}")
     return {"OK": True, "MSG": f"Mesh group '{uid}' saved; applied to {len(reconnected)} connected member(s)"}
 
 

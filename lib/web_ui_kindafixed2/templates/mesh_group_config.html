@@ -19,7 +19,7 @@
         <i class="far fa-clone"></i>&nbsp;&nbsp;&nbsp;Duplicate
       </button>
       <button id="btn_disable" class="btn btn-primary" style="width:120px;" disabled>
-        <i class="fas fa-slash"></i>&nbsp;&nbsp;&nbsp;Disable
+        <i class="fas fa-slash"></i>&nbsp;&nbsp;&nbsp;<span id="btn_disable_text">Disable</span>
       </button>
 
     </div>
@@ -324,7 +324,45 @@
       $btn_delete.prop('disabled', !$table.bootstrapTable('getSelections').length)
       $btn_duplicate.prop('disabled', !$table.bootstrapTable('getSelections').length)
       $btn_disable.prop('disabled', !$table.bootstrapTable('getSelections').length)
+      $("#btn_disable_text").text(selection_should_enable() ? "Enable" : "Disable")
     })
+
+    // Réactiver si tous les groupes sélectionnés sont désactivés, sinon désactiver.
+    function selection_should_enable() {
+        const selected = $table.bootstrapTable('getSelections');
+        return selected.length > 0 && selected.every(mg => mg.DISABLED === true);
+    }
+
+    $btn_disable.click(function () {
+        const uids = getUidSelections();
+        const enable = selection_should_enable();
+        $('#btn_yes_modal_confirmation').unbind('click');
+        $("#btn_yes_modal_confirmation").click(function() {
+            $modal_confirmation.modal('hide');
+            set_mesh_groups_disabled(uids, !enable);
+        });
+        $('#modal_confirmation_title_text').text(enable ? "Enable group" : "Disable group");
+        $modal_confirmationText.text(enable
+            ? `Enable '${uids}'? Its members will start measuring again.`
+            : `Disable '${uids}'? Its members will stop measuring until it is enabled again.`);
+        $modal_confirmation.modal('show');
+    })
+
+    async function set_mesh_groups_disabled(uids, disabled) {
+        const fd = new FormData();
+        fd.append("ACTION", "SET_MESH_GROUPS_DISABLED");
+        fd.append("MESH_GROUP_UIDS", uids);
+        fd.append("DISABLED", disabled ? "true" : "false");
+        const answer = await (await fetch('/api', {method: 'POST', body: fd})).json();
+        $btn_disable.prop('disabled', true);
+        $('#modal_success_group_label').text(disabled ? "Disable result(s)" : "Enable result(s)");
+        $("#success_modal_text").html("<table id='table_modal_success'></table>");
+        $("#table_modal_success").bootstrapTable({
+            columns: [{field: 'ID', title: 'Mesh group'}, {field: 'MSG', title: 'Message'}],
+            data: answer
+        });
+        $('#modal_success').modal('show');
+    }
 
     $table.on('all.bs.table', function (e, name, args) {
       console.log(name, args)
@@ -339,12 +377,14 @@
         });
 
         var mesh_group_uid = getUidSelections();
+        $('#modal_confirmation_title_text').text("Duplicate group");
         $modal_confirmationText.text(`Are you sure you wish to clone the mesh group '${mesh_group_uid}'?`);
         $btn_duplicate.prop('disabled', true);
         $modal_confirmation.modal('show');
     })
 
     $btn_delete.click(function () {
+      $("#modal_confirmation_title_text").text("Delete group");
       // Change the onclick of the confirmation modal
       $('#btn_yes_modal_confirmation').unbind('click');
       $("#btn_yes_modal_confirmation").click(function() {
@@ -472,6 +512,8 @@
               columns: [
                         { field: 'state', checkbox: true, align: 'center', valign: 'middle'},
                         { field: 'UID', title: 'Name', align: 'center', sortable: true},
+                        { field: 'DISABLED', title: 'Status', align: 'center', sortable: true,
+                          formatter: value => value === true ? '<span class="text-warning">Disabled</span>' : 'Enabled'},
                         { field: 'BANDWIDTH', title: 'Bandwidth', align: 'center', sortable: false},
                         { field: 'PACKET_SIZE', title: 'Packet size', align: 'center', sortable: true},
                         { field: 'DSCP', title: 'DSCP', align: 'center', sortable: false},

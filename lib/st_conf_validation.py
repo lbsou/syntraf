@@ -1521,6 +1521,11 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
     # Now, we need to add the final dictionary wrapping "LISTENER" and "CONNECTOR" by node
     # For doing that, we need to create a dictionary for each node and insert the listeners and connectors in it
 
+    # Every declared client starts empty: a client left without any listener or connector (e.g. its only mesh group
+    # was disabled from the webui) must not keep its previous edges.
+    for client in _config['SERVER_CLIENT']:
+        _dict_by_node_generated_config[client['UID']] = {'LISTENERS': {}, 'CONNECTORS': {}}
+
     for k, v in dict_obj_listeners.items():
         _dict_by_node_generated_config[k] = {}
         _dict_by_node_generated_config[k]['LISTENERS'] = {}
