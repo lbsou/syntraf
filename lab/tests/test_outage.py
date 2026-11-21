@@ -123,3 +123,61 @@ def test_gap_partly_filled_then_closed_by_a_real_line_has_no_duplicate():
     rest = tr.record(UID, T0 + 30, 1, CTX)      # T0+8 .. T0+29
     times = [p["time"] for p in first + rest]
     assert times == [datetime.fromtimestamp(T0 + s, timezone.utc) for s in range(1, 30)]
+
+
+# --- Horloge murale qui saute (recalage NTP, VM WSL) : seule l'horloge monotone dit si iperf3 s'est tu.
+
+class FakeClock:
+    def __init__(self):
+        self.t = 0.0
+
+    def __call__(self):
+        return self.t
+
+
+def clocked():
+    clock = FakeClock()
+    return st_outage.SilenceTracker(lag_intervals=3, clock=clock), clock
+
+
+def test_forward_clock_jump_is_not_an_outage():
+    tr, clock = clocked()
+    tr.record(UID, T0, 1, CTX)
+    clock.t = 1
+    tr.record(UID, T0 + 1, 1, CTX)
+    clock.t = 2                                  # une seconde réelle plus tard, l'horloge murale a sauté de 4 s
+    assert tr.record(UID, T0 + 6, 1, CTX) == []
+    clock.t = 2.5
+    assert tr.fill(now=T0 + 6.5) == []
+
+
+def test_fill_ignores_a_wall_clock_that_jumped_ahead():
+    tr, clock = clocked()
+    tr.record(UID, T0, 1, CTX)
+    clock.t = 0.9                                # iperf3 n'a pas encore pu écrire la ligne suivante
+    assert tr.fill(now=T0 + 10) == []
+
+
+def test_real_silence_is_still_detected_with_the_monotonic_clock():
+    tr, clock = clocked()
+    tr.record(UID, T0, 1, CTX)
+    clock.t = 10
+    assert [p["time"] for p in tr.fill(now=T0 + 10)] == [datetime.fromtimestamp(T0 + s, timezone.utc) for s in range(1, 8)]
+
+
+def test_frozen_node_gap_is_still_filled_by_the_next_real_line():
+    tr, clock = clocked()
+    tr.record(UID, T0, 1, CTX)
+    clock.t = 60                                 # nœud figé 60 s : l'horloge monotone avance aussi
+    assert len(tr.record(UID, T0 + 60, 1, CTX)) == 59
+
+
+def test_backward_clock_jump_generates_nothing():
+    tr, clock = clocked()
+    tr.record(UID, T0 + 10, 1, CTX)
+    clock.t = 1
+    assert tr.record(UID, T0 + 8, 1, CTX) == []
+    clock.t = 2
+    assert tr.fill(now=T0 + 9) == []
+    clock.t = 3
+    assert tr.record(UID, T0 + 11, 1, CTX) == []

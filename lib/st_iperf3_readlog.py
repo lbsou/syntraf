@@ -11,7 +11,7 @@ from lib import st_outage
 log = logging.getLogger("syntraf." + __name__)
 
 # Shared by every READ_LOG thread (record) and the watchdog loop (fill_silences).
-SILENCE = st_outage.SilenceTracker()
+SILENCE = st_outage.SilenceTracker(clock=time.monotonic)  # silences mesurés en temps monotone
 
 
 def _flow_ctx(_config, edge_type, edge_key, uid_client, uid_server):

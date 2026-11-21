@@ -48,8 +48,17 @@ def enqueue(queue: dict, point: dict, max_size: int) -> None:
 
 
 class SilenceTracker:
-    def __init__(self, lag_intervals: int = DEFAULT_LAG_INTERVALS):
+    """Détection du silence d'iperf3.
+
+    clock : horloge monotone (time.monotonic en production). La durée d'un silence se mesure avec elle, et non
+    avec l'horloge murale qui horodate les lignes d'iperf3 : un recalage de l'heure (NTP, VM WSL qui saute de
+    plusieurs secondes) ferait sinon apparaître de fausses pertes à 100 %. Sans clock, les horodatages des
+    lignes et le `now` de fill() font foi.
+    """
+
+    def __init__(self, lag_intervals: int = DEFAULT_LAG_INTERVALS, clock=None):
         self.lag_intervals = lag_intervals
+        self._clock = clock
         self._flows = {}
         self._lock = threading.Lock()
 
@@ -58,21 +67,32 @@ class SilenceTracker:
 
         Renvoie les points à 100 % de pertes du trou qui la précède, s'il est assez long pour être une panne
         et que fill() ne l'a pas (entièrement) couvert : au dégel d'un nœud figé, iperf3 publie souvent une
-        ligne avant le passage suivant de la boucle de surveillance.
+        ligne avant le passage suivant de la boucle de surveillance. Un trou dans les horodatages sans silence
+        réel (horloge murale qui a sauté) n'est pas une panne.
         """
+        mono = self._clock() if self._clock else utime
         with self._lock:
             flow = self._flows.get(uid)
             if flow is None:
-                self._flows[uid] = {"last": utime, "interval": interval, "ctx": dict(ctx), "silent": False}
+                self._flows[uid] = {"last": utime, "interval": interval, "ctx": dict(ctx), "silent": False,
+                                    "anchor_t": utime, "anchor_m": mono}
                 return []
             points = []
             step = flow["interval"]
-            if flow["silent"] or utime - flow["last"] >= (self.lag_intervals + 1) * step:
+            threshold = (self.lag_intervals + 1) * step
+            if flow["silent"]:
                 points = self._generate(uid, flow, utime - step)
+            elif utime - flow["last"] >= threshold:
+                if mono - flow["anchor_m"] >= threshold:
+                    points = self._generate(uid, flow, utime - step)
+                else:
+                    log.info(f"{uid} - WALL CLOCK JUMPED {utime - flow['last']:.1f} S BETWEEN TWO IPERF3 REPORTS "
+                             f"{mono - flow['anchor_m']:.1f} S APART: NOT AN OUTAGE")
             if flow["silent"] and utime > flow["last"]:
                 log.warning(f"{uid} - IPERF3 IS REPORTING AGAIN, END OF OUTAGE")
                 flow["silent"] = False
             flow["last"] = max(flow["last"], utime)
+            flow["anchor_t"], flow["anchor_m"] = utime, mono
             flow["interval"] = interval
             flow["ctx"] = dict(ctx)
             return points
@@ -94,7 +114,12 @@ class SilenceTracker:
         return points
 
     def fill(self, now: float, active=lambda uid: True) -> list:
-        """Points à 100 % de pertes pour les intervalles muets jusqu'à now - lag. Un flux inactif est oublié."""
+        """Points à 100 % de pertes pour les intervalles muets jusqu'à now - lag. Un flux inactif est oublié.
+
+        « now » se lit sur la chronologie du flux : horodatage de sa dernière vraie ligne + temps (monotone)
+        écoulé depuis. Ainsi un saut de l'horloge murale ne fait pas croire à un silence.
+        """
+        mono_now = self._clock() if self._clock else now
         points = []
         with self._lock:
             for uid in list(self._flows):
@@ -102,5 +127,6 @@ class SilenceTracker:
                     del self._flows[uid]
                     continue
                 flow = self._flows[uid]
-                points.extend(self._generate(uid, flow, now - self.lag_intervals * flow["interval"]))
+                flow_now = flow["anchor_t"] + (mono_now - flow["anchor_m"])
+                points.extend(self._generate(uid, flow, flow_now - self.lag_intervals * flow["interval"]))
         return points
