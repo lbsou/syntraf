@@ -147,6 +147,60 @@ def cmd_bootstrap(args) -> int:
     return 0
 
 
+def cmd_degrade(args) -> int:
+    from lablib import faults
+    faults.degrade(args.service, delay_ms=args.delay, jitter_ms=args.jitter, loss_pct=args.loss,
+                   rate=args.rate, to=args.to)
+    print(f"{args.service} : {'; '.join(faults.active(args.service))}")
+    return 0
+
+
+def cmd_cut(args) -> int:
+    import time
+    from lablib import faults
+    faults.cut(args.service, args.mode, to=args.to)
+    print(f"{args.service} coupé (mode {args.mode}{', vers ' + args.to if args.to else ''})")
+    if args.for_s:
+        try:
+            time.sleep(args.for_s)
+        finally:
+            faults.heal(args.service)
+            print(f"{args.service} rétabli après {args.for_s:g} s")
+    return 0
+
+
+def cmd_heal(args) -> int:
+    from lablib import faults
+    if args.all or not args.service:
+        faults.heal_all()
+        print("toutes les pannes retirées")
+    else:
+        faults.heal(args.service)
+        print(f"{args.service} rétabli")
+    return 0
+
+
+def cmd_flap(args) -> int:
+    from lablib import faults
+    faults.flap(args.service, args.mode, args.off, args.on, args.count)
+    print(f"{args.service} : {args.count} coupures ({args.mode}) terminées, service rétabli")
+    return 0
+
+
+def cmd_kill_iperf(args) -> int:
+    from lablib import faults
+    faults.kill_iperf(args.service, args.signal)
+    print(f"iperf3 tués sur {args.service} (SIG{args.signal})")
+    return 0
+
+
+def cmd_restart(args) -> int:
+    from lablib import faults
+    faults.restart(args.service)
+    print(f"{args.service} redémarré")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="labctl", description="Pilote du lab de robustesse SYNTRAF")
     sub = p.add_subparsers(dest="command", required=True)
@@ -166,6 +220,40 @@ def build_parser() -> argparse.ArgumentParser:
     s.set_defaults(func=cmd_logs)
     s = sub.add_parser("bootstrap", help="crée lab/.venv avec pytest")
     s.set_defaults(func=cmd_bootstrap)
+
+    nodes = list(topology.SYNTRAF_NODES)
+    s = sub.add_parser("degrade", help="latence/gigue/pertes/débit (tc netem) en sortie d'un nœud")
+    s.add_argument("service", choices=nodes)
+    s.add_argument("--delay", type=int, default=0, help="ms")
+    s.add_argument("--jitter", type=int, default=0, help="ms")
+    s.add_argument("--loss", type=float, default=0.0, help="%%")
+    s.add_argument("--rate", help="ex. 1mbit")
+    s.add_argument("--to", choices=nodes, help="seulement vers ce nœud")
+    s.set_defaults(func=cmd_degrade)
+    s = sub.add_parser("cut", help="coupure : drop (silencieuse), disconnect (interface), pause (hôte figé)")
+    s.add_argument("service", choices=nodes)
+    s.add_argument("--mode", choices=["drop", "disconnect", "pause"], default="drop")
+    s.add_argument("--to", choices=nodes, help="seulement vers ce nœud (mode drop)")
+    s.add_argument("--for", dest="for_s", type=float, help="rétablir après N secondes")
+    s.set_defaults(func=cmd_cut)
+    s = sub.add_parser("heal", help="retire les pannes d'un nœud (ou de tous)")
+    s.add_argument("service", nargs="?", choices=nodes)
+    s.add_argument("--all", action="store_true")
+    s.set_defaults(func=cmd_heal)
+    s = sub.add_parser("flap", help="coupures répétées")
+    s.add_argument("service", choices=nodes)
+    s.add_argument("--mode", choices=["drop", "disconnect", "pause"], default="drop")
+    s.add_argument("--off", type=float, default=5)
+    s.add_argument("--on", type=float, default=10)
+    s.add_argument("--count", type=int, default=10)
+    s.set_defaults(func=cmd_flap)
+    s = sub.add_parser("kill-iperf", help="tue les processus iperf3 d'un nœud")
+    s.add_argument("service", choices=nodes)
+    s.add_argument("--signal", default="KILL")
+    s.set_defaults(func=cmd_kill_iperf)
+    s = sub.add_parser("restart", help="redémarre un service")
+    s.add_argument("service", choices=nodes + ["influxdb"])
+    s.set_defaults(func=cmd_restart)
     return p
 
 
