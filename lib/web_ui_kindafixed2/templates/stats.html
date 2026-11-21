@@ -471,10 +471,14 @@ async function get_thread_status(source)
             thread_status = JSON.parse(thread_status);
             console.log(thread_status);
 
-            var datatable = $('#table_thread_status').DataTable();
-            datatable.clear().draw();
-            for (let [id, data] of Object.entries(thread_status)){
-                datatable.row.add([data.syntraf_instance_type, data.starttime, data.group, data.opposite_side, data.listener_port]).draw(false);
+            // Rempli à la main : l'API DataTables n'est plus chargée depuis le passage à bootstrap-table.
+            const body = document.querySelector('#table_thread_status tbody');
+            body.replaceChildren();
+            for (const data of Object.values(thread_status)) {
+                const tr = body.insertRow();
+                for (const value of [data.syntraf_instance_type, data.starttime, data.group, data.opposite_side, data.listener_port]) {
+                    tr.insertCell().textContent = value;
+                }
             }
 
             $('#modal_thread_status').modal('show');

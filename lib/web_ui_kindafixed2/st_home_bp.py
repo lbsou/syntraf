@@ -27,6 +27,7 @@ if not CompilationOptions.client_only:
     import logging
     #import sys
     import copy
+    import collections
     from datetime import datetime as dt
 
     # PACKAGE IMPORT
@@ -54,6 +55,7 @@ def home():
     return render_template(
         'home.html',
         title="SYNTRAF",
+        conn_db=app.config['conn_db'],
         syntraf_version=DefaultValues.SYNTRAF_VERSION
     )
 
@@ -124,7 +126,8 @@ def home():
 
 @st_home_bp.route('/')
 def index():
-    return render_template('login.html')
+    # login.html date d'avant le passage à Bootstrap 5 et l'authentification n'est pas branchée : accueil direct.
+    return redirect(url_for('st_home_bp.home'))
 
 
 # def authorize():
@@ -498,11 +501,6 @@ def api():
 
         elif requested_action == "GET_TOKENS":
             ''' =============================================================================================== '''
-            tokens = app.config['config']['SERVER']['TOKEN']
-            print(type(tokens))
-            for a, b in tokens.items():
-                print(a, "@", b)
-
             return app.config['config']['SERVER']['TOKEN']
 
         elif requested_action == "GET_NUMBER_OF_ONLINE_CLIENT":
@@ -535,7 +533,23 @@ def api():
 
         return "OK"
     else:
+        # Visionneuse de logs (log_viewer.html) : liste des fichiers du dossier de logs, puis fin du fichier choisi.
+        if 'getlogfilename' in request.args:
+            return jsonify(_log_files())
+        if 'readlog' in request.args:
+            name = request.args.get('file', '')
+            if name not in _log_files():
+                return Response("unknown log file", status=404, mimetype="text/plain")
+            with open(os.path.join(app.config['config']['GLOBAL']['LOGDIR'], name), encoding='utf-8', errors='replace') as f:
+                return Response(''.join(collections.deque(f, maxlen=500)), mimetype="text/plain")
         return "OK"
+
+
+def _log_files():
+    logdir = app.config['config']['GLOBAL'].get('LOGDIR', '')
+    if not logdir or not os.path.isdir(logdir):
+        return []
+    return sorted(f for f in os.listdir(logdir) if os.path.isfile(os.path.join(logdir, f)))
 
 
 def flask_logger(logfile):

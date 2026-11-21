@@ -21,7 +21,6 @@
 {% endblock %}
 
 {% block content %}
-<body onload="get_log_filename()">
 <h2>Log viewer</h2>
 
 <div class="content-wrapper">
@@ -32,15 +31,14 @@
    </div>
 </div>
 
-<body id="main">
     <div class="row">
         <div class="logging_window">
             <pre id="output"></pre>
         </div>
     </div>
-</body>
 
 <script type="text/javascript">
+    window.addEventListener("load", get_log_filename);
 
     /*
     Use onload to populate the list of logs filename
@@ -48,44 +46,23 @@
     */
     async function get_log_filename()
     {
-      fetch('/api?getlogfilename')
-        .then(function (response) {
-            return response.json();
-        }).then(function (array_of_filename) {
-            //console.log(array_of_filename);
-
-            var x = document.getElementById("log_filename");
-
-            for (const filename of array_of_filename) {
-                var option = document.createElement('option');
-                option.text = filename;
-                x.add(option, x[0]);
-            }
-        });
+        const response = await fetch('/api?getlogfilename');
+        const select = document.getElementById("log_filename");
+        select.replaceChildren();
+        for (const filename of await response.json()) {
+            select.add(new Option(filename, filename));
+        }
+        if (select.options.length) read_log();
     }
 
     async function read_log()
     {
-
-        fetch('/api?readlog')
-        .then(function (response) {
-            return response.json();
-        }).then(function (array_of_filename) {
-            //console.log(array_of_filename);
-
-            var output = document.getElementById('logging_window');
-
-
-
-            for (const filename of array_of_filename) {
-                var option = document.createElement('option');
-                option.text = filename;
-                x.add(option, x[0]);
-            }
-        });
-
-
-     }
+        const name = document.getElementById("log_filename").value;
+        const response = await fetch('/api?readlog&file=' + encodeURIComponent(name));
+        const output = document.getElementById('output');
+        output.textContent = await response.text();
+        output.scrollIntoView({block: "end"});
+    }
 </script>
 
 {% endblock %}
