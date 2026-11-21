@@ -2,7 +2,7 @@
 #from flask_login import *
 #from . import db
 #from .st_models import User
-from lib.st_conf_validation import validate_bandwidth
+from lib.st_conf_validation import validate_bandwidth, validate_dscp, validate_packet_size, validate_interval, validate_uid, generate_client_config_mesh
 from lib.st_global import CompilationOptions, DefaultValues
 
 # SYNTRAF SERVER IMPORT
@@ -411,9 +411,9 @@ def api():
 
             return jsonify(result)
 
-        elif requested_action == "EDIT_MESH_GROUP":
+        elif requested_action in ("EDIT_MESH_GROUP", "NEW_MESH_GROUP"):
             ''' =============================================================================================== '''
-            pass
+            return jsonify(_save_mesh_group(request.values, requested_action == "NEW_MESH_GROUP"))
         elif requested_action == "RECONNECT_CLIENT":
             ''' =============================================================================================== '''
 
@@ -543,6 +543,69 @@ def api():
             with open(os.path.join(app.config['config']['GLOBAL']['LOGDIR'], name), encoding='utf-8', errors='replace') as f:
                 return Response(''.join(collections.deque(f, maxlen=500)), mimetype="text/plain")
         return "OK"
+
+
+MESH_GROUP_EDITABLE = ("BANDWIDTH", "DSCP", "PACKET_SIZE", "INTERVAL")
+
+
+def _save_mesh_group(values, is_new):
+    """Crée ou modifie un mesh group (config en mémoire et fichier TOML), puis l'applique aux clients membres.
+
+    Renvoie {"OK": bool, "MSG": str}. Le nom (UID) n'est pas modifiable : les clients y font référence.
+    """
+    uid = values.get('UID', '').strip()
+    fields = {k: values.get(k, '').strip() for k in MESH_GROUP_EDITABLE}
+    description = values.get('DESCRIPTION', '').strip()
+    checks = (("UID", validate_uid(uid)), ("BANDWIDTH", validate_bandwidth(fields['BANDWIDTH'])),
+              ("DSCP", validate_dscp(fields['DSCP'])), ("PACKET_SIZE", validate_packet_size(fields['PACKET_SIZE'])),
+              ("INTERVAL", fields['INTERVAL'].isdigit() and validate_interval(fields['INTERVAL'])))
+    invalid = [name for name, ok in checks if not ok]
+    if invalid:
+        return {"OK": False, "MSG": f"Invalid value for: {', '.join(invalid)}"}
+
+    read_success, disk_config = read_conf(app.config['config_file_path'])
+    if not read_success:
+        return {"OK": False, "MSG": "Unable to read the configuration file"}
+    live_config = app.config['config']
+    disk_mg = next((mg for mg in disk_config['MESH_GROUP'] if mg['UID'] == uid), None)
+    live_mg = next((mg for mg in live_config['MESH_GROUP'] if mg['UID'] == uid), None)
+    if is_new and (disk_mg or live_mg):
+        return {"OK": False, "MSG": f"Mesh group '{uid}' already exists"}
+    if not is_new and not (disk_mg and live_mg):
+        return {"OK": False, "MSG": f"Mesh group '{uid}' not found"}
+    if is_new:
+        disk_mg, live_mg = {"UID": uid}, {"UID": uid}
+        disk_config['MESH_GROUP'].append(disk_mg)
+        live_config['MESH_GROUP'].append(live_mg)
+
+    for mg in (disk_mg, live_mg):
+        mg.update(fields)
+        if description:
+            mg['DESCRIPTION'] = description
+        else:
+            mg.pop('DESCRIPTION', None)
+
+    try:
+        with open(app.config['config_file_path'], "w") as toml_file:
+            toml.dump(disk_config, toml_file)
+    except OSError as exc:
+        log.error(f"UNABLE TO SAVE CONFIG FILE AFTER EDITING MESH GROUP '{uid}': {exc}")
+        return {"OK": False, "MSG": "Saved in memory, but unable to write the configuration file"}
+
+    # Nouvelle config des clients, puis reconnexion des membres connectés : à la reconnexion, chaque client ne
+    # relance que les iperf3 dont la config a changé.
+    _, app.config['_dict_by_group_of_generated_tuple_for_map'] = generate_client_config_mesh(
+        live_config, app.config['_dict_by_node_generated_config'])
+    members = [c['UID'] for c in live_config['SERVER_CLIENT'] if uid in c.get('MESH_GROUP_UID_LIST', [])]
+    reconnected = []
+    for client_uid in members:
+        client = app.config['dict_of_clients'].get(client_uid)
+        if client is not None and client.status == "CONNECTED":
+            app.config['dict_of_commands_for_network_clients'].setdefault(client_uid, []).append(
+                {"ACTION": "RECONNECT_CLIENT"})
+            reconnected.append(client_uid)
+    log.info(f"MESH GROUP '{uid}' {'CREATED' if is_new else 'UPDATED'} FROM THE WEBUI, APPLYING TO: {reconnected}")
+    return {"OK": True, "MSG": f"Mesh group '{uid}' saved; applied to {len(reconnected)} connected member(s)"}
 
 
 def _log_files():

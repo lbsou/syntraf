@@ -9,7 +9,7 @@
       <button id="btn_new" type="button" class="btn btn-primary" style="width:120px;">
           <i class="fas fa-plus"></i>&nbsp;&nbsp;&nbsp;New
       </button>
-      <button id="btn_edit" type="button" class="btn btn-primary" style="width:120px;">
+      <button id="btn_edit" type="button" class="btn btn-primary" style="width:120px;" disabled>
           <i class="fa fa-edit"></i>&nbsp;&nbsp;&nbsp;Edit
       </button>
       <button id="btn_delete" class="btn btn-danger" style="width:120px;" disabled>
@@ -222,8 +222,53 @@
         $table_modal_success.bootstrapTable('destroy');
     })
 
-    $("#btn_new").click(function() {
+    // Création et modification partagent le même formulaire ; le nom n'est pas modifiable (les clients y font référence).
+    var mesh_group_mode = "NEW_MESH_GROUP";
+
+    function open_mesh_group_form(mg) {
+        mesh_group_mode = mg ? "EDIT_MESH_GROUP" : "NEW_MESH_GROUP";
+        $('#modal_new_mesh_group_label').text(mg ? `Edit mesh group '${mg.UID}'` : "Create mesh group");
+        $('#mg_name').val(mg ? mg.UID : "").prop('readonly', !!mg);
+        $('#mg_description').val(mg && mg.DESCRIPTION ? mg.DESCRIPTION : "");
+        let bw = mg ? String(mg.BANDWIDTH) : "", unit = "bps";
+        const suffix = bw.slice(-1).toUpperCase();
+        if (suffix == "K") { unit = "Kbps"; bw = bw.slice(0, -1); }
+        else if (suffix == "M") { unit = "Mbps"; bw = bw.slice(0, -1); }
+        $('#mg_bandwidth').val(bw);
+        $('#select_bw').val(mg ? unit : "Kbps").data('pre', mg ? unit : "Kbps");
+        $('#mg_dscp').val(mg ? mg.DSCP : "");
+        $('#mg_packet_size').val(mg ? mg.PACKET_SIZE : "");
+        $('#mg_interval').val(mg ? mg.INTERVAL : "");
         $modal_new_mesh_group.modal('show');
+    }
+
+    $("#btn_new").click(function() { open_mesh_group_form(null); });
+
+    $("#btn_edit").click(function() {
+        const selected = $table.bootstrapTable("getSelections");
+        if (selected.length == 1) open_mesh_group_form(selected[0]);
+    });
+
+    $("#btn_save_new_mesh_group").click(async function() {
+        const suffix = {"bps": "", "Kbps": "K", "Mbps": "M"}[$('#select_bw').val()];
+        const fd = new FormData();
+        fd.append("ACTION", mesh_group_mode);
+        fd.append("UID", $('#mg_name').val());
+        fd.append("DESCRIPTION", $('#mg_description').val());
+        fd.append("BANDWIDTH", $('#mg_bandwidth').val().trim() + suffix);
+        fd.append("DSCP", $('#mg_dscp').val());
+        fd.append("PACKET_SIZE", $('#mg_packet_size').val());
+        fd.append("INTERVAL", $('#mg_interval').val());
+        const answer = await (await fetch('/api', {method: 'POST', body: fd})).json();
+        if (!answer.OK) {
+            document.getElementById("error_modal_text").textContent = answer.MSG;
+            $('#modal_delete_error').modal('show');
+            return;
+        }
+        $modal_new_mesh_group.modal('hide');
+        document.getElementById("success_modal_text").textContent = answer.MSG;
+        $('#modal_success_group_label').text("Mesh group saved");
+        $('#modal_success').modal('show');
     });
 
 
@@ -275,6 +320,7 @@
 
     $table.on('check.bs.table uncheck.bs.table ' + 'check-all.bs.table uncheck-all.bs.table',
     function () {
+      $("#btn_edit").prop('disabled', $table.bootstrapTable('getSelections').length != 1)
       $btn_delete.prop('disabled', !$table.bootstrapTable('getSelections').length)
       $btn_duplicate.prop('disabled', !$table.bootstrapTable('getSelections').length)
       $btn_disable.prop('disabled', !$table.bootstrapTable('getSelections').length)
@@ -385,6 +431,7 @@
                 }
             }
 
+            $('#modal_success_group_label').text("Deletion result(s)");
             $("#success_modal_text").html("<table id='table_modal_success' data-search='true' data-pagination='true' data-page-size='5'></table>");
 
             $("#table_modal_success").bootstrapTable({
@@ -418,6 +465,7 @@
             // Get mesh_groups back as list
             var mesh_groups = JSON.parse(mesh_groups);
             $table.bootstrapTable('destroy');
+            $("#btn_edit").prop('disabled', true);
             $table.bootstrapTable({
               pagination: true,
               search: true,
