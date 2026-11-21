@@ -280,3 +280,46 @@ Mode endurance (plus tard, hors périmètre initial) : pannes aléatoires pendan
 - Seuils de reprise ci-dessus.
 - Grafana optionnel, éteint par défaut, pour tenir le budget RAM.
 - `labctl` en Python stdlib (pas de SDK Docker) pour n'exiger aucune installation.
+
+## 8. Addendum du 2026-11-20 — VictoriaMetrics et Grafana (décision de l'utilisateur)
+
+Décisions de l'utilisateur :
+- SYNTRAF gagne un **vrai moteur `DB_ENGINE = "VictoriaMetrics"`**, à côté du moteur
+  InfluxDB2 existant, qui reste en place et inchangé.
+- **VictoriaMetrics remplace InfluxDB comme base du lab.**
+- Le lab inclut une **instance Grafana avec un tableau de bord SYNTRAF provisionné**.
+
+### 8.1 Moteur VictoriaMetrics dans SYNTRAF
+
+- Nouveau module `lib/st_victoriametrics.py`, classe `VictoriaMetricsObj`, avec la même
+  interface publique que `InfluxObj` : `status`, `status_time`, `database_uid`,
+  `save_metrics_to_database_with_buffer(payload, address, client_uid) -> "OK" | "ERROR"`,
+  `force_status_check()`, `get_Database_UID()`.
+- Bibliothèque standard uniquement (HTTP via `urllib`). Écriture en **line protocol
+  InfluxDB** sur `/api/v2/write` (accepté nativement par VictoriaMetrics), en **une
+  requête synchrone** par lot : `"OK"` seulement si la réponse est 2xx, sinon `"ERROR"`.
+  Le client garde alors ses mesures en tampon, contrairement au moteur InfluxDB actuel,
+  qui répond `"OK"` même quand l'écriture échoue (constat à signaler dans le rapport).
+- Santé : `GET /health` (réponse 200 = `ONLINE`).
+- Le payload reçu est la liste de dicts produite par `generate_json` (mesure `SYNTRAF`,
+  tags, `time` sous forme de chaîne ISO après sérialisation JSON avec `default=str`,
+  champs) ; les métriques deviennent `SYNTRAF_RX_PCT_LOSS{UID=…,CLIENT=…,SERVER=…,MESH_GROUP=…}`, etc.
+- Config : `DB_ENGINE = "VictoriaMetrics"` ; `DB_SERVER`, `DB_PORT`, `DB_SERVER_USE_SSL`
+  comme aujourd'hui ; `DB_TOKEN` facultatif (envoyé en `Authorization: Bearer`) ;
+  `DB_ORG`, `DB_BUCKET`, `DB_MODE` non requis pour ce moteur.
+- `syntraf.py` choisit la classe selon `DB_ENGINE`.
+
+### 8.2 Lab
+
+- Service `victoriametrics` (image `victoriametrics/victoria-metrics`, IP 172.30.0.10,
+  port hôte 127.0.0.1:18428, rétention 30 jours) à la place d'`influxdb`.
+- Le lab lit les points bruts par `GET /api/v1/export` (horodatages exacts, nécessaires
+  à la détection des trous).
+- Service `grafana` démarré par défaut (IP .40, port hôte 127.0.0.1:18300), source de
+  données Prometheus vers VictoriaMetrics et tableau de bord SYNTRAF provisionnés depuis
+  des fichiers du dépôt (pertes, débit, gigue, paquets perdus par flux ; variables
+  groupe, client, serveur). Accès anonyme en lecture ; compte admin au mot de passe
+  factice de `lab.env`.
+- Budget RAM : victoriametrics 192m, server 192m, c1–c4 192m, grafana 200m (≈ 1,35 Go).
+- S0 vérifie aussi que Grafana répond, que la source de données est saine et que le
+  tableau de bord existe.
