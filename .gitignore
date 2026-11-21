@@ -1,2 +1,6 @@
 .idea/
 
+lab/reports/
+lab/.venv/
+__pycache__/
+.pytest_cache/
