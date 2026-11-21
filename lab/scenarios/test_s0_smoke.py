@@ -25,3 +25,14 @@ def test_s0_webui_answers(lab_up):
 def test_s0_no_traceback_in_logs(lab_up):
     for svc in topology.SYNTRAF_NODES:
         assert "Traceback" not in docker.compose(["logs", "--no-color", svc]).stdout, svc
+
+
+def test_s0_client_status_api(lab_up):
+    """L'API qui rafraîchit la page de statut des clients répond, avec les 4 clients connectés."""
+    import json
+    req = urllib.request.Request("http://127.0.0.1:18080/api", data=b"ACTION=GET_SYSTEM_STATS",
+                                 headers={"Content-Type": "application/x-www-form-urlencoded"})
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        clients = {uid: json.loads(v) for uid, v in json.loads(resp.read().decode()).items()}
+    for uid in topology.CLIENT_UID.values():
+        assert "CONNECTED" in clients[uid]["status"], (uid, clients[uid]["status"])

@@ -49,7 +49,8 @@ class cc_client:
         if '_thread_status' in o_dict:
             j_dump['thread_status'] = o_dict['_thread_status']
 
-        return json.dumps(j_dump)
+        # status_since est un datetime : default=str le rend en « AAAA-MM-JJ HH:MM:SS »
+        return json.dumps(j_dump, default=str)
 
     def asdict(self):
         return {"STATUS": self.status, "STATUS_SINCE": self.status_since, "STATUS_EXPLANATION": self.status_explanation,
