@@ -36,3 +36,12 @@ def test_s0_client_status_api(lab_up):
         clients = {uid: json.loads(v) for uid, v in json.loads(resp.read().decode()).items()}
     for uid in topology.CLIENT_UID.values():
         assert "CONNECTED" in clients[uid]["status"], (uid, clients[uid]["status"])
+
+
+def test_s0_home_database_api(lab_up):
+    """La page d'accueil interroge GET_LIST_OF_DATABASES_INFOS ; elle doit répondre avec la base du lab."""
+    import json
+    req = urllib.request.Request("http://127.0.0.1:18080/api", data=b"ACTION=GET_LIST_OF_DATABASES_INFOS",
+                                 headers={"Content-Type": "application/x-www-form-urlencoded"})
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        assert "VM_LAB" in json.dumps(json.loads(resp.read().decode()))

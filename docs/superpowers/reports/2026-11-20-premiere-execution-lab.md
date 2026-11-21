@@ -39,7 +39,7 @@ l'exécution 2), même un redémarrage complet n'a pas suffi : un flux est rest�
 | Le canal de contrôle se fige | le serveur garde 4 connexions TCP établies sur 6531 mais n'écrit plus rien ; threads 42 → 8 ; aucun log d'erreur | série des tests de pannes (tâche 4c) |
 | Zombie iperf3 | 1 zombie sur c1, 1 fois sur 2 | S4 (c3) |
 | Artefacts de mesure à la reprise | 3212 paquets perdus comptés en un seul intervalle ; gigue de 1,25 s | après une coupure de c2 (Grafana) |
-| Démarrage parfois incomplet | un flux muet 180 s après une recréation complète des conteneurs | nettoyage après S3 (c2) et S7 |
+| **Course au démarrage** | après un démarrage à froid, les clients à IP fixe n'ouvrent parfois jamais leurs flux vers un client à IP dynamique (c1, c2 : 5 iperf3 au lieu de 6 ; flux vers LAB_C3 ou LAB_C4 muets). La nouvelle IP est bien reçue (« DESTINATION IP ADDRESS UPDATED ») mais l'iperf3 n'est pas relancé. Fréquent (environ 1 démarrage sur 3) | nettoyage après S3 (c2) et S7 ; démarrages du lab |
 
 ## 3. Les quatre suspects de la conception (§ 3)
 
@@ -82,11 +82,12 @@ Consommation mesurée après environ 2 h de fonctionnement :
 
 Le total des plafonds passe à environ 1,6 Go, contre 1,3 Go prévus. Grafana 13 a été tué par
 manque de mémoire à 200 Mio, et VictoriaMetrics s'approchait de son plafond en accumulant des
-données. Les clients se stabilisent autour de 135 Mio, et S8 ne montre aucune dérive.
+données. Les clients se stabilisent autour de 135 Mio, et S8 ne montre aucune dérive. Correction : les flux C1/C2 → C3 muets attribués au départ au plafond de 128 Mio relevaient en fait de la course au démarrage ; le relèvement à 192 Mio reste justifié par la consommation mesurée (environ 135 Mio).
 
 ## 6. Pistes pour le projet de correctifs
 
 Ce sont des pistes à concevoir, pas des décisions :
+- **en premier : la course au démarrage.** Relancer le connecteur quand l'IP de destination d'un client dynamique est mise à jour. Tant qu'elle n'est pas corrigée, environ un démarrage du lab sur trois n'atteint pas l'état sain (contournement manuel : `docker restart syntraf-lab-c1 syntraf-lab-c2`). Un scénario « démarrage à froid » répété devrait l'accompagner ;
 - réactiver la détection du silence (pertes à 100 % générées par SYNTRAF) avec une lecture non bloquante de la sortie d'iperf3 ;
 - mettre en tampon côté client et rejouer après reconnexion, avec un acquittement réel côté serveur ;
 - reconnexion du canal de contrôle avec délai de garde et heartbeat applicatif, pour sortir du gel constaté ;

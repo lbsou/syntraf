@@ -11,3 +11,4 @@ scenarios/test_s5_pause.py::test_s5_pause[c3-ip-dynamique] | pertes 100 % non en
 scenarios/test_s7_server_restart.py::test_s7_server_restart | aucune mesure de la fenêtre de redémarrage livrée (couverture 0,0) ; clients non revenus ; parfois non sain même après redémarrage complet
 scenarios/test_s9_control_channel.py::test_s9_control_channel[c2-ip-fixe] | mesures prises par c2 pendant la coupure du contrôle jamais livrées (couverture 0,0) ; redémarrage nécessaire
 scenarios/test_s9_control_channel.py::test_s9_control_channel[c4-ip-dynamique] | flux vers LAB_C4 sans vraie mesure 44 s après le rétablissement ; redémarrage nécessaire
+scenarios/test_s6_kill_iperf.py::test_s6_kill_iperf | INSTABLE (1 exécution sur 3) : un flux de LAB_C1 sans vraie mesure 14 s après le kill ; un verdict « fixed » ici ne prouve rien seul

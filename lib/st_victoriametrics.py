@@ -15,7 +15,10 @@ a répondu 2xx. En cas d'échec, "ERROR" permet au client de garder ses mesures 
 
 Bibliothèque standard uniquement.
 """
+import http.client
 import logging
+import math
+import queue
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
@@ -62,7 +65,11 @@ def to_line_protocol(points: list) -> str:
     for p in points:
         tags = "".join(f",{_escape_key(k)}={_escape_key(v)}" for k, v in sorted(p.get("tags", {}).items())
                        if v is not None and str(v) != "")
-        fields = ",".join(f"{_escape_key(k)}={_field_value(k, v)}" for k, v in p["fields"].items())
+        # NaN/inf rendraient tout le lot invalide (rejeté puis renvoyé sans fin par le client) : on les retire.
+        fields = ",".join(f"{_escape_key(k)}={_field_value(k, v)}" for k, v in p["fields"].items()
+                          if not (isinstance(v, float) and not math.isfinite(v)))
+        if not fields:
+            continue
         line = f"{_escape_measurement(p['measurement'])}{tags} {fields}"
         if p.get("time") is not None:
             line += f" {_timestamp_ns(p['time'])}"
@@ -74,6 +81,9 @@ class VictoriaMetricsObj(object):
     def __init__(self, _config, database_uid):
         self.database_uid = database_uid
         self.DB_UID = database_uid
+        # Lu par la webui (GET_LIST_OF_DATABASES_INFOS), comme pour InfluxObj ; les écritures
+        # sont synchrones, la file reste vide.
+        self.write_queue = queue.Queue()
         self.status = "FAIL"
         self.status_time = datetime.now()
         database = next((d for d in _config.get('DATABASE', []) if d.get('DB_UID') == database_uid), None)
@@ -112,7 +122,7 @@ class VictoriaMetricsObj(object):
     def _healthy(self) -> bool:
         try:
             return self._request("GET", "/health") == 200
-        except (urllib.error.URLError, OSError, ValueError) as exc:
+        except (urllib.error.URLError, http.client.HTTPException, OSError, ValueError) as exc:
             log.debug(f"VICTORIAMETRICS HEALTH CHECK FAILED FOR '{self.database_uid}': {type(exc).__name__}:{exc}")
             return False
 

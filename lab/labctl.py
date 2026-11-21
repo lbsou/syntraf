@@ -258,6 +258,26 @@ def cmd_install_shortcut(args) -> int:
     return 0
 
 
+def wait_child_then_heal(proc, heal) -> int:
+    """Attend pytest ; au 1er Ctrl+C, le laisse finir son nettoyage (il reçoit aussi le signal) ;
+    au 2e, le tue. Dans tous les cas, retire ensuite toute panne du lab."""
+    interrupted = False
+    try:
+        while True:
+            try:
+                return proc.wait()
+            except KeyboardInterrupt:
+                if interrupted:
+                    print("Second Ctrl+C : arrêt immédiat de pytest.")
+                    proc.kill()
+                    proc.wait()
+                    return 130
+                interrupted = True
+                print("Ctrl+C : pytest termine son nettoyage (Ctrl+C de nouveau pour forcer l'arrêt)…")
+    finally:
+        heal()
+
+
 def cmd_test(args) -> int:
     py = LAB_DIR / ".venv" / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
     if not py.exists():
@@ -271,7 +291,7 @@ def cmd_test(args) -> int:
     if args.quick:
         cmd += ["-m", "not slow"]
     print(f"Rapport : {report}")
-    code = subprocess.run(cmd, cwd=LAB_DIR).returncode
+    code = wait_child_then_heal(subprocess.Popen(cmd, cwd=LAB_DIR), _heal_all_quietly)
     summary = report / "summary.md"
     if summary.exists():
         print(summary.read_text(encoding="utf-8").split("## Détails", 1)[0])

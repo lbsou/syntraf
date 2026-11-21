@@ -115,3 +115,39 @@ def test_force_status_check_recovers(server):
     obj.force_status_check()
     assert obj.status == "ONLINE"
     assert obj.get_Database_UID() == "VM_LAB"
+
+
+def test_write_queue_exists_for_webui(server):
+    # La page d'accueil lit database.write_queue.queue (GET_LIST_OF_DATABASES_INFOS).
+    obj = vm.VictoriaMetricsObj(config(server.server_port), "VM_LAB")
+    assert len(obj.write_queue.queue) == 0
+
+
+def test_non_finite_values_are_dropped_not_sent():
+    p = dict(POINT, fields=dict(POINT["fields"], RX_JITTER=float("nan"), RX_BITRATE=float("inf")))
+    line = vm.to_line_protocol([p])
+    assert "nan" not in line.lower() and "inf" not in line.lower()
+    assert "RX_PCT_LOSS=0.0" in line
+
+
+def test_point_without_finite_field_is_skipped():
+    p = dict(POINT, fields={"RX_JITTER": float("nan")})
+    assert vm.to_line_protocol([p, POINT]).count("\n") == 0  # une seule ligne : le point valide
+
+
+def test_health_check_on_non_http_service_is_offline():
+    import socket
+    srv = socket.socket()
+    srv.bind(("127.0.0.1", 0))
+    srv.listen(1)
+
+    def garbage():
+        conn, _ = srv.accept()
+        conn.recv(1024)
+        conn.sendall(b"PAS DU HTTP\r\n\r\n")
+        conn.close()
+
+    threading.Thread(target=garbage, daemon=True).start()
+    obj = vm.VictoriaMetricsObj(config(srv.getsockname()[1]), "VM_LAB")
+    assert obj.status == "OFFLINE"
+    srv.close()
