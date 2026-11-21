@@ -14,7 +14,7 @@ from cryptography.hazmat.backends import default_backend
 #from passlib.hash import sha256_crypt
 
 # BUILTIN IMPORT
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import socket
 import logging
 import os
@@ -126,10 +126,10 @@ def gen_cert(log, path, suffix_filename, parameters, config, type_of_service):
         ).serial_number(
             x509.random_serial_number()
         ).not_valid_before(
-            datetime.utcnow()
+            datetime.now(timezone.utc)
         ).not_valid_after(
             # Our certificate will be valid for 5 years
-            datetime.utcnow() + timedelta(days=1825)
+            datetime.now(timezone.utc) + timedelta(days=1825)
         ).add_extension(
             x509.SubjectAlternativeName([x509.DNSName(socket.gethostname())]),
             critical=False,

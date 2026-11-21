@@ -153,7 +153,9 @@ def config_validation_certificate(_config, type_of_service, parameters):
         log.debug(f"IS THERE VALID X509 CERTIFICATE INFO GIVEN FOR {type_of_service.upper()} ({type_of_service.upper()}_X509_CERTIFICATE, {type_of_service.upper()}_X509_PRIVATE_KEY) : NO, TRYING TO FALLBACK ON SELF-SIGNED CERTIFICATE.")
 
     # Self Signed
-    _config[type_of_service.upper()] = {}
+    # Ne pas écraser la section existante (ex. [CLIENT] avec SERVER, TOKEN) : au premier démarrage,
+    # sans certificat, elle était remplacée par un dict vide et le client bouclait sur KeyError.
+    _config.setdefault(type_of_service.upper(), {})
     _config[type_of_service.upper()]['SERVER_X509_SELFSIGNED'] = "YES"
 
     ss_valid_directory = False

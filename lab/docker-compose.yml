@@ -7,7 +7,7 @@ x-syntraf: &syntraf
   init: true
   restart: "no"
   cap_add: [NET_ADMIN]
-  mem_limit: 128m
+  mem_limit: 192m
   volumes:
     - ../:/src:ro
 
@@ -22,7 +22,7 @@ services:
     container_name: syntraf-lab-influxdb
     restart: "no"
     init: true
-    mem_limit: 400m
+    mem_limit: 300m
     environment:
       DOCKER_INFLUXDB_INIT_MODE: setup
       DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUX_USER}
@@ -56,7 +56,7 @@ services:
         IPERF3_FORK_REPO: ${IPERF3_FORK_REPO}
         IPERF3_FORK_BRANCH: ${IPERF3_FORK_BRANCH}
     container_name: syntraf-lab-server
-    mem_limit: 256m
+    mem_limit: 192m
     environment:
       ROLE: server
     volumes:

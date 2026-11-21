@@ -3,7 +3,7 @@ from lib.st_global import CompilationOptions, DefaultValues
 # SYNTRAF SERVER IMPORT
 if not CompilationOptions.client_only:
     from flask import current_app as app
-    from flask import Flask, Response, render_template, request, send_from_directory, current_app, safe_join, jsonify, \
+    from flask import Flask, Response, render_template, request, send_from_directory, current_app, jsonify, \
         make_response, flash, redirect, session, abort, url_for, g, Blueprint
 
     from flask_login import login_required, logout_user, current_user, login_user

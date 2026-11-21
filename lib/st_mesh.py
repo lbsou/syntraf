@@ -1088,18 +1088,19 @@ class SSL_TCPServer(TCPServer):
         TCPServer.__init__(self, server_address, RequestHandlerClass, bind_and_activate)
         self.certfile = certfile
         self.keyfile = keyfile
-        self.ssl_version = ssl_version
+        self.ssl_version = ssl_version  # conservé pour compatibilité, non utilisé (comme avant)
+        # ssl.wrap_socket a été supprimé en Python 3.12 : contexte serveur équivalent
+        # (même certificat et clé, aucune vérification du certificat client).
+        self.context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        self.context.load_cert_chain(certfile=certfile, keyfile=keyfile)
+        self.context.verify_mode = ssl.CERT_NONE
 
 
     def get_request(self):
         newsocket, fromaddr = self.socket.accept()
-        connstream = ssl.wrap_socket(newsocket,
-                                     server_side=True,
-                                     certfile=self.certfile,
-                                     keyfile=self.keyfile,
-                                     #ssl_version=self.ssl_version,
-                                     cert_reqs=ssl.CERT_NONE,
-                                     do_handshake_on_connect=True)
+        connstream = self.context.wrap_socket(newsocket,
+                                              server_side=True,
+                                              do_handshake_on_connect=True)
         return connstream, fromaddr
 
     def get_config(self):

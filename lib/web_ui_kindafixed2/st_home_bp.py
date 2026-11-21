@@ -11,7 +11,7 @@ if not CompilationOptions.client_only:
     from lib.st_crypto import *
     from lib.st_read_toml import *
 
-    from flask import Flask, Response, render_template, request, send_from_directory, current_app, safe_join, jsonify, \
+    from flask import Flask, Response, render_template, request, send_from_directory, current_app, jsonify, \
         make_response, flash, redirect, session, abort, url_for, g, Blueprint
 
     from PIL import Image
