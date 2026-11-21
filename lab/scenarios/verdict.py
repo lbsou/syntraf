@@ -50,8 +50,10 @@ class Verdicts:
         nid = report.nodeid
         if report.failed:
             self.outcomes[nid] = "failed"
-            text = report.longreprtext.strip().splitlines()
-            self.details[nid] = "\n".join(text[-15:])
+            text = "\n".join(report.longreprtext.strip().splitlines()[-40:])
+            prev = self.details.get(nid)
+            # Échec du scénario puis du nettoyage : garder les deux détails.
+            self.details[nid] = f"{prev}\n--- {report.when} ---\n{text}" if prev else text
         elif report.when == "call" and nid not in self.outcomes:
             self.outcomes[nid] = "skipped" if report.skipped else "passed"
         elif report.when == "setup" and report.skipped:

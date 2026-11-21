@@ -1,3 +1,13 @@
-# Échecs connus des scénarios sur le code actuel de SYNTRAF.
+# Échecs connus des scénarios sur le code actuel de SYNTRAF (état de référence du 2026-11-20,
+# constaté à l'identique sur deux exécutions : reports/2026-11-20_211650 et 2026-11-20_215533).
 # Format : <nodeid> | <raison observée>
 # Un test listé qui réussit est signalé « fixed » : le retirer alors de la liste.
+scenarios/test_s3_drop.py::test_s3_drop[c2-ip-fixe] | pertes 100 % non enregistrées pendant la coupure (couverture ≈ 0,07) ; rien de mis en tampon par c2 (0,0) ; SYNTRAF non sain 60 s après, redémarrage nécessaire
+scenarios/test_s3_drop.py::test_s3_drop[c3-ip-dynamique] | pertes 100 % non enregistrées (≈ 0,07) ; flux vers LAB_C3 sans vraie mesure 14 s après le rétablissement ; redémarrage nécessaire
+scenarios/test_s4_disconnect.py::test_s4_disconnect[c2-ip-fixe] | pertes 100 % non enregistrées (≈ 0,08) ; rien de mis en tampon par c2 ; flux vers LAB_C2 non repris en 14 s ; redémarrage nécessaire
+scenarios/test_s4_disconnect.py::test_s4_disconnect[c3-ip-dynamique] | pertes 100 % non enregistrées (≈ 0,08) ; flux vers LAB_C3 non repris en 14 s ; zombie iperf3 sur c1 (1 fois sur 2)
+scenarios/test_s5_pause.py::test_s5_pause[c2-ip-fixe] | pertes 100 % non enregistrées (≈ 0,05–0,07) ; rien de mis en tampon par c2
+scenarios/test_s5_pause.py::test_s5_pause[c3-ip-dynamique] | pertes 100 % non enregistrées (≈ 0,07)
+scenarios/test_s7_server_restart.py::test_s7_server_restart | aucune mesure de la fenêtre de redémarrage livrée (couverture 0,0) ; clients non revenus ; parfois non sain même après redémarrage complet
+scenarios/test_s9_control_channel.py::test_s9_control_channel[c2-ip-fixe] | mesures prises par c2 pendant la coupure du contrôle jamais livrées (couverture 0,0) ; redémarrage nécessaire
+scenarios/test_s9_control_channel.py::test_s9_control_channel[c4-ip-dynamique] | flux vers LAB_C4 sans vraie mesure 44 s après le rétablissement ; redémarrage nécessaire

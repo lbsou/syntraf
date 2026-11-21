@@ -41,3 +41,19 @@ def test_setup_error_counts_as_failure(pytester):
                                "def test_x(boom):\n    pass\n")
     r, summary = run(pytester, "")
     assert r.ret == 1 and "regression" in summary
+
+
+def test_call_and_teardown_failures_are_both_reported(pytester):
+    pytester.makepyfile(test_a="""
+import pytest
+
+@pytest.fixture
+def broken_teardown():
+    yield
+    raise RuntimeError("NETTOYAGE_KO")
+
+def test_x(broken_teardown):
+    assert False, "SCENARIO_KO"
+""")
+    r, summary = run(pytester, "")
+    assert "SCENARIO_KO" in summary and "NETTOYAGE_KO" in summary
