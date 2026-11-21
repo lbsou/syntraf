@@ -483,7 +483,8 @@ def config_validation_database(_config):
                 log.warning(f"IS DB_MODE DECLARED FOR DATABASE '{database['DB_UID']}' : NO, APPLYING DEFAULT: {DefaultValues.DEFAULT_INFLUXDB_DB_MODE}")
                 database['DB_MODE'] = DefaultValues.DEFAULT_INFLUXDB_DB_MODE
 
-            if database['DB_ENGINE'].upper() == "INFLUXDB2":
+            is_victoriametrics = database['DB_ENGINE'].upper() == "VICTORIAMETRICS"
+            if database['DB_ENGINE'].upper() in ("INFLUXDB2", "VICTORIAMETRICS"):
                 log.debug(
                     f"IS DB_ENGINE '{database['DB_ENGINE'].upper()}' VALID FOR DATABASE '{database['DB_UID']}' : YES")
             else:
@@ -497,7 +498,8 @@ def config_validation_database(_config):
             else:
                 log.debug(
                     f"IS DB_TOKEN DECLARED FOR DATABASE '{database['DB_UID']}' : NO")
-                return False
+                if not is_victoriametrics:  # facultatif pour VictoriaMetrics
+                    return False
 
             if 'DB_ORG' in database:
                 log.debug(
@@ -505,7 +507,8 @@ def config_validation_database(_config):
             else:
                 log.debug(
                     f"IS DB_ORG DECLARED FOR DATABASE '{database['DB_UID']}' : NO")
-                return False
+                if not is_victoriametrics:  # sans objet pour VictoriaMetrics
+                    return False
 
             if 'DB_BUCKET' in database:
                 log.debug(
@@ -513,7 +516,8 @@ def config_validation_database(_config):
             else:
                 log.debug(
                     f"IS DB_BUCKET DECLARED FOR DATABASE '{database['DB_UID']}' : NO")
-                return False
+                if not is_victoriametrics:  # sans objet pour VictoriaMetrics
+                    return False
 
             if 'DB_USE_WEB_PROXY' in database:
                 log.debug(
