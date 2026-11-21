@@ -96,3 +96,30 @@ def test_enqueue_keys_by_hash_and_caps_queue():
     assert all(len(k) == 40 for k in q)         # sha1 hexdigest, comme save_to_server
     kept = sorted(p["time"] for p in q.values())
     assert kept[0] == datetime.fromtimestamp(T0 + 3, timezone.utc)  # les plus anciens sont retirés
+
+
+def test_gap_seen_by_a_real_line_before_any_fill_is_filled():
+    # Nœud figé (docker pause) : au dégel, iperf3 publie une ligne avant que la boucle de surveillance
+    # n'ait appelé fill() ; le trou doit quand même être couvert de pertes à 100 %.
+    tr = tracker()
+    tr.record(UID, T0, 1, CTX)
+    pts = tr.record(UID, T0 + 60, 1, CTX)
+    assert [p["time"] for p in pts] == [datetime.fromtimestamp(T0 + s, timezone.utc) for s in range(1, 60)]
+    assert tr.fill(now=T0 + 61) == []
+
+
+def test_small_irregularity_is_not_an_outage():
+    # Une horloge qui saute de 1,5 s ne doit pas produire de fausses pertes.
+    tr = tracker()
+    tr.record(UID, T0, 1, CTX)
+    assert tr.record(UID, T0 + 2.5, 1, CTX) == []
+    assert tr.record(UID, T0 + 3.5, 1, CTX) == []
+
+
+def test_gap_partly_filled_then_closed_by_a_real_line_has_no_duplicate():
+    tr = tracker()
+    tr.record(UID, T0, 1, CTX)
+    first = tr.fill(now=T0 + 10)                # T0+1 .. T0+7
+    rest = tr.record(UID, T0 + 30, 1, CTX)      # T0+8 .. T0+29
+    times = [p["time"] for p in first + rest]
+    assert times == [datetime.fromtimestamp(T0 + s, timezone.utc) for s in range(1, 30)]

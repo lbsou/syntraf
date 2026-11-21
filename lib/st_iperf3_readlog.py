@@ -160,8 +160,9 @@ def parse_line(line: string, _config: {}, edge_key: string, edge_type: string, d
                 flow = (_config['CONNECTORS'][edge_key]['UID_SERVER'], _config['CONNECTORS'][edge_key]['UID_CLIENT'])
             else:
                 flow = (_config['LISTENERS'][edge_key]['UID_CLIENT'], _config['LISTENERS'][edge_key]['UID_SERVER'])
-            SILENCE.record(st_outage.flow_uid(_flow_ctx(_config, edge_type, edge_key, *flow)), utime,
-                           int(_config[edge_type][edge_key]['INTERVAL']), _flow_ctx(_config, edge_type, edge_key, *flow))
+            ctx = _flow_ctx(_config, edge_type, edge_key, *flow)
+            for point in SILENCE.record(st_outage.flow_uid(ctx), utime, int(_config[edge_type][edge_key]['INTERVAL']), ctx):
+                st_outage.enqueue(dict_data_to_send_to_server, point, DefaultValues.DEFAULT_CLIENT_METRICS_QUEUE_SIZE)
 
             # When we have bidir activated, the server will transmit
             if edge_type == "CONNECTORS":

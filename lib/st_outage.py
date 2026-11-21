@@ -53,19 +53,45 @@ class SilenceTracker:
         self._flows = {}
         self._lock = threading.Lock()
 
-    def record(self, uid: str, utime: float, interval: int, ctx: dict) -> None:
-        """Une vraie mesure horodatée utime vient d'être lue pour le flux uid."""
+    def record(self, uid: str, utime: float, interval: int, ctx: dict) -> list:
+        """Une vraie mesure horodatée utime vient d'être lue pour le flux uid.
+
+        Renvoie les points à 100 % de pertes du trou qui la précède, s'il est assez long pour être une panne
+        et que fill() ne l'a pas (entièrement) couvert : au dégel d'un nœud figé, iperf3 publie souvent une
+        ligne avant le passage suivant de la boucle de surveillance.
+        """
         with self._lock:
             flow = self._flows.get(uid)
             if flow is None:
                 self._flows[uid] = {"last": utime, "interval": interval, "ctx": dict(ctx), "silent": False}
-                return
+                return []
+            points = []
+            step = flow["interval"]
+            if flow["silent"] or utime - flow["last"] >= (self.lag_intervals + 1) * step:
+                points = self._generate(uid, flow, utime - step)
             if flow["silent"] and utime > flow["last"]:
                 log.warning(f"{uid} - IPERF3 IS REPORTING AGAIN, END OF OUTAGE")
                 flow["silent"] = False
             flow["last"] = max(flow["last"], utime)
             flow["interval"] = interval
             flow["ctx"] = dict(ctx)
+            return points
+
+    def _generate(self, uid: str, flow: dict, limit: float) -> list:
+        """Points à 100 % de pertes de flow["last"] + intervalle jusqu'à limit inclus ; avance flow["last"]."""
+        step = flow["interval"]
+        t = flow["last"] + step
+        if t > limit:
+            return []
+        if not flow["silent"]:
+            log.warning(f"{uid} - SYNTRAF HAS DETECTED AN OUTAGE (NO IPERF3 REPORT SINCE {flow['last']:.0f}), GENERATING 100% LOSSES")
+            flow["silent"] = True
+        points = []
+        while t <= limit:
+            points.append(loss_point(flow["ctx"], t))
+            flow["last"] = t
+            t += step
+        return points
 
     def fill(self, now: float, active=lambda uid: True) -> list:
         """Points à 100 % de pertes pour les intervalles muets jusqu'à now - lag. Un flux inactif est oublié."""
@@ -76,16 +102,5 @@ class SilenceTracker:
                     del self._flows[uid]
                     continue
                 flow = self._flows[uid]
-                step = flow["interval"]
-                limit = now - self.lag_intervals * step
-                t = flow["last"] + step
-                if t > limit:
-                    continue
-                if not flow["silent"]:
-                    log.warning(f"{uid} - SYNTRAF HAS DETECTED AN OUTAGE (NO IPERF3 REPORT SINCE {flow['last']:.0f}), GENERATING 100% LOSSES")
-                    flow["silent"] = True
-                while t <= limit:
-                    points.append(loss_point(flow["ctx"], t))
-                    flow["last"] = t
-                    t += step
+                points.extend(self._generate(uid, flow, now - self.lag_intervals * flow["interval"]))
         return points
