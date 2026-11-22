@@ -101,6 +101,8 @@ async function selectRow(page, uid) {
 (async () => {
     const browser = await puppeteer.launch({executablePath: CHROME, headless: "new", args: ["--no-sandbox"]});
     const page = await browser.newPage();
+    // Les vérifications portent sur les textes anglais : la langue ne suit pas celle du système de la machine de test
+    await page.evaluateOnNewDocument(() => localStorage.setItem("st_lang", "en"));
     await page.setViewport({width: 1400, height: 900});
     let errors = [];
     page.on("pageerror", e => errors.push("JS: " + e.message));

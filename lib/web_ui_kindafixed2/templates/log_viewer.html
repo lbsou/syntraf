@@ -115,7 +115,8 @@ function render(entries) {
         el("rows").innerHTML = '<tr><td colspan="5" class="st-empty"><i class="fas fa-filter"></i>No log entry matches these filters for this period.</td></tr>';
         return;
     }
-    el("rows").innerHTML = entries.map((e, i) => `<tr class="lv-${e.level}${e.detail ? " has-detail" : ""}" data-i="${i}"${e.detail ? ' tabindex="0" aria-expanded="false"' : ""}>
+    // data-no-i18n : les journaux s'affichent tels qu'écrits, quelle que soit la langue de l'interface
+    el("rows").innerHTML = entries.map((e, i) => `<tr data-no-i18n class="lv-${e.level}${e.detail ? " has-detail" : ""}" data-i="${i}"${e.detail ? ' tabindex="0" aria-expanded="false"' : ""}>
         <td class="text-nowrap" title="${st.esc(e.time)}">${st.esc(st.time(e.time))}</td>
         <td><span class="badge ${e.node === "server" ? "bg-primary" : "bg-secondary"}">${st.esc(e.node)}</span></td>
         <td>${st.esc(e.level)}</td><td>${st.esc(e.type)}</td>

@@ -7,12 +7,17 @@
         <link rel="stylesheet" href="{{ url_for('static', filename='fontawesome-free-5.15.3-web/css/all.css')}}">
         <link rel="stylesheet" href="{{ url_for('static', filename='bootstrap-table/bootstrap-table.min.css')}}">
         <link rel="stylesheet" href="{{ url_for('static', filename='css/st_app.css')}}">
+        <script src="{{ url_for('static', filename='js/st_i18n.js')}}" data-dict="{{ url_for('static', filename='i18n/') }}"></script>
         <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
         <title>{% block title %}SYNTRAF{% endblock %} · SYNTRAF</title>
         <script src="{{ url_for('static', filename='bootstrap5/bootstrap.bundle.min.js')}}"></script>
         <script src="{{ url_for('static', filename='jquery/jquery-3.6.1.min.js')}}"></script>
         <script src="{{ url_for('static', filename='jquery/jquery.validate.min.js')}}"></script>
         <script src="{{ url_for('static', filename='bootstrap-table/bootstrap-table.min.js')}}"></script>
+        <script>  /* textes des tableaux (recherche, pagination...) dans la langue choisie */
+            if (window.st_i18n && st_i18n.lang === "fr")
+                document.write('<script src="{{ url_for('static', filename='bootstrap-table/locale/bootstrap-table-fr-FR.min.js') }}"><\/script>');
+        </script>
         <script src="{{ url_for('static', filename='tableexport/tableExport.min.js')}}"></script>
         <script src="{{ url_for('static', filename='bootstrap-table/extensions/export/bootstrap-table-export.min.js')}}"></script>
         <script src="{{ url_for('static', filename='js/st_app.js')}}"></script>
@@ -45,6 +50,9 @@
                 <span id="st-live" class="st-live" title="Live status updates"><span class="st-dot"></span><span class="st-live-text">connecting…</span></span>
                 <a class="link-light" href="/api/v1/openapi.json" target="_blank" rel="noopener" title="REST API description (OpenAPI)"><i class="fas fa-code"></i> API</a>
                 <span class="text-white-50">v{{ syntraf_version }}</span>
+                <select id="st-lang" class="form-select form-select-sm st-lang" aria-label="Language" data-no-i18n>
+                    <option value="en">English</option><option value="fr">Français</option>
+                </select>
             </div>
         </header>
 
@@ -93,5 +101,10 @@
         </div>
 
         {% block scripts %}{% endblock %}
+        <script>
+            (() => { const sel = document.getElementById("st-lang");
+                     sel.value = window.st_i18n ? st_i18n.lang : "en";
+                     sel.addEventListener("change", () => st_i18n.set(sel.value)); })();
+        </script>
     </body>
 </html>

@@ -92,3 +92,7 @@ body { min-height: 100vh; }
 
 /* Une ancre (server.html#logging) ne doit pas finir sous la barre du haut */
 .st-card[id] { scroll-margin-top: calc(var(--st-topbar-h) + 1rem); }
+
+/* Langue : page masquée jusqu'à sa traduction (au plus 1,5 s, voir st_i18n.js) ; sélecteur compact */
+html.st-i18n-pending body { visibility: hidden; }
+.st-lang { width: auto; padding-top: .1rem; padding-bottom: .1rem; }

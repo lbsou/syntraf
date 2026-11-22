@@ -180,9 +180,10 @@ def set_disabled(state, uid, disabled, actor, dry_run=False):
         g["DISABLED"] = True
     else:
         g.pop("DISABLED", None)
-    verb = "disabled" if disabled else "enabled"
     action = "DISABLE_MESH_GROUP" if disabled else "ENABLE_MESH_GROUP"
-    return dict(_commit(state, cfg, actor, action, f"Mesh group '{uid}' {verb}", dry_run), uid=uid)
+    # deux phrases entières (et non un verbe inséré) : chacune a sa traduction dans l'interface
+    summary = f"Mesh group '{uid}' disabled" if disabled else f"Mesh group '{uid}' enabled"
+    return dict(_commit(state, cfg, actor, action, summary, dry_run), uid=uid)
 
 
 def delete(state, uid, actor, dry_run=False):
