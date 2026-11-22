@@ -119,6 +119,14 @@ async function selectRow(page, uid) {
 
     await page.click("#btn_new");
     await page.waitForSelector("#modal_form.show #mg_name", {visible: true});
+    // Topologie : cartes cliquables ; les hubs n'apparaissent qu'en hub & spoke (un) et deux hubs (deux)
+    await page.click('label[for="topo_dual"]');
+    const dual = await page.$eval("#mg_hubs", e => !e.hidden) && await page.$eval("#mg_hub2_wrap", e => !e.hidden);
+    await page.click('label[for="topo_hub"]');
+    const single = await page.$eval("#mg_hub2_wrap", e => e.hidden);
+    await page.click('label[for="topo_mesh"]');
+    const mesh = await page.$eval("#mg_hubs", e => e.hidden);
+    check(dual && single && mesh, "topology cards show the right hub choices (dual: 2, hub & spoke: 1, mesh: none)");
     await page.type("#mg_name", GROUP);
     await page.type("#mg_packet_size", "100");
     await page.click("#btn_save");

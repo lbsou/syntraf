@@ -22,7 +22,7 @@
 <p class="small text-white-50 mt-2">* Outgoing bandwidth of each member: (members − 1) × group bandwidth.</p>
 
 <div class="modal fade" id="modal_form" tabindex="-1" aria-labelledby="modal_form_title" aria-hidden="true" data-bs-backdrop="static">
-  <div class="modal-dialog modal-dialog-centered" role="document">
+  <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
     <div class="modal-content">
       <form id="mg_form" novalidate>
         <div class="modal-header"><h5 class="modal-title" id="modal_form_title">Create mesh group</h5></div>
@@ -40,6 +40,52 @@
                 <label for="mg_description" class="form-label">Description <span class="text-white-50">(optional)</span></label>
                 <input class="form-control" id="mg_description" type="text" maxlength="200">
             </div>
+            <fieldset class="mb-3">
+                <legend class="form-label fs-6">Topology</legend>
+                <div class="st-topologies" role="radiogroup" aria-label="Topology">
+                    <div class="st-topo">
+                        <input type="radio" class="btn-check" name="mg_topology" id="topo_mesh" value="MESH" checked>
+                        <label for="topo_mesh">
+                            <svg viewBox="0 0 120 90" aria-hidden="true">
+                                <g class="link"><line x1="25" y1="20" x2="95" y2="20"/><line x1="25" y1="70" x2="95" y2="70"/><line x1="25" y1="20" x2="25" y2="70"/><line x1="95" y1="20" x2="95" y2="70"/><line x1="25" y1="20" x2="95" y2="70"/><line x1="95" y1="20" x2="25" y2="70"/></g>
+                                <g class="node"><circle cx="25" cy="20" r="8"/><circle cx="95" cy="20" r="8"/><circle cx="25" cy="70" r="8"/><circle cx="95" cy="70" r="8"/></g>
+                            </svg>
+                            <strong>Full mesh</strong><span>every member with every other</span>
+                        </label>
+                    </div>
+                    <div class="st-topo">
+                        <input type="radio" class="btn-check" name="mg_topology" id="topo_hub" value="HUB_SPOKE">
+                        <label for="topo_hub">
+                            <svg viewBox="0 0 120 90" aria-hidden="true">
+                                <g class="link"><line x1="60" y1="45" x2="20" y2="15"/><line x1="60" y1="45" x2="100" y2="15"/><line x1="60" y1="45" x2="20" y2="75"/><line x1="60" y1="45" x2="100" y2="75"/></g>
+                                <g class="node"><circle cx="20" cy="15" r="8"/><circle cx="100" cy="15" r="8"/><circle cx="20" cy="75" r="8"/><circle cx="100" cy="75" r="8"/></g>
+                                <circle class="hub" cx="60" cy="45" r="11"/>
+                            </svg>
+                            <strong>Hub &amp; spoke</strong><span>every member with one hub</span>
+                        </label>
+                    </div>
+                    <div class="st-topo">
+                        <input type="radio" class="btn-check" name="mg_topology" id="topo_dual" value="DUAL_HUB">
+                        <label for="topo_dual">
+                            <svg viewBox="0 0 120 90" aria-hidden="true">
+                                <g class="link"><line x1="42" y1="45" x2="78" y2="45"/><line x1="42" y1="45" x2="15" y2="15"/><line x1="42" y1="45" x2="15" y2="75"/><line x1="42" y1="45" x2="105" y2="15"/><line x1="42" y1="45" x2="105" y2="75"/><line x1="78" y1="45" x2="15" y2="15"/><line x1="78" y1="45" x2="15" y2="75"/><line x1="78" y1="45" x2="105" y2="15"/><line x1="78" y1="45" x2="105" y2="75"/></g>
+                                <g class="node"><circle cx="15" cy="15" r="8"/><circle cx="105" cy="15" r="8"/><circle cx="15" cy="75" r="8"/><circle cx="105" cy="75" r="8"/></g>
+                                <circle class="hub" cx="42" cy="45" r="10"/><circle class="hub" cx="78" cy="45" r="10"/>
+                            </svg>
+                            <strong>Dual hub</strong><span>every member with two hubs</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="row g-2 mt-1" id="mg_hubs" data-field="HUBS" hidden>
+                    <div class="col-sm-6"><label for="mg_hub1" class="form-label small mb-0">Hub</label>
+                        <select class="form-select form-select-sm" id="mg_hub1"></select></div>
+                    <div class="col-sm-6" id="mg_hub2_wrap"><label for="mg_hub2" class="form-label small mb-0">Second hub</label>
+                        <select class="form-select form-select-sm" id="mg_hub2"></select></div>
+                    <div class="col-12 form-text">A hub that is not yet a member of the group joins it. <span id="mg_flows"></span></div>
+                </div>
+                <div class="invalid-feedback d-block" data-feedback="HUBS"></div>
+                <div class="invalid-feedback d-block" data-feedback="TOPOLOGY"></div>
+            </fieldset>
             <div class="mb-3">
                 <label for="mg_profile" class="form-label">iperf3 profile <span class="text-white-50">(optional)</span></label>
                 <select class="form-select" id="mg_profile" data-field="IPERF3_PROFILE" aria-describedby="mg_profile_help"></select>
@@ -128,8 +174,14 @@ async function load() {
             {field: "PACKET_SIZE", title: "Packet size", formatter: effective("PACKET_SIZE")},
             {field: "DSCP", title: "DSCP", formatter: effective("DSCP")},
             {field: "INTERVAL", title: "Interval", formatter: effective("INTERVAL")},
+            {field: "TOPOLOGY", title: "Topology", formatter: (v, row) => v === "MESH" ? "Full mesh"
+                : `${v === "HUB_SPOKE" ? "Hub &amp; spoke" : "Dual hub"} <span class="text-white-50 small">(${(row.HUBS || []).map(st.esc).join(", ")})</span>`},
             {field: "MEMBERS", title: "Members", sortable: true},
-            {field: "BW_PER_NODE_KBPS", title: "Kbps per member*", sortable: true, formatter: v => Math.round(v * 10) / 10},
+            {field: "FLOWS", title: "Flows", sortable: true},
+            {field: "BW_PER_NODE_KBPS", title: "Kbps out per member*", sortable: true, formatter: (v, row) => {
+                const k = row.KBPS_OUT || {}, r = x => Math.round(x * 10) / 10;
+                return "member" in k ? r(k.member) : `hub ${r(k.hub || 0)} · spoke ${r(k.spoke || 0)}`;
+            }},
         ],
     });
     refreshButtons();
@@ -162,8 +214,43 @@ async function fillProfiles(selected) {
     document.getElementById("mg_profile").value = selected || "";
 }
 
+// ---- Topologie : cartes cliquables (boutons radio) et choix des hubs
+const topoValue = () => document.querySelector('input[name="mg_topology"]:checked').value;
+let declaredClients = [];
+
+function syncTopology() {
+    const t = topoValue();
+    document.getElementById("mg_hubs").hidden = t === "MESH";
+    document.getElementById("mg_hub2_wrap").hidden = t !== "DUAL_HUB";
+    document.getElementById("mg_flows").textContent = {MESH: "", HUB_SPOKE: "Flows: 2 × (members − 1).",
+        DUAL_HUB: "Flows: 2 × (2 × (members − 2) + 1)."}[t];
+}
+document.querySelectorAll('input[name="mg_topology"]').forEach(r => r.addEventListener("change", syncTopology));
+
+async function fillTopology(group) {
+    const r = await st.api("GET", "/api/v1/config/clients");
+    declaredClients = r.ok ? r.data.map(c => c.UID) : [];
+    const options = '<option value="">— choose —</option>' + declaredClients.map(u => `<option value="${st.esc(u)}">${st.esc(u)}</option>`).join("");
+    document.getElementById("mg_hub1").innerHTML = options;
+    document.getElementById("mg_hub2").innerHTML = options;
+    const t = group && group.TOPOLOGY ? group.TOPOLOGY : "MESH";
+    document.querySelector(`input[name="mg_topology"][value="${t}"]`).checked = true;
+    const hubs = group && group.HUBS ? group.HUBS : [];
+    document.getElementById("mg_hub1").value = hubs[0] || "";
+    document.getElementById("mg_hub2").value = hubs[1] || "";
+    syncTopology();
+}
+
+function topologyBody() {
+    const t = topoValue();
+    const hubs = t === "MESH" ? [] : (t === "HUB_SPOKE" ? [document.getElementById("mg_hub1").value]
+        : [document.getElementById("mg_hub1").value, document.getElementById("mg_hub2").value]);
+    return {TOPOLOGY: t, HUBS: hubs.filter(Boolean)};
+}
+
 function openForm(group) {
     fillProfiles(group ? group.IPERF3_PROFILE : "");
+    fillTopology(group);
     editing = group ? group.UID : null;
     form.reset();
     stage(false);
@@ -208,6 +295,7 @@ form.addEventListener("submit", async e => {
         BANDWIDTH: v("mg_bandwidth") + document.getElementById("mg_bandwidth_unit").value,
         DSCP: v("mg_dscp"), PACKET_SIZE: v("mg_packet_size"), INTERVAL: v("mg_interval"),
         IPERF3_PROFILE: document.getElementById("mg_profile").value,
+        ...topologyBody(),
     };
     const btn = document.getElementById("btn_save");
     st.setBusy(btn, true);

@@ -7,6 +7,7 @@ from lib.st_obj_mesh import *
 from lib.st_map import *
 
 from fqdn import FQDN
+from lib import st_topology
 
 # SYNTRAF SERVER IMPORT
 if not CompilationOptions.client_only:
@@ -1196,6 +1197,14 @@ def validate_group(_config, group_type):
                 log.warning(f"DISABLED PARAMETER INVALID (NOT A BOOLEAN) FOR MESH GROUP '{group['UID']}' : APPLYING DEFAULT OF : False")
                 group['DISABLED'] = False
 
+        # Topologie : valeur connue, bon nombre de hubs, hubs membres du groupe
+        members = ([c['UID'] for c in _config['SERVER_CLIENT'] if group.get('UID') in c.get('MESH_GROUP_UID_LIST', [])]
+                   if 'SERVER_CLIENT' in _config else None)
+        topology_errors = st_topology.errors(group, members)
+        if topology_errors:
+            log.error(f"INVALID TOPOLOGY FOR MESH GROUP '{group.get('UID')}': {topology_errors}")
+            return False
+
         # Apply iperf3_profile if there is one specified
         if 'IPERF3_PROFILE' in group:
             explode_profile(group, _config)
@@ -1366,6 +1375,10 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
 
                                 # process all client2 if it's not the current client. The goal is to generate connectors and listeners to all nodes in the mesh_group except current client.
                                 if not client2['UID'] == client['UID']:
+
+                                    # Topologie du groupe (maillage complet, hub & spoke, deux hubs) : paires retenues
+                                    if not st_topology.allows(mesh_group, client['UID'], client2['UID']):
+                                        continue
 
                                     pair_UID_1 = mesh_group['UID'] + "_" + client['UID'] + "_" + client2['UID']
                                     pair_UID_2 = mesh_group['UID'] + "_" + client2['UID'] + "_" + client['UID']

@@ -22,6 +22,7 @@ import re
 import toml
 
 from lib import st_config_store as store
+from lib import st_topology
 from lib.st_conf_validation import (validate_bandwidth, validate_dscp, validate_packet_size, validate_interval,
                                     validate_uid, validate_group, generate_client_config_mesh,
                                     validate_excluded_client, validate_override_dst_node_ip,
@@ -68,10 +69,13 @@ def list_groups(state):
         if effective.get("IPERF3_PROFILE"):
             explode_profile(effective, cfg)
         g["EFFECTIVE"] = {k: effective.get(k) for k in EDITABLE_FIELDS}
-        g["MEMBERS"] = len(_members(cfg, g["UID"]))
-        n = g["MEMBERS"]
+        g["MEMBER_UIDS"] = _members(cfg, g["UID"])
+        g["MEMBERS"] = n = len(g["MEMBER_UIDS"])
         bandwidth = _ok(lambda x: validate_bandwidth(x) >= 0, effective.get("BANDWIDTH")) and validate_bandwidth(effective["BANDWIDTH"])
-        g["BW_PER_NODE_KBPS"] = (n * (n - 1) * (bandwidth or 0) / n / 1000) if n else 0
+        g["TOPOLOGY"], g["HUBS"] = st_topology.topology(g), st_topology.hubs(g)
+        g["FLOWS"] = st_topology.flow_count(g, n)
+        g["KBPS_OUT"] = {role: count * (bandwidth or 0) / 1000 for role, count in st_topology.outgoing(g, n).items()}
+        g["BW_PER_NODE_KBPS"] = max(g["KBPS_OUT"].values()) if n else 0
         g["DISABLED"] = g.get("DISABLED", False) is True
     return groups
 
@@ -119,6 +123,7 @@ def create(state, values, actor, dry_run=False):
         raise OpError(409, f"Mesh group '{uid}' already exists", {"UID": "This name is already used"})
     new = {"UID": uid}
     _apply_form(new, values)
+    _apply_topology(cfg, new, values)
     cfg["MESH_GROUP"].append(new)
     return dict(_commit(state, cfg, actor, "CREATE_MESH_GROUP", f"Mesh group '{uid}' created", dry_run), uid=uid)
 
@@ -129,6 +134,7 @@ def update(state, uid, values, actor, dry_run=False):
     _check_profile_reference(cfg, values)
     g = _require(cfg, uid)
     _apply_form(g, values)
+    _apply_topology(cfg, g, values)
     return dict(_commit(state, cfg, actor, "UPDATE_MESH_GROUP", f"Mesh group '{uid}' updated", dry_run), uid=uid)
 
 
@@ -163,6 +169,10 @@ def duplicate(state, uid, actor, dry_run=False):
         n += 1
         new_uid = f"{uid}_COPY{n}"
     clone["UID"] = new_uid
+    for hub in clone.get("HUBS") or []:  # les hubs sont membres de leur groupe : ils rejoignent la copie
+        client = _find_by(cfg.get("SERVER_CLIENT", []), "UID", hub)
+        if client is not None and new_uid not in client.setdefault("MESH_GROUP_UID_LIST", []):
+            client["MESH_GROUP_UID_LIST"].append(new_uid)
     cfg["MESH_GROUP"].append(clone)
     result = _commit(state, cfg, actor, "DUPLICATE_MESH_GROUP", f"Mesh group '{uid}' duplicated as '{new_uid}'",
                      dry_run)
@@ -564,6 +574,10 @@ def update_client(state, uid, values, actor, dry_run=False):
     if c is None:
         raise OpError(404, f"Client '{uid}' not found")
     _raise(_client_field_errors(values, cfg))
+    left = _hub_groups_left(cfg, uid, _as_list(values.get("MESH_GROUP_UID_LIST")))
+    if left:
+        raise OpError(409, f"'{uid}' is a hub of {', '.join(left)}: choose another hub for it first",
+                      {"MESH_GROUP_UID_LIST": f"Hub of {', '.join(left)}"})
     _apply_client_form(c, values)
     return dict(_commit(state, cfg, actor, "UPDATE_CLIENT", f"Client '{uid}' updated", dry_run), uid=uid)
 
@@ -574,6 +588,9 @@ def delete_client(state, uid, actor, dry_run=False):
     c = _find_by(cfg.get("SERVER_CLIENT", []), "UID", uid)
     if c is None:
         raise OpError(404, f"Client '{uid}' not found")
+    left = _hub_groups_left(cfg, uid, [])
+    if left:
+        raise OpError(409, f"'{uid}' is a hub of {', '.join(left)}: choose another hub for it first")
     cfg["SERVER_CLIENT"].remove(c)
     return dict(_commit(state, cfg, actor, "DELETE_CLIENT", f"Client '{uid}' deleted", dry_run), uid=uid)
 
@@ -991,7 +1008,8 @@ def _commit(state, disk_cfg, actor, action, summary, dry_run):
     old_disk = read_disk(state)
     groups = copy.deepcopy(disk_cfg.get("MESH_GROUP", []))
     profiles = copy.deepcopy(disk_cfg.get("IPERF3_PROFILE", []))
-    if not validate_group(dict(live, MESH_GROUP=groups, IPERF3_PROFILE=profiles), "MESH_GROUP"):
+    if not validate_group(dict(live, MESH_GROUP=groups, IPERF3_PROFILE=profiles,
+                               SERVER_CLIENT=copy.deepcopy(disk_cfg.get("SERVER_CLIENT", []))), "MESH_GROUP"):
         raise OpError(422, "Invalid mesh group parameters (see the server log)")
 
     # Clients : remplacés seulement si leur déclaration a changé ; l'IP apprise d'un client dynamique est gardée.
@@ -1070,6 +1088,28 @@ def _commit(state, disk_cfg, actor, action, summary, dry_run):
     log.info(f"{action} BY {actor}: {summary}; RECONNECTING {result['reconnected_clients']}; "
              f"RECREATED DATABASE CONNECTIONS {recreated}")
     return dict(result, version=entry["version"])
+
+
+def _apply_topology(cfg, g, values):
+    """Topologie du formulaire (MESH par défaut) ; un hub qui n'est pas encore membre du groupe le rejoint."""
+    topology = str(values.get("TOPOLOGY", "") or "MESH").strip().upper()
+    hubs = _as_list(values.get("HUBS")) if topology != "MESH" else []
+    probe = {"TOPOLOGY": topology, "HUBS": hubs}
+    _raise(st_topology.errors(probe, [c["UID"] for c in cfg.get("SERVER_CLIENT", [])]))
+    if topology == "MESH":
+        g.pop("TOPOLOGY", None)
+        g.pop("HUBS", None)
+        return
+    g["TOPOLOGY"], g["HUBS"] = topology, hubs
+    for hub in hubs:
+        client = _find_by(cfg.get("SERVER_CLIENT", []), "UID", hub)
+        if g["UID"] not in client.setdefault("MESH_GROUP_UID_LIST", []):
+            client["MESH_GROUP_UID_LIST"].append(g["UID"])
+
+
+def _hub_groups_left(cfg, uid, new_groups):
+    """Groupes dont le client est hub et qu'il quitterait."""
+    return [g["UID"] for g in cfg.get("MESH_GROUP", []) if uid in (g.get("HUBS") or []) and g["UID"] not in new_groups]
 
 
 def _edges(generated):
