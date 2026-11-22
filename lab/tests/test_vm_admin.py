@@ -117,3 +117,78 @@ def test_snapshots_are_listed_created_and_deleted():
     assert a.snapshots() == ["20261121-new"]
     with pytest.raises(ValueError):
         a.delete_snapshot("../../etc")
+
+
+# ---------------------------------------------------------------------------------- renommage d'un client
+
+class FakeVmData:
+    """Export / import / delete_series sur quelques séries en mémoire."""
+
+    def __init__(self):
+        self.series = [
+            {"metric": {"__name__": "SYNTRAF_RX_PCT_LOSS", "CLIENT": "LAB_C4", "SERVER": "LAB_C1",
+                        "UID": "LAB_C4__TO__LAB_C1__ON__DSCP0", "MESH_GROUP": "M"},
+             "values": [0, 2], "timestamps": [(NOW - 100) * 1000, (NOW - 50) * 1000]},
+            {"metric": {"__name__": "SYNTRAF_GROUP_INFO", "MESH_GROUP": "M", "HUBS": "LAB_C1, LAB_C4"},
+             "values": [1], "timestamps": [(NOW - 3 * 86400) * 1000]},
+        ]
+        self.imported, self.deleted, self.exports = [], [], 0
+
+    def __call__(self, method, path, params=None, body=None):
+        if path == "/flags":
+            return 200, '-retentionPeriod="7d"\n'
+        if path == "/api/v1/export":
+            self.exports += 1
+            start, end = float(params["start"]) * 1000, float(params["end"]) * 1000
+            out = []
+            for s in self.series:
+                keep = [(v, t) for v, t in zip(s["values"], s["timestamps"]) if start <= t <= end]
+                if keep:
+                    out.append(json.dumps({"metric": s["metric"], "values": [v for v, _ in keep],
+                                           "timestamps": [t for _, t in keep]}))
+            return 200, "\n".join(out)
+        if path == "/api/v1/import":
+            self.imported += [json.loads(line) for line in body.splitlines() if line.strip()]
+            return 204, ""
+        if path == "/api/v1/admin/tsdb/delete_series":
+            self.deleted.append(params["match[]"])
+            return 204, ""
+        raise AssertionError(path)
+
+
+def test_renaming_a_node_rewrites_its_history_then_deletes_the_old_series():
+    fake = FakeVmData()
+    admin = vm.VmAdmin({"DB_UID": "VM", "DB_SERVER": "vm", "DB_PORT": "8428"}, http=fake, now=lambda: NOW)
+    result = admin.rename_node("LAB_C4", "STARLINK")
+    assert fake.exports == 8 * 24  # rétention de 7 jours (+ un jour), une heure par requête : mémoire bornée
+    by_name = {s["metric"]["__name__"]: s for s in fake.imported}
+    loss = by_name["SYNTRAF_RX_PCT_LOSS"]["metric"]
+    assert (loss["CLIENT"], loss["SERVER"], loss["UID"]) == ("STARLINK", "LAB_C1", "STARLINK__TO__LAB_C1__ON__DSCP0")
+    assert by_name["SYNTRAF_RX_PCT_LOSS"]["values"] == [0, 2]
+    assert by_name["SYNTRAF_GROUP_INFO"]["metric"]["HUBS"] == "LAB_C1, STARLINK"
+    assert len(fake.deleted) == 1 and any('CLIENT="LAB_C4"' in m for m in fake.deleted[0])
+    assert result["points"] == 3
+
+
+def test_rename_labels_only_touches_exact_names():
+    m = {"__name__": "X", "CLIENT": "LAB_C4X", "SERVER": "LAB_C4", "UID": "LAB_C4X__TO__LAB_C4__ON__DSCP0"}
+    out = vm.rename_labels(m, "LAB_C4", "STARLINK")
+    assert out == {"__name__": "X", "CLIENT": "LAB_C4X", "SERVER": "STARLINK", "UID": "LAB_C4X__TO__STARLINK__ON__DSCP0"}
+
+
+def test_imports_are_split_by_size():
+    fake = FakeVmData()
+    fake.series[0]["values"] = list(range(300))
+    fake.series[0]["timestamps"] = [(NOW - 1000 + i) * 1000 for i in range(300)]
+    bodies = []
+    original = fake.__call__
+
+    def spy(method, path, params=None, body=None):
+        if path == "/api/v1/import":
+            bodies.append(len(body.encode()))
+        return original(method, path, params, body)
+
+    admin = vm.VmAdmin({"DB_UID": "VM", "DB_SERVER": "vm", "DB_PORT": "8428"}, http=spy, now=lambda: NOW)
+    result = admin.rename_node("LAB_C4", "STARLINK", max_import_bytes=2000)
+    assert len(bodies) > 1 and max(bodies) <= 2000 + 400  # au plus un morceau de série au-delà du plafond
+    assert result["points"] == 301 and sum(len(s["values"]) for s in fake.imported) == 301

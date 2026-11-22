@@ -204,6 +204,11 @@ def rotate_client_token(uid):
     return jsonify(ops.rotate_client_token(_state(), uid, _actor(), _dry_run()))
 
 
+@st_api_v1.post("/config/clients/<uid>/rename")
+def rename_client(uid):
+    return jsonify(ops.rename_client(_state(), uid, _body(), _actor(), _dry_run()))
+
+
 @st_api_v1.post("/server/restart")
 def restart_server():
     return jsonify(ops.restart_server(_state(), _actor())), 202
@@ -612,6 +617,7 @@ OPENAPI = {
         "/api/v1/clients/rejected/{uid}": {"delete": _op("Allow a rejected client to ask again", params=("uid",))},
         "/api/v1/config/clients/{uid}/secure": {"post": _op("Pin the key of a connected client and issue its own "
                                                             "token", False, True, ("uid",))},
+        "/api/v1/config/clients/{uid}/rename": {"post": _op("Rename a client ({NEW_UID}); its history follows", False, True)},
         "/api/v1/config/clients/{uid}/rotate-token": {"post": _op("Issue a new token to a client (sent to it if "
                                                                   "connected)", False, True, ("uid",))},
         "/api/v1/config/global": {"get": _op("Global settings (logging excluded: see /api/v1/config/logging)"),

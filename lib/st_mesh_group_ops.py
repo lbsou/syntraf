@@ -21,6 +21,7 @@ import logging
 import os
 import re
 import threading
+import time
 
 import toml
 
@@ -763,6 +764,86 @@ def delete_client(state, uid, actor, dry_run=False):
         raise OpError(409, f"'{uid}' is a hub of {', '.join(left)}: choose another hub for it first")
     cfg["SERVER_CLIENT"].remove(c)
     return dict(_commit(state, cfg, actor, "DELETE_CLIENT", f"Client '{uid}' deleted", dry_run), uid=uid)
+
+
+MAX_PREVIOUS_UIDS = 5
+
+
+def rename_client(state, uid, values, actor, dry_run=False):
+    """Renomme un client sans perdre son historique :
+    - la configuration suit (hubs des mesh groups, adresses forcées des autres clients) ;
+    - l'ancien nom reste reconnu (PREVIOUS_UIDS) : le client, même hors ligne pendant le renommage, est admis
+      sous son nouveau nom à sa prochaine connexion et le reçoit (SET_UID) ;
+    - les séries VictoriaMetrics sont réécrites sous le nouveau nom, en arrière-plan (journal d'audit)."""
+    new = str(values.get("NEW_UID", "") or "").strip()
+    cfg = read_disk(state)
+    clients = cfg.get("SERVER_CLIENT", [])
+    c = _find_by(clients, "UID", uid)
+    if c is None:
+        raise OpError(404, f"Client '{uid}' not found")
+    if not new or new == uid or not validate_uid(new):
+        raise OpError(400, "Invalid new name", {"NEW_UID": FIELD_MESSAGES["UID"] if new != uid else "Same name"})
+    taken = next((o["UID"] for o in clients if o is not c and (o["UID"] == new or new in (o.get("PREVIOUS_UIDS") or []))),
+                 None)
+    if taken:
+        raise OpError(409, f"'{new}' is already used by '{taken}'", {"NEW_UID": f"Used by '{taken}'"})
+    c["UID"] = new
+    c["PREVIOUS_UIDS"] = ([p for p in (c.get("PREVIOUS_UIDS") or []) if p not in (uid, new)] + [uid])[-MAX_PREVIOUS_UIDS:]
+    for g in cfg.get("MESH_GROUP", []):
+        if g.get("HUBS"):
+            g["HUBS"] = [new if h == uid else h for h in g["HUBS"]]
+    for other in clients:
+        overrides = other.get("OVERRIDE_DST_NODE_IP")
+        if isinstance(overrides, dict) and uid in overrides:
+            overrides[new] = overrides.pop(uid)
+    result = _commit(state, cfg, actor, "RENAME_CLIENT", f"Client '{uid}' renamed '{new}'", dry_run)
+    history = []
+    if not dry_run:
+        # Le client connecté sous l'ancien nom reçoit le nouveau, l'écrit et se reconnecte
+        # (en tête : avant la reconnexion demandée par _commit)
+        state.setdefault("dict_of_commands_for_network_clients", {}).setdefault(uid, []).insert(
+            0, {"ACTION": "SET_UID", "UID": new})
+        objs = state.get("dict_of_clients")
+        if objs is not None and uid in objs:  # l'état de connexion suit le client (sinon une ligne « fantôme »)
+            obj = objs.pop(uid)
+            obj.client_uid = new
+            objs.setdefault(new, obj)
+        history = _rename_history(state, cfg, uid, new, actor)
+    return dict(result, uid=new, previous_uid=uid, history=history)
+
+
+def _rename_history(state, cfg, old, new, actor):
+    """Réécrit l'historique dans chaque base VictoriaMetrics ; renvoie leurs noms. Après un délai, pour que le client
+    ait reçu son nouveau nom et que les points écrits sous l'ancien soient compris dans l'export."""
+    dbs = [d for d in cfg.get("DATABASE", []) if str(d.get("DB_ENGINE", "")).lower() == "victoriametrics"]
+    if not dbs:
+        return []
+    path = state["config_file_path"]
+
+    def run():
+        from lib.st_vm_admin import VmAdmin
+        factory = state.get("vm_admin_factory", VmAdmin)
+        for db in dbs:
+            try:
+                admin = factory(db)
+                r = admin.rename_node(old, new)
+                # Seconde passe : un client garde ses mesures en tampon ; celles prises sous l'ancien nom peuvent
+                # arriver après la suppression des anciennes séries
+                time.sleep(state.get("history_sweep_delay_s", 60) or 0)
+                late = admin.rename_node(old, new, since_s=7200)
+                store.log_event(path, actor, "RENAME_HISTORY",
+                                f"History of '{old}' moved to '{new}' in {db['DB_UID']}: "
+                                f"{r['points'] + late['points']} points")
+            except Exception as exc:  # noqa: BLE001 - signalé dans l'audit, l'ancien historique reste en place
+                store.log_event(path, actor, "RENAME_HISTORY_FAILED",
+                                f"History of '{old}' not moved in {db.get('DB_UID')}: {type(exc).__name__}: {exc}")
+
+    delay = state.get("history_rename_delay_s", 20)
+    if delay is None:
+        run()
+    else:
+        threading.Timer(delay, run).start()
+    return [d["DB_UID"] for d in dbs]
 
 
 # --------------------------------------------------------------------------- admission : approbation et jetons

@@ -96,6 +96,63 @@ class VmAdmin:
                 raise VmError(f"delete_series answered HTTP {status}")
         return result
 
+    # ------------------------------------------------------------------------------------------- renommage
+
+    def rename_node(self, old, new, window_s=3600, max_import_bytes=1_000_000, since_s=None):
+        """Déplace l'historique d'un client renommé : chaque série où il apparaît (émetteur, récepteur, hub) est
+        exportée heure par heure, réécrite sous le nouveau nom et réimportée par lots d'au plus max_import_bytes (une
+        série longue est découpée) : la mémoire de SYNTRAF et de VictoriaMetrics reste bornée (un import d'une journée
+        entière a fait tomber un VictoriaMetrics limité à 256 Mio). Les anciennes séries sont supprimées à la fin,
+        une fois tout réimporté."""
+        for name in (old, new):
+            if not SAFE_VALUE.match(name or ""):
+                raise ValueError(f"invalid name '{name}'")
+        matchers = [f'{{{METRIC_MATCH},CLIENT="{old}"}}', f'{{{METRIC_MATCH},SERVER="{old}"}}',
+                    f'{{{METRIC_MATCH},HUBS=~"(.*, )?{re.escape(old)}(, .*)?"}}']
+        m = re.search(r'-retentionPeriod="?([^"\s]+)"?', self._get_text("/flags"))
+        hours = parse_retention(m.group(1) if m else "1") or 31 * 24
+        end = int(self._now())
+        start = end - int(hours * 3600) - 86400  # un jour de marge
+        if since_s is not None:  # seconde passe : les mesures arrivées en retard sous l'ancien nom
+            start = end - int(since_s)
+        series = points = 0
+        t = start
+        while t < end:
+            status, body = self._http("GET", "/api/v1/export",
+                                      {"match[]": matchers, "start": t, "end": min(t + window_s, end) - 0.001})
+            if status != 200:
+                raise VmError(f"export answered HTTP {status}")
+            batch, size = [], 0
+            for line in body.splitlines():
+                if not line.strip():
+                    continue
+                item = json.loads(line)
+                metric = rename_labels(item["metric"], old, new)
+                series += 1
+                values, stamps = item.get("values") or [], item.get("timestamps") or []
+                points += len(values)
+                per_chunk = max(1, int(len(values) * max_import_bytes / max(len(line), 1)))
+                for i in range(0, max(len(values), 1), per_chunk):
+                    text = json.dumps({"metric": metric, "values": values[i:i + per_chunk],
+                                       "timestamps": stamps[i:i + per_chunk]})
+                    if batch and size + len(text) > max_import_bytes:
+                        self._import(batch)
+                        batch, size = [], 0
+                    batch.append(text)
+                    size += len(text) + 1
+            if batch:
+                self._import(batch)
+            t += window_s
+        status, _ = self._http("POST", "/api/v1/admin/tsdb/delete_series", {"match[]": matchers})
+        if status not in (200, 204):
+            raise VmError(f"delete_series answered HTTP {status}")
+        return {"old": old, "new": new, "series": series, "points": points}
+
+    def _import(self, lines):
+        status, _ = self._http("POST", "/api/v1/import", None, body="\n".join(lines) + "\n")
+        if status not in (200, 204):
+            raise VmError(f"import answered HTTP {status}")
+
     # ------------------------------------------------------------------------------------------ instantanés
 
     def snapshots(self):
@@ -134,15 +191,20 @@ class VmAdmin:
             raise VmError(f"{path}: {data.get('error') or data}")
         return data.get("data")
 
-    def _urllib(self, method, path, params=None):
+    def _urllib(self, method, path, params=None, body=None):
         query = urllib.parse.urlencode(params or {}, doseq=True)
         url = self.base_url + path
         data = None
-        if method == "POST":
+        if body is not None:  # corps brut (import) : les paramètres vont dans l'URL
+            data = body.encode("utf-8")
+            url += ("?" + query) if query else ""
+        elif method == "POST":
             data = query.encode()
         elif query:
             url += "?" + query
-        headers = {"Content-Type": "application/x-www-form-urlencoded"} if data is not None else {}
+        headers = {}
+        if data is not None:
+            headers["Content-Type"] = "application/json" if body is not None else "application/x-www-form-urlencoded"
         if self.db.get("DB_TOKEN"):
             headers["Authorization"] = f"Bearer {self.db['DB_TOKEN']}"
         proxy = self.db.get("DB_USE_WEB_PROXY")
@@ -155,6 +217,22 @@ class VmAdmin:
             return exc.code, exc.read().decode("utf-8", "replace")
         except (urllib.error.URLError, OSError) as exc:
             raise VmError(f"{self.base_url} unreachable: {exc}")
+
+
+def rename_labels(metric, old, new):
+    """Étiquettes d'une série avec old remplacé par new : valeurs égales, segments d'un UID de flux
+    (A__TO__B__ON__DSCP0), éléments de la liste des hubs (« H1, H2 »)."""
+    out = dict(metric)
+    for key, value in metric.items():
+        if key == "__name__" or not isinstance(value, str):
+            continue
+        if value == old:
+            out[key] = new
+        elif key == "UID":
+            out[key] = "".join(new if part == old else part for part in re.split(r"(__TO__|__ON__)", value))
+        elif key == "HUBS":
+            out[key] = ", ".join(new if hub == old else hub for hub in value.split(", "))
+    return out
 
 
 def _parse_metrics(text):

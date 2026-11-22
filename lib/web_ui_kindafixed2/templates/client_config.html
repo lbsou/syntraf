@@ -177,11 +177,13 @@ el("rejected-list").addEventListener("click", async ev => {
 // Boutons de sécurité du tableau
 el("toolbar").insertAdjacentHTML("beforeend", `
     <button id="btn_secure" type="button" class="btn btn-warning" disabled title="Pin the key of the connected client and issue a token of its own"><i class="fas fa-lock me-1"></i>Secure</button>
-    <button id="btn_rotate" type="button" class="btn btn-outline-light" disabled title="Issue a new token to this client"><i class="fas fa-sync-alt me-1"></i>Rotate token</button>`);
+    <button id="btn_rotate" type="button" class="btn btn-outline-light" disabled title="Issue a new token to this client"><i class="fas fa-sync-alt me-1"></i>Rotate token</button>
+    <button id="btn_rename" type="button" class="btn btn-outline-light" disabled title="Rename this client; its history follows"><i class="fas fa-i-cursor me-1"></i>Rename…</button>`);
 $("#table").on("check.bs.table uncheck.bs.table check-all.bs.table uncheck-all.bs.table check-some.bs.table uncheck-some.bs.table post-body.bs.table", () => {
     const sel = $("#table").bootstrapTable("getSelections");
     el("btn_secure").disabled = !(sel.length === 1 && !(sel[0].PINNED && sel[0].OWN_TOKEN));
     el("btn_rotate").disabled = !(sel.length === 1 && sel[0].PINNED);
+    el("btn_rename").disabled = sel.length !== 1;
 });
 async function securityAction(kind) {
     const uid = $("#table").bootstrapTable("getSelections")[0].UID;
@@ -198,6 +200,26 @@ async function securityAction(kind) {
 }
 el("btn_secure").addEventListener("click", () => securityAction("secure"));
 el("btn_rotate").addEventListener("click", () => securityAction("rotate-token"));
+
+// Renommage : la configuration, le client et son historique suivent
+el("btn_rename").addEventListener("click", async () => {
+    const uid = $("#table").bootstrapTable("getSelections")[0].UID;
+    const body = document.createElement("div");
+    body.innerHTML = `<label for="rn_uid" class="form-label">New name</label>
+        <input id="rn_uid" class="form-control" value="${st.esc(uid)}" autocomplete="off" spellcheck="false">
+        <ul class="small text-white-50 mt-2 mb-0">
+          <li>Mesh group hubs and forced addresses follow.</li>
+          <li>The client receives its new name; offline, it gets it at its next connection (its old name stays recognized).</li>
+          <li>Its history is moved to the new name in VictoriaMetrics, in the background (see Audit).</li>
+        </ul>`;
+    setTimeout(() => { const i = body.querySelector("#rn_uid"); i.focus(); i.select(); }, 300);
+    if (!await st.confirm({title: `Rename “${uid}”?`, body, confirmText: "Rename"})) return;
+    const NEW_UID = body.querySelector("#rn_uid").value.trim();
+    const r = await st.api("POST", `/api/v1/config/clients/${encodeURIComponent(uid)}/rename`, {NEW_UID});
+    if (!r.ok) { st.toast((r.error.fields && r.error.fields.NEW_UID) || r.error.message, "danger"); return; }
+    st.toast(`“${uid}” is now “${r.data.uid}”.${r.data.history.length ? " Its history is being moved." : ""}`, "success");
+    crud.load();
+});
 
 loadPending();
 setInterval(loadPending, 15000);

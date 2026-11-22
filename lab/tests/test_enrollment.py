@@ -121,3 +121,19 @@ def test_new_key_without_a_valid_token_is_not_recorded(store):
     cfg = config(TOKEN="own-a", PUBLIC_KEY_SHA256=enr.fingerprint(KEY_A))
     assert auth(cfg, store, token="guess", key=KEY_B).reason == "KEY MISMATCH"
     assert store.pending() == []
+
+
+# ---------------------------------------------------------------------------------- client renommé
+
+def test_a_renamed_client_presenting_its_old_name_is_admitted_under_the_new_one(store):
+    cfg = config(PREVIOUS_UIDS=["OLD_A"])
+    d = auth(cfg, store, uid="OLD_A")
+    assert d.accepted and d.rename_to == "NODE_A"
+    assert store.pending() == []  # pas de demande d'admission pour l'ancien nom
+
+
+def test_the_old_name_obeys_the_rules_of_the_declared_client(store):
+    cfg = config(PREVIOUS_UIDS=["OLD_A"], TOKEN="own-a", PUBLIC_KEY_SHA256=enr.fingerprint(KEY_A))
+    assert auth(cfg, store, uid="OLD_A", token="own-a").rename_to == "NODE_A"
+    assert auth(cfg, store, uid="OLD_A", token="own-a", key=KEY_B).accepted is False  # autre appareil
+    assert auth(config(), store, uid="NODE_A").rename_to is None

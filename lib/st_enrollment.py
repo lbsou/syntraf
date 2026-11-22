@@ -22,7 +22,9 @@ import threading
 
 MAX_PENDING = 200
 SAFE_UID = re.compile(r"^[A-Za-z0-9_-]{4,50}$")
-Decision = collections.namedtuple("Decision", "accepted reason deliver_token")
+# rename_to : le client s'est présenté sous un ancien nom (PREVIOUS_UIDS) ; il est admis sous son nom actuel,
+# que le serveur lui remet (SET_UID)
+Decision = collections.namedtuple("Decision", "accepted reason deliver_token rename_to", defaults=(None,))
 _locks = collections.defaultdict(threading.Lock)
 
 
@@ -52,6 +54,12 @@ def authorize(config, payload, ip, enrollment):
                 return Decision(True, "", own)
             return Decision(False, "INVALID TOKEN", None)
         return Decision(True, "", None) if token in shared else Decision(False, "INVALID TOKEN", None)
+
+    renamed = next((c for c in config.get("SERVER_CLIENT", []) if uid and uid in (c.get("PREVIOUS_UIDS") or [])), None)
+    if renamed is not None:
+        # Mêmes règles que sous le nouveau nom (clé épinglée, jetons) ; aucune demande d'admission n'est créée
+        d = authorize(config, dict(payload, CLIENT_UID=renamed["UID"]), ip, None)
+        return Decision(d.accepted, d.reason, d.deliver_token, renamed["UID"] if d.accepted else None)
 
     if enrollment is not None and enrollment.is_rejected(uid):
         return Decision(False, "REJECTED", None)

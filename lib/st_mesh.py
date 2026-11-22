@@ -319,6 +319,39 @@ def client_command_set_token(_config, received_data):
     client_log.info("OWN TOKEN RECEIVED FROM THE SERVER AND SAVED")
 
 
+SAFE_UID_RE = re.compile(r"^[A-Za-z0-9_-]{4,50}$")
+
+
+def client_command_set_uid(_config, received_data):
+    """Le serveur a renommé ce client : le nouveau nom est gardé dans un fichier (il l'emporte sur CLIENT_UID de la
+    configuration au prochain démarrage) et utilisé dès la reconnexion."""
+    path = _config['CLIENT'].get('_UID_FILE')
+    uid = str((received_data.get('PAYLOAD') or {}).get('UID') or "")
+    if not path or not SAFE_UID_RE.match(uid):
+        client_log.error(f"INVALID NAME RECEIVED FROM THE SERVER: '{uid}'")
+        return False
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(uid)
+    os.replace(tmp, path)
+    client_log.warning(f"RENAMED BY THE SERVER: '{_config['CLIENT']['CLIENT_UID']}' IS NOW '{uid}'")
+    _config['CLIENT']['CLIENT_UID'] = uid
+    return True
+
+
+def client_apply_uid_file(_config):
+    """Nom remis par le serveur (renommage) : il remplace CLIENT_UID de la configuration."""
+    path = _config['CLIENT'].get('_UID_FILE')
+    if not path or not os.path.isfile(path):
+        return
+    with open(path, encoding="utf-8") as f:
+        uid = f.read().strip()
+    if SAFE_UID_RE.match(uid) and uid != _config['CLIENT'].get('CLIENT_UID'):
+        client_log.warning(f"CLIENT_UID '{uid}' GIVEN BY THE SERVER ({path}) REPLACES "
+                           f"'{_config['CLIENT'].get('CLIENT_UID')}' OF THE CONFIGURATION")
+        _config['CLIENT']['CLIENT_UID'] = uid
+
+
 def client_send_auth(_config, client_utime, ssl_conn):
     try:
         # Sending TOKEN and UID for authentication, timestamp and version
@@ -634,6 +667,9 @@ def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processe
     # Jeton propre remis par le serveur : à côté du fichier de configuration
     _config['CLIENT'].setdefault('_TOKEN_FILE', os.path.join(os.path.dirname(os.path.abspath(config_file_path)),
                                                              "syntraf_client_token"))
+    _config['CLIENT'].setdefault('_UID_FILE', os.path.join(os.path.dirname(os.path.abspath(config_file_path)),
+                                                           "syntraf_client_uid"))
+    client_apply_uid_file(_config)
     try:
         ssl_conn = client_sck_init(_config)
         client_utime = client_connect_utime(_config)
@@ -680,6 +716,10 @@ def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processe
 
                 elif received_data['COMMAND'] == "SET_TOKEN":
                     client_command_set_token(_config, received_data)
+
+                elif received_data['COMMAND'] == "SET_UID":
+                    if client_command_set_uid(_config, received_data):
+                        client_command_reconnect(ssl_conn)  # se représente sous son nouveau nom
 
                 elif received_data['COMMAND'] == "UPDATE":
                     client_command_update(_config, ssl_conn, received_data)
@@ -767,6 +807,15 @@ def authenticate_server_client(_config, data, obj_client, sckt, enrollment=None,
     obj_client.update_failed = payload.get('UPDATE_FAILED')
     decision = st_enrollment.authorize(_config, payload, ip_addr,
                                        enrollment if isinstance(enrollment, st_enrollment.Enrollment) else None)
+    if decision.accepted and decision.rename_to:
+        # Client renommé pendant son absence : admis sous son nouveau nom, qu'on lui remet
+        server_log.warning(f"CONTEXT: {decision.rename_to} - PRESENTED ITS PREVIOUS NAME '{payload['CLIENT_UID']}': "
+                           f"GIVING IT ITS NEW NAME")
+        payload['CLIENT_UID'] = decision.rename_to
+        obj_client.client_uid = decision.rename_to
+        if dict_of_commands_for_network_clients is not None:
+            dict_of_commands_for_network_clients.setdefault(decision.rename_to, []).append(
+                {"ACTION": "SET_UID", "UID": decision.rename_to})
     if decision.accepted:
         server_log.info(f"AUTHENTICATION SUCCESSFUL FROM IP '{ip_addr}' WITH CLIENT_UID '{payload['CLIENT_UID']}'")
         obj_client.status = "CONNECTED"
@@ -1031,6 +1080,9 @@ def server_awaiting_commands(client_uid, dict_of_commands_for_network_clients, s
         elif action['ACTION'] == "SET_TOKEN":
             sock_send(sckt, {"TOKEN": action['TOKEN']}, "SET_TOKEN")
             sent_an_action = True
+        elif action['ACTION'] == "SET_UID":
+            sock_send(sckt, {"UID": action['UID']}, "SET_UID")
+            sent_an_action = True
         elif action['ACTION'] == "UPDATED_CONFIG" and action.get('ELEMENT') == "CLIENT_IP":
             sock_send(sckt, action, "DIFFCONFIG")
             sent_an_action = True
@@ -1136,6 +1188,11 @@ class Handler(StreamRequestHandler):
 
                             # Now that we know the identity of the client connecting, we can update the dictionary of client objects
                             new_uid = dict_of_clients[uid].client_uid
+                            if new_uid not in dict_of_clients:
+                                # Déclaré depuis le démarrage (page Clients, approbation, renommage)
+                                dict_of_clients[new_uid] = cc_client(status="UNKNOWN", status_since=datetime.now(),
+                                                                     status_explanation="NEVER CONNECTED",
+                                                                     client_uid=new_uid, bool_dynamic_client=False)
                             dict_of_clients[new_uid].client_uid = new_uid
                             dict_of_clients[new_uid].status = dict_of_clients[uid].status
                             dict_of_clients[new_uid].bool_dynamic_client = dict_of_clients[uid].bool_dynamic_client
