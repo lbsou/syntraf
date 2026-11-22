@@ -32,7 +32,7 @@
     <div class="col-md-2">
       <label for="f_level" class="form-label small mb-1">Minimum level</label>
       <select class="form-select form-select-sm" id="f_level">
-        <option value="">All</option><option>DEBUG</option><option>INFO</option><option selected>WARNING</option><option>ERROR</option><option>CRITICAL</option>
+        <option value="">All</option><option>DEBUG</option><option selected>INFO</option><option>WARNING</option><option>ERROR</option><option>CRITICAL</option>
       </select>
     </div>
     <div class="col-md-2">
@@ -112,7 +112,12 @@ async function search() {
 function render(entries) {
     el("meta").textContent = `${entries.length} entr${entries.length === 1 ? "y" : "ies"} · updated ${new Date().toLocaleTimeString()}`;
     if (!entries.length) {
-        el("rows").innerHTML = '<tr><td colspan="5" class="st-empty"><i class="fas fa-filter"></i>No log entry matches these filters for this period.</td></tr>';
+        // Rien avec ces filtres : proposer de les élargir plutôt qu'une page vide
+        const widen = [];
+        if (el("f_level").value && el("f_level").value !== "DEBUG") widen.push('<button type="button" class="btn btn-sm btn-outline-light" data-widen="level">Show all levels</button>');
+        if (["15m", "1h", "6h"].includes(el("f_since").value)) widen.push('<button type="button" class="btn btn-sm btn-outline-light" data-widen="since">Extend to 24 hours</button>');
+        el("rows").innerHTML = `<tr><td colspan="5" class="st-empty"><i class="fas fa-filter"></i><span>No log entry matches these filters for this period.</span>
+            ${widen.length ? `<div class="d-flex gap-2 justify-content-center mt-2">${widen.join("")}</div>` : ""}</td></tr>`;
         return;
     }
     // data-no-i18n : les journaux s'affichent tels qu'écrits, quelle que soit la langue de l'interface
@@ -123,6 +128,14 @@ function render(entries) {
         <td>${highlight(e.message)} <span class="text-white-50">· ${st.esc(e.module)}</span>${e.detail ? ' <i class="fas fa-caret-down text-white-50"></i>' : ""}
             <pre hidden>${highlight(e.detail)}</pre></td></tr>`).join("");
 }
+
+el("rows").addEventListener("click", e => {
+    const b = e.target.closest("[data-widen]");
+    if (!b) return;
+    if (b.dataset.widen === "level") el("f_level").value = "";
+    if (b.dataset.widen === "since") el("f_since").value = "1d";
+    search();
+});
 
 function toggleDetail(row) {
     const pre = row && row.querySelector("pre");
