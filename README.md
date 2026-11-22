@@ -21,7 +21,8 @@ Looking for collaborators! Email me at shadow131 @ hotmail [dot] com
   node are shown before saving. **Capacity guardrails** refuse or ask confirmation for changes that would multiply
   the flows.
 - **Enrollment & security.** New probes ask to join with a shared token and are approved in the interface; their key
-  is pinned and each gets a token of its own. TLS control channel, authenticated iperf3 flows, audited token reveals.
+  is pinned and each gets a token of its own and proves it holds its key. Probes pin the server key, and releases are
+  signed. Sign-in, API tokens, CSRF protection, HTTPS and security headers on the web interface; audited changes.
 - **Clients behind a NAT.** A probe that cannot receive connections measures both directions itself
   (`iperf3 --bidir`) and keeps its NAT mappings open; a NAT is detected automatically.
 - **Rename a probe without losing its history** (its VictoriaMetrics series are rewritten under the new name).
@@ -103,6 +104,11 @@ TOKEN = "a-long-random-enrollment-token"
 [GLOBAL]
 IPERF3_BINARY_PATH = "/usr/local/bin/iperf3"
 ```
+
+Sign in as `admin` with the password the server wrote to `<config>.initial_admin_password` (or set
+`SYNTRAF_ADMIN_PASSWORD` before the first start), change it on the **Server** page (*Access*) and enable HTTPS there.
+Clients pin the server key on their first connection; to protect that one too, copy the fingerprint shown on the
+Server page (*Client identity*) into `SERVER_CERT_SHA256` in their `[CLIENT]` section.
 
 Approve each new client on the **Clients** page and choose its mesh groups. Run `syntraf.py` from the installation
 directory under systemd (or a Windows service wrapper): it supervises the running release, restarts it on request

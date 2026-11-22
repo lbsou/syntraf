@@ -214,7 +214,8 @@ journalctl -u syntraf -f</code></pre>
 
 <h2 id="quickstart">4. Quick start</h2>
 <ol>
-  <li>Start the server and open <code>http://server:5000</code>.</li>
+  <li>Start the server and open <code>http://server:5000</code>; sign in as <code>admin</code> with the password from
+    <code>&lt;config&gt;.initial_admin_password</code>, then change it (Server page, <em>Access</em>) and enable HTTPS.</li>
   <li><strong>Databases</strong> → New: declare VictoriaMetrics (or InfluxDB 2), click <em>Test connection</em>.</li>
   <li><strong>Mesh groups</strong> → New: choose a topology, a bandwidth, a DSCP, a packet size and an interval (or a
     profile). The summary shows the connections and bandwidth per node before you save.</li>
@@ -346,8 +347,40 @@ be reduced. For a large full mesh, the preview suggests what a dual hub would gi
 </ol>
 <p>The control channel is TLS; iperf3 flows are authenticated with RSA credentials managed by SYNTRAF. Token values
 are never shown in listings, logs or API responses.</p>
-<div class="warn">The web interface has no login of its own: expose port 5000 only to administrators (VPN,
-reverse proxy with authentication, firewall).</div>
+
+<h3>Control channel (port 6531)</h3>
+<ul>
+  <li><strong>Clients verify the server.</strong> They pin the SHA-256 of the server key on their first connection
+    (<code>syntraf_server_pin</code> next to their configuration), or take it from
+    <code>SERVER_CERT_SHA256</code> in <code>[CLIENT]</code>, which protects even the first connection. The value is
+    shown on the Server page (<em>Client identity</em>). Another server is refused before any token is sent.</li>
+  <li><strong>Clients prove they hold their key.</strong> AUTH carries a signature bound to this server, valid for a
+    few minutes and once. Older clients without it are accepted with a warning; enable
+    <em>Require clients to prove they hold their key</em> once every client is up to date.</li>
+  <li><strong>Releases are signed</strong> by the server key; a client installs nothing whose signature it cannot
+    verify with the pinned key. A release contains the code only (allow list), never configuration or secrets.</li>
+  <li>Before a successful AUTH, nothing but AUTH is accepted, in a short message, within 30 seconds; messages are
+    bounded (64 MiB) and connections limited (1000, 50 per address). A client only writes the measurements it
+    receives.</li>
+</ul>
+
+<h3>Web interface and API (port 5000)</h3>
+<ul>
+  <li><strong>Sign-in required</strong> everywhere except <code>/healthz</code>. On first start an account
+    <code>admin</code> is created; its random password is written to
+    <code>&lt;config&gt;.initial_admin_password</code> (readable by the service account only, never logged), or taken
+    from <code>SYNTRAF_ADMIN_PASSWORD</code>. Sign in, change it on the Server page (<em>Access</em>), delete the file.</li>
+  <li><strong>Accounts and API tokens</strong> are managed on the Server page (<em>Access</em>). Scripts, Prometheus
+    and Grafana use <code>Authorization: Bearer &lt;token&gt;</code>; a token is shown once and stored as a hash.</li>
+  <li><strong>CSRF</strong>: a write made with a session needs the interface's <code>X-Requested-With</code> header
+    and the same origin; the API reads JSON bodies only. After 5 failed sign-ins an address waits 5 minutes.</li>
+  <li><strong>HTTPS</strong>: enable it on the Server page (<em>Web interface</em>, restart), with your certificate or
+    a self-signed one; the session cookie is then <code>Secure</code>. Security headers (CSP, X-Frame-Options,
+    nosniff, HSTS over HTTPS) are always sent. The listening address can be restricted (127.0.0.1 behind a reverse
+    proxy).</li>
+  <li>The iperf3 program and its key directory are set in the configuration file only, never from the web.</li>
+  <li>Secret files (configuration and its versions, keys, access file) are readable by their owner only (0600).</li>
+</ul>
 
 <h2 id="nat">8. Clients behind a NAT</h2>
 <p>A client that cannot receive connections (NAT, CGNAT, firewall) is declared <strong>Behind a NAT</strong>
@@ -473,6 +506,8 @@ in red. Configuration changes are annotations.</p>
   <tr><td><code>TOKEN</code></td><td>Shared enrollment tokens: <code>{ name = "value", ... }</code></td><td>—</td></tr>
   <tr><td><code>MESH_LISTENERS_PORT_RANGE</code></td><td>Ports of the clients' iperf3 listeners</td><td>15000-16000</td></tr>
   <tr><td><code>SERVER_X509_CERTIFICATE</code>, <code>SERVER_X509_PRIVATE_KEY</code></td><td>TLS certificate of the control channel (empty: self-signed)</td><td>—</td></tr>
+  <tr><td><code>WEBUI_BIND_ADDRESS</code>, <code>WEBUI_PORT</code>, <code>WEBUI_TLS</code>, <code>WEBUI_X509_CERTIFICATE</code>, <code>WEBUI_X509_PRIVATE_KEY</code></td><td>Web interface: address, port, HTTPS and its certificate (empty: self-signed)</td><td>0.0.0.0, 5000, false</td></tr>
+  <tr><td><code>REQUIRE_KEY_PROOF</code></td><td>Refuse clients that do not prove they hold their key</td><td>false</td></tr>
   <tr><td><code>MAX_FLOWS_PER_CLIENT</code>, <code>MAX_TOTAL_FLOWS</code>, <code>FLOW_ALERT_ADDED</code>, <code>FLOW_ALERT_RATIO</code></td><td>Capacity guardrails</td><td>50, 2000, 100, 2.0</td></tr>
 </table>
 
@@ -523,10 +558,12 @@ in red. Configuration changes are annotations.</p>
   <tr><td><code>CLIENT_UID</code></td><td>Name (replaced by the one the server gives when it renames the client)</td><td>—</td></tr>
   <tr><td><code>SERVER</code>, <code>SERVER_PORT</code></td><td>Server address and control port</td><td>—, 6531</td></tr>
   <tr><td><code>TOKEN</code></td><td>Shared enrollment token (5–255 characters)</td><td>—</td></tr>
+  <tr><td><code>SERVER_CERT_SHA256</code></td><td>Expected server key (Server page, <em>Client identity</em>); empty: pinned on first connection</td><td>—</td></tr>
 </table>
 
 <h2 id="api">15. REST API</h2>
-<p>JSON over HTTP on the web interface's port, base <code>/api/v1</code>. The OpenAPI description is at
+<p>JSON over HTTP(S) on the web interface's port, base <code>/api/v1</code>, with
+<code>Authorization: Bearer &lt;API token&gt;</code> (Server page, <em>Access</em>). The OpenAPI description is at
 <code>/api/v1/openapi.json</code>. Every write accepts <code>?dry_run=1</code> (preview: diff, affected clients,
 impact, settings needing a restart). A change that triggers a capacity alert answers HTTP 428 until repeated with
 <code>?confirm=1</code>; a refused change answers 400 (with <code>fields</code>), 404, 409 or 422.</p>
