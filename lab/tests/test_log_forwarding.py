@@ -167,3 +167,9 @@ def test_limit_keeps_the_most_recent(tmp_path):
     corpus(tmp_path)
     entries = search.search(str(tmp_path), limit=2)
     assert [e["message"].split()[0] for e in entries] == ["CONNECTED", "LAB_C3__TO__LAB_C2"]
+
+
+def test_configuration_messages_have_their_own_type():
+    assert search.log_type("st_conf_validation") == "config"
+    assert search.log_type("st_mesh_group_ops") == "config"
+    assert "config" in search.TYPES

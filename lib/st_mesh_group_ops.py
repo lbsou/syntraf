@@ -13,12 +13,14 @@ Principe de chaque changement :
   5. sinon : écriture du fichier (version + audit), application à la config en mémoire, puis demande de
      reconnexion aux clients connectés dont la config a changé (chacun ne relance que les flux modifiés).
 """
+import contextlib
 import contextvars
 import copy
 import ipaddress
 import logging
 import os
 import re
+import threading
 
 import toml
 
@@ -93,6 +95,30 @@ def get_group(state, uid):
     raise OpError(404, f"Mesh group '{uid}' not found")
 
 
+class _QuietFilter(logging.Filter):
+    """Pendant la validation d'une saisie, les messages des fonctions de validation du démarrage (ERROR pour toute
+    valeur invalide) ne vont pas au journal : un champ refusé est déjà signalé dans le formulaire."""
+    local = threading.local()
+
+    def filter(self, record):
+        return not getattr(self.local, "quiet", False)
+
+
+_VALIDATION_LOGGER = logging.getLogger("syntraf.lib.st_conf_validation")
+_QUIET = _QuietFilter()
+_VALIDATION_LOGGER.addFilter(_QUIET)
+
+
+@contextlib.contextmanager
+def _quiet():
+    previous = getattr(_QUIET.local, "quiet", False)
+    _QUIET.local.quiet = True
+    try:
+        yield
+    finally:
+        _QUIET.local.quiet = previous
+
+
 def field_errors(values, with_uid=False, optional=False):
     """Erreurs par champ du formulaire : {"BANDWIDTH": "message", ...} (vide si tout est valide).
     optional : un champ vide est accepté (groupe dont un profil fournit les valeurs)."""
@@ -110,7 +136,8 @@ def field_errors(values, with_uid=False, optional=False):
         if optional and name != "UID" and not v[name]:
             continue
         try:
-            ok = bool(v[name]) and check(v[name])
+            with _quiet():
+                ok = bool(v[name]) and check(v[name])
         except Exception:  # noqa: BLE001 - les fonctions de validation lèvent parfois sur une entrée invalide
             ok = False
         if not ok:
@@ -242,10 +269,10 @@ def delete_profile(state, uid, actor, dry_run=False):
 
 def _profile_field_errors(values, with_uid=False):
     """Chaque valeur est facultative (le mesh group garde alors la sienne), mais il en faut au moins une."""
-    present = {k: str(values.get(k, "") or "").strip() for k in PROFILE_FIELDS}
-    present = {k: v for k, v in present.items() if v}
-    errors = {k: m for k, m in field_errors(dict(values, **{f: "1" for f in PROFILE_FIELDS if f not in present}),
-                                             with_uid).items() if k in present or k == "UID"}
+    present = {k for k in PROFILE_FIELDS if str(values.get(k, "") or "").strip()}
+    # Seules les valeurs données sont validées (avant : les autres étaient remplacées par une valeur fictive « 1 »,
+    # invalide pour une taille de paquet, et le validateur l'écrivait en ERROR dans le journal du serveur)
+    errors = field_errors(values, with_uid, optional=True)
     if not present and not errors:
         raise OpError(400, "A profile needs at least one value (bandwidth, DSCP, packet size or interval)",
                       {k: "At least one value is needed" for k in PROFILE_FIELDS})
@@ -1048,7 +1075,8 @@ def _raise(errors):
 
 def _ok(check, value):
     try:
-        return bool(value) and bool(check(value))
+        with _quiet():
+            return bool(value) and bool(check(value))
     except Exception:  # noqa: BLE001 - les fonctions de validation lèvent parfois sur une entrée invalide
         return False
 

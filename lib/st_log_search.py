@@ -1,7 +1,7 @@
 """Recherche dans les journaux du serveur et des clients (LOGDIR/syntraf.log*, LOGDIR/clients/<UID>/syntraf.log*).
 
 Chaque entrée : nœud, heure (ISO avec fuseau), niveau, module, type, message, et les lignes de suite (traceback).
-Types : control (canal de contrôle), measurement (iperf3, pertes), database, webui, system.
+Types : control (canal de contrôle), measurement (iperf3, pertes), database, config (configuration), webui, system.
 """
 import collections
 import datetime as dt
@@ -12,10 +12,13 @@ import shlex
 from lib.st_log_store import CLIENTS_DIR, FILENAME
 
 LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
-TYPES = ("control", "measurement", "database", "webui", "system")
+TYPES = ("control", "measurement", "database", "config", "webui", "system")
 LINE_RE = re.compile(r"^\s?(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:[+-]\d{4})?) - (DEBUG|INFO|WARNING|ERROR|CRITICAL) - "
                      r"(\S+) \(([^)]*)\) - (.*)$")
 MODULE_TYPES = (
+    # en premier : st_mesh_group_ops commence comme st_mesh (canal de contrôle)
+    (re.compile(r"^(st_conf_validation|st_mesh_group_ops|st_config_store|st_read_toml|st_capacity|st_topology)"),
+     "config"),
     (re.compile(r"^(st_mesh|st_cc_|st_crypto|st_obj_cc)"), "control"),
     (re.compile(r"^(st_iperf|st_outage|st_obj_process|st_stats|st_system_stats)"), "measurement"),
     (re.compile(r"^(st_influx|st_victoria|st_db)"), "database"),

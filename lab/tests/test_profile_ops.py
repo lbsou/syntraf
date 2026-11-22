@@ -124,3 +124,13 @@ def test_with_a_profile_the_group_values_are_optional(state):
     g1 = next(g for g in toml.load(state["config_file_path"])["MESH_GROUP"] if g["UID"] == "GROUP1")
     assert g1 == {"UID": "GROUP1", "IPERF3_PROFILE": "VOICE", "INTERVAL": "1"}
     assert live_group(state, "GROUP1")["DSCP"] == "46"
+
+
+def test_form_validation_writes_no_error_to_the_server_log(state, caplog):
+    import logging
+    with caplog.at_level(logging.DEBUG):
+        ops.create_profile(state, {"UID": "DSCP_ONLY", "DSCP": "46"}, actor="x", dry_run=True)
+        with pytest.raises(ops.OpError):
+            ops.update(state, "GROUP1", {"BANDWIDTH": "", "DSCP": "0", "PACKET_SIZE": "218", "INTERVAL": "1"}, actor="x")
+    errors = [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR]
+    assert errors == [], errors
