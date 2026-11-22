@@ -173,3 +173,19 @@ def test_configuration_messages_have_their_own_type():
     assert search.log_type("st_conf_validation") == "config"
     assert search.log_type("st_mesh_group_ops") == "config"
     assert "config" in search.TYPES
+
+
+def test_a_client_cannot_forge_entries_inside_its_lines(tmp_path):
+    forged = (" 2026-11-21 23:45:00+0000 - INFO - st_mesh (a,1) - hello\n"
+              " 2026-11-21 23:45:01+0000 - CRITICAL - st_mesh (b,2) - FORGED ENTRY")
+    store.append(str(tmp_path), "LAB_C2", [forged], dropped=0, max_bytes=10_000, backups=2)
+    entries = search.search(str(tmp_path), nodes=["LAB_C2"])
+    assert len(entries) == 1 and entries[0]["level"] == "INFO" and "FORGED ENTRY" in entries[0]["detail"]
+
+
+def test_a_node_name_outside_the_log_directory_is_ignored(tmp_path):
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    (outside / "syntraf.log").write_text(LINE)
+    (tmp_path / "logs").mkdir()
+    assert search.search(str(tmp_path / "logs"), nodes=["../elsewhere", str(outside)]) == []

@@ -335,9 +335,13 @@ def api():
 
         elif requested_action == "GET_SYSTEM_STATS":
             ''' =============================================================================================== '''
+            # Clients déclarés seulement : une connexion refusée ou en attente reste rangée sous son adresse IP,
+            # sans statistiques (la page Supervision cassait sur elle)
+            declared = {c.get('UID') for c in app.config['config'].get('SERVER_CLIENT', [])}
             dict_of_clients_as_json = {}
             for k, v in app.config['dict_of_clients'].items():
-                dict_of_clients_as_json[k] = v.asjson()
+                if k in declared:
+                    dict_of_clients_as_json[k] = v.asjson()
             return dict_of_clients_as_json
 
         elif requested_action == "GET_NUMBER_OF_ONLINE_CLIENT":

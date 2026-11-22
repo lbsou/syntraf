@@ -231,7 +231,7 @@ async function update_system_stats() {
         for (let [client_uid, data] of Object.entries(system_stats)) {
             data = JSON.parse(data)
 
-            document.getElementById(client_uid + '_status').innerHTML = data['status'];
+            document.getElementById(client_uid + '_status').textContent = data['status'];
            // document.getElementById(client_uid + '_status').title = data['status_explanation'];
             $("#" + client_uid + "_status").attr("title", data['status_explanation']).tooltip();
 
@@ -272,8 +272,8 @@ async function update_system_stats() {
             }
 
             document.getElementById(client_uid + '_status_since').textContent = st.time(data['status_since']);
-            document.getElementById(client_uid + '_syntraf_version').innerHTML= data['syntraf_version'];
-            document.getElementById(client_uid + '_ip_address').innerHTML= data['ip_address'];
+            document.getElementById(client_uid + '_syntraf_version').textContent = data['syntraf_version'];
+            document.getElementById(client_uid + '_ip_address').textContent = data['ip_address'];
 
 
         }
@@ -429,20 +429,20 @@ async function get_sys_infos(source)
     }
     else {
             system_infos = JSON.parse(system_infos);
-            document.getElementById('modal_system_stats_label').innerHTML= 'System informations of ' + client_uid;
-            document.getElementById('modal_system_infos_system').innerHTML= system_infos["SYSTEM"];
-            document.getElementById('modal_system_infos_node_name').innerHTML=system_infos["NODE_NAME"];
-            document.getElementById('modal_system_infos_release').innerHTML=system_infos["RELEASE"];
-            document.getElementById('modal_system_infos_version').innerHTML=system_infos["VERSION"];
-            document.getElementById('modal_system_infos_processor').innerHTML=system_infos["PROCESSOR"];
-            document.getElementById('modal_system_infos_python_version').innerHTML=system_infos["PYTHON_VERSION"];
-            document.getElementById('modal_system_infos_cpu_model').innerHTML=system_infos["CPU_MODEL"];
-            document.getElementById('modal_system_infos_cpu_count_logical').innerHTML=system_infos["CPU_LOGICAL"];
-            document.getElementById('modal_system_infos_cpu_count_physical').innerHTML=system_infos["CPU_PHYSICAL"];
-            document.getElementById('modal_system_infos_cpu_frequency').innerHTML=system_infos["CPU_FREQUENCY"];
-            document.getElementById('modal_system_infos_memory_mb_physical').innerHTML=system_infos["MEMORY_MB"] + " MB";
-            document.getElementById('modal_system_infos_boot_time').innerHTML=system_infos["BOOT_TIME"];
-            document.getElementById('modal_system_infos_timezone').innerHTML=system_infos["TIMEZONE"];
+            document.getElementById('modal_system_stats_label').textContent = 'System informations of ' + client_uid;
+            document.getElementById('modal_system_infos_system').textContent=system_infos["SYSTEM"];
+            document.getElementById('modal_system_infos_node_name').textContent=system_infos["NODE_NAME"];
+            document.getElementById('modal_system_infos_release').textContent=system_infos["RELEASE"];
+            document.getElementById('modal_system_infos_version').textContent=system_infos["VERSION"];
+            document.getElementById('modal_system_infos_processor').textContent=system_infos["PROCESSOR"];
+            document.getElementById('modal_system_infos_python_version').textContent=system_infos["PYTHON_VERSION"];
+            document.getElementById('modal_system_infos_cpu_model').textContent=system_infos["CPU_MODEL"];
+            document.getElementById('modal_system_infos_cpu_count_logical').textContent=system_infos["CPU_LOGICAL"];
+            document.getElementById('modal_system_infos_cpu_count_physical').textContent=system_infos["CPU_PHYSICAL"];
+            document.getElementById('modal_system_infos_cpu_frequency').textContent=system_infos["CPU_FREQUENCY"];
+            document.getElementById('modal_system_infos_memory_mb_physical').textContent=system_infos["MEMORY_MB"] + " MB";
+            document.getElementById('modal_system_infos_boot_time').textContent=system_infos["BOOT_TIME"];
+            document.getElementById('modal_system_infos_timezone').textContent=system_infos["TIMEZONE"];
             $('#modal_system_stats').modal('show');
     }
 }

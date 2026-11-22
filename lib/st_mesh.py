@@ -7,7 +7,8 @@ from lib.st_read_toml import read_conf
 from lib.st_conf_validation import valid_dir_rsa_keypair, validate_ipv4
 from lib.st_obj_cc_client import cc_client
 from lib.st_cc_commands import queue_client_ip_update, next_command, dynamic_client_uids, ForgetScheduler
-from lib.st_sockutil import recv_exact
+from lib.st_sockutil import recv_exact, recv_message, ProtocolViolation
+from lib import st_channel_guard as guard
 from lib.st_config_diff import edges_to_restart, reuse_keys
 from lib.st_iperf3_credentials import load_or_create
 from lib import st_enrollment, st_log_forward, st_log_store, st_nat, st_release, st_syslog, st_updater
@@ -65,20 +66,12 @@ client_log = logging.getLogger("syntraf." + "lib.st_client")
 #################################################################################
 ###  SOCKET RCV
 #################################################################################
-def sock_rcv(sckt):
+def sock_rcv(sckt, max_bytes=guard.MAX_MESSAGE_BYTES, deadline=None):
+    """Message suivant (dict) ; None si la connexion se ferme. Taille bornée (max_bytes) et échéance facultative :
+    ProtocolViolation au-delà (voir lib/st_channel_guard.py)."""
     try:
-        # Waiting for a size in binary (long addressed on 4bytes)
-        size = recv_exact(sckt, 4)
-        if size is None: return None
-
-        # Unpacking the 4 bytes to get the size
-        # https://docs.python.org/3/library/struct.html
-        size_decoded = struct.unpack(">l", size)[0]
-
-        # None if the peer closed the connection in the middle of the message (used to spin forever)
-        data = recv_exact(sckt, size_decoded)
+        data = recv_message(sckt, max_bytes, deadline)
         if data is None: return None
-
         result = json.loads(data)
         return result
 
@@ -813,7 +806,7 @@ def authenticate_server_client(_config, data, obj_client, sckt, enrollment=None,
                                        enrollment if isinstance(enrollment, st_enrollment.Enrollment) else None)
     if decision.accepted and decision.rename_to:
         # Client renommé pendant son absence : admis sous son nouveau nom, qu'on lui remet
-        server_log.warning(f"CONTEXT: {decision.rename_to} - PRESENTED ITS PREVIOUS NAME '{payload['CLIENT_UID']}': "
+        server_log.warning(f"CONTEXT: {decision.rename_to} - PRESENTED ITS PREVIOUS NAME '{guard.clean(payload['CLIENT_UID'])}': "
                            f"GIVING IT ITS NEW NAME")
         payload['CLIENT_UID'] = decision.rename_to
         obj_client.client_uid = decision.rename_to
@@ -830,7 +823,7 @@ def authenticate_server_client(_config, data, obj_client, sckt, enrollment=None,
                 {"ACTION": "SET_TOKEN", "TOKEN": decision.deliver_token})
         return True, ""
     level = server_log.warning if decision.reason == "PENDING APPROVAL" else server_log.error
-    level(f"AUTHENTICATION REFUSED FROM IP '{ip_addr}' WITH CLIENT UID '{obj_client.client_uid}': {decision.reason}")
+    level(f"AUTHENTICATION REFUSED FROM IP '{ip_addr}' WITH CLIENT UID '{guard.clean(obj_client.client_uid)}': {decision.reason}")
     return False, decision.reason
 
 
@@ -903,7 +896,7 @@ def server_auth(received_data, obj_client, _config, address, dict_of_commands_fo
     public_key = received_data['PAYLOAD']['PUBLIC_KEY']
 
     server_log.debug(
-        f"CONTEXT: {obj_client.client_uid} - NEW CONNECTION FROM CLIENT_UID : '{obj_client.client_uid}', SOURCE_IP : '{address}'")
+        f"CONTEXT: {guard.clean(obj_client.client_uid)} - NEW CONNECTION, SOURCE_IP : '{address}'")
 
     # Admission : clé épinglée, jeton propre ou partagé, demande en attente (dict_of_client_pending_acceptance est
     # l'objet st_enrollment.Enrollment du serveur)
@@ -1032,8 +1025,8 @@ def server_send_release_chunk(sckt, payload):
 def server_save_update_status(obj_client, payload):
     obj_client.update_status = dict(payload, AT=datetime.now().astimezone().isoformat(timespec="seconds"))
     log_fn = server_log.error if payload.get('STATE') == "FAILED" else server_log.info
-    log_fn(f"CONTEXT: {obj_client.client_uid} - UPDATE TO {payload.get('RELEASE')}: {payload.get('STATE')} "
-           f"{payload.get('MESSAGE', '')}")
+    log_fn(f"CONTEXT: {obj_client.client_uid} - UPDATE TO {guard.clean(payload.get('RELEASE'))}: "
+           f"{guard.clean(payload.get('STATE'))} {guard.clean(payload.get('MESSAGE', ''), 400)}")
 
 
 _LAST_LOG_PURGE = [0.0]
@@ -1047,9 +1040,12 @@ def server_save_logs(_config, client_uid, received_data):
         max_bytes = int(g.get('LOG_MAX_SIZE_PER_FILE_MB', DefaultValues.DEFAULT_LOG_MAX_SIZE_PER_FILE_MB)) * 1024 * 1024
         backups = int(g.get('LOG_FILE_TO_KEEP', DefaultValues.DEFAULT_LOG_FILE_TO_KEEP))
         payload = received_data.get('PAYLOAD') or {}
-        st_log_store.append(g.get('LOGDIR', ''), client_uid, payload.get('LINES') or [], int(payload.get('DROPPED') or 0),
+        # une ligne reçue sur plusieurs lignes ne peut pas forger d'entrée : ses suites sont décalées
+        raw = payload.get('LINES') if isinstance(payload.get('LINES'), list) else []
+        lines = "".join(st_log_store.contained(line) for line in raw).splitlines()
+        st_log_store.append(g.get('LOGDIR', ''), client_uid, lines, int(payload.get('DROPPED') or 0),
                             max_bytes, backups)
-        st_syslog.FORWARDER.forward_client_lines(client_uid, payload.get('LINES') or [])
+        st_syslog.FORWARDER.forward_client_lines(client_uid, lines)
         if g.get('LOG_RETENTION_DAYS') and time.time() - _LAST_LOG_PURGE[0] > 3600:
             _LAST_LOG_PURGE[0] = time.time()
             removed = st_log_store.purge_older_than(g.get('LOGDIR', ''), int(g['LOG_RETENTION_DAYS']))
@@ -1162,16 +1158,22 @@ class Handler(StreamRequestHandler):
                                          status_explanation="NOT YET AUTHENTICATED", client_uid="UNKNOWN",
                                          bool_dynamic_client=False, tcp_port=address[1], ip_address=address[0])
 
+        # Avant une authentification réussie : AUTH seulement, message court, avant l'échéance
+        authenticated = False
+        auth_deadline = time.monotonic() + guard.AUTH_DEADLINE_S
         try:
+            sckt.settimeout(guard.AUTH_DEADLINE_S)
             sckt.do_handshake()
+            set_tcp_ka(sckt, server_log)  # rétablit le délai de lecture normal
             while True:
                 # no need to loop if no server_client
                 if "SERVER_CLIENT" in _config:
-                    received_data = ""
-                    received_data = sock_rcv(sckt)
+                    limit = guard.max_message_bytes(authenticated)
+                    deadline = None if authenticated else auth_deadline
+                    received_data = sock_rcv(sckt, limit, deadline)
 
                     if received_data is None:
-                        received_data = sock_rcv(sckt)
+                        received_data = sock_rcv(sckt, limit, deadline)
 
                     if received_data is None:
                         server_log.debug(f"CONTEXT: {dict_of_clients[uid].client_uid} - INVALID DATA RECEIVED")
@@ -1180,8 +1182,14 @@ class Handler(StreamRequestHandler):
                         break
                     else:
                         # Log the command that was received
+                        command = received_data.get('COMMAND') if isinstance(received_data, dict) else None
                         server_log.debug(
-                            f"CONTEXT: {dict_of_clients[uid].client_uid} - RECEIVED {received_data['COMMAND']}")
+                            f"CONTEXT: {dict_of_clients[uid].client_uid} - RECEIVED {guard.clean(command)}")
+                        if not guard.allowed(command, authenticated):
+                            server_log.warning(f"{dict_of_clients[uid].ip_address}: COMMAND {guard.clean(command)} "
+                                               f"BEFORE AUTHENTICATION: CLOSING CONNECTION")
+                            dict_of_clients[uid].status_explanation = "COMMAND BEFORE AUTHENTICATION"
+                            break
 
                         if received_data['COMMAND'] == "AUTH":
 
@@ -1214,8 +1222,16 @@ class Handler(StreamRequestHandler):
                             dict_of_clients[new_uid].tcp_port = address[1]
                             dict_of_clients.pop(uid)
                             uid = new_uid
+                            authenticated = True
 
                         elif received_data['COMMAND'] == "SAVE_METRIC":
+                            # Un client n'écrit que ce qu'il mesure (étiquette SERVER = son nom)
+                            kept, dropped = guard.authorized_points(received_data.get('PAYLOAD'),
+                                                                    dict_of_clients[uid].client_uid)
+                            if dropped:
+                                server_log.warning(f"CONTEXT: {dict_of_clients[uid].client_uid} - {dropped} POINT(S) "
+                                                   f"REJECTED: NOT MEASURED BY THIS CLIENT")
+                            received_data['PAYLOAD'] = kept
                             server_save_metric(dict_of_clients[uid], conn_db, received_data,
                                                dict_of_clients[uid].ip_address, sckt)
 
@@ -1249,8 +1265,12 @@ class Handler(StreamRequestHandler):
                 else:
                     time.sleep(2)
 
+        except ProtocolViolation as exc:
+            dict_of_clients[uid].status_explanation = "PROTOCOL VIOLATION"
+            server_log.warning(f"{dict_of_clients[uid].ip_address}: {exc}"
+                               f"{'' if authenticated else ' BEFORE AUTHENTICATION'}: CLOSING CONNECTION")
         except socket.timeout as exc:
-            server_log.error(f"SOCKET TIMEOUT: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+            server_log.warning(f"SOCKET TIMEOUT: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
             dict_of_clients[uid].status_explanation = "SOCKET TIMEOUT"
         except json.JSONDecodeError as exc:
             server_log.error(f"JSON DECODING FAILED FOR STRING")
@@ -1347,6 +1367,22 @@ class SSL_TCPServer(TCPServer):
         self.context.load_cert_chain(certfile=certfile, keyfile=keyfile)
         self.context.verify_mode = ssl.CERT_NONE
 
+
+    limiter = guard.ConnectionLimiter()
+
+    def process_request(self, request, client_address):
+        # Connexions simultanées limitées, au total et par adresse : au-delà, fermée aussitôt
+        if not self.limiter.acquire(client_address[0]):
+            server_log.warning(f"{client_address[0]}: TOO MANY CONNECTIONS, REFUSED")
+            self.shutdown_request(request)
+            return
+        super().process_request(request, client_address)
+
+    def process_request_thread(self, request, client_address):
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self.limiter.release(client_address[0])
 
     def get_request(self):
         newsocket, fromaddr = self.socket.accept()

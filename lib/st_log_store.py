@@ -28,13 +28,21 @@ def append(logdir, uid, lines, dropped, max_bytes, backups):
         return
     directory = client_dir(logdir, uid)
     path = os.path.join(directory, FILENAME)
-    text = "".join(line if line.endswith("\n") else line + "\n" for line in lines)
+    text = "".join(contained(line) for line in lines)
     with _lock:
         os.makedirs(directory, exist_ok=True)
         if os.path.exists(path) and os.path.getsize(path) + len(text.encode()) > max_bytes:
             _rotate(path, backups)
         with open(path, "a", encoding="utf-8") as f:
             f.write(text)
+
+
+def contained(line):
+    """Une ligne reçue, sur une ou plusieurs lignes (trace d'exception) : seule la première peut commencer une
+    entrée ; les suivantes sont décalées (deux espaces) pour rester des lignes de suite et ne jamais être lues
+    comme une entrée forgée (autre niveau, autre module)."""
+    first, *rest = str(line).rstrip("\n").split("\n")
+    return "".join([first + "\n"] + ["  " + r.lstrip("\r") + "\n" for r in rest])
 
 
 def _rotate(path, backups):

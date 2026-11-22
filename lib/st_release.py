@@ -25,18 +25,31 @@ class ReleaseError(Exception):
     pass
 
 
+# Liste blanche : une release se télécharge sur le canal de contrôle ; seul le code y entre. (Avant, une liste
+# d'exclusions y laissait passer .env, un config.toml posé à la racine, ses versions, ses jetons...)
+INCLUDED_TOP_FILES = {"syntraf.py", "requirements_client.txt", "requirements_server.txt"}
+INCLUDED_TOP_DIRS = {"lib"}
+CODE_SUFFIXES = (".py", ".html", ".js", ".css", ".json", ".svg", ".png", ".jpg", ".gif", ".ico", ".woff", ".woff2",
+                 ".ttf", ".eot", ".otf", ".map", ".txt", ".md")
+SECRET_NAMES = ("syntraf_client_token", "syntraf_client_uid", "credentials")
+
+
+def _shippable(name):
+    low = name.lower()
+    return (low.endswith(CODE_SUFFIXES) and not low.startswith(".") and not low.endswith(".pending.json")
+            and not low.startswith(SECRET_NAMES))
+
+
 def _included(root):
     """Fichiers de la release (chemins relatifs, triés), hors wheelhouse."""
-    out = []
-    for dirpath, dirnames, filenames in os.walk(root):
-        rel_dir = os.path.relpath(dirpath, root)
-        dirnames[:] = sorted(d for d in dirnames if d not in EXCLUDED_DIRS and not d.startswith("venv")
-                             and not (rel_dir == "." and d == WHEELHOUSE))
-        for name in filenames:
-            if name.endswith(EXCLUDED_SUFFIXES):
-                continue
-            rel = os.path.normpath(os.path.join(rel_dir, name)).replace(os.sep, "/")
-            out.append(rel)
+    out = [name for name in INCLUDED_TOP_FILES if os.path.isfile(os.path.join(root, name))]
+    for top in INCLUDED_TOP_DIRS:
+        for dirpath, dirnames, filenames in os.walk(os.path.join(root, top)):
+            dirnames[:] = sorted(d for d in dirnames if d not in EXCLUDED_DIRS and not d.startswith((".", "venv")))
+            rel_dir = os.path.relpath(dirpath, root)
+            for name in filenames:
+                if _shippable(name) and not name.endswith(EXCLUDED_SUFFIXES):
+                    out.append(os.path.normpath(os.path.join(rel_dir, name)).replace(os.sep, "/"))
     return sorted(out)
 
 

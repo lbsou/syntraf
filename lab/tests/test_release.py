@@ -92,3 +92,19 @@ def test_safe_extract_refuses_links(tmp_path):
         t.addfile(info)
     with pytest.raises(rel.ReleaseError):
         rel.safe_extract(str(archive), str(tmp_path / "dest"))
+
+
+def test_only_the_code_is_shipped_never_a_secret_or_a_config(tmp_path):
+    # Liste blanche : une release est téléchargeable par un client ; rien d'autre que le code n'y entre
+    root = tree(tmp_path / "srv", {
+        "syntraf.py": "x", "requirements_client.txt": "toml\n", "lib/st_x.py": "x",
+        "lib/web_ui_kindafixed2/static/js/a.js": "x", "lib/web_ui_kindafixed2/templates/a.html": "x",
+        ".env": "SECRET_KEY=x", "config.toml": "TOKEN='x'", "etc/config.toml": "x", "config.toml.pending.json": "{}",
+        "syntraf_client_token": "x", "lib/.env": "x", "lib/web_ui_kindafixed2/users.db": "x", "lib/x.toml": "x",
+        "lib/key.pem": "x", "lib/credentials.csv": "x", "tools/build.py": "x", "README.md": "x",
+        "config.toml.history/v1.toml": "x", "config.toml.audit.jsonl": "x"})
+    info = rel.build(str(root), str(tmp_path / "out"), "0.45")
+    with tarfile.open(info["path"]) as t:
+        names = set(t.getnames())
+    assert names == {"syntraf.py", "requirements_client.txt", "lib/st_x.py", "lib/web_ui_kindafixed2/static/js/a.js",
+                     "lib/web_ui_kindafixed2/templates/a.html", "manifest.json"}

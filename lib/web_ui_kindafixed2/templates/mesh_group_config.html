@@ -164,8 +164,7 @@ async function load() {
     $table.bootstrapTable("destroy").bootstrapTable({
         data: r.data,
         formatNoMatches: () => "No mesh group yet. Click “New” to create the first one.",
-        columns: [
-            {field: "state", checkbox: true},
+        columns: [{field: "state", checkbox: true}].concat(st.escapedColumns([
             {field: "UID", title: "Name", sortable: true},
             {field: "DISABLED", title: "Status", sortable: true,
              formatter: v => v ? '<span class="badge bg-warning text-dark">Disabled</span>' : '<span class="badge bg-success">Enabled</span>'},
@@ -183,7 +182,7 @@ async function load() {
                 const k = row.KBPS_OUT || {}, r = x => Math.round(x * 10) / 10;
                 return "member" in k ? r(k.member) : `hub ${r(k.hub || 0)} · spoke ${r(k.spoke || 0)}`;
             }},
-        ],
+        ])),
     });
     refreshButtons();
 }

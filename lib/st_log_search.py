@@ -103,7 +103,9 @@ def _matcher(query):
 
 def search(logdir, nodes=None, types=None, level="", query="", since=None, until=None, limit=1000):
     """Entrées correspondant à tous les filtres, les plus récentes d'abord (au plus `limit`)."""
-    wanted_nodes = nodes or globals()["nodes"](logdir)
+    known = globals()["nodes"](logdir)
+    # seulement des nœuds connus, chacun une fois : un nom ne peut pas désigner un autre répertoire
+    wanted_nodes = [n for n in dict.fromkeys(nodes) if n in known] if nodes else known
     min_level = LEVELS.index(level.upper()) if (level or "").upper() in LEVELS else 0
     match = _matcher(query)
     found = []
