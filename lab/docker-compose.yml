@@ -91,9 +91,30 @@ services:
   c4:
     <<: [*syntraf, *client-depends]
     container_name: syntraf-lab-c4
-    environment: {ROLE: client, CLIENT_UID: STARLINK}
+    # Derrière le routeur NAT starlink-gw : aucune connexion entrante possible (BEHIND_NAT dans server.toml)
+    environment: {ROLE: client, CLIENT_UID: STARLINK, LAB_GATEWAY: 10.99.0.2}
+    entrypoint: ["sh", "/src/lab/docker/entrypoint.sh"]  # le script du dépôt (LAB_GATEWAY), sans reconstruire l'image
     volumes: ["../:/src:ro", "./reports/logs/c4:/logs"]
-    networks: {syntraf_lab: {ipv4_address: 172.30.0.34}}
+    networks: {starlink_lan: {ipv4_address: 10.99.0.34}}
+    depends_on:
+      server:
+        condition: service_started
+      starlink-gw:
+        condition: service_started
+
+  starlink-gw:
+    # Routeur NAT (masquerade) du site STARLINK : LAN 10.99.0.0/24 → réseau du lab
+    image: syntraf-lab:latest
+    container_name: syntraf-lab-starlink-gw
+    restart: "no"
+    init: true
+    mem_limit: 32m
+    cap_add: [NET_ADMIN]
+    sysctls: {net.ipv4.ip_forward: 1}
+    entrypoint: ["sh", "-c", "iptables -t nat -A POSTROUTING -s 10.99.0.0/24 ! -d 10.99.0.0/24 -j MASQUERADE && exec sleep infinity"]
+    networks:
+      syntraf_lab: {ipv4_address: 172.30.0.35}
+      starlink_lan: {ipv4_address: 10.99.0.2}
 
   grafana:
     image: grafana/grafana-oss:${GRAFANA_VERSION}
@@ -133,3 +154,10 @@ networks:
     ipam:
       config:
         - subnet: 172.30.0.0/24
+  starlink_lan:
+    name: syntraf_starlink_lan
+    # Pas « internal » : Docker y jetterait tout paquet vers une autre destination que le LAN, même routé par
+    # starlink-gw. L'isolement entre réseaux Docker empêche les autres nœuds de joindre STARLINK directement.
+    ipam:
+      config:
+        - subnet: 10.99.0.0/24

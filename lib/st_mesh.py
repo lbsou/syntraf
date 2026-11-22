@@ -10,7 +10,7 @@ from lib.st_cc_commands import queue_client_ip_update, next_command, dynamic_cli
 from lib.st_sockutil import recv_exact
 from lib.st_config_diff import edges_to_restart, reuse_keys
 from lib.st_iperf3_credentials import load_or_create
-from lib import st_enrollment, st_log_forward, st_log_store, st_release, st_syslog, st_updater
+from lib import st_enrollment, st_log_forward, st_log_store, st_nat, st_release, st_syslog, st_updater
 import base64
 
 from tabulate import tabulate
@@ -361,7 +361,8 @@ def client_send_auth(_config, client_utime, ssl_conn):
         payload_greetings = {'TOKEN': token, 'CLIENT_UID': _config['CLIENT']['CLIENT_UID'],
                              'TIMESTAMP': client_utime, 'SYNTRAF_CLIENT_VERSION': DefaultValues.SYNTRAF_VERSION,
                              'PUBLIC_KEY': _config['CLIENT']['PUBLIC_KEY'],
-                             'SYNTRAF_RELEASE': running_release(), 'UPDATE_FAILED': last_failed_release()}
+                             'SYNTRAF_RELEASE': running_release(), 'UPDATE_FAILED': last_failed_release(),
+                             'LOCAL_ADDRESSES': st_nat.local_ipv4_addresses()}
 
         sock_send(ssl_conn, payload_greetings, "AUTH")
         received_data = sock_rcv(ssl_conn)
@@ -805,6 +806,7 @@ def authenticate_server_client(_config, data, obj_client, sckt, enrollment=None,
     obj_client.public_key = payload.get('PUBLIC_KEY')
     obj_client.release_id = payload.get('SYNTRAF_RELEASE')
     obj_client.update_failed = payload.get('UPDATE_FAILED')
+    obj_client.nat_detected = st_nat.nat_detected(ip_addr, payload.get('LOCAL_ADDRESSES'))
     decision = st_enrollment.authorize(_config, payload, ip_addr,
                                        enrollment if isinstance(enrollment, st_enrollment.Enrollment) else None)
     if decision.accepted and decision.rename_to:
@@ -1205,6 +1207,7 @@ class Handler(StreamRequestHandler):
                             dict_of_clients[new_uid].public_key_sha256 = dict_of_clients[uid].public_key_sha256
                             dict_of_clients[new_uid].release_id = dict_of_clients[uid].release_id
                             dict_of_clients[new_uid].update_failed = dict_of_clients[uid].update_failed
+                            dict_of_clients[new_uid].nat_detected = getattr(dict_of_clients[uid], "nat_detected", None)
                             dict_of_clients[new_uid].ip_address = address[0]
                             dict_of_clients[new_uid].tcp_port = address[1]
                             dict_of_clients.pop(uid)

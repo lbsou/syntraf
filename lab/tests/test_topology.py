@@ -22,6 +22,8 @@ def test_container_names_are_prefixed():
 
 def test_addressing_modes_and_ips():
     assert topology.SERVICES["server"] == "172.30.0.20"
-    assert topology.SERVICES["c4"] == "172.30.0.34"
+    # c4 (STARLINK) est derrière le routeur NAT starlink-gw, sur son propre réseau
+    assert topology.SERVICES["c4"] == "10.99.0.34" and topology.network_of("c4") == "syntraf_starlink_lan"
+    assert topology.subnet_prefix("c4") == "10.99.0." and topology.subnet_prefix("c1") == "172.30.0."
     assert topology.FIXED == ("c1", "c2") and topology.DYNAMIC == ("c3", "c4")
     assert topology.RECOVERY_S == 2 * topology.INTERVAL + topology.WATCHDOG + 10 == 14

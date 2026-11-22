@@ -56,11 +56,12 @@ def heal_cmds(iface: str) -> list[list[str]]:
     ]
 
 
-def parse_lab_iface(ip_addr_output: str) -> str | None:
+def parse_lab_iface(ip_addr_output: str, prefix: str | None = None) -> str | None:
     """Nom de l'interface qui porte une IP du sous-réseau du lab (sortie de `ip -o -4 addr show`)."""
+    prefix = prefix or topology.SUBNET_PREFIX
     for line in ip_addr_output.splitlines():
         parts = line.split()
-        if len(parts) >= 4 and parts[2] == "inet" and parts[3].startswith(topology.SUBNET_PREFIX):
+        if len(parts) >= 4 and parts[2] == "inet" and parts[3].startswith(prefix):
             return parts[1].split("@")[0]
     return None
 
@@ -69,9 +70,10 @@ def parse_lab_iface(ip_addr_output: str) -> str | None:
 # Actions
 # ---------------------------------------------------------------------------
 def lab_iface(service: str) -> str:
-    iface = parse_lab_iface(docker.exec_(service, ["ip", "-o", "-4", "addr", "show"]).stdout)
+    prefix = topology.subnet_prefix(service)
+    iface = parse_lab_iface(docker.exec_(service, ["ip", "-o", "-4", "addr", "show"]).stdout, prefix)
     if iface is None:
-        raise RuntimeError(f"{service} : aucune interface sur {topology.SUBNET_PREFIX}0/24 (réseau retiré ?)")
+        raise RuntimeError(f"{service} : aucune interface sur {prefix}0/24 (réseau retiré ?)")
     return iface
 
 
@@ -95,7 +97,7 @@ def cut(service: str, mode: CutMode, to: str | None = None) -> None:
     elif to is not None:
         raise ValueError("--to n'est possible qu'avec --mode drop")
     elif mode == "disconnect":
-        docker.run(["network", "disconnect", topology.NETWORK, topology.container(service)])
+        docker.run(["network", "disconnect", topology.network_of(service), topology.container(service)])
     elif mode == "pause":
         docker.run(["pause", topology.container(service)])
     else:
@@ -109,15 +111,18 @@ def heal(service: str) -> None:
         return
     if state["paused"]:
         docker.run(["unpause", topology.container(service)])
-    if topology.NETWORK not in state["networks"]:
+    if topology.network_of(service) not in state["networks"]:
         docker.run(["network", "connect", "--ip", topology.SERVICES[service],
-                    topology.NETWORK, topology.container(service)])
+                    topology.network_of(service), topology.container(service)])
+        if service == "c4":  # route par défaut vers le routeur NAT, perdue avec le réseau
+            docker.exec_(service, ["ip", "route", "replace", "default", "via", topology.SERVICES["starlink-gw"]],
+                         check=False)
     for cmd in heal_cmds(lab_iface(service)):
         docker.exec_(service, cmd, check=False)
 
 
 def heal_all() -> None:
-    for svc in topology.SYNTRAF_NODES:
+    for svc in topology.FAULT_TARGETS:
         try:
             heal(svc)
         except subprocess.CalledProcessError:
@@ -132,7 +137,7 @@ def active(service: str) -> list[str]:
     found = []
     if state["paused"]:
         return ["en pause"]
-    if topology.NETWORK not in state["networks"]:
+    if topology.network_of(service) not in state["networks"]:
         return ["réseau du lab retiré"]
     qdisc = docker.exec_(service, ["tc", "qdisc", "show"], check=False).stdout
     for line in qdisc.splitlines():

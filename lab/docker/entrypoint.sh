@@ -17,6 +17,11 @@ subst() {
         "$1" > /etc/syntraf/config.toml
 }
 
+# Nœud derrière un routeur du lab (NAT) : route par défaut vers lui
+if [ -n "${LAB_GATEWAY:-}" ]; then
+    ip route replace default via "${LAB_GATEWAY}"
+fi
+
 case "${ROLE:-}" in
     server) subst /src/lab/config/server.toml ;;
     client) subst /src/lab/config/client.toml.tmpl ;;

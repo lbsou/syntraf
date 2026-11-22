@@ -320,7 +320,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     nodes = list(topology.SYNTRAF_NODES)
     s = sub.add_parser("degrade", help="latence/gigue/pertes/débit (tc netem) en sortie d'un nœud")
-    s.add_argument("service", choices=nodes)
+    s.add_argument("service", choices=nodes + ["starlink-gw"])  # le routeur NAT : sens vers STARLINK
     s.add_argument("--delay", type=int, default=0, help="ms")
     s.add_argument("--jitter", type=int, default=0, help="ms")
     s.add_argument("--loss", type=float, default=0.0, help="%%")

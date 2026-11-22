@@ -39,7 +39,8 @@ Réseau `syntraf_lab` (172.30.0.0/24) :
 | victoriametrics | .10 | base de données |
 | server | .20 | serveur SYNTRAF (canal de contrôle 6531, webui) |
 | c1, c2 | .31, .32 | clients `LAB_C1`, `LAB_C2`, déclarés en IP fixe |
-| c3, c4 | .33, .34 | clients `LAB_C3` et `STARLINK` (c4), déclarés en IP dynamique (`0.0.0.0`) |
+| c3 | .33 | client `LAB_C3`, déclaré en IP dynamique (`0.0.0.0`) |
+| c4 | 10.99.0.34 | client `STARLINK`, IP dynamique, derrière le routeur NAT `starlink-gw` (.35) |
 | grafana | .40 | visualisation |
 
 Les clients forment un maillage dans le groupe `LAB_MESH` (12 flux UDP iperf3 à 100 kbit/s,
@@ -64,15 +65,21 @@ python lab/labctl.py set-version python 3.15 | victoriametrics v1.157.0 | grafan
 python lab/labctl.py test [-k s3] [--quick]
 ```
 
-### Nœud satellite STARLINK (c4)
+### Nœud satellite STARLINK (c4), derrière un NAT
 
-c4 porte l'UID `STARLINK` et simule un lien satellite : 30 ms ± 12 ms et 0,5 % de pertes dans chaque sens
-(environ 60 ms d'aller-retour). La dégradation (tc netem) ne survit pas au redémarrage d'un conteneur
-client ; pour la réappliquer :
+c4 porte l'UID `STARLINK` et simule un site satellite derrière un routeur NAT (comme le CGNAT de Starlink) :
+
+- il est sur son propre réseau `syntraf_starlink_lan` (10.99.0.34) ; le routeur `starlink-gw` (10.99.0.2 côté LAN,
+  172.30.0.35 côté lab) le masque derrière son adresse. Aucun nœud ne peut ouvrir de connexion vers lui ;
+- `BEHIND_NAT = true` dans `config/server.toml` : STARLINK n'ouvre aucun port et mesure les deux sens lui-même
+  (`iperf3 --bidir`) ; un datagramme vide toutes les 15 s garde ouvertes les correspondances NAT des flux de retour ;
+- lien satellite : 30 ms ± 12 ms et 0,5 % de pertes dans chaque sens (environ 60 ms d'aller-retour).
+
+La dégradation (tc netem) ne survit pas au redémarrage d'un conteneur ; pour la réappliquer :
 
 ```
-python lab/labctl.py degrade c4 --delay 30 --jitter 12 --loss 0.5
-python lab/labctl.py degrade c1 --delay 30 --jitter 12 --loss 0.5 --to c4   # idem pour c2 et c3
+python lab/labctl.py degrade c4 --delay 30 --jitter 12 --loss 0.5            # STARLINK → les autres
+python lab/labctl.py degrade starlink-gw --delay 30 --jitter 12 --loss 0.5   # les autres → STARLINK
 ```
 
 

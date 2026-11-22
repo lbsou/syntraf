@@ -27,6 +27,13 @@
         </div>
         <input class="form-control mt-2" id="c_ip" data-field="IP_ADDRESS" type="text" placeholder="10.0.0.1 or probe.example.org" aria-label="IP address or host name">
         <div class="invalid-feedback" data-feedback="IP_ADDRESS"></div>
+        <div class="form-check form-switch mt-2">
+            <input class="form-check-input" type="checkbox" role="switch" id="c_nat">
+            <label class="form-check-label" for="c_nat">Behind a NAT or a firewall (no inbound connection)</label>
+        </div>
+        <div class="form-text">The client then opens no port: it measures both directions itself (iperf3 --bidir) with each peer.
+            Two clients behind a NAT cannot measure each other: hub &amp; spoke with a reachable hub suits them.</div>
+        <div class="small text-warning mt-1" id="c_nat_hint" hidden><i class="fas fa-exclamation-triangle me-1"></i>At its last connection, the server saw an address that is none of this client's own: it is probably behind a NAT.</div>
     </fieldset>
     <fieldset class="mb-3">
         <legend class="form-label fs-6">Mesh groups</legend>
@@ -65,7 +72,9 @@ const crud = st.crud({
         {field: "PINNED", title: "Security", formatter: (v, row) => v && row.OWN_TOKEN
             ? '<span class="badge bg-success" title="Key pinned, token of its own">secured</span>'
             : '<span class="badge bg-warning text-dark" title="Shared token, key not pinned: use Secure">shared token</span>'},
-        {field: "IP_ADDRESS", title: "Address", formatter: (v, row) => row.DYNAMIC ? '<span class="badge bg-secondary">dynamic</span>' : st.esc(v)},
+        {field: "IP_ADDRESS", title: "Address", formatter: (v, row) => (row.DYNAMIC ? '<span class="badge bg-secondary">dynamic</span>' : st.esc(v))
+            + (row.BEHIND_NAT ? ' <span class="badge bg-info text-dark" title="Opens no port; measures both directions itself">behind NAT</span>'
+               : row.NAT_DETECTED ? ' <span class="badge bg-warning text-dark" title="The server saw another address than the client&#39;s own: declare it behind a NAT">NAT detected</span>' : "")},
         {field: "MESH_GROUP_UID_LIST", title: "Mesh groups", formatter: v => (v || []).map(st.esc).join(", ") || '<span class="text-white-50">none</span>'},
         {field: "MAX_BANDWIDTH", title: "Max bandwidth", formatter: v => st.esc(v || "")},
         {field: "MESH_LISTENERS_PORT_RANGE", title: "Port range", formatter: v => st.esc(v || "")},
@@ -84,6 +93,8 @@ const crud = st.crud({
         el(dynamic ? "c_ip_dynamic" : "c_ip_static").checked = true;
         el("c_ip").value = row && !dynamic ? row.IP_ADDRESS : "";
         syncIpMode();
+        el("c_nat").checked = !!(row && row.BEHIND_NAT);
+        el("c_nat_hint").hidden = !(row && row.NAT_DETECTED && !row.BEHIND_NAT);
         el("c_max_bw").value = row ? (row.MAX_BANDWIDTH || "") : "";
         el("c_ports").value = row ? (row.MESH_LISTENERS_PORT_RANGE || "") : "";
         const advanced = row ? ADVANCED.filter(k => k in row) : [];
@@ -96,6 +107,7 @@ const crud = st.crud({
         MESH_GROUP_UID_LIST: [...el("c_groups").querySelectorAll("input:checked")].map(i => i.value),
         MAX_BANDWIDTH: el("c_max_bw").value.trim(),
         MESH_LISTENERS_PORT_RANGE: el("c_ports").value.trim(),
+        BEHIND_NAT: el("c_nat").checked,
     }),
 });
 // ---- Admission : demandes en attente, refus, sécurisation et rotation des jetons

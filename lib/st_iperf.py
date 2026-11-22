@@ -8,120 +8,64 @@ import sys
 import logging
 import os
 import time
+from datetime import datetime
 import psutil
 import warnings
 import socket
-import getmac
 import shlex
 
 from cryptography.utils import CryptographyDeprecationWarning
 warnings.filterwarnings("ignore", category=CryptographyDeprecationWarning)
-from scapy import all as scapy
 
 iperf3_connectors_log = logging.getLogger("syntraf." + "lib.st_iperf3_connectors")
 iperf3_listeners_log = logging.getLogger("syntraf." + "lib.st_iperf3_listeners")
 HIGH_PRIORITY_CLASS = 0x00000080
 
 
-# Find the ephemeral port iperf3 is using for the incoming connection in bidirectional mode then send a packet
-# to the other side with the right src and dst port to keep alive the udp hole punch.
+# Client derrière un NAT (connecteur bidirectionnel) : le flux de retour arrive sur un port UDP que ce client a ouvert
+# en sortie. Un datagramme vide envoyé depuis ce port vers le pair, toutes les KEEPALIVE_INTERVAL_S, garde la
+# correspondance NAT ouverte (voir lib/st_nat.py). Avant : la boucle tournait sans rien envoyer (scapy commenté).
 def udp_hole_punch(dst_ip, dst_port, iperf3_connector_obj_pnt, connector_key, threads_n_processes, exit_boolean):
+    from lib import st_nat
 
-    # Wait for iperf3 to start
-    while iperf3_connector_obj_pnt.subproc is None:
-        if exit_boolean[0]:
-            return
-        time.sleep(1)
-        if iperf3_connector_obj_pnt.subproc:
-            break
-
-    iperf3_pid = iperf3_connector_obj_pnt.subproc.pid
-
-    # Find current thread to update packet sent in the st_obj_process_n_thread object
     curr_thread = get_obj_process_n_thread(threads_n_processes, "UDP_HOLE", connector_key)
     curr_thread.packet_sent = 0
     curr_thread.pid = curr_thread.thread_obj.native_id
 
-    # Waiting for the READ_LOG thread to obtain the source port
-    while iperf3_connector_obj_pnt.bidir_src_port == 0:
+    # iperf3 démarré, puis port du flux de retour lu dans sa sortie (thread READ_LOG)
+    while iperf3_connector_obj_pnt.subproc is None or not iperf3_connector_obj_pnt.bidir_src_port:
         if exit_boolean[0]:
             return
-        iperf3_connectors_log.debug(f"UDP_HOLE_PUNCH FOR {connector_key}, IPERF3 PROCESS ID: '{iperf3_pid}' IS WAITING FOR A PORT:{iperf3_connector_obj_pnt.bidir_src_port}")
         time.sleep(1)
+    iperf3_pid = iperf3_connector_obj_pnt.subproc.pid
 
-    # Hostname resolution
-    valid_ip = False
-    while not valid_ip:
-        if exit_boolean[0]:
-            return
+    try:
+        dst_ip = socket.gethostbyname(dst_ip)
+    except OSError as exc:
+        iperf3_connectors_log.error(f"UDP_HOLE FOR {connector_key}: CANNOT RESOLVE {dst_ip}: {exc}")
+        return
+
+    warned = False
+    while not exit_boolean[0]:
+        src_port = iperf3_connector_obj_pnt.bidir_src_port
+        if not src_port:
+            break  # iperf3 redémarre : un nouveau fil sera lancé avec lui
         try:
-            dst_ip = socket.gethostbyname(dst_ip)
-            if validate_ipv4(dst_ip):
-                valid_ip = True
-        except socket.gaierror as e:
-            if e.errno == socket.EAI_AGAIN:
-                iperf3_connectors_log.error(f"TEMPORARY FAILURE IN NAME RESOLUTION OF {dst_ip}")
-        time.sleep(1)
-
-    src_ip = iperf3_connector_obj_pnt.bidir_local_addr
-    src_port = iperf3_connector_obj_pnt.bidir_src_port
-    src_if = ""
-    src_mac = ""
-    dst_mac = ""
-
-    # In case there is PBR on the server, make sure we are sending the packet out the right interface
-    interfaces = psutil.net_if_addrs()
-
-    # We need to figure out what is the out interface so that we can get the mac address
-    for iface_key, iface_values in interfaces.items():
-        for iface in iface_values:
-            if iface.address == src_ip:
-                src_if = iface_key
-
-    # Get the MAC of the out_if
-    for iface_key, iface_values in interfaces.items():
-        if iface_key == src_if:
-            for iface in iface_values:
-                if iface.family == psutil.AF_LINK:
-                    src_mac = iface.address
-
-    if sys.platform == "linux":
-        try:
-            p = subprocess.check_output(["whereis", "ip"])
-            ip_bin = p.decode('utf-8').split()[1]
-            if ip_bin:
-                cmd = (f"{ip_bin} route get from {src_ip} to {dst_ip} oif {src_if} ipproto udp sport {src_port} dport {dst_port}")
-                p = subprocess.check_output(shlex.split(cmd))
-                nexthop = p.decode('utf-8').replace("\n", "").split()[4]
-                dst_mac = getmac.get_mac_address(None, nexthop)
-
-        except Exception as e:
-            iperf3_connectors_log.error(e)
-    elif sys.platform == "win32":
-        cmd = (f"powershell find-netroute -remoteipaddress {dst_ip} | Select-Object NextHop | Select -ExpandProperty NextHop")
-        p = subprocess.check_output(shlex.split(cmd))
-        nexthop = p.decode('utf-8')
-        dst_mac = getmac.get_mac_address(None, nexthop)
-
-    while True:
-        if exit_boolean[0]:
-            return
-
-        if iperf3_connector_obj_pnt.bidir_src_port == 0:
-            exit_message = "bidir_src_port became 0"
-            break
-        try:
+            st_nat.send_keepalive(iperf3_connector_obj_pnt.bidir_local_addr, src_port, dst_ip, dst_port)
             curr_thread.packet_sent += 1
             curr_thread.last_activity = datetime.now()
-            iperf3_connectors_log.debug(f"SENDING KEEPALIVE WITH SRC:{src_mac}/{src_ip}/{iperf3_connector_obj_pnt.bidir_src_port}, DST:{dst_mac}/{dst_ip}/{dst_port} ON IFACE:{src_if}")
-            #scapy.sendp(scapy.Ether(src=src_mac, dst=dst_mac) / scapy.IP(src=src_ip, dst=dst_ip) / scapy.UDP(sport=src_port,dport=dst_port) / scapy.Raw(load=""), verbose=False, iface=src_if, inter=1, count=1)
+            iperf3_connectors_log.debug(f"NAT KEEPALIVE {connector_key}: {src_port} -> {dst_ip}:{dst_port}")
+        except OSError as exc:
+            if not warned:  # pas de socket brute (Windows, pas de CAP_NET_RAW) : le flux continu suffit souvent
+                iperf3_connectors_log.warning(f"NAT KEEPALIVE UNAVAILABLE FOR {connector_key}: {exc}. THE RETURN STREAM "
+                                              f"RELIES ON THE NAT KEEPING THE MAPPING WHILE TRAFFIC FLOWS IN")
+                warned = True
+        for _ in range(st_nat.KEEPALIVE_INTERVAL_S):
+            if exit_boolean[0]:
+                return
+            time.sleep(1)
 
-        except Exception as ex:
-            iperf3_connectors_log.error(ex)
-
-        time.sleep(15)
-
-    iperf3_connectors_log.error(f"UDP_HOLE FOR {connector_key}, IPERF3 PROCESS ID: '{iperf3_pid}' TERMINATED. EXIT MESSAGE: {exit_message}")
+    iperf3_connectors_log.info(f"UDP_HOLE FOR {connector_key}, IPERF3 PROCESS ID: '{iperf3_pid}' TERMINATED")
 
 
 #################################################################################

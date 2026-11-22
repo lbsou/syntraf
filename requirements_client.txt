@@ -5,6 +5,4 @@ cryptography==50.0.2
 pytz==2026.6
 py-cpuinfo==9.0.0
 fqdn==1.6.0
-getmac==0.9.6
-scapy==2.8.0
 tabulate==0.10.0

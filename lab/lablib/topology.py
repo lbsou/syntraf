@@ -11,13 +11,29 @@ SERVICES: dict[str, str] = {
     "c1": "172.30.0.31",
     "c2": "172.30.0.32",
     "c3": "172.30.0.33",
-    "c4": "172.30.0.34",
+    "c4": "10.99.0.34",           # STARLINK, derrière le routeur NAT starlink-gw
+    "starlink-gw": "10.99.0.2",   # côté LAN du routeur (10.99.0.1 : le pont Docker) (sa patte WAN : 172.30.0.35)
     "grafana": "172.30.0.40",
 }
+# Réseau Docker et préfixe de chaque service hors du réseau principal du lab
+LAN_NETWORK, LAN_PREFIX = "syntraf_starlink_lan", "10.99.0."
+NETWORK_OF: dict[str, str] = {"c4": LAN_NETWORK, "starlink-gw": LAN_NETWORK}
+GATEWAY_WAN_IP = "172.30.0.35"
+
+
+def network_of(service: str) -> str:
+    return NETWORK_OF.get(service, NETWORK)
+
+
+def subnet_prefix(service: str) -> str:
+    return LAN_PREFIX if network_of(service) == LAN_NETWORK else SUBNET_PREFIX
+
+
 CLIENTS = ("c1", "c2", "c3", "c4")
 SYNTRAF_NODES = ("server",) + CLIENTS
 CLIENT_UID: dict[str, str] = {c: f"LAB_C{c[1]}" for c in CLIENTS}
-CLIENT_UID["c4"] = "STARLINK"  # nœud satellite : latence, gigue et pertes (labctl.py degrade)
+CLIENT_UID["c4"] = "STARLINK"  # nœud satellite derrière un NAT : latence, gigue et pertes (labctl.py degrade)
+FAULT_TARGETS = SYNTRAF_NODES + ("starlink-gw",)
 FIXED = ("c1", "c2")
 DYNAMIC = ("c3", "c4")
 

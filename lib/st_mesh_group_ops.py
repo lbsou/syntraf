@@ -724,6 +724,9 @@ def list_clients(state):
         c.setdefault("MESH_GROUP_UID_LIST", [])
         c["PINNED"] = bool(c.get("PUBLIC_KEY_SHA256"))
         c["OWN_TOKEN"] = bool(c.pop("TOKEN", None))  # jamais la valeur du jeton
+        c["BEHIND_NAT"] = bool(c.get("BEHIND_NAT"))
+        # NAT constaté à la dernière connexion : adresse vue par le serveur ≠ adresses du client
+        c["NAT_DETECTED"] = getattr(state["dict_of_clients"].get(c["UID"]), "nat_detected", None)
     return rows
 
 
@@ -985,6 +988,11 @@ def _apply_client_form(c, values):
             c[key] = value
         else:
             c.pop(key, None)
+    if "BEHIND_NAT" in values:  # absent d'un ancien appel : inchangé
+        if _bool_text(values.get("BEHIND_NAT")):
+            c["BEHIND_NAT"] = True
+        else:
+            c.pop("BEHIND_NAT", None)
     # Les autres clés (EXCLUDED_CLIENT_UID, OVERRIDE_DST_NODE_IP...) ne sont pas dans le formulaire : conservées.
 
 

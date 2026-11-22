@@ -1445,9 +1445,15 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
                                         else:
                                             client2_behind_nat = False
 
+                                        # Objets de CETTE paire seulement (avant : « in locals() » reprenait ceux de la paire
+                                        # précédente quand un côté derrière un NAT n'en créait pas : connecteur vers
+                                        # soi-même, port d'écoute sur le client derrière le NAT)
+                                        obj_listener_client_listener = obj_listener_client2_listener = None
+                                        obj_connector_client_connector = obj_connector_client2_connector = None
+
                                         # Two client behind NAT, do not create connector/listener
                                         if client_behind_nat and client2_behind_nat:
-                                            log.error(f"CLIENT {client['UID']} AND {client2['UID']} ARE BEHIND A NAT, NO COMMUNICATION IS POSSIBLE BETWEEN THOSE TWO CLIENT")
+                                            log.warning(f"CLIENT {client['UID']} AND {client2['UID']} ARE BOTH BEHIND A NAT: NO MEASUREMENT BETWEEN THEM")
                                             continue
 
                                         # if this client can receive a connection, open a listener
@@ -1517,13 +1523,13 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
                                             dict_obj_connectors[client2['UID']] = []
 
                                         # Adding listeners and connectors
-                                        if 'obj_listener_client_listener' in locals():
+                                        if obj_listener_client_listener is not None:
                                             dict_obj_listeners[client['UID']].append(obj_listener_client_listener)
-                                        if 'obj_listener_client2_listener' in locals():
+                                        if obj_listener_client2_listener is not None:
                                             dict_obj_listeners[client2['UID']].append(obj_listener_client2_listener)
-                                        if 'obj_connector_client_connector' in locals():
+                                        if obj_connector_client_connector is not None:
                                             dict_obj_connectors[client['UID']].append(obj_connector_client_connector)
-                                        if 'obj_connector_client2_connector' in locals():
+                                        if obj_connector_client2_connector is not None:
                                             dict_obj_connectors[client2['UID']].append(obj_connector_client2_connector)
 
         _dict_by_group_of_generated_tuple_for_map[mesh_group['UID']] = _list_tuple_for_map_gen

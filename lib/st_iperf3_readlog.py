@@ -251,7 +251,7 @@ def extract_values_from_iperf3_result_line(line: string):
 
 def grab_bidir_src_port(_config: {}, line: string, iperf3_obj_process_n_thread: st_obj_process_n_thread):
 
-    # When we have a bidir connection, iperf will open two port to destination. We want to grab the second source port, as it will allow us to keepalive the udp hole with scapy in another thread.
+    # When we have a bidir connection, iperf will open two port to destination. We want to grab the second source port, it lets the UDP_HOLE thread keep the NAT mapping of the return stream open (lib/st_nat.py).
     # local 192.168.2.41 port 58743 connected to 192.168.6.100 port 15999
     # local 192.168.2.41 port 58744 connected to 192.168.6.100 port 15999
 
