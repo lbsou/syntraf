@@ -430,6 +430,22 @@ def _apply_live_global(live, old_disk, new_disk):
     return old_g.get("LOG_FORWARD_LEVEL", "INFO") != new_g.get("LOG_FORWARD_LEVEL", "INFO")
 
 
+# ------------------------------------------------------------------------------------------ redémarrage
+
+def restart_server(state, actor):
+    """Demande au superviseur (st_updater) d'arrêter proprement SYNTRAF et de le relancer, dans les 5 s.
+    La réponse part avant : la webui se reconnecte quand le serveur est revenu."""
+    from lib import st_updater
+    from lib.st_global import DefaultValues
+    if not os.environ.get(st_updater.ENV_CHILD):
+        raise OpError(409, "This server is not started through its supervisor (syntraf.py run by the service): "
+                           "restart the service itself (systemctl restart, or the Windows service)")
+    store.log_event(state["config_file_path"], actor, "RESTART_SERVER", "Server restart requested")
+    st_updater.request_restart(str(DefaultValues.SYNTRAF_DATA_DIR))
+    log.warning(f"SERVER RESTART REQUESTED BY {actor}")
+    return {"message": "Restarting: the server will be back in a few seconds"}
+
+
 # --------------------------------------------------------------------------------------- jetons partagés
 
 def list_tokens(state):

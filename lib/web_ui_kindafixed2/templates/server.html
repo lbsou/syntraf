@@ -2,7 +2,9 @@
 {% from "_macros.html" import page_header, kv_table %}
 {% block title %}Server{% endblock %}
 {% block content %}
-{{ page_header("Server", "Settings of this SYNTRAF server (SERVER). The listener port range applies live; the listening address, port and certificate take effect after a server restart.") }}
+{% call page_header("Server", "Settings of this SYNTRAF server (SERVER). The listener port range and the capacity limits apply live; the listening address, port and certificate take effect after a server restart.") %}
+<div class="st-actions"><button type="button" class="btn btn-outline-danger btn-sm" id="btn_restart"><i class="fas fa-redo me-1"></i>Restart the server</button></div>
+{% endcall %}
 
 <section class="st-card">
   <form id="server_form" novalidate>
@@ -136,10 +138,10 @@ el("btn_apply").addEventListener("click", async () => {
     st.setBusy(el("btn_apply"), false);
     if (!r.ok) { st.toast(r.error.message, "danger"); stage(false); return; }
     const restart = r.data.restart_required || [];
-    st.toast(restart.length ? `Saved. Restart the server to apply: ${restart.join(", ")}.` : "Server settings applied.",
-             restart.length ? "warning" : "success");
+    if (restart.length) st.restartNotice(restart); else st.toast("Server settings applied.", "success");
     load();
 });
+el("btn_restart").addEventListener("click", st.restartServer);
 load();
 </script>
 {% endblock %}

@@ -197,7 +197,7 @@ el("settings_form").addEventListener("submit", async e => {
     const r = await st.api("PUT", st.applyUrl("/api/v1/config/logging", preview.data), body);
     if (!r.ok) { st.toast(r.error.message, "danger"); return; }
     const restart = r.data.restart_required || [];
-    st.toast(restart.length ? `Saved. Restart the server to apply: ${restart.join(", ")}.` : "Logging settings applied.", restart.length ? "warning" : "success");
+    if (restart.length) st.restartNotice(restart); else st.toast("Logging settings applied.", "success");
     loadSettings([...el("l_level").options].map(o => o.value));
 });
 

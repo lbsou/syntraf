@@ -58,6 +58,10 @@ body { min-height: 100vh; }
 .st-topo .btn-check:focus-visible + label { outline: 2px solid #3498db; outline-offset: 2px; }
 @media (max-width: 576px) { .st-topologies { grid-template-columns: 1fr; } }
 
+/* Attente du redémarrage du serveur */
+.st-overlay { position: fixed; inset: 0; z-index: 2000; background: rgba(0, 0, 0, .75); color: #fff;
+              display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+
 /* Notifications : sous la barre du haut, au-dessus des fenêtres de dialogue sans masquer leurs boutons */
 .st-toasts { top: var(--st-topbar-h); }
 

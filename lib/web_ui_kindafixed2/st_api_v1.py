@@ -204,6 +204,11 @@ def rotate_client_token(uid):
     return jsonify(ops.rotate_client_token(_state(), uid, _actor(), _dry_run()))
 
 
+@st_api_v1.post("/server/restart")
+def restart_server():
+    return jsonify(ops.restart_server(_state(), _actor())), 202
+
+
 @st_api_v1.get("/config/server")
 def get_server_config():
     return jsonify(ops.get_server(_state()))
@@ -584,6 +589,7 @@ OPENAPI = {
                                                             "token", False, True, ("uid",))},
         "/api/v1/config/clients/{uid}/rotate-token": {"post": _op("Issue a new token to a client (sent to it if "
                                                                   "connected)", False, True, ("uid",))},
+        "/api/v1/server/restart": {"post": _op("Restart SYNTRAF through its supervisor (answer 202, back in seconds)")},
         "/api/v1/config/server": {"get": _op("Server settings (tokens excluded) and the values in service"),
                                   "put": _op("Update server settings; the response lists those that need a restart",
                                              False, True)},

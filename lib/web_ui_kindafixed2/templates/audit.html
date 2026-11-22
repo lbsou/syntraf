@@ -117,9 +117,8 @@ document.getElementById("versions-body").addEventListener("click", async ev => {
     if (!ok) return;
     const r = await st.api("POST", st.applyUrl(url + "/restore", preview.data));
     if (!r.ok) { st.toast(r.error.message, "danger"); return; }
-    st.toast(`Configuration restored. ${r.data.reconnected_clients.length} connected client(s) applying it.` +
-             (r.data.restart_required.length ? ` Restart the server to apply: ${r.data.restart_required.join(", ")}.` : ""),
-             r.data.restart_required.length ? "warning" : "success");
+    const done = `Configuration restored. ${r.data.reconnected_clients.length} connected client(s) applying it.`;
+    if (r.data.restart_required.length) st.restartNotice(r.data.restart_required, done); else st.toast(done, "success");
     await loadAudit();
     loadVersions();
 });

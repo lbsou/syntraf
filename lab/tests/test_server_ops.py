@@ -167,3 +167,24 @@ def test_logging_settings_are_validated(state):
                                                  LOG_FILE_TO_KEEP="abc", LOG_RETENTION_DAYS="-3"), actor="x")
     assert set(err.value.fields) == {"LOG_LEVEL", "LOG_FORWARD_LEVEL", "LOG_MAX_SIZE_PER_FILE_MB", "LOG_FILE_TO_KEEP",
                                      "LOG_RETENTION_DAYS"}
+
+
+# ------------------------------------------------------------------------------------------- redémarrage
+
+def test_restart_asks_the_supervisor_and_is_audited(state, tmp_path, monkeypatch):
+    from lib import st_updater
+    from lib.st_global import DefaultValues
+    monkeypatch.setattr(DefaultValues, "SYNTRAF_DATA_DIR", tmp_path)
+    monkeypatch.setenv(st_updater.ENV_CHILD, "1")
+    ops.restart_server(state, actor="10.0.0.9")
+    assert st_updater.read_state(str(tmp_path))["restart"] is True
+    entry = store.audit_entries(state["config_file_path"])[0]
+    assert (entry["action"], entry["actor"]) == ("RESTART_SERVER", "10.0.0.9")
+
+
+def test_restart_is_refused_clearly_without_supervisor(state, monkeypatch):
+    from lib import st_updater
+    monkeypatch.delenv(st_updater.ENV_CHILD, raising=False)
+    with pytest.raises(ops.OpError) as err:
+        ops.restart_server(state, actor="x")
+    assert err.value.status == 409 and "service" in err.value.message
