@@ -91,7 +91,7 @@ services:
   c4:
     <<: [*syntraf, *client-depends]
     container_name: syntraf-lab-c4
-    environment: {ROLE: client, CLIENT_UID: LAB_C4}
+    environment: {ROLE: client, CLIENT_UID: STARLINK}
     volumes: ["../:/src:ro", "./reports/logs/c4:/logs"]
     networks: {syntraf_lab: {ipv4_address: 172.30.0.34}}
 

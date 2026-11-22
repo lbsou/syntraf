@@ -17,6 +17,7 @@ SERVICES: dict[str, str] = {
 CLIENTS = ("c1", "c2", "c3", "c4")
 SYNTRAF_NODES = ("server",) + CLIENTS
 CLIENT_UID: dict[str, str] = {c: f"LAB_C{c[1]}" for c in CLIENTS}
+CLIENT_UID["c4"] = "STARLINK"  # nœud satellite : latence, gigue et pertes (labctl.py degrade)
 FIXED = ("c1", "c2")
 DYNAMIC = ("c3", "c4")
 

@@ -39,7 +39,7 @@ Réseau `syntraf_lab` (172.30.0.0/24) :
 | victoriametrics | .10 | base de données |
 | server | .20 | serveur SYNTRAF (canal de contrôle 6531, webui) |
 | c1, c2 | .31, .32 | clients `LAB_C1`, `LAB_C2`, déclarés en IP fixe |
-| c3, c4 | .33, .34 | clients `LAB_C3`, `LAB_C4`, déclarés en IP dynamique (`0.0.0.0`) |
+| c3, c4 | .33, .34 | clients `LAB_C3` et `STARLINK` (c4), déclarés en IP dynamique (`0.0.0.0`) |
 | grafana | .40 | visualisation |
 
 Les clients forment un maillage dans le groupe `LAB_MESH` (12 flux UDP iperf3 à 100 kbit/s,
@@ -63,6 +63,18 @@ python lab/labctl.py set-version iperf3 3.22.1 [--source esnet|fork]
 python lab/labctl.py set-version python 3.15 | victoriametrics v1.157.0 | grafana 13.1.0
 python lab/labctl.py test [-k s3] [--quick]
 ```
+
+### Nœud satellite STARLINK (c4)
+
+c4 porte l'UID `STARLINK` et simule un lien satellite : 30 ms ± 12 ms et 0,5 % de pertes dans chaque sens
+(environ 60 ms d'aller-retour). La dégradation (tc netem) ne survit pas au redémarrage d'un conteneur
+client ; pour la réappliquer :
+
+```
+python lab/labctl.py degrade c4 --delay 30 --jitter 12 --loss 0.5
+python lab/labctl.py degrade c1 --delay 30 --jitter 12 --loss 0.5 --to c4   # idem pour c2 et c3
+```
+
 
 Les trois modes de coupure ne sont pas équivalents pour iperf3 :
 - `drop` : perte silencieuse (règles iptables), comme une panne WAN ;
