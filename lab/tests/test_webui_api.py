@@ -191,15 +191,20 @@ def test_every_page_renders(env, page):
     assert env["client"].get(page).status_code == 200
 
 
-def test_server_page_hides_secrets_and_binary_values(env):
+def test_server_page_never_contains_secrets(env):
     server = env["app"].config["config"]["SERVER"]
     server["RSA_KEY_LISTENERS"] = b"-----BEGIN PRIVATE KEY-----secret"
     server["IPERF3_PASSWORD"] = "hunter2"
-    env["app"].config["config"]["GLOBAL"].update({"API_SECRET": "s3cr3t", "BLOB": b"binary-key"})
     html = env["client"].get("/server.html").get_data(as_text=True)
     assert "BEGIN PRIVATE KEY" not in html and "hunter2" not in html
-    assert "s3cr3t" not in html and "binary-key" not in html
-    assert "API_SECRET" in html
+    assert "hunter2" not in env["client"].get("/api/v1/config/global").get_data(as_text=True)
+
+
+def test_global_settings_api(env):
+    c = env["client"]
+    assert "WATCHDOG_CHECK_RATE" in c.get("/api/v1/config/global").json
+    r = c.put("/api/v1/config/global", json={"WATCHDOG_CHECK_RATE": "0"})
+    assert r.status_code == 400 and "WATCHDOG_CHECK_RATE" in r.json["error"]["fields"]
 
 
 def test_version_view_and_diffs_hide_tokens(env):

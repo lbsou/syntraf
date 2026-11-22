@@ -188,3 +188,62 @@ def test_restart_is_refused_clearly_without_supervisor(state, monkeypatch):
     with pytest.raises(ops.OpError) as err:
         ops.restart_server(state, actor="x")
     assert err.value.status == 409 and "service" in err.value.message
+
+
+# ---------------------------------------------------------------------------------------- section GLOBAL
+
+@pytest.fixture(autouse=False)
+def started(state):
+    """Comme après le démarrage : la validation a placé les valeurs par défaut dans GLOBAL en mémoire."""
+    state["config"]["GLOBAL"].update({"WATCHDOG_CHECK_RATE": "2", "IPERF3_TIME_SKEW_THRESHOLD": "10", "LOG_TO": "all",
+                                      "IPERF3_AUTH": True, "LOG_PURGE_ON_START": False})
+    return state
+
+
+def global_values(**over):
+    return dict({"WATCHDOG_CHECK_RATE": "2", "IPERF3_TIME_SKEW_THRESHOLD": "10", "LOG_TO": "all",
+                 "IPERF3_AUTH": "true", "LOG_PURGE_ON_START": "false", "IPERF3_BINARY_PATH": "",
+                 "IPERF3_RSA_KEY_DIRECTORY": ""}, **over)
+
+
+def test_global_settings_report_logdir_as_read_only(state):
+    state["config"]["GLOBAL"]["LOGDIR"] = "/logs"
+    g = ops.get_global(state)
+    assert g["READ_ONLY"]["LOGDIR"] == "/logs" and "WATCHDOG_CHECK_RATE" in g
+
+
+def test_watchdog_rate_applies_live(started):
+    state = started
+    state["config"]["GLOBAL"]["LOG_PURGE_ON_START"] = "False"  # une valeur en service peut être une chaîne
+    result = ops.update_global(state, global_values(WATCHDOG_CHECK_RATE="5"), actor="x")
+    assert state["config"]["GLOBAL"]["WATCHDOG_CHECK_RATE"] == "5" and result["restart_required"] == []
+
+
+def test_time_skew_threshold_applies_live_and_reconnects_clients(started):
+    state = started
+    result = ops.update_global(state, global_values(IPERF3_TIME_SKEW_THRESHOLD="30"), actor="x")
+    assert state["config"]["GLOBAL"]["IPERF3_TIME_SKEW_THRESHOLD"] == "30"
+    assert result["reconnected_clients"] == ["NODE_A", "NODE_B"]
+
+
+def test_startup_settings_are_written_and_flagged(started):
+    state = started
+    result = ops.update_global(state, global_values(LOG_TO="file", IPERF3_AUTH="false"), actor="x")
+    assert result["restart_required"] == ["GLOBAL.IPERF3_AUTH", "GLOBAL.LOG_TO"]
+    assert disk(state)["GLOBAL"]["IPERF3_AUTH"] is False  # booléen TOML, pas une chaîne
+
+
+def test_global_settings_are_validated(state):
+    with pytest.raises(ops.OpError) as err:
+        ops.update_global(state, global_values(WATCHDOG_CHECK_RATE="0", IPERF3_TIME_SKEW_THRESHOLD="x",
+                                               LOG_TO="syslog", IPERF3_BINARY_PATH="/no/such/iperf3",
+                                               IPERF3_RSA_KEY_DIRECTORY="relative/dir"), actor="x")
+    assert set(err.value.fields) == {"WATCHDOG_CHECK_RATE", "IPERF3_TIME_SKEW_THRESHOLD", "LOG_TO",
+                                     "IPERF3_BINARY_PATH", "IPERF3_RSA_KEY_DIRECTORY"}
+
+
+def test_directories_and_paths_are_not_masked_as_secrets():
+    from lib.web_ui_kindafixed2.st_status import display_value, MASK
+    assert display_value("/etc/syntraf/rsa", "IPERF3_RSA_KEY_DIRECTORY") == "/etc/syntraf/rsa"
+    assert display_value("abc", "IPERF3_PASSWORD") == MASK
+    assert display_value("tok", "DB_TOKEN") == MASK

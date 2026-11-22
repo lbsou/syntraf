@@ -376,7 +376,10 @@ LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 LOGGING_FIELDS = ("LOG_LEVEL", "LOG_FORWARD_LEVEL", "LOG_MAX_SIZE_PER_FILE_MB", "LOG_FILE_TO_KEEP", "LOG_RETENTION_DAYS")
 LOGGING_DEFAULTS = {"LOG_LEVEL": "INFO", "LOG_FORWARD_LEVEL": "INFO", "LOG_MAX_SIZE_PER_FILE_MB": "10",
                     "LOG_FILE_TO_KEEP": "5", "LOG_RETENTION_DAYS": ""}
-GLOBAL_LIVE_KEYS = ("LOG_LEVEL", "LOG_FORWARD_LEVEL", "LOG_RETENTION_DAYS")
+GLOBAL_LIVE_KEYS = ("LOG_LEVEL", "LOG_FORWARD_LEVEL", "LOG_RETENTION_DAYS", "WATCHDOG_CHECK_RATE",
+                    "IPERF3_TIME_SKEW_THRESHOLD")
+# Réglages transmis aux clients à leur connexion : un changement les fait se reconnecter pour les recevoir
+GLOBAL_SENT_TO_CLIENTS = (("LOG_FORWARD_LEVEL", "INFO"), ("IPERF3_TIME_SKEW_THRESHOLD", None))
 LOGGING_MESSAGES = {
     "LOG_LEVEL": "DEBUG, INFO, WARNING, ERROR or CRITICAL",
     "LOG_FORWARD_LEVEL": "DEBUG, INFO, WARNING, ERROR or CRITICAL",
@@ -437,6 +440,71 @@ def _apply_live_global(live, old_disk, new_disk):
                 if not handler.__class__.__name__ == "ForwardHandler":
                     handler.setLevel(level)
     return old_g.get("LOG_FORWARD_LEVEL", "INFO") != new_g.get("LOG_FORWARD_LEVEL", "INFO")
+
+
+# ------------------------------------------------------------------------------------------ section GLOBAL
+
+def _bool_text(v):
+    return str(v).strip().lower() in ("true", "1", "yes", "on")
+
+
+def _check_float_range(low, high):
+    def check(v):
+        try:
+            return low <= float(v) <= high
+        except ValueError:
+            return False
+    return check
+
+
+GLOBAL_FIELDS = {
+    # clé : (contrôle, message, booléen ?)
+    "WATCHDOG_CHECK_RATE": (_check_float_range(0.1, 86400), "Seconds between two watchdog passes, 0.1 to 86400", False),
+    "IPERF3_TIME_SKEW_THRESHOLD": (lambda v: v.isdigit() and 1 <= int(v) <= 86400,
+                                   "Seconds of clock difference tolerated by iperf3 authentication, 1 to 86400", False),
+    "LOG_TO": (lambda v: v.lower() in ("stdout", "file", "all"), "stdout, file or all", False),
+    "IPERF3_AUTH": (lambda v: True, "", True),
+    "LOG_PURGE_ON_START": (lambda v: True, "", True),
+    "IPERF3_BINARY_PATH": (lambda v: v == "DISABLE" or os.path.isfile(v),
+                           "Path of the iperf3 program on this server, or DISABLE", False),
+    "IPERF3_RSA_KEY_DIRECTORY": (lambda v: os.path.isabs(v), "An absolute directory path", False),
+}
+GLOBAL_READ_ONLY = ("LOGDIR",)  # imposé par l'option -l au démarrage
+
+
+def get_global(state):
+    g = read_disk(state).get("GLOBAL", {})
+    live = state["config"].get("GLOBAL", {})
+    row = {k: ("" if g.get(k) is None else str(g.get(k))) for k in GLOBAL_FIELDS}
+    row["RUNNING"] = {k: str(live.get(k)) for k in GLOBAL_FIELDS if live.get(k) is not None}
+    row["READ_ONLY"] = {k: live.get(k) for k in GLOBAL_READ_ONLY if live.get(k)}
+    row["LIVE_KEYS"] = [k for k in GLOBAL_FIELDS if k in GLOBAL_LIVE_KEYS]
+    return row
+
+
+def update_global(state, values, actor, dry_run=False):
+    """Réglages GLOBAL hors journalisation (celle-ci : update_logging). Vides : valeur par défaut au démarrage."""
+    v = {k: str(values.get(k, "") or "").strip() for k in GLOBAL_FIELDS}
+    errors = {k: GLOBAL_FIELDS[k][1] for k in GLOBAL_FIELDS
+              if v[k] and not GLOBAL_FIELDS[k][2] and not _ok(GLOBAL_FIELDS[k][0], v[k])}
+    _raise(errors)
+    cfg = read_disk(state)
+    g = cfg.setdefault("GLOBAL", {})
+    live = state["config"].get("GLOBAL", {})
+    for key, (_, _, is_bool) in GLOBAL_FIELDS.items():
+        running = live.get(key)
+        same_as_running = running is not None and (
+            (is_bool and _bool_text(v[key]) == (running if isinstance(running, bool) else _bool_text(running)))
+            or (not is_bool and v[key].lower() == str(running).lower()))
+        if key not in g and same_as_running:
+            continue  # valeur par défaut en service d'un réglage absent du fichier : il reste absent
+        if not v[key]:
+            g.pop(key, None)
+        elif is_bool:
+            g[key] = _bool_text(v[key])
+        else:
+            g[key] = v[key].lower() if key == "LOG_TO" else v[key]
+    return _commit(state, cfg, actor, "UPDATE_GLOBAL", "Global settings updated", dry_run)
 
 
 # ------------------------------------------------------------------------------------------ redémarrage
@@ -1079,9 +1147,9 @@ def _commit(state, disk_cfg, actor, action, summary, dry_run):
                            "could not be generated (see the server log)")
 
     current = state["_dict_by_node_generated_config"]
-    forward_level_changed = (old_disk.get("GLOBAL", {}).get("LOG_FORWARD_LEVEL", "INFO")
-                             != disk_cfg.get("GLOBAL", {}).get("LOG_FORWARD_LEVEL", "INFO"))
-    everyone = set(new_clients) if forward_level_changed else set()  # le niveau leur parvient à la reconnexion
+    sent_changed = any(old_disk.get("GLOBAL", {}).get(k, d) != disk_cfg.get("GLOBAL", {}).get(k, d)
+                       for k, d in GLOBAL_SENT_TO_CLIENTS)
+    everyone = set(new_clients) if sent_changed else set()  # ces réglages leur parviennent à la reconnexion
     affected = sorted({uid for uid in set(current) | set(scratch) if _edges(current.get(uid)) != _edges(scratch.get(uid))}
                       | changed_clients | everyone)
     assessment = st_capacity.assess(st_capacity.measure(current), st_capacity.measure(scratch),

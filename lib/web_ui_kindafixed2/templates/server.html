@@ -80,8 +80,55 @@
 
 <section class="st-card">
     <h2>Global</h2>
-    <p class="small text-white-50">Logging and other global settings (GLOBAL), read when the server starts.</p>
-    {{ kv_table(config.get('GLOBAL', {})) }}
+    <p class="small text-white-50">Global settings (GLOBAL). Logging levels, file sizes and retention are on the <a href="/log_viewer.html">Logs</a> page (Retention &amp; levels).</p>
+  <form id="global_form" novalidate>
+    <div class="row">
+        <div class="col-md-4 mb-3">
+            <label for="g_watchdog" class="form-label">Watchdog interval (s) <span class="badge bg-success">live</span></label>
+            <input class="form-control" id="g_watchdog" data-field="WATCHDOG_CHECK_RATE" inputmode="decimal">
+            <div class="form-text">How often the server checks and restarts its threads.</div>
+            <div class="invalid-feedback" data-feedback="WATCHDOG_CHECK_RATE"></div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <label for="g_skew" class="form-label">Clock skew tolerated (s) <span class="badge bg-success">live</span></label>
+            <input class="form-control" id="g_skew" data-field="IPERF3_TIME_SKEW_THRESHOLD" inputmode="numeric">
+            <div class="form-text">By iperf3 authentication; clients reconnect to receive it.</div>
+            <div class="invalid-feedback" data-feedback="IPERF3_TIME_SKEW_THRESHOLD"></div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <label for="g_logto" class="form-label">Log to <span class="badge bg-secondary">restart</span></label>
+            <select class="form-select" id="g_logto" data-field="LOG_TO">
+                <option value="">default</option><option value="all">file and console</option><option value="file">file</option><option value="stdout">console</option>
+            </select>
+            <div class="invalid-feedback" data-feedback="LOG_TO"></div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label for="g_iperf3" class="form-label">iperf3 program <span class="badge bg-secondary">restart</span></label>
+            <input class="form-control" id="g_iperf3" data-field="IPERF3_BINARY_PATH">
+            <div class="form-text">On this server; DISABLE if it runs no iperf3.</div>
+            <div class="invalid-feedback" data-feedback="IPERF3_BINARY_PATH"></div>
+        </div>
+        <div class="col-md-6 mb-3">
+            <label for="g_rsadir" class="form-label">iperf3 RSA key directory <span class="badge bg-secondary">restart</span></label>
+            <input class="form-control" id="g_rsadir" data-field="IPERF3_RSA_KEY_DIRECTORY">
+            <div class="invalid-feedback" data-feedback="IPERF3_RSA_KEY_DIRECTORY"></div>
+        </div>
+    </div>
+    <div class="row align-items-center">
+        <div class="col-md-4 mb-3 form-check form-switch ms-3">
+            <input class="form-check-input" type="checkbox" role="switch" id="g_auth">
+            <label class="form-check-label" for="g_auth">iperf3 authentication <span class="badge bg-secondary">restart</span></label>
+        </div>
+        <div class="col-md-4 mb-3 form-check form-switch ms-3">
+            <input class="form-check-input" type="checkbox" role="switch" id="g_purge">
+            <label class="form-check-label" for="g_purge">Delete the logs at startup <span class="badge bg-secondary">restart</span></label>
+        </div>
+        <div class="col mb-3 small text-white-50">Log directory: <code id="g_logdir"></code> (set by the -l option)</div>
+    </div>
+    <button type="submit" class="btn btn-primary">Save…</button>
+  </form>
 </section>
 <p class="small text-white-50">Tokens are managed on the <a href="/token_config.html">Tokens</a> page.</p>
 
@@ -142,6 +189,42 @@ el("btn_apply").addEventListener("click", async () => {
     load();
 });
 el("btn_restart").addEventListener("click", st.restartServer);
+
+// ---- Section GLOBAL
+const GLOBAL_TEXT = {WATCHDOG_CHECK_RATE: "g_watchdog", IPERF3_TIME_SKEW_THRESHOLD: "g_skew", LOG_TO: "g_logto",
+                     IPERF3_BINARY_PATH: "g_iperf3", IPERF3_RSA_KEY_DIRECTORY: "g_rsadir"};
+const GLOBAL_BOOL = {IPERF3_AUTH: "g_auth", LOG_PURGE_ON_START: "g_purge"};
+
+async function loadGlobal() {
+    const r = await st.api("GET", "/api/v1/config/global");
+    if (!r.ok) { st.toast(r.error.message, "danger"); return; }
+    for (const [k, id] of Object.entries(GLOBAL_TEXT)) {
+        el(id).value = r.data[k] || "";
+        if (el(id).tagName === "INPUT" && r.data.RUNNING[k]) el(id).placeholder = `${r.data.RUNNING[k]} (in service)`;
+    }
+    for (const [k, id] of Object.entries(GLOBAL_BOOL)) {
+        const v = r.data[k] !== "" ? r.data[k] : r.data.RUNNING[k];
+        el(id).checked = String(v).toLowerCase() === "true";
+    }
+    el("g_logdir").textContent = r.data.READ_ONLY.LOGDIR || "–";
+}
+
+el("global_form").addEventListener("submit", async e => {
+    e.preventDefault();
+    const body = {};
+    for (const [k, id] of Object.entries(GLOBAL_TEXT)) body[k] = el(id).value.trim();
+    for (const [k, id] of Object.entries(GLOBAL_BOOL)) body[k] = el(id).checked ? "true" : "false";
+    const preview = await st.api("PUT", "/api/v1/config/global?dry_run=1", body);
+    if (!preview.ok) { st.showFieldErrors(e.target, preview.error.fields); if (!Object.keys(preview.error.fields || {}).length) st.toast(preview.error.message, "danger"); return; }
+    st.showFieldErrors(e.target, {});
+    if (!await st.confirm({title: "Apply the global settings?", body: st.previewNode(preview.data), confirmText: "Apply"})) return;
+    const r = await st.api("PUT", st.applyUrl("/api/v1/config/global", preview.data), body);
+    if (!r.ok) { st.toast(r.error.message, "danger"); return; }
+    const restart = r.data.restart_required || [];
+    if (restart.length) st.restartNotice(restart); else st.toast("Global settings applied.", "success");
+    loadGlobal();
+});
+loadGlobal();
 load();
 </script>
 {% endblock %}

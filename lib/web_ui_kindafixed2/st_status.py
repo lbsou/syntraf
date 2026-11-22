@@ -16,7 +16,10 @@ MASK = "••••••••"
 
 def display_value(value, key=""):
     """Valeur d'un paramètre de configuration à afficher : secrets et valeurs binaires masqués."""
-    if any(m in str(key).upper() for m in SECRET_MARKERS) or isinstance(value, (bytes, bytearray)):
+    name = str(key).upper()
+    # Un chemin, un dossier ou une empreinte n'est pas un secret, même si son nom contient KEY ou TOKEN
+    secret_name = any(m in name for m in SECRET_MARKERS) and not name.endswith(("_DIRECTORY", "_PATH", "_FILE", "_SHA256"))
+    if secret_name or isinstance(value, (bytes, bytearray)):
         return MASK
     if isinstance(value, (dict, list, tuple)):
         return json.dumps(value, default=lambda o: MASK if isinstance(o, (bytes, bytearray)) else str(o))
