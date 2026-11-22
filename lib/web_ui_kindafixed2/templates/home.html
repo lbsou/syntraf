@@ -27,8 +27,8 @@
             <div class="table-responsive">
                 <table class="table table-sm table-hover mb-0">
                     <thead><tr><th scope="col">Client</th><th scope="col">Status</th><th scope="col">Since</th><th scope="col">Address</th>
-                        <th scope="col">Mesh groups</th><th scope="col" class="text-end">Flows (in / out)</th><th scope="col">Version</th></tr></thead>
-                    <tbody id="clients-body"><tr><td colspan="7" class="st-empty"><span class="spinner-border spinner-border-sm"></span> Loading…</td></tr></tbody>
+                        <th scope="col">Mesh groups</th><th scope="col" class="text-end">Flows (in / out)</th><th scope="col" class="text-end" title="Measurements waiting on the client to be sent to the server">Buffered</th><th scope="col">Version</th></tr></thead>
+                    <tbody id="clients-body"><tr><td colspan="8" class="st-empty"><span class="spinner-border spinner-border-sm"></span> Loading…</td></tr></tbody>
                 </table>
             </div>
         </section>
@@ -71,7 +71,7 @@ function render(snap) {
 
     const body = document.getElementById("clients-body");
     if (!snap.clients.length) {
-        body.innerHTML = `<tr><td colspan="7" class="st-empty"><i class="fas fa-plug"></i>No client is declared yet. Add one in the server configuration file (SERVER_CLIENT).</td></tr>`;
+        body.innerHTML = `<tr><td colspan="8" class="st-empty"><i class="fas fa-plug"></i>No client is declared yet. Add one in the server configuration file (SERVER_CLIENT).</td></tr>`;
     } else {
         body.innerHTML = snap.clients.map(c => `<tr>
             <th scope="row">${st.esc(c.uid)}</th>
@@ -80,6 +80,7 @@ function render(snap) {
             <td>${st.esc(c.ip_address || "")}${c.dynamic_ip ? ' <span class="badge bg-secondary" title="Dynamic IP address">dynamic</span>' : ""}</td>
             <td>${c.mesh_groups.map(st.esc).join(", ")}</td>
             <td class="text-end">${c.listeners} / ${c.connectors}</td>
+            <td class="text-end${c.metrics_buffer > 100 ? " text-warning" : ""}">${c.metrics_buffer === null ? '<span class="text-white-50" title="Not reported by this client version">–</span>' : c.metrics_buffer}</td>
             <td class="small">${st.esc(c.syntraf_version || "")}</td></tr>`).join("");
     }
 

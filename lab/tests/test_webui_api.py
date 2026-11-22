@@ -184,7 +184,7 @@ def test_openapi_lists_the_mesh_group_routes(env):
 
 
 @pytest.mark.parametrize("page", ["/home.html", "/stats.html", "/mesh_group_config.html", "/token_config.html",
-                                  "/queue.html", "/log_viewer.html", "/server.html", "/client_config.html",
+                                  "/log_viewer.html", "/server.html", "/client_config.html",
                                   "/database_config.html", "/audit.html", "/profile_config.html", "/data.html"])
 def test_every_page_renders(env, page):
     assert env["client"].get(page).status_code == 200

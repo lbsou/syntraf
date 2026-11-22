@@ -13,6 +13,7 @@ class cc_client:
     _clock_skew_in_seconds = -1
     _syntraf_version = ""
     _thread_status = {}
+    metrics_buffer = None  # mesures en attente d'envoi chez le client, rapportées avec ses statistiques système
 
     def __init__(self, status, status_since, status_explanation, bool_dynamic_client, client_uid, tcp_port=0,
                  ip_address=""):

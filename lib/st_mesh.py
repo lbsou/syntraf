@@ -373,12 +373,16 @@ def client_send_heartbeat(ssl_conn):
         raise exc
 
 
-def client_send_system_stats(ssl_conn, obj_stats):
+def client_send_system_stats(ssl_conn, obj_stats, dict_data_to_send_to_server=None):
     # We send the system stats to the server
     # Custom classes are not serializable, so dumping obj_stats properties into a dict
+    # metrics_buffer : nombre de mesures en attente d'envoi au serveur (arriéré affiché par la webui du serveur)
     try:
         if obj_stats.hasdata:
-            sock_send(ssl_conn, obj_stats.as_dict(), "SAVE_STATS_METRIC")
+            payload = obj_stats.as_dict()
+            if dict_data_to_send_to_server is not None:
+                payload["metrics_buffer"] = len(dict_data_to_send_to_server)
+            sock_send(ssl_conn, payload, "SAVE_STATS_METRIC")
             obj_stats.hasdata = False
             #client_log.debug(f"SYSTEM STATS SENT TO SERVER")
         #else:
@@ -538,7 +542,7 @@ def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processe
 
             if not client_send_metrics(_config, ssl_conn, dict_data_to_send_to_server): break
 
-            client_send_system_stats(ssl_conn, obj_stats)
+            client_send_system_stats(ssl_conn, obj_stats, dict_data_to_send_to_server)
 
             received_data = client_awaiting_command(ssl_conn)
 
@@ -823,6 +827,9 @@ def server_save_stats_metric(obj_client, received_data):
     :param obj_client: The object representing the current client
     :param received_data: The payload we just received from the client containing the systems stats metric
     """
+    # Mesures en attente d'envoi chez le client (None : client d'une version qui ne le rapporte pas)
+    obj_client.metrics_buffer = received_data['PAYLOAD'].get('metrics_buffer')
+
     # Make sure that the client system stats history does not get too big
     if len(obj_client.system_stats.setdefault('if_pct_usage_rx', [])) >= 100: obj_client.system_stats[
         'if_pct_usage_rx'].pop(0)

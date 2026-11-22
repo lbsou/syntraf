@@ -46,6 +46,7 @@ def clients(state):
             "syntraf_version": getattr(obj, "syntraf_version", "") if obj is not None else "",
             "clock_skew_seconds": getattr(obj, "clock_skew_in_seconds", None) if obj is not None else None,
             "mesh_groups": decl.get("MESH_GROUP_UID_LIST", []),
+            "metrics_buffer": getattr(obj, "metrics_buffer", None) if obj is not None else None,
             "listeners": len(gen.get("LISTENERS") or {}),
             "connectors": len(gen.get("CONNECTORS") or {}),
             "declared": uid in declared,
@@ -135,6 +136,8 @@ def metrics(state):
            [({"client": c["uid"]}, int(c["status"] == "CONNECTED")) for c in snap["clients"]])
     metric("syntraf_client_flows", "iperf3 flows generated for the client.", "gauge",
            [({"client": c["uid"], "role": role}, c[role]) for c in snap["clients"] for role in ("listeners", "connectors")])
+    metric("syntraf_client_buffered_points", "Measurements waiting on the client to be sent to the server.", "gauge",
+           [({"client": c["uid"]}, c["metrics_buffer"]) for c in snap["clients"] if c["metrics_buffer"] is not None])
     metric("syntraf_mesh_groups", "Mesh groups by state.", "gauge",
            [({"state": s}, snap["mesh_groups_summary"][s]) for s in ("enabled", "disabled")])
     metric("syntraf_database_up", "1 if the database is reachable.", "gauge",

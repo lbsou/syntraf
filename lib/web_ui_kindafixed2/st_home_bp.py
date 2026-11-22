@@ -180,13 +180,6 @@ def config():
                            syntraf_version=DefaultValues.SYNTRAF_VERSION)
 
 
-@st_home_bp.route('/queue.html')
-def queue():
-    return render_template('queue.html', title='SYNTRAF WEBUI',
-                           dict_data_to_send_to_server=app.config['dict_data_to_send_to_server'],
-                           syntraf_version=DefaultValues.SYNTRAF_VERSION)
-
-
 @st_home_bp.route('/map.html')
 def map():
     return render_template('map.html', title='SYNTRAF WEBUI', config=app.config['config'],
