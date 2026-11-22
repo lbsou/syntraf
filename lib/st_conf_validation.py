@@ -480,14 +480,14 @@ def config_validation_database(_config):
                     f"IS DB_SERVER_USE_SSL DECLARED FOR DATABASE '{database['DB_UID']}' : NO, APPLYING DEFAULT: {DefaultValues.DEFAULT_INFLUXDB_USE_SSL}")
                 database['DB_SERVER_USE_SSL'] = DefaultValues.DEFAULT_INFLUXDB_USE_SSL
 
-            if 'DB_MODE' in database:
-                log.debug(f"IS DB_MODE DECLARED FOR DATABASE '{database['DB_UID']}' : YES")
-                if not database['DB_MODE'] in ["OSS", "CLOUD"]:
+            # DB_MODE (OSS ou CLOUD) ne concerne qu'InfluxDB 2 ; absent, la valeur par défaut convient (pas d'alerte)
+            if str(database.get('DB_ENGINE', '')).upper() == "INFLUXDB2":
+                if 'DB_MODE' not in database:
+                    log.debug(f"DB_MODE NOT DECLARED FOR DATABASE '{database['DB_UID']}': DEFAULT {DefaultValues.DEFAULT_INFLUXDB_DB_MODE}")
+                    database['DB_MODE'] = DefaultValues.DEFAULT_INFLUXDB_DB_MODE
+                elif database['DB_MODE'] not in ["OSS", "CLOUD"]:
                     log.warning(f"DB_MODE DECLARED FOR DATABASE '{database['DB_UID']}' BUT INVALID : APPLYING DEFAULT: {DefaultValues.DEFAULT_INFLUXDB_DB_MODE}")
                     database['DB_MODE'] = DefaultValues.DEFAULT_INFLUXDB_DB_MODE
-            else:
-                log.warning(f"IS DB_MODE DECLARED FOR DATABASE '{database['DB_UID']}' : NO, APPLYING DEFAULT: {DefaultValues.DEFAULT_INFLUXDB_DB_MODE}")
-                database['DB_MODE'] = DefaultValues.DEFAULT_INFLUXDB_DB_MODE
 
             is_victoriametrics = database['DB_ENGINE'].upper() == "VICTORIAMETRICS"
             if database['DB_ENGINE'].upper() in ("INFLUXDB2", "VICTORIAMETRICS"):
@@ -579,6 +579,21 @@ def config_validation_database(_config):
 #################################################################################
 ### VALIDATE THE GLOBAL PART OF THE CONFIG FILE
 #################################################################################
+def validate_time_skew_threshold(g):
+    """IPERF3_TIME_SKEW_THRESHOLD : absent, la valeur par défaut sans alerte ; invalide (non entier, hors 1-86400),
+    signalé et remplacé (avant : une absence était signalée « invalide », un texte non numérique était gardé)."""
+    default = DefaultValues.DEFAULT_IPERF3_TIME_SKEW_THRESHOLD
+    value = str(g.get('IPERF3_TIME_SKEW_THRESHOLD', '')).strip()
+    if 'IPERF3_TIME_SKEW_THRESHOLD' not in g:
+        log.debug(f"IPERF3_TIME_SKEW_THRESHOLD NOT DECLARED: DEFAULT '{default}'")
+        g['IPERF3_TIME_SKEW_THRESHOLD'] = default
+    elif not (value.isdigit() and 1 <= int(value) <= 86400):
+        log.warning(f"IPERF3_TIME_SKEW_THRESHOLD '{value}' INVALID (1 TO 86400 SECONDS): APPLYING DEFAULT '{default}'")
+        g['IPERF3_TIME_SKEW_THRESHOLD'] = default
+    else:
+        g['IPERF3_TIME_SKEW_THRESHOLD'] = value
+
+
 def config_validation_global(_config):
     try:
 
@@ -643,19 +658,7 @@ def config_validation_global(_config):
         valid_dir_rsa_keypair(_config)
 
         # When authenticating (credentials + rsa), iperf3 will refuse a connection between two host with a time skew bigger than 10 seconds. iperf3 have a parameter to change this threshold
-        if 'IPERF3_TIME_SKEW_THRESHOLD' in _config['GLOBAL']:
-            if _config['GLOBAL']['IPERF3_TIME_SKEW_THRESHOLD'].isdigit():
-                if not (int(_config['GLOBAL']['IPERF3_TIME_SKEW_THRESHOLD']) >= 1 and int(
-                        _config['GLOBAL']['IPERF3_TIME_SKEW_THRESHOLD']) <= 86400):
-                    log.warning(
-                        f"IS IPERF3_TIME_SKEW_THRESHOLD VALID : NO, APPLYING DEFAULT '{DefaultValues.DEFAULT_IPERF3_TIME_SKEW_THRESHOLD}'")
-                    _config['GLOBAL'][
-                        'IPERF3_TIME_SKEW_THRESHOLD'] = DefaultValues.DEFAULT_IPERF3_TIME_SKEW_THRESHOLD
-        else:
-            log.warning(
-                f"IS IPERF3_TIME_SKEW_THRESHOLD VALID : NO, APPLYING DEFAULT '{DefaultValues.DEFAULT_IPERF3_TIME_SKEW_THRESHOLD}'")
-            _config['GLOBAL'][
-                'IPERF3_TIME_SKEW_THRESHOLD'] = DefaultValues.DEFAULT_IPERF3_TIME_SKEW_THRESHOLD
+        validate_time_skew_threshold(_config['GLOBAL'])
 
         if 'IPERF3_AUTH' in _config['GLOBAL']:
             if not isinstance(_config['GLOBAL']['IPERF3_AUTH'], bool):
