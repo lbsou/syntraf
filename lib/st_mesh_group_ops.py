@@ -458,6 +458,70 @@ def reveal_token(state, name, actor):
     return tokens[name]
 
 
+# ------------------------------------------------------------------------------------------ mises à jour
+
+def builtin_release():
+    from lib import st_release
+    from lib.st_global import DefaultValues
+    return st_release.builtin(DefaultValues.SYNTRAF_ROOT_DIR, DefaultValues.SYNTRAF_DATA_DIR,
+                              DefaultValues.SYNTRAF_VERSION)
+
+
+def updates_overview(state):
+    """Release intégrée du serveur et, pour chaque client déclaré, où il en est."""
+    release = builtin_release()
+    rows = []
+    for c in read_disk(state).get("SERVER_CLIENT", []):
+        obj = state["dict_of_clients"].get(c["UID"])
+        connected = obj is not None and obj.status == "CONNECTED"
+        running = getattr(obj, "release_id", None) if obj is not None else None
+        status = getattr(obj, "update_status", None) if obj is not None else None
+        failed = getattr(obj, "update_failed", None) if obj is not None else None
+        if running == release["id"]:
+            stage, detail = "UP_TO_DATE", ""
+        elif failed and failed.get("id") == release["id"]:
+            stage, detail = "ROLLED_BACK", failed.get("reason", "")
+        elif status and status.get("RELEASE") == release["id"] and status.get("STATE") == "FAILED":
+            stage, detail = "FAILED", status.get("MESSAGE", "")
+        elif status and status.get("RELEASE") == release["id"] and status.get("STATE") == "STAGED":
+            stage, detail = "SWITCHING", status.get("AT", "")
+        elif not connected:
+            stage, detail = "OFFLINE", ""
+        elif running is None:
+            stage, detail = "NOT_SUPPORTED", "this client version cannot be updated remotely: install once by hand"
+        else:
+            stage, detail = "OUTDATED", ""
+        rows.append({"uid": c["UID"], "connected": connected, "release": running, "stage": stage, "detail": detail})
+    return {"release": {k: release[k] for k in ("id", "version", "sha256", "size", "has_wheelhouse")}, "clients": rows}
+
+
+def request_updates(state, uids, actor, force=False):
+    """Envoie la release intégrée aux clients demandés qui sont connectés, compatibles et pas encore à jour."""
+    release = builtin_release()
+    overview = {r["uid"]: r for r in updates_overview(state)["clients"]}
+    queued, skipped = [], {}
+    for uid in uids:
+        row = overview.get(uid)
+        if row is None:
+            skipped[uid] = "unknown client"
+        elif row["stage"] in ("OFFLINE", "NOT_SUPPORTED", "UP_TO_DATE", "SWITCHING"):
+            skipped[uid] = row["stage"].lower().replace("_", " ")
+        elif row["stage"] == "ROLLED_BACK" and not force:
+            skipped[uid] = "rolled back from this release; force to try again"
+        else:
+            state["dict_of_commands_for_network_clients"].setdefault(uid, []).append(
+                {"ACTION": "UPDATE", "RELEASE": release["id"], "SHA256": release["sha256"], "SIZE": release["size"],
+                 "FORCE": bool(force)})
+            obj = state["dict_of_clients"].get(uid)
+            if obj is not None:
+                obj.update_status = None
+            queued.append(uid)
+    if queued:
+        store.log_event(state["config_file_path"], actor, "REQUEST_UPDATE",
+                        f"Release {release['id']} sent to {', '.join(queued)}")
+    return {"release": release["id"], "queued": queued, "skipped": skipped}
+
+
 # --------------------------------------------------------------------------------------------------------- clients
 
 LIVE_SECTIONS = ("MESH_GROUP", "IPERF3_PROFILE", "SERVER_CLIENT", "DATABASE")

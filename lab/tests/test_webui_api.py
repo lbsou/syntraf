@@ -185,7 +185,8 @@ def test_openapi_lists_the_mesh_group_routes(env):
 
 @pytest.mark.parametrize("page", ["/home.html", "/stats.html", "/mesh_group_config.html", "/token_config.html",
                                   "/log_viewer.html", "/server.html", "/client_config.html",
-                                  "/database_config.html", "/audit.html", "/profile_config.html", "/data.html"])
+                                  "/database_config.html", "/audit.html", "/profile_config.html", "/data.html",
+                                  "/updates.html"])
 def test_every_page_renders(env, page):
     assert env["client"].get(page).status_code == 200
 
@@ -329,3 +330,22 @@ def test_pending_clients_api(env):
     assert row["PINNED"] and row["OWN_TOKEN"] and "TOKEN" not in row and row["DYNAMIC"]
     assert c.post("/api/v1/clients/pending/NEW_NODE/reject").status_code == 200
     assert c.delete("/api/v1/clients/rejected/NEW_NODE").status_code == 200
+
+
+def test_updates_api_lists_the_release_and_sends_it_to_eligible_clients(env, monkeypatch):
+    from lib import st_mesh_group_ops as ops
+    release = {"id": "0.46+abc", "version": "0.46", "sha256": "f" * 64, "size": 10, "has_wheelhouse": False,
+               "path": "x"}
+    monkeypatch.setattr(ops, "builtin_release", lambda: release)
+    clients = env["app"].config["dict_of_clients"]
+    clients["NODE_A"].release_id = "0.45+old"
+    c = env["client"]
+    overview = c.get("/api/v1/updates").json
+    assert overview["release"]["id"] == "0.46+abc"
+    assert {r["uid"]: r["stage"] for r in overview["clients"]} == {"NODE_A": "OUTDATED", "NODE_B": "OFFLINE"}
+    r = c.post("/api/v1/updates", json={"CLIENTS": ["NODE_A", "NODE_B"]})
+    assert r.json["queued"] == ["NODE_A"] and r.json["skipped"] == {"NODE_B": "offline"}
+    command = env["app"].config["dict_of_commands_for_network_clients"]["NODE_A"][-1]
+    assert command["ACTION"] == "UPDATE" and command["RELEASE"] == "0.46+abc"
+    assert c.get("/api/v1/audit").json[0]["action"] == "REQUEST_UPDATE"
+    assert c.post("/api/v1/updates", json={}).status_code == 400

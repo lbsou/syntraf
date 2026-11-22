@@ -10,7 +10,8 @@ from lib.st_cc_commands import queue_client_ip_update, next_command, dynamic_cli
 from lib.st_sockutil import recv_exact
 from lib.st_config_diff import edges_to_restart, reuse_keys
 from lib.st_iperf3_credentials import load_or_create
-from lib import st_enrollment, st_log_forward, st_log_store
+from lib import st_enrollment, st_log_forward, st_log_store, st_release, st_updater
+import base64
 
 from tabulate import tabulate
 # SYNTRAF SERVER IMPORT
@@ -220,6 +221,75 @@ def client_detect_type_if():
     #         print("not wireless")
 
 
+_RUNNING_RELEASE = []
+
+
+def running_release():
+    """Release de la version qui tourne : désignée par le superviseur, sinon calculée depuis le code en place."""
+    if not _RUNNING_RELEASE:
+        rid = os.environ.get(st_updater.ENV_RELEASE)
+        if not rid:
+            try:
+                rid = st_release.release_id(DefaultValues.SYNTRAF_ROOT_DIR, DefaultValues.SYNTRAF_VERSION)
+            except OSError:
+                rid = DefaultValues.SYNTRAF_VERSION
+        _RUNNING_RELEASE.append(rid)
+    return _RUNNING_RELEASE[0]
+
+
+def last_failed_release():
+    try:
+        failed = st_updater.read_state(str(DefaultValues.SYNTRAF_DATA_DIR))["failed"]
+        return failed[-1] if failed else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def client_confirm_release():
+    """La version démarrée a rejoint le serveur et reçu sa config : elle devient définitive (plus de retour arrière)."""
+    rid = os.environ.get(st_updater.ENV_RELEASE)
+    if rid and st_updater.confirm(str(DefaultValues.SYNTRAF_DATA_DIR), rid):
+        client_log.info(f"RELEASE {rid} CONFIRMED")
+
+
+def client_command_update(_config, ssl_conn, received_data):
+    """Télécharge la release annoncée par le serveur (par morceaux), la vérifie, l'installe à côté de la version en
+    place, puis demande au superviseur de basculer. Un compte rendu est envoyé au serveur dans tous les cas."""
+    info = received_data.get('PAYLOAD') or {}
+    rid, expected_sha256, size = info.get('RELEASE'), info.get('SHA256'), int(info.get('SIZE') or 0)
+    base = str(DefaultValues.SYNTRAF_DATA_DIR)
+    client_log.info(f"UPDATE TO RELEASE {rid} REQUESTED BY THE SERVER")
+    path = os.path.join(base, "releases", f"download-{rid}.tar.gz")
+    try:
+        if not os.environ.get(st_updater.ENV_CHILD):
+            raise st_updater.UpdateError("SYNTRAF is not started through its supervisor (syntraf.py run by the "
+                                         "service): it cannot switch versions")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        offset = 0
+        with open(path, "wb") as f:
+            while True:
+                sock_send(ssl_conn, {"RELEASE": rid, "OFFSET": offset}, "GET_RELEASE_CHUNK")
+                answer = sock_rcv(ssl_conn)
+                payload = (answer or {}).get('PAYLOAD') or {}
+                if (answer or {}).get('COMMAND') != "RELEASE_CHUNK" or payload.get('ERROR'):
+                    raise st_updater.UpdateError(payload.get('ERROR') or "unexpected answer while downloading")
+                data = base64.b64decode(payload['DATA'])
+                f.write(data)
+                offset += len(data)
+                if payload.get('EOF') or offset > size:
+                    break
+        st_updater.stage(base, path, expected_sha256, rid, python=sys.executable, force=bool(info.get('FORCE')))
+        sock_send(ssl_conn, {"RELEASE": rid, "STATE": "STAGED", "MESSAGE": "installed, switching"}, "UPDATE_STATUS")
+        client_log.info(f"RELEASE {rid} INSTALLED, ASKING THE SUPERVISOR TO SWITCH")
+        st_updater.request_restart(base)
+    except Exception as exc:
+        client_log.error(f"UPDATE TO RELEASE {rid} FAILED: {exc}")
+        sock_send(ssl_conn, {"RELEASE": rid, "STATE": "FAILED", "MESSAGE": str(exc)[:500]}, "UPDATE_STATUS")
+    finally:
+        if os.path.exists(path):
+            os.remove(path)
+
+
 def client_token(_config):
     """Jeton à présenter : le jeton propre remis par le serveur (fichier), sinon le jeton partagé de la config.
     Après un refus du jeton propre, une tentative se fait avec le jeton partagé : si la clé du client est épinglée,
@@ -257,7 +327,8 @@ def client_send_auth(_config, client_utime, ssl_conn):
         used_own_token = token != _config['CLIENT']['TOKEN']
         payload_greetings = {'TOKEN': token, 'CLIENT_UID': _config['CLIENT']['CLIENT_UID'],
                              'TIMESTAMP': client_utime, 'SYNTRAF_CLIENT_VERSION': DefaultValues.SYNTRAF_VERSION,
-                             'PUBLIC_KEY': _config['CLIENT']['PUBLIC_KEY']}
+                             'PUBLIC_KEY': _config['CLIENT']['PUBLIC_KEY'],
+                             'SYNTRAF_RELEASE': running_release(), 'UPDATE_FAILED': last_failed_release()}
 
         sock_send(ssl_conn, payload_greetings, "AUTH")
         received_data = sock_rcv(ssl_conn)
@@ -573,6 +644,7 @@ def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processe
             return
 
         client_receive_configuration(_config, ssl_conn, threads_n_processes, config_file_path, cli_parameters)
+        client_confirm_release()
         client_send_system_infos(ssl_conn)
 
         current_obj_process_n_thread = None
@@ -608,6 +680,9 @@ def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processe
 
                 elif received_data['COMMAND'] == "SET_TOKEN":
                     client_command_set_token(_config, received_data)
+
+                elif received_data['COMMAND'] == "UPDATE":
+                    client_command_update(_config, ssl_conn, received_data)
 
                 # We just received a specific part of the configuration that we should change locally.
                 elif received_data['COMMAND'] == "DIFFCONFIG":
@@ -688,6 +763,8 @@ def authenticate_server_client(_config, data, obj_client, sckt, enrollment=None,
     payload = data['PAYLOAD']
     obj_client.public_key_sha256 = st_enrollment.fingerprint(payload.get('PUBLIC_KEY'))
     obj_client.public_key = payload.get('PUBLIC_KEY')
+    obj_client.release_id = payload.get('SYNTRAF_RELEASE')
+    obj_client.update_failed = payload.get('UPDATE_FAILED')
     decision = st_enrollment.authorize(_config, payload, ip_addr,
                                        enrollment if isinstance(enrollment, st_enrollment.Enrollment) else None)
     if decision.accepted:
@@ -877,6 +954,35 @@ def server_save_stats_metric(obj_client, received_data):
         (received_data['PAYLOAD']['timestamp'], received_data['PAYLOAD']['cpu_pct_usage']))
 
 
+RELEASE_CHUNK_BYTES = 256 * 1024
+
+
+def server_send_release_chunk(sckt, payload):
+    """Morceau de la release intégrée du serveur (la seule qu'il distribue)."""
+    try:
+        info = st_release.builtin(DefaultValues.SYNTRAF_ROOT_DIR, DefaultValues.SYNTRAF_DATA_DIR,
+                                  DefaultValues.SYNTRAF_VERSION)
+        if payload.get('RELEASE') != info['id']:
+            sock_send(sckt, {"ERROR": f"this server distributes release {info['id']} only"}, "RELEASE_CHUNK")
+            return
+        offset = int(payload.get('OFFSET') or 0)
+        with open(info['path'], "rb") as f:
+            f.seek(offset)
+            data = f.read(RELEASE_CHUNK_BYTES)
+        sock_send(sckt, {"OFFSET": offset, "DATA": base64.b64encode(data).decode(),
+                         "EOF": offset + len(data) >= info['size']}, "RELEASE_CHUNK")
+    except Exception as exc:
+        server_log.error(f"server_send_release_chunk:{type(exc).__name__}:{exc}")
+        sock_send(sckt, {"ERROR": "the server could not read its release"}, "RELEASE_CHUNK")
+
+
+def server_save_update_status(obj_client, payload):
+    obj_client.update_status = dict(payload, AT=datetime.now().astimezone().isoformat(timespec="seconds"))
+    log_fn = server_log.error if payload.get('STATE') == "FAILED" else server_log.info
+    log_fn(f"CONTEXT: {obj_client.client_uid} - UPDATE TO {payload.get('RELEASE')}: {payload.get('STATE')} "
+           f"{payload.get('MESSAGE', '')}")
+
+
 _LAST_LOG_PURGE = [0.0]
 
 
@@ -917,6 +1023,9 @@ def server_awaiting_commands(client_uid, dict_of_commands_for_network_clients, s
             sent_an_action = True
         elif action['ACTION'] == "RESTART_CLIENT":
             sock_send(sckt, "", "RESTART_CLIENT")
+            sent_an_action = True
+        elif action['ACTION'] == "UPDATE":
+            sock_send(sckt, {k: action[k] for k in ("RELEASE", "SHA256", "SIZE", "FORCE") if k in action}, "UPDATE")
             sent_an_action = True
         elif action['ACTION'] == "SET_TOKEN":
             sock_send(sckt, {"TOKEN": action['TOKEN']}, "SET_TOKEN")
@@ -1036,6 +1145,8 @@ class Handler(StreamRequestHandler):
                             # clé présentée à l'authentification : nécessaire pour l'épingler (Secure)
                             dict_of_clients[new_uid].public_key = dict_of_clients[uid].public_key
                             dict_of_clients[new_uid].public_key_sha256 = dict_of_clients[uid].public_key_sha256
+                            dict_of_clients[new_uid].release_id = dict_of_clients[uid].release_id
+                            dict_of_clients[new_uid].update_failed = dict_of_clients[uid].update_failed
                             dict_of_clients[new_uid].ip_address = address[0]
                             dict_of_clients[new_uid].tcp_port = address[1]
                             dict_of_clients.pop(uid)
@@ -1057,6 +1168,12 @@ class Handler(StreamRequestHandler):
                         elif received_data['COMMAND'] == "AWAITING_COMMAND":
                             server_awaiting_commands(dict_of_clients[uid].client_uid, dict_of_commands_for_network_clients,
                                                      sckt)
+
+                        elif received_data['COMMAND'] == "GET_RELEASE_CHUNK":
+                            server_send_release_chunk(sckt, received_data.get('PAYLOAD') or {})
+
+                        elif received_data['COMMAND'] == "UPDATE_STATUS":
+                            server_save_update_status(dict_of_clients[uid], received_data.get('PAYLOAD') or {})
 
                         elif received_data['COMMAND'] == "SAVE_LOGS":
                             server_save_logs(_config, dict_of_clients[uid].client_uid, received_data)

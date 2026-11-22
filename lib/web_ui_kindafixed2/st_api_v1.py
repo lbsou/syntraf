@@ -144,6 +144,23 @@ def delete_client_config(uid):
     return jsonify(ops.delete_client(_state(), uid, _actor(), _dry_run()))
 
 
+@st_api_v1.get("/updates")
+def updates():
+    return jsonify(ops.updates_overview(_state()))
+
+
+@st_api_v1.post("/updates")
+def request_updates():
+    body = _body()
+    clients = body.get("CLIENTS") or []
+    if isinstance(clients, str):
+        clients = [c for c in clients.split(",") if c]
+    if not clients:
+        return _error(400, "Choose at least one client", {"CLIENTS": "Choose at least one client"})
+    return jsonify(ops.request_updates(_state(), clients, _actor(), force=str(body.get("FORCE", "")).lower() in
+                                       ("1", "true", "yes")))
+
+
 @st_api_v1.get("/clients/pending")
 def pending_clients():
     return jsonify(ops.list_pending(_state()))
@@ -542,6 +559,8 @@ OPENAPI = {
         "/api/v1/config/clients/{uid}": {"get": _op("Get a client declaration", params=("uid",)),
                                          "put": _op("Update a client declaration", False, True, ("uid",)),
                                          "delete": _op("Remove a client", False, True, ("uid",))},
+        "/api/v1/updates": {"get": _op("This server's release and where each client stands"),
+                            "post": _op("Send this server's release to clients ({CLIENTS: [...], FORCE})")},
         "/api/v1/clients/pending": {"get": _op("Clients waiting for approval, and rejected clients")},
         "/api/v1/clients/pending/{uid}/approve": {"post": _op("Approve a pending client ({MESH_GROUP_UID_LIST, "
                                                               "IP_MODE: static|dynamic}): its key is pinned, a token "

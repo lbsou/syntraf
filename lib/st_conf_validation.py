@@ -138,7 +138,7 @@ def validate_config(parameters, reload=False):
 
 
 def config_validation_certificate(_config, type_of_service, parameters):
-    cert_path = os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, "crypto", f'{type_of_service.upper()}_X509_SELFSIGNED_DIRECTORY')
+    cert_path = os.path.join(DefaultValues.SYNTRAF_DATA_DIR, "crypto", f'{type_of_service.upper()}_X509_SELFSIGNED_DIRECTORY')
     private_key_path = os.path.join(cert_path,)
     certificate_path = os.path.join(cert_path,)
 

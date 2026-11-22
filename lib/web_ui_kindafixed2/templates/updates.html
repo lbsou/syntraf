@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% from "_macros.html" import page_header %}
+{% block title %}Updates{% endblock %}
+{% block content %}
+{{ page_header("Updates", "Clients are updated to this server's own version. Each client installs it beside its current version, switches, and goes back automatically if the new version does not reconnect.") }}
+
+<section class="st-card" aria-labelledby="release-title">
+    <h2 id="release-title"><i class="fas fa-box me-2"></i>Release of this server</h2>
+    <div id="release" class="small"><span class="spinner-border spinner-border-sm"></span> Building the release…</div>
+</section>
+
+<section class="st-card" aria-labelledby="clients-title">
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+        <h2 id="clients-title" class="mb-0 me-auto"><i class="fas fa-network-wired me-2"></i>Clients</h2>
+        <div class="form-check form-switch me-2">
+            <input class="form-check-input" type="checkbox" role="switch" id="force">
+            <label class="form-check-label small" for="force" title="Try again a release this client already rolled back from">Retry rolled back</label>
+        </div>
+        <button class="btn btn-outline-light btn-sm" id="select_outdated"><i class="fas fa-check-double me-1"></i>Select outdated</button>
+        <button class="btn btn-primary btn-sm" id="update" disabled><i class="fas fa-cloud-download-alt me-1"></i>Update selected</button>
+    </div>
+    <p class="small text-white-50">Recommended: update one client first; once it shows “up to date”, update the others.</p>
+    <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+            <thead><tr><th scope="col" style="width:2rem"><span class="visually-hidden">Select</span></th><th scope="col">Client</th>
+                <th scope="col">Running release</th><th scope="col">State</th><th scope="col">Detail</th></tr></thead>
+            <tbody id="rows"></tbody>
+        </table>
+    </div>
+</section>
+
+<script>
+const el = id => document.getElementById(id);
+const BADGES = {
+    UP_TO_DATE: ["bg-success", "up to date"], OUTDATED: ["bg-warning text-dark", "outdated"],
+    SWITCHING: ["bg-info text-dark", "installed, switching…"], FAILED: ["bg-danger", "failed"],
+    ROLLED_BACK: ["bg-danger", "rolled back"], OFFLINE: ["bg-secondary", "offline"],
+    NOT_SUPPORTED: ["bg-secondary", "not supported"],
+};
+const UPDATABLE = ["OUTDATED", "FAILED", "ROLLED_BACK"];
+let selected = new Set();
+
+function bytes(n) { return n > 1048576 ? `${(n / 1048576).toFixed(1)} MiB` : `${Math.round(n / 1024)} KiB`; }
+
+async function load() {
+    const r = await st.api("GET", "/api/v1/updates");
+    if (!r.ok) { el("release").innerHTML = `<span class="text-danger">${st.esc(r.error.message)}</span>`; return; }
+    const rel = r.data.release;
+    el("release").innerHTML = `<p class="mb-1">Release <strong><code>${st.esc(rel.id)}</code></strong> (version ${st.esc(rel.version)}, ${bytes(rel.size)})</p>
+        <p class="mb-1">SHA-256 <code>${st.esc(rel.sha256)}</code></p>
+        <p class="mb-0">${rel.has_wheelhouse
+            ? '<i class="fas fa-check text-success me-1"></i>Ships its Python packages (wheelhouse): each client gets its own virtual environment, installed offline.'
+            : '<i class="fas fa-info-circle me-1"></i>No wheelhouse: clients reuse their current Python packages, so a release that needs other packages is refused.'}</p>`;
+    el("rows").innerHTML = r.data.clients.map(c => {
+        const [cls, label] = BADGES[c.stage] || ["bg-secondary", c.stage];
+        const can = UPDATABLE.includes(c.stage);
+        if (!can) selected.delete(c.uid);
+        return `<tr><td><input class="form-check-input" type="checkbox" data-uid="${st.esc(c.uid)}" aria-label="Select ${st.esc(c.uid)}"
+                ${can ? "" : "disabled"} ${selected.has(c.uid) ? "checked" : ""}></td>
+            <th scope="row">${st.esc(c.uid)}</th><td><code>${st.esc(c.release || "–")}</code></td>
+            <td><span class="badge ${cls}">${label}</span></td><td class="small text-white-50">${st.esc(c.detail)}</td></tr>`;
+    }).join("") || '<tr><td colspan="5" class="st-empty"><i class="fas fa-network-wired"></i>No client declared.</td></tr>';
+    el("update").disabled = !selected.size;
+}
+
+el("rows").addEventListener("change", e => {
+    const box = e.target.closest("input[data-uid]");
+    if (!box) return;
+    box.checked ? selected.add(box.dataset.uid) : selected.delete(box.dataset.uid);
+    el("update").disabled = !selected.size;
+});
+el("select_outdated").addEventListener("click", () => {
+    el("rows").querySelectorAll("input[data-uid]:not(:disabled)").forEach(b => { b.checked = true; selected.add(b.dataset.uid); });
+    el("update").disabled = !selected.size;
+});
+el("update").addEventListener("click", async () => {
+    const clients = [...selected];
+    if (!await st.confirm({title: `Update ${clients.length} client(s)?`, body: `${clients.join(", ")} will download this server's release, install it and restart. Their measurements stop for a few seconds.`, confirmText: "Update"})) return;
+    const r = await st.api("POST", "/api/v1/updates", {CLIENTS: clients, FORCE: el("force").checked});
+    if (!r.ok) { st.toast(r.error.message, "danger"); return; }
+    const skipped = Object.entries(r.data.skipped).map(([u, why]) => `${u}: ${why}`);
+    st.toast(`Update sent to ${r.data.queued.length} client(s).` + (skipped.length ? ` Skipped: ${skipped.join("; ")}.` : ""),
+             skipped.length ? "warning" : "success");
+    selected.clear();
+    load();
+});
+
+load();
+setInterval(load, 5000);
+</script>
+{% endblock %}

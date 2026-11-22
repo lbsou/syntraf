@@ -12,3 +12,6 @@ __pycache__/
 # Demandes d'admission en attente (à côté du fichier de configuration du serveur) et jeton propre d'un client
 *.toml.pending.json
 syntraf_client_token
+
+# Releases installées ou fabriquées par la mise à jour à distance
+releases/

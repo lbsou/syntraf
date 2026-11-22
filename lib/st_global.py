@@ -20,9 +20,12 @@ class CompilationOptions:
 class DefaultValues:
     # GLOBAL
     SYNTRAF_VERSION = "0.45"
-    SYNTRAF_ROOT_DIR = pathlib.Path(__file__).parent.parent.absolute()
-    SYNTRAF_PID_FILE = os.path.join(SYNTRAF_ROOT_DIR, 'syntraf.pid')
-    SYNTRAF_PROC_DIR = os.path.join(SYNTRAF_ROOT_DIR, "proc")
+    SYNTRAF_ROOT_DIR = pathlib.Path(__file__).parent.parent.absolute()  # code de la version qui tourne
+    # Données (clés, état) : dans l'installation en place, même quand une release installée à distance tourne
+    # (st_updater la désigne par SYNTRAF_BASE_DIR) ; sinon l'identité du client changerait à chaque mise à jour.
+    SYNTRAF_DATA_DIR = pathlib.Path(os.environ.get("SYNTRAF_BASE_DIR") or SYNTRAF_ROOT_DIR).absolute()
+    SYNTRAF_PID_FILE = os.path.join(SYNTRAF_DATA_DIR, 'syntraf.pid')
+    SYNTRAF_PROC_DIR = os.path.join(SYNTRAF_DATA_DIR, "proc")
 
     #tzlocal.utils.ZoneInfoNotFoundError: 'Multiple conflicting time zone configurations found:\n/etc/sysconfig/clock: Etc/UTC\n/etc/localtime is a symlink to: America/New_York\nFix the configuration, or set the time zone in a TZ environment variable.\n'
     try:
@@ -39,11 +42,11 @@ class DefaultValues:
 
     # CONTROL CHANNEL
     DEFAULT_SERVER_POOL_SIZE = 1_000
-    DEFAULT_SERVER_X509_SELFSIGNED_DIRECTORY = os.path.join(SYNTRAF_ROOT_DIR, "crypto",
+    DEFAULT_SERVER_X509_SELFSIGNED_DIRECTORY = os.path.join(SYNTRAF_DATA_DIR, "crypto",
                                                             "SERVER_X509_SELFSIGNED_DIRECTORY")
-    DEFAULT_CLIENT_X509_SELFSIGNED_DIRECTORY = os.path.join(SYNTRAF_ROOT_DIR, "crypto",
+    DEFAULT_CLIENT_X509_SELFSIGNED_DIRECTORY = os.path.join(SYNTRAF_DATA_DIR, "crypto",
                                                             "CLIENT_X509_SELFSIGNED_DIRECTORY")
-    DEFAULT_WEBUI_X509_SELFSIGNED_DIRECTORY = os.path.join(SYNTRAF_ROOT_DIR, "crypto", "WEBUI_X509_SELFSIGNED_DIRECTORY")
+    DEFAULT_WEBUI_X509_SELFSIGNED_DIRECTORY = os.path.join(SYNTRAF_DATA_DIR, "crypto", "WEBUI_X509_SELFSIGNED_DIRECTORY")
     DEFAULT_SERVER_PORT = "6531"
     DEFAULT_KEY_SIZE = 2_048
     DEFAULT_CLIENT_METRICS_QUEUE_SIZE = 86_400
@@ -66,7 +69,7 @@ class DefaultValues:
     DEFAULT_INTERVAL = "1"
     DEFAULT_BANDWIDTH = "100k"
     DEFAULT_PORT_RANGE = "15000-16000"
-    DEFAULT_IPERF3_RSA_KEY_DIRECTORY = os.path.join(SYNTRAF_ROOT_DIR, "crypto", "rsa_key_iperf3")
+    DEFAULT_IPERF3_RSA_KEY_DIRECTORY = os.path.join(SYNTRAF_DATA_DIR, "crypto", "rsa_key_iperf3")
     #DEFAULT_IPERF3_TEMP_DIRECTORY = os.path.join(SYNTRAF_ROOT_DIR, "iperf3_temp")
     DEFAULT_IPERF3_TIME_SKEW_THRESHOLD = "10"
 

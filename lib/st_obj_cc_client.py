@@ -15,7 +15,10 @@ class cc_client:
     _thread_status = {}
     metrics_buffer = None
     public_key = None          # clé publique présentée à la dernière authentification
-    public_key_sha256 = None   # son empreinte (pour l'épingler depuis la webui)  # mesures en attente d'envoi chez le client, rapportées avec ses statistiques système
+    public_key_sha256 = None   # son empreinte (pour l'épingler depuis la webui)
+    release_id = None          # release annoncée par le client à son authentification (None : version trop ancienne)
+    update_failed = None       # dernière release abandonnée par son superviseur (retour arrière)
+    update_status = None       # dernier compte rendu de mise à jour ({"RELEASE", "STATE", "MESSAGE", "AT"})  # mesures en attente d'envoi chez le client, rapportées avec ses statistiques système
 
     def __init__(self, status, status_since, status_explanation, bool_dynamic_client, client_uid, tcp_port=0,
                  ip_address=""):

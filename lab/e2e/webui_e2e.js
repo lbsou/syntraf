@@ -57,6 +57,8 @@ async function reviewAndApply(page) {
     const preview = await page.$eval("#cfg_review", e => e.textContent);
     await nextToast(page, () => page.click("#btn_apply"));
     await page.waitForFunction(() => !document.querySelector(".modal-backdrop, .modal.show"), {timeout: 15000});
+    // le tableau est rechargé (reconstruit) après l'application : attendre, sinon une sélection serait perdue
+    await page.waitForSelector('body[data-table-loaded="1"]', {timeout: 15000});
     return preview;
 }
 
@@ -164,6 +166,8 @@ async function selectRow(page, uid) {
 
     // Profil temporaire (inutilisé, donc sans effet sur les mesures) : création, modification, suppression.
     const PROFILE = "E2E_PROFILE";
+    // reste d'une exécution interrompue
+    await page.evaluate(p => fetch(`/api/v1/config/profiles/${p}`, {method: "DELETE"}), PROFILE);
     errors = [];
     await page.goto(BASE + "/profile_config.html", {waitUntil: "domcontentloaded"});
     await page.waitForSelector('body[data-table-loaded="1"]');

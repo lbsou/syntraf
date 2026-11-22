@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 from lib.st_global import DefaultValues
 
-load_dotenv(os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, '.env'))
+load_dotenv(os.path.join(DefaultValues.SYNTRAF_DATA_DIR, '.env'))
 
 class Config(object):
     DEBUG = False

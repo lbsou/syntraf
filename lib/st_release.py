@@ -1,0 +1,143 @@
+"""Releases de SYNTRAF : le serveur distribue sa propre version (« release intégrée »).
+
+Une release est une archive tar.gz des sources (syntraf.py, lib/, requirements_*.txt), avec le dossier wheelhouse/
+s'il existe (paquets Python pour installer un venv hors ligne chez les clients) et un manifest.json.
+Son identité est « version+empreinte » : l'empreinte porte sur le code, si bien que deux codes différents ne
+partagent jamais le même identifiant, même avec le même numéro de version.
+
+Module sans dépendance externe : il est aussi utilisé par le démarrage supervisé des clients (st_updater).
+"""
+import gzip
+import hashlib
+import io
+import json
+import os
+import tarfile
+
+EXCLUDED_DIRS = {"venv", ".venv", ".git", ".idea", ".superpowers", "crypto", "log", "logs", "lab", "test", "tests",
+                 "fake_data", "iperf3_temp", "doc", "docs", "proc", "releases", "__pycache__", "node_modules"}
+EXCLUDED_SUFFIXES = (".pyc", ".pyo", ".pid", ".db", ".log")
+WHEELHOUSE = "wheelhouse"
+CLIENT_REQUIREMENTS = "requirements_client.txt"
+
+
+class ReleaseError(Exception):
+    pass
+
+
+def _included(root):
+    """Fichiers de la release (chemins relatifs, triés), hors wheelhouse."""
+    out = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        rel_dir = os.path.relpath(dirpath, root)
+        dirnames[:] = sorted(d for d in dirnames if d not in EXCLUDED_DIRS and not d.startswith("venv")
+                             and not (rel_dir == "." and d == WHEELHOUSE))
+        for name in filenames:
+            if name.endswith(EXCLUDED_SUFFIXES):
+                continue
+            rel = os.path.normpath(os.path.join(rel_dir, name)).replace(os.sep, "/")
+            out.append(rel)
+    return sorted(out)
+
+
+def _wheels(root):
+    directory = os.path.join(root, WHEELHOUSE)
+    if not os.path.isdir(directory):
+        return []
+    return sorted(f"{WHEELHOUSE}/{n}" for n in os.listdir(directory) if os.path.isfile(os.path.join(directory, n)))
+
+
+def file_sha256(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(1 << 20), b""):
+            h.update(block)
+    return h.hexdigest()
+
+
+def source_digest(root):
+    """Empreinte du code : chemins et contenus des fichiers de la release (hors wheelhouse)."""
+    h = hashlib.sha256()
+    for rel in _included(root):
+        h.update(rel.encode() + b"\0")
+        with open(os.path.join(root, rel), "rb") as f:
+            h.update(hashlib.sha256(f.read()).digest())
+    return h.hexdigest()
+
+
+def release_id(root, version):
+    return f"{version}+{source_digest(root)[:10]}"
+
+
+def requirements_sha256(root):
+    path = os.path.join(root, CLIENT_REQUIREMENTS)
+    return file_sha256(path) if os.path.isfile(path) else None
+
+
+def build(root, out_dir, version):
+    """Fabrique (ou retrouve) l'archive de la release du code de root. Reproductible : mêmes sources, même archive."""
+    rid = release_id(root, version)
+    os.makedirs(out_dir, exist_ok=True)
+    path = os.path.join(out_dir, f"syntraf-{rid}.tar.gz")
+    wheels = _wheels(root)
+    manifest = {"id": rid, "version": version, "has_wheelhouse": bool(wheels),
+                "requirements_sha256": requirements_sha256(root)}
+    if not os.path.isfile(path):
+        tmp = path + ".tmp"
+        with open(tmp, "wb") as raw:
+            # gzip sans date ni nom de fichier, entrées triées et horodatées à 0 : archive reproductible
+            with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as gz:
+                with tarfile.open(fileobj=gz, mode="w") as tar:
+                    for rel in _included(root) + wheels:
+                        _add(tar, rel, open(os.path.join(root, rel), "rb").read())
+                    _add(tar, "manifest.json", json.dumps(manifest, indent=1, sort_keys=True).encode())
+        os.replace(tmp, path)
+    return dict(manifest, path=path, sha256=file_sha256(path), size=os.path.getsize(path))
+
+
+def _add(tar, name, data):
+    info = tarfile.TarInfo(name)
+    info.size, info.mtime, info.mode = len(data), 0, 0o644
+    tar.addfile(info, io.BytesIO(data))
+
+
+def safe_extract(archive, dest):
+    """Extrait une release : refuse les chemins hors de dest et tout ce qui n'est pas fichier ou dossier."""
+    dest = os.path.abspath(dest)
+    with tarfile.open(archive, "r:gz") as tar:
+        members = tar.getmembers()
+        for m in members:
+            target = os.path.abspath(os.path.join(dest, m.name))
+            if not (m.isfile() or m.isdir()):
+                raise ReleaseError(f"unexpected entry type in the release: {m.name}")
+            if os.path.isabs(m.name) or not (target == dest or target.startswith(dest + os.sep)):
+                raise ReleaseError(f"entry outside of the release directory: {m.name}")
+        os.makedirs(dest, exist_ok=True)
+        for m in members:
+            target = os.path.join(dest, m.name)
+            if m.isdir():
+                os.makedirs(target, exist_ok=True)
+                continue
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            with tar.extractfile(m) as src, open(target, "wb") as out:
+                out.write(src.read())
+
+
+_BUILTIN = {}
+_BUILTIN_LOCK = __import__("threading").Lock()
+
+
+def builtin(root, data_dir, version):
+    """Release intégrée du serveur : l'archive de son propre code, fabriquée une fois puis gardée en cache
+    (sous <données>/releases/dist)."""
+    with _BUILTIN_LOCK:
+        info = _BUILTIN.get((str(root), version))
+        if info is None or not os.path.isfile(info["path"]):
+            info = build(str(root), os.path.join(str(data_dir), "releases", "dist"), version)
+            _BUILTIN[(str(root), version)] = info
+        return info
+
+
+def read_manifest(release_dir):
+    with open(os.path.join(release_dir, "manifest.json"), encoding="utf-8") as f:
+        return json.load(f)

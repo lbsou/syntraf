@@ -133,7 +133,7 @@ def launch_webui(threads_n_processes, subprocess_iperf_dict, _dict_by_node_gener
                          _dict_by_group_of_generated_tuple_for_map, dict_data_to_send_to_server, config,
                          config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients)
         # app = ProfilerMiddleware(app)
-        cert_path = os.path.join(DefaultValues.SYNTRAF_ROOT_DIR, "crypto", "WEBUI_X509_SELFSIGNED_DIRECTORY")
+        cert_path = os.path.join(DefaultValues.SYNTRAF_DATA_DIR, "crypto", "WEBUI_X509_SELFSIGNED_DIRECTORY")
         pool = Pool(100)
 
         try:

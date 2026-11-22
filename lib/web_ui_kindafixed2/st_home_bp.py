@@ -226,6 +226,11 @@ def data():
     return render_template('data.html')
 
 
+@st_home_bp.route('/updates.html')
+def updates():
+    return render_template('updates.html')
+
+
 @st_home_bp.route('/audit.html')
 def audit():
     return render_template('audit.html', syntraf_version=DefaultValues.SYNTRAF_VERSION)

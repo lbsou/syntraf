@@ -6,6 +6,19 @@
 # Indentation of 4 spaces
 ########################################
 
+# Démarrage supervisé (mise à jour à distance) : le processus lancé par le service ne fait que démarrer la version
+# courante (installation en place, ou release installée dans releases/) et revenir à la précédente si une nouvelle
+# version ne rejoint pas le serveur. Avant tout autre import : une release défectueuse ne doit pas l'empêcher.
+# SYNTRAF_NO_SUPERVISOR=1 lance SYNTRAF directement (débogage).
+if __name__ == "__main__":
+    import os as _os
+    import sys as _sys
+    if not _os.environ.get("SYNTRAF_SUPERVISED") and _os.environ.get("SYNTRAF_NO_SUPERVISOR") != "1":
+        _base = _os.path.dirname(_os.path.abspath(__file__))
+        _sys.path.insert(0, _base)
+        from lib import st_updater as _st_updater
+        _sys.exit(_st_updater.supervise(_base, _sys.argv[1:]))
+
 # SYNTRAF GLOBAL IMPORT
 from lib.st_global import DefaultValues, CompilationOptions
 # from lib.st_class_winsvc import SMWinservice

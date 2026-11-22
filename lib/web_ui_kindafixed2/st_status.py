@@ -51,6 +51,7 @@ def clients(state):
             "clock_skew_seconds": getattr(obj, "clock_skew_in_seconds", None) if obj is not None else None,
             "mesh_groups": decl.get("MESH_GROUP_UID_LIST", []),
             "metrics_buffer": getattr(obj, "metrics_buffer", None) if obj is not None else None,
+            "release": getattr(obj, "release_id", None) if obj is not None else None,
             "listeners": len(gen.get("LISTENERS") or {}),
             "connectors": len(gen.get("CONNECTORS") or {}),
             "declared": uid in declared,
