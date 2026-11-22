@@ -51,6 +51,15 @@ def test_a_corrupted_download_is_refused(base, tmp_path):
     assert up.read_state(str(base))["current"] is None
 
 
+def test_removing_a_requirement_needs_no_wheelhouse(tmp_path):
+    # le client a déjà tout ce que la release demande (elle en demande moins) : elle s'installe
+    base = tree(tmp_path / "base2", {"syntraf.py": "print('v1')\n", "lib/st_x.py": "X = 1\n",
+                                     "requirements_client.txt": "toml==0.10.2\n# commentaire\nscapy==2.8.0\n"})
+    info = release(tmp_path, {"requirements_client.txt": "toml==0.10.2\n"})
+    path = up.stage(str(base), info["path"], info["sha256"], info["id"], python=sys.executable)
+    assert Path(path, "syntraf.py").read_text() == "print('v2')\n"
+
+
 def test_changed_requirements_without_wheelhouse_are_refused(base, tmp_path):
     info = release(tmp_path, {"requirements_client.txt": "toml==0.10.2\nnewdep==1.0\n"})
     with pytest.raises(up.UpdateError) as err:

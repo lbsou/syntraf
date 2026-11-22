@@ -181,3 +181,25 @@ def test_backward_clock_jump_generates_nothing():
     assert tr.fill(now=T0 + 9) == []
     clock.t = 3
     assert tr.record(UID, T0 + 11, 1, CTX) == []
+
+
+def test_clock_jumps_are_summarized_instead_of_logged_one_by_one(caplog):
+    import logging
+    tr, clock = clocked()
+    with caplog.at_level(logging.DEBUG, logger="syntraf"):
+        for flow in range(3):  # trois flux voient le même saut
+            uid = f"F{flow}__TO__X__ON__DSCP0"
+            clock.t = 0
+            tr.record(uid, T0, 1, CTX)
+            clock.t = 1
+            tr.record(uid, T0 + 6, 1, CTX)
+    info = [r.getMessage() for r in caplog.records if r.levelno >= logging.INFO]
+    assert len([m for m in info if "CLOCK" in m]) == 1     # un seul message visible, au premier saut
+    assert len([r for r in caplog.records if r.levelno == logging.DEBUG and "WALL CLOCK JUMPED" in r.getMessage()]) == 3
+    clock.t = 1 + st_outage.CLOCK_JUMP_SUMMARY_S
+    with caplog.at_level(logging.DEBUG, logger="syntraf"):
+        caplog.clear()
+        tr.record("F0__TO__X__ON__DSCP0", T0 + 20, 1, CTX)
+    # (600 s réelles plus tard, c'est aussi une vraie panne : elle est signalée à part)
+    summary = [r.getMessage() for r in caplog.records if r.levelno >= logging.INFO and "CLOCK JUMP" in r.getMessage()]
+    assert len(summary) == 1 and "2 WALL CLOCK JUMP(S)" in summary[0]  # le premier a eu son propre message

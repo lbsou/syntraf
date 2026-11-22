@@ -137,7 +137,11 @@ def launch_webui(threads_n_processes, subprocess_iperf_dict, _dict_by_node_gener
         pool = Pool(100)
 
         try:
-            http_server = WSGIServer(('0.0.0.0', DefaultValues.DEFAULT_WEBUI_PORT), app, error_log=log, log=log)
+            # Accès HTTP de l'interface en DEBUG : au niveau INFO, ils faisaient 86 % du journal du serveur
+            # (actualisation en direct, tableaux) et noyaient le reste ; les erreurs restent dans error_log
+            from gevent.pywsgi import LoggingLogAdapter
+            http_server = WSGIServer(('0.0.0.0', DefaultValues.DEFAULT_WEBUI_PORT), app, error_log=log,
+                                     log=LoggingLogAdapter(log, logging.DEBUG))
 
             # try:
             #    http_server = WSGIServer(('0.0.0.0', DefaultValues.DEFAULT_WEBUI_PORT), app,

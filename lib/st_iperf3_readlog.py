@@ -60,6 +60,12 @@ def read_log(edge_key, edge_type, config, dict_data_to_send_to_server, threads_n
                     break
             time.sleep(int(config[f"{edge_type}S"][edge_key]['INTERVAL']) / 2)
 
+    except KeyError as exc:
+        if edge_key not in (config.get(f"{edge_type}S") or {}):
+            # flux retiré par un changement de configuration pendant la lecture : fin normale de ce fil
+            log.debug(f"READ_LOG FOR {edge_type} {edge_key} STOPPED: REMOVED FROM THE CONFIGURATION")
+            return
+        log.error(f"read_log:{type(exc).__name__}:{exc}", exc_info=True)
     except Exception as exc:
         log.error(f"read_log:{type(exc).__name__}:{exc}", exc_info=True)
 

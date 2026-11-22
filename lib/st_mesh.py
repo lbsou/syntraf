@@ -164,14 +164,14 @@ def client_sck_init(_config):
             client_log.info(f"CONNECTED TO : {_config['CLIENT']['SERVER']}:{_config['CLIENT']['SERVER_PORT']}")
 
     except (ConnectionRefusedError, ConnectionResetError) as exc:
-        client_log.error(
+        client_log.warning(
             f"ERROR CONNECTING TO {_config['CLIENT']['SERVER']}:{_config['CLIENT']['SERVER_PORT']} : CONNECTION REFUSED")
         sys.exit()
     except OSError as exc:
         # Any failure (unreachable, connect timeout...) ends this attempt: the watchdog retries shortly.
         # Continuing used to hand back an unconnected socket that then waited for nothing.
         reason = "NETWORK UNREACHABLE" if exc.errno == 101 else f"{type(exc).__name__.upper()}: {exc}"
-        client_log.error(f"ERROR CONNECTING TO {_config['CLIENT']['SERVER']}:{_config['CLIENT']['SERVER_PORT']} : {reason}")
+        client_log.warning(f"ERROR CONNECTING TO {_config['CLIENT']['SERVER']}:{_config['CLIENT']['SERVER_PORT']} : {reason}")
         sys.exit()
     except Exception as exc:
         client_log.error(f"client:{type(exc).__name__}:{exc}", exc_info=True)
@@ -486,9 +486,9 @@ def client_send_metrics(_config, ssl_conn, dict_data_to_send_to_server):
             client_log.debug(
                 f"METRICS DICTIONARY SENT WITH {len(values_of_metrics_to_send_to_server)} METRIC(S), WAITING FOR CONFIRMATION")
             received_data = sock_rcv(ssl_conn)
-            client_log.debug(
-                f"JUST RECEIVED THE FOLLOWING ANSWER FROM THE SERVER : {received_data['COMMAND']}:{received_data['PAYLOAD']}")
             if received_data:
+                client_log.debug(
+                    f"JUST RECEIVED THE FOLLOWING ANSWER FROM THE SERVER : {received_data['COMMAND']}:{received_data['PAYLOAD']}")
                 if received_data['PAYLOAD'] == "OK":
                     client_log.debug((
                         f"SERVER CONFIRMED THAT {len(values_of_metrics_to_send_to_server)} METRIC(S) HAS BEEN WRITEN TO DATABASE"))
@@ -501,8 +501,10 @@ def client_send_metrics(_config, ssl_conn, dict_data_to_send_to_server):
                 elif received_data['PAYLOAD'] == "NOK":
                     client_log.error(f"SERVER WAS UNABLE TO WRITE METRICS TO DATABASE")
             else:
-                client_log.error(
-                    f"CONNECTION TO {_config['CLIENT']['SERVER']}:{_config['CLIENT']['SERVER_PORT']} LOST")
+                # connexion fermée par le serveur (redémarrage...) : les mesures restent en file, renvoyées ensuite
+                client_log.warning(
+                    f"CONNECTION TO {_config['CLIENT']['SERVER']}:{_config['CLIENT']['SERVER_PORT']} LOST: "
+                    f"{len(dict_data_to_send_to_server)} MEASUREMENT(S) KEPT FOR THE NEXT CONNECTION")
                 return False
         return True
     except Exception as exc:
@@ -740,10 +742,10 @@ def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processe
         client_log.error(f"SOCKET TIMEOUT: {address}: CLOSING CONNECTION")
     except OSError as exc:
         if exc.errno == 32:  # BROKEN PIPE, THE OTHER END HAS GONE AWAY
-            client_log.error(f"BROKEN PIPE: {address}: CLOSING CONNECTION")
+            client_log.warning(f"BROKEN PIPE: {address}: CLOSING CONNECTION")
         # CONNECTION RESET BY PEER
         elif exc.errno == 104:
-            client_log.error(f"CONNECTION RESET BY PEER: {address}: CLOSING CONNECTION")
+            client_log.warning(f"CONNECTION RESET BY PEER: {address}: CLOSING CONNECTION")
         elif exc.errno == 113:
             client_log.error(f"NO ROUTE TO HOST: {address}: CLOSING CONNECTION")
         # CONNECTION TIMEOUT
@@ -754,7 +756,7 @@ def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processe
             client_log.error(f"CONNECTION ABORTED: {address}: CLOSING CONNECTION")
         # FOR WINDOWS [WinError 10054]
         elif exc.errno == 10054:
-            client_log.error(f"CONNECTION RESET BY PEER: {address}: CLOSING CONNECTION")
+            client_log.warning(f"CONNECTION RESET BY PEER: {address}: CLOSING CONNECTION")
         elif exc.errno == 10057:  # FOR WINDOWS [WinError 10057]
             client_log.error(f"{type(exc).__name__.upper()}:{exc.errno}: {address}: CLOSING CONNECTION")
         elif exc.errno == 8:
@@ -1174,7 +1176,7 @@ class Handler(StreamRequestHandler):
                     if received_data is None:
                         server_log.debug(f"CONTEXT: {dict_of_clients[uid].client_uid} - INVALID DATA RECEIVED")
                         dict_of_clients[uid].status_explanation = "CONNECTION RESET BY PEER"
-                        server_log.error(f"CONNECTION RESET BY PEER: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+                        server_log.warning(f"CONNECTION RESET BY PEER: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
                         break
                     else:
                         # Log the command that was received
@@ -1255,11 +1257,11 @@ class Handler(StreamRequestHandler):
         except OSError as exc:
             if exc.errno == 32:  # BROKEN PIPE, THE OTHER END HAS GONE AWAY
                 dict_of_clients[uid].status_explanation = "BROKEN PIPE"
-                server_log.error(f"BROKEN PIPE: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+                server_log.warning(f"BROKEN PIPE: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
             # CONNECTION RESET BY PEER
             elif exc.errno == 104:
                 dict_of_clients[uid].status_explanation = "CONNECTION RESET BY PEER"
-                server_log.error(f"CONNECTION RESET BY PEER: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+                server_log.warning(f"CONNECTION RESET BY PEER: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
             elif exc.errno == 113:
                 dict_of_clients[uid].status_explanation = "NO ROUTE TO HOST"
                 server_log.error(f"NO ROUTE TO HOST: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
@@ -1274,7 +1276,7 @@ class Handler(StreamRequestHandler):
             # FOR WINDOWS [WinError 10054]
             elif exc.errno == 10054:
                 dict_of_clients[uid].status_explanation = "CONNECTION RESET BY PEER"
-                server_log.error(f"CONNECTION RESET BY PEER: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+                server_log.warning(f"CONNECTION RESET BY PEER: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
             elif exc.errno == 10057:  # FOR WINDOWS [WinError 10057]
                 dict_of_clients[uid].status_explanation = "SOCKET IS NOT CONNECTED"
                 server_log.error(
@@ -1290,7 +1292,7 @@ class Handler(StreamRequestHandler):
 
         finally:
             # The socket on the other end is probably closed
-            server_log.error(f"CLIENT: {dict_of_clients[uid].ip_address} DISCONNECTED")
+            server_log.warning(f"CLIENT: {dict_of_clients[uid].ip_address} DISCONNECTED")
 
             try:
                 # If this is a dynamic client, forget its ip address, but only if it has not come back within the

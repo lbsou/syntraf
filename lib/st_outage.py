@@ -47,6 +47,9 @@ def enqueue(queue: dict, point: dict, max_size: int) -> None:
     queue[hashlib.sha1(str(point).encode()).hexdigest()] = point
 
 
+CLOCK_JUMP_SUMMARY_S = 600  # au plus un message visible (INFO) par période sur les sauts d'horloge
+
+
 class SilenceTracker:
     """Détection du silence d'iperf3.
 
@@ -61,6 +64,9 @@ class SilenceTracker:
         self._clock = clock
         self._flows = {}
         self._lock = threading.Lock()
+        # Sauts d'horloge : un message au premier, puis un résumé par période (un saut touche tous les flux à la
+        # fois ; une VM WSL en fait plusieurs par minute) ; le détail de chacun en DEBUG
+        self._jumps = {"count": 0, "largest": 0.0, "since": None, "reported": None}
 
     def record(self, uid: str, utime: float, interval: int, ctx: dict) -> list:
         """Une vraie mesure horodatée utime vient d'être lue pour le flux uid.
@@ -86,8 +92,9 @@ class SilenceTracker:
                 if mono - flow["anchor_m"] >= threshold:
                     points = self._generate(uid, flow, utime - step)
                 else:
-                    log.info(f"{uid} - WALL CLOCK JUMPED {utime - flow['last']:.1f} S BETWEEN TWO IPERF3 REPORTS "
-                             f"{mono - flow['anchor_m']:.1f} S APART: NOT AN OUTAGE")
+                    self._clock_jump(uid, utime - flow["last"], mono - flow["anchor_m"], mono)
+            if self._jumps["reported"] is not None:
+                self._report_jumps(mono)
             if flow["silent"] and utime > flow["last"]:
                 log.warning(f"{uid} - IPERF3 IS REPORTING AGAIN, END OF OUTAGE")
                 flow["silent"] = False
@@ -96,6 +103,26 @@ class SilenceTracker:
             flow["interval"] = interval
             flow["ctx"] = dict(ctx)
             return points
+
+    def _clock_jump(self, uid, jump, real, mono):
+        log.debug(f"{uid} - WALL CLOCK JUMPED {jump:.1f} S BETWEEN TWO IPERF3 REPORTS {real:.1f} S APART: NOT AN OUTAGE")
+        j = self._jumps
+        if j["reported"] is None:
+            log.info(f"WALL CLOCK JUMPED {jump:.1f} S WHILE ONLY {real:.1f} S PASSED: THIS HOST'S CLOCK IS UNSTABLE "
+                     f"(NTP STEP, VIRTUAL MACHINE). NOT COUNTED AS AN OUTAGE; FURTHER JUMPS ARE SUMMARIZED EVERY "
+                     f"{CLOCK_JUMP_SUMMARY_S // 60} MIN")
+            j["reported"] = mono
+            return
+        j["count"] += 1
+        j["largest"] = max(j["largest"], jump)
+        self._report_jumps(mono)
+
+    def _report_jumps(self, mono):
+        j = self._jumps
+        if j["count"] and mono - j["reported"] >= CLOCK_JUMP_SUMMARY_S:
+            log.info(f"{j['count']} WALL CLOCK JUMP(S) IN THE LAST {(mono - j['reported']) / 60:.0f} MIN (LARGEST "
+                     f"{j['largest']:.1f} S): NOT COUNTED AS OUTAGES")
+            j.update(count=0, largest=0.0, reported=mono)
 
     def _generate(self, uid: str, flow: dict, limit: float) -> list:
         """Points à 100 % de pertes de flow["last"] + intervalle jusqu'à limit inclus ; avance flow["last"]."""

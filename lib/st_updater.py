@@ -103,10 +103,12 @@ def stage(base, archive, expected_sha256, release_id, python, force=False):
         if manifest.get("id") != release_id:
             raise UpdateError(f"the archive contains release {manifest.get('id')}, not {release_id}")
         if not manifest.get("has_wheelhouse"):
-            running = _running_requirements_sha(base, state)
-            if manifest.get("requirements_sha256") != running:
-                raise UpdateError("the release needs other Python packages and ships no wheelhouse: build the "
-                                  "server's release with its wheelhouse")
+            # Sans wheelhouse, le client garde ses paquets : la release ne doit en demander aucun qu'il n'a pas
+            # (en retirer un est sans risque : avant, toute modification du fichier était refusée)
+            missing = _requirements(tmp) - _requirements(_running_dir(base, state))
+            if missing:
+                raise UpdateError(f"the release needs other Python packages ({', '.join(sorted(missing))}) and ships "
+                                  f"no wheelhouse: build the server's release with its wheelhouse")
             with open(os.path.join(tmp, ".python"), "w", encoding="utf-8") as f:
                 f.write(python)
     except Exception:
@@ -135,9 +137,17 @@ def stage(base, archive, expected_sha256, release_id, python, force=False):
     return target
 
 
-def _running_requirements_sha(base, state):
-    directory = os.path.join(_releases(base), state["current"]) if state["current"] else base
-    return st_release.requirements_sha256(directory)
+def _running_dir(base, state):
+    return os.path.join(_releases(base), state["current"]) if state["current"] else base
+
+
+def _requirements(directory):
+    """Lignes de requirements_client.txt (sans commentaires ni lignes vides, casse ignorée)."""
+    path = os.path.join(directory, st_release.CLIENT_REQUIREMENTS)
+    if not os.path.isfile(path):
+        return set()
+    with open(path, encoding="utf-8") as f:
+        return {line.split("#", 1)[0].strip().lower() for line in f if line.split("#", 1)[0].strip()}
 
 
 def _clean(base, state):
