@@ -89,3 +89,6 @@ body { min-height: 100vh; }
 
 .table td, .table th { vertical-align: middle; }
 :focus-visible { outline: 2px solid #3498db; outline-offset: 2px; }
+
+/* Une ancre (server.html#logging) ne doit pas finir sous la barre du haut */
+.st-card[id] { scroll-margin-top: calc(var(--st-topbar-h) + 1rem); }
