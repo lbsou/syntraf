@@ -10,7 +10,10 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from lib import st_vm_admin as vm  # noqa: E402
+try:
+    from lib import st_vm_admin as vm  # noqa: E402
+except (ImportError, SystemExit):
+    pytest.skip("dépendances de SYNTRAF absentes (lancer dans l'image du lab)", allow_module_level=True)
 
 METRICS = """vm_free_disk_space_bytes{path="/storage"} 1000
 vm_data_size_bytes{type="storage/small"} 300

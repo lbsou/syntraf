@@ -335,10 +335,6 @@ def api():
                 dict_of_clients_as_json[k] = v.asjson()
             return dict_of_clients_as_json
 
-        elif requested_action == "GET_TOKENS":
-            ''' =============================================================================================== '''
-            return app.config['config']['SERVER']['TOKEN']
-
         elif requested_action == "GET_NUMBER_OF_ONLINE_CLIENT":
             ''' =============================================================================================== '''
             online_client = 0

@@ -2,13 +2,114 @@
 {% from "_macros.html" import page_header, kv_table %}
 {% block title %}Server{% endblock %}
 {% block content %}
-{{ page_header("Server", "Server settings, read from the configuration file at startup.") }}
+{{ page_header("Server", "Settings of this SYNTRAF server (SERVER). The listener port range applies live; the listening address, port and certificate take effect after a server restart.") }}
+
 <section class="st-card">
-    {{ kv_table(config['SERVER'], skip=('TOKEN',)) }}
+  <form id="server_form" novalidate>
+    <div class="row">
+        <div class="col-md-4 mb-3">
+            <label for="s_bind" class="form-label">Listening address <span class="badge bg-secondary">restart</span></label>
+            <input class="form-control" id="s_bind" data-field="BIND_ADDRESS" placeholder="0.0.0.0" aria-describedby="s_bind_help">
+            <div id="s_bind_help" class="form-text">0.0.0.0: all interfaces.</div>
+            <div class="invalid-feedback" data-feedback="BIND_ADDRESS"></div>
+            <div class="small text-warning" data-running="BIND_ADDRESS"></div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <label for="s_port" class="form-label">Control port <span class="badge bg-secondary">restart</span></label>
+            <input class="form-control" id="s_port" data-field="SERVER_PORT" inputmode="numeric" placeholder="6531" aria-describedby="s_port_help">
+            <div id="s_port_help" class="form-text">TCP port the clients connect to.</div>
+            <div class="invalid-feedback" data-feedback="SERVER_PORT"></div>
+            <div class="small text-warning" data-running="SERVER_PORT"></div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <label for="s_range" class="form-label">Listener port range <span class="badge bg-success">live</span></label>
+            <input class="form-control" id="s_range" data-field="MESH_LISTENERS_PORT_RANGE" placeholder="15000-15999" aria-describedby="s_range_help">
+            <div id="s_range_help" class="form-text">Ports given to the clients' iperf3 listeners; changing it restarts the measurements.</div>
+            <div class="invalid-feedback" data-feedback="MESH_LISTENERS_PORT_RANGE"></div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label for="s_cert" class="form-label">TLS certificate (optional) <span class="badge bg-secondary">restart</span></label>
+            <input class="form-control" id="s_cert" data-field="SERVER_X509_CERTIFICATE" placeholder="/etc/syntraf/server.pem">
+            <div class="invalid-feedback" data-feedback="SERVER_X509_CERTIFICATE"></div>
+        </div>
+        <div class="col-md-6 mb-3">
+            <label for="s_key" class="form-label">TLS private key (optional) <span class="badge bg-secondary">restart</span></label>
+            <input class="form-control" id="s_key" data-field="SERVER_X509_PRIVATE_KEY" placeholder="/etc/syntraf/server.key" aria-describedby="s_key_help">
+            <div id="s_key_help" class="form-text">Both empty: a self-signed certificate is used.</div>
+            <div class="invalid-feedback" data-feedback="SERVER_X509_PRIVATE_KEY"></div>
+        </div>
+    </div>
+    <div id="server_review" class="mb-3" hidden></div>
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary" id="btn_review">Review changes…</button>
+        <button type="button" class="btn btn-outline-light" id="btn_back" hidden>Back</button>
+        <button type="button" class="btn btn-success" id="btn_apply" hidden>Apply</button>
+    </div>
+  </form>
 </section>
+
 <section class="st-card">
     <h2>Global</h2>
+    <p class="small text-white-50">Logging and other global settings (GLOBAL), read when the server starts.</p>
     {{ kv_table(config.get('GLOBAL', {})) }}
 </section>
-<p class="small text-white-50">Client tokens are on the <a href="/token_config.html">Tokens</a> page.</p>
+<p class="small text-white-50">Tokens are managed on the <a href="/token_config.html">Tokens</a> page.</p>
+
+<script>
+const el = id => document.getElementById(id);
+const form = el("server_form");
+const FIELDS = {BIND_ADDRESS: "s_bind", SERVER_PORT: "s_port", MESH_LISTENERS_PORT_RANGE: "s_range",
+                SERVER_X509_CERTIFICATE: "s_cert", SERVER_X509_PRIVATE_KEY: "s_key"};
+let pending = null;
+
+function stage(review) {
+    el("server_review").hidden = !review;
+    el("btn_review").hidden = review;
+    el("btn_back").hidden = !review;
+    el("btn_apply").hidden = !review;
+    Object.values(FIELDS).forEach(id => { el(id).readOnly = review; });
+}
+
+async function load() {
+    const r = await st.api("GET", "/api/v1/config/server");
+    if (!r.ok) { st.toast(r.error.message, "danger"); return; }
+    Object.entries(FIELDS).forEach(([k, id]) => {
+        el(id).value = r.data[k] || "";
+        if (r.data.RUNNING[k]) el(id).placeholder = `${r.data.RUNNING[k]} (in service)`;  // valeur par défaut appliquée
+    });
+    form.querySelectorAll("[data-running]").forEach(node => {
+        const k = node.dataset.running, running = r.data.RUNNING[k] || "", saved = r.data[k] || "";
+        node.textContent = running && saved && running !== saved ? `In service: ${running} until the server restarts.` : "";
+    });
+    stage(false);
+}
+
+const body = () => Object.fromEntries(Object.entries(FIELDS).map(([k, id]) => [k, el(id).value.trim()]));
+
+form.addEventListener("submit", async e => {
+    e.preventDefault();
+    st.setBusy(el("btn_review"), true);
+    const r = await st.api("PUT", "/api/v1/config/server?dry_run=1", body());
+    st.setBusy(el("btn_review"), false);
+    if (!r.ok) { st.showFieldErrors(form, r.error.fields); if (!Object.keys(r.error.fields || {}).length) st.toast(r.error.message, "danger"); return; }
+    st.showFieldErrors(form, {});
+    pending = body();
+    el("server_review").replaceChildren(st.previewNode(r.data, "Changes to the server settings:"));
+    stage(true);
+});
+el("btn_back").addEventListener("click", () => stage(false));
+el("btn_apply").addEventListener("click", async () => {
+    st.setBusy(el("btn_apply"), true);
+    const r = await st.api("PUT", "/api/v1/config/server", pending);
+    st.setBusy(el("btn_apply"), false);
+    if (!r.ok) { st.toast(r.error.message, "danger"); stage(false); return; }
+    const restart = r.data.restart_required || [];
+    st.toast(restart.length ? `Saved. Restart the server to apply: ${restart.join(", ")}.` : "Server settings applied.",
+             restart.length ? "warning" : "success");
+    load();
+});
+load();
+</script>
 {% endblock %}

@@ -2,58 +2,86 @@
 {% from "_macros.html" import page_header %}
 {% block title %}Tokens{% endblock %}
 {% block content %}
-{{ page_header("Tokens", "Clients authenticate to the server with one of these tokens. They are hidden until you reveal them.") }}
+{{ page_header("Tokens", "Shared tokens (SERVER.TOKEN) let clients without a token of their own connect. New tokens are random and shown once; revealing an existing one is recorded in the audit log. Changes apply live.") }}
+
 <section class="st-card">
+    <form class="row g-2 align-items-end mb-3" id="new_token" novalidate>
+        <div class="col-auto">
+            <label for="t_name" class="form-label small mb-0">New token name</label>
+            <input class="form-control form-control-sm" id="t_name" data-field="NAME" placeholder="site-montreal" maxlength="50">
+            <div class="invalid-feedback" data-feedback="NAME"></div>
+        </div>
+        <div class="col-auto"><button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-plus me-1"></i>Create</button></div>
+    </form>
+    <div id="created" class="alert alert-success" hidden role="status"></div>
     <table class="table table-sm table-hover mb-0">
-        <thead><tr><th scope="col" class="w-25">Description</th><th scope="col">Token</th><th scope="col" class="text-end">Actions</th></tr></thead>
+        <thead><tr><th scope="col" class="w-25">Name</th><th scope="col">Token</th><th scope="col" class="text-end">Actions</th></tr></thead>
         <tbody id="tokens"><tr><td colspan="3" class="st-empty"><span class="spinner-border spinner-border-sm"></span> Loading…</td></tr></tbody>
     </table>
 </section>
 
 <script>
 const MASK = "••••••••••••••••";
+const enc = encodeURIComponent;
 
-async function loadTokens() {
-    const fd = new FormData();
-    fd.append("ACTION", "GET_TOKENS");
-    const response = await fetch("/api", {method: "POST", body: fd});
+async function copy(text, what) {
+    try { await navigator.clipboard.writeText(text); st.toast(`${what} copied.`, "info"); }
+    catch (e) { st.toast("Copy refused by the browser (the page must be served over HTTPS or from localhost).", "warning"); }
+}
+
+async function load() {
+    const r = await st.api("GET", "/api/v1/config/tokens");
     const body = document.getElementById("tokens");
-    if (!response.ok) { st.toast(`Unable to load the tokens (HTTP ${response.status})`, "danger"); return; }
-    const tokens = Object.entries(await response.json());
-    if (!tokens.length) {
-        body.innerHTML = `<tr><td colspan="3" class="st-empty"><i class="fas fa-key"></i>No token. Add one under [SERVER.TOKEN] in the configuration file.</td></tr>`;
+    if (!r.ok) { st.toast(r.error.message, "danger"); return; }
+    if (!r.data.length) {
+        body.innerHTML = '<tr><td colspan="3" class="st-empty"><i class="fas fa-key"></i>No shared token.</td></tr>';
         return;
     }
-    body.replaceChildren();
-    for (const [description, token] of tokens) {
-        const tr = body.insertRow();
-        tr.insertCell().textContent = description;
-        const cell = tr.insertCell();
-        const code = document.createElement("code");
-        code.textContent = MASK;
-        cell.appendChild(code);
-        const actions = tr.insertCell();
-        actions.className = "text-end text-nowrap";
-        const reveal = document.createElement("button");
-        reveal.className = "btn btn-sm btn-outline-light me-1";
-        reveal.innerHTML = '<i class="fas fa-eye me-1"></i>Show';
-        reveal.setAttribute("aria-label", `Show token ${description}`);
-        reveal.addEventListener("click", () => {
-            const hidden = code.textContent === MASK;
-            code.textContent = hidden ? token : MASK;
-            reveal.innerHTML = hidden ? '<i class="fas fa-eye-slash me-1"></i>Hide' : '<i class="fas fa-eye me-1"></i>Show';
-        });
-        const copy = document.createElement("button");
-        copy.className = "btn btn-sm btn-outline-light";
-        copy.innerHTML = '<i class="fas fa-copy me-1"></i>Copy';
-        copy.setAttribute("aria-label", `Copy token ${description}`);
-        copy.addEventListener("click", async () => {
-            try { await navigator.clipboard.writeText(token); st.toast(`Token “${description}” copied.`, "info"); }
-            catch (e) { st.toast("Copy refused by the browser (the page must be served over HTTPS or localhost).", "warning"); }
-        });
-        actions.append(reveal, copy);
-    }
+    body.innerHTML = r.data.map(t => `<tr data-name="${st.esc(t.NAME)}">
+        <td>${st.esc(t.NAME)}</td><td><code class="value">${MASK}</code></td>
+        <td class="text-end text-nowrap">
+            <button class="btn btn-sm btn-outline-light me-1" data-act="reveal"><i class="fas fa-eye me-1"></i>Reveal</button>
+            <button class="btn btn-sm btn-outline-danger" data-act="revoke"><i class="fas fa-ban me-1"></i>Revoke</button>
+        </td></tr>`).join("");
 }
-loadTokens();
+
+document.getElementById("tokens").addEventListener("click", async ev => {
+    const b = ev.target.closest("button[data-act]");
+    if (!b) return;
+    const row = b.closest("tr"), name = row.dataset.name;
+    if (b.dataset.act === "reveal") {
+        const code = row.querySelector(".value");
+        if (code.textContent !== MASK) { code.textContent = MASK; b.innerHTML = '<i class="fas fa-eye me-1"></i>Reveal'; return; }
+        const r = await st.api("POST", `/api/v1/config/tokens/${enc(name)}/reveal`);
+        if (!r.ok) { st.toast(r.error.message, "danger"); return; }
+        code.textContent = r.data.token;
+        b.innerHTML = '<i class="fas fa-eye-slash me-1"></i>Hide';
+        copy(r.data.token, `Token “${name}”`);
+    } else {
+        const preview = await st.api("DELETE", `/api/v1/config/tokens/${enc(name)}?dry_run=1`);
+        if (!preview.ok) { st.toast(preview.error.message, "danger"); return; }
+        if (!await st.confirm({title: `Revoke token “${name}”?`, body: "Clients that use it can no longer connect (connected clients keep their session until they reconnect).", confirmText: "Revoke", danger: true})) return;
+        const r = await st.api("DELETE", `/api/v1/config/tokens/${enc(name)}`);
+        st.toast(r.ok ? `Token “${name}” revoked.` : r.error.message, r.ok ? "success" : "danger");
+        load();
+    }
+});
+
+document.getElementById("new_token").addEventListener("submit", async e => {
+    e.preventDefault();
+    const form = e.target, name = document.getElementById("t_name").value.trim();
+    const r = await st.api("POST", "/api/v1/config/tokens", {NAME: name});
+    if (!r.ok) { st.showFieldErrors(form, r.error.fields); if (!Object.keys(r.error.fields || {}).length) st.toast(r.error.message, "danger"); return; }
+    st.showFieldErrors(form, {});
+    form.reset();
+    const box = document.getElementById("created");
+    box.innerHTML = `<strong>Token “${st.esc(r.data.name)}” created.</strong> Copy it now: it will not be shown again without being recorded in the audit log.
+        <div class="mt-2"><code>${st.esc(r.data.token)}</code> <button type="button" class="btn btn-sm btn-outline-dark ms-2" id="copy_new"><i class="fas fa-copy me-1"></i>Copy</button></div>`;
+    box.hidden = false;
+    document.getElementById("copy_new").addEventListener("click", () => copy(r.data.token, "Token"));
+    load();
+});
+
+load();
 </script>
 {% endblock %}

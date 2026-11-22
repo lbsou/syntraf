@@ -16,6 +16,7 @@ Principe de chaque changement :
 import copy
 import ipaddress
 import logging
+import os
 import re
 
 import toml
@@ -249,6 +250,142 @@ def _check_profile_reference(cfg, values):
     profile = str(values.get("IPERF3_PROFILE", "") or "").strip()
     if profile and _find_by(cfg.get("IPERF3_PROFILE", []), "UID", profile) is None:
         raise OpError(400, "Some fields are invalid", {"IPERF3_PROFILE": f"Profile '{profile}' does not exist"})
+
+
+# --------------------------------------------------------------------------------------------- section SERVER
+
+SERVER_FIELDS = ("BIND_ADDRESS", "SERVER_PORT", "MESH_LISTENERS_PORT_RANGE", "SERVER_X509_CERTIFICATE",
+                 "SERVER_X509_PRIVATE_KEY")
+SERVER_LIVE_KEYS = ("TOKEN", "MESH_LISTENERS_PORT_RANGE")  # appliquées à chaud ; les autres au redémarrage
+SERVER_MESSAGES = {
+    "BIND_ADDRESS": "An IP address of this server, or 0.0.0.0 for all interfaces",
+    "SERVER_PORT": "A port between 1 and 65534",
+    "MESH_LISTENERS_PORT_RANGE": "A port range such as 15000-15100",
+    "SERVER_X509_CERTIFICATE": "Path of a readable certificate file on the server; empty for a self-signed certificate",
+    "SERVER_X509_PRIVATE_KEY": "Path of a readable private key file, given together with the certificate",
+}
+TOKEN_NAME = re.compile(r"^[A-Za-z0-9_.-]{1,50}$")
+
+
+def get_server(state):
+    """Réglages de la section SERVER tels qu'écrits (sans les jetons), et ceux en service (RUNNING)."""
+    disk_server = read_disk(state).get("SERVER", {})
+    live_server = state["config"].get("SERVER", {})
+    row = {k: disk_server.get(k, "") for k in SERVER_FIELDS}
+    row["RUNNING"] = {k: live_server.get(k, "") for k in SERVER_FIELDS if not isinstance(live_server.get(k), bytes)}
+    row["LIVE_KEYS"] = list(SERVER_LIVE_KEYS)
+    return row
+
+
+def update_server(state, values, actor, dry_run=False):
+    cfg = read_disk(state)
+    _raise(_server_field_errors(values))
+    server = cfg.setdefault("SERVER", {})
+    for key in SERVER_FIELDS:
+        value = str(values.get(key, "") or "").strip()
+        if value:
+            server[key] = value
+        else:
+            server.pop(key, None)
+    return _commit(state, cfg, actor, "UPDATE_SERVER", "Server settings updated", dry_run)
+
+
+def _server_field_errors(values):
+    v = {k: str(values.get(k, "") or "").strip() for k in SERVER_FIELDS}
+    errors = {}
+    if v["BIND_ADDRESS"]:
+        try:
+            ipaddress.ip_address(v["BIND_ADDRESS"])
+        except ValueError:
+            errors["BIND_ADDRESS"] = SERVER_MESSAGES["BIND_ADDRESS"]
+    if v["SERVER_PORT"] and not (v["SERVER_PORT"].isdigit() and 1 <= int(v["SERVER_PORT"]) <= 65534):
+        errors["SERVER_PORT"] = SERVER_MESSAGES["SERVER_PORT"]
+    if v["MESH_LISTENERS_PORT_RANGE"] and not _valid_port_range(v["MESH_LISTENERS_PORT_RANGE"]):
+        errors["MESH_LISTENERS_PORT_RANGE"] = SERVER_MESSAGES["MESH_LISTENERS_PORT_RANGE"]
+    cert, key = v["SERVER_X509_CERTIFICATE"], v["SERVER_X509_PRIVATE_KEY"]
+    if cert or key:  # le certificat et sa clé vont ensemble
+        if not (cert and os.path.isfile(cert)):
+            errors["SERVER_X509_CERTIFICATE"] = SERVER_MESSAGES["SERVER_X509_CERTIFICATE"]
+        if not (key and os.path.isfile(key)):
+            errors["SERVER_X509_PRIVATE_KEY"] = SERVER_MESSAGES["SERVER_X509_PRIVATE_KEY"]
+    return errors
+
+
+def _apply_live_server(live, old_disk, new_disk):
+    """Reporte à chaud les clés de SERVER_LIVE_KEYS ; renvoie les clés qui attendent un redémarrage."""
+    old_server, new_server = old_disk.get("SERVER", {}), new_disk.get("SERVER", {})
+    live_server = live.setdefault("SERVER", {})
+    if old_server.get("TOKEN") != new_server.get("TOKEN"):
+        tokens = live_server.setdefault("TOKEN", {})
+        tokens.clear()  # sur place : la boucle d'authentification garde une référence à ce dictionnaire
+        tokens.update(copy.deepcopy(new_server.get("TOKEN", {})))
+    if old_server.get("MESH_LISTENERS_PORT_RANGE") != new_server.get("MESH_LISTENERS_PORT_RANGE"):
+        from lib.st_global import DefaultValues
+        live_server["MESH_LISTENERS_PORT_RANGE"] = new_server.get("MESH_LISTENERS_PORT_RANGE",
+                                                                  DefaultValues.DEFAULT_PORT_RANGE)
+    return _restart_keys(old_disk, new_disk)
+
+
+def _restart_keys(old_disk, new_disk):
+    """Réglages modifiés qui ne prennent effet qu'au redémarrage du serveur : ["SERVER.SERVER_PORT", "GLOBAL", ...]."""
+    keys = []
+    for section in sorted(set(old_disk) | set(new_disk)):
+        if section in LIVE_SECTIONS:
+            continue
+        old, new = old_disk.get(section), new_disk.get(section)
+        if section == "SERVER" and isinstance(old or {}, dict) and isinstance(new or {}, dict):
+            old, new = old or {}, new or {}
+            keys += [f"SERVER.{k}" for k in sorted(set(old) | set(new))
+                     if k not in SERVER_LIVE_KEYS and old.get(k) != new.get(k)]
+        elif old != new:
+            keys.append(section)
+    return keys
+
+
+# --------------------------------------------------------------------------------------- jetons partagés
+
+def list_tokens(state):
+    """Jetons partagés ([SERVER.TOKEN]) : noms seulement, jamais les valeurs."""
+    tokens = read_disk(state).get("SERVER", {}).get("TOKEN", {})
+    return [{"NAME": name} for name in tokens]
+
+
+def create_token(state, values, actor, dry_run=False):
+    """Crée un jeton aléatoire ; sa valeur n'est renvoyée qu'ici, une seule fois."""
+    import secrets
+    name = str(values.get("NAME", "") or "").strip()
+    if not TOKEN_NAME.match(name):
+        raise OpError(400, "Some fields are invalid", {"NAME": "1 to 50 characters: letters, digits, '_', '.' or '-'"})
+    cfg = read_disk(state)
+    tokens = cfg.setdefault("SERVER", {}).setdefault("TOKEN", {})
+    if name in tokens:
+        raise OpError(409, f"Token '{name}' already exists", {"NAME": "This name is already used"})
+    value = secrets.token_urlsafe(32)
+    tokens[name] = value
+    result = _commit(state, cfg, actor, "CREATE_TOKEN", f"Token '{name}' created", dry_run)
+    return dict(result, name=name, token=None if dry_run else value)
+
+
+def delete_token(state, name, actor, dry_run=False):
+    cfg = read_disk(state)
+    tokens = cfg.get("SERVER", {}).get("TOKEN", {})
+    if name not in tokens:
+        raise OpError(404, f"Token '{name}' not found")
+    relying = [c["UID"] for c in cfg.get("SERVER_CLIENT", []) if not c.get("TOKEN")]
+    if len(tokens) == 1 and relying:
+        raise OpError(409, f"'{name}' is the last shared token and {len(relying)} client(s) still use a shared token: "
+                           f"{', '.join(relying)}. Give them their own token first.")
+    del tokens[name]
+    return _commit(state, cfg, actor, "DELETE_TOKEN", f"Token '{name}' revoked", dry_run)
+
+
+def reveal_token(state, name, actor):
+    """Valeur d'un jeton, pour configurer un client ; chaque consultation est inscrite au journal d'audit."""
+    tokens = read_disk(state).get("SERVER", {}).get("TOKEN", {})
+    if name not in tokens:
+        raise OpError(404, f"Token '{name}' not found")
+    store.log_event(state["config_file_path"], actor, "REVEAL_TOKEN", f"Token '{name}' revealed")
+    return tokens[name]
 
 
 # --------------------------------------------------------------------------------------------------------- clients
@@ -606,10 +743,8 @@ def restore(state, version, actor, dry_run=False):
         target = toml.loads(text)
     except toml.TomlDecodeError as exc:
         raise OpError(422, f"Version '{version}' is not valid TOML: {exc}")
-    current = read_disk(state)
-    restart_required = any(target.get(k) != current.get(k) for k in set(target) | set(current) if k not in LIVE_SECTIONS)
     result = _commit(state, target, actor, "RESTORE_CONFIG", f"Configuration restored to version {version}", dry_run)
-    return dict(result, restart_required=restart_required, version=version)
+    return dict(result, version=version)
 
 
 # --------------------------------------------------------------------------------------------------------- interne
@@ -641,11 +776,13 @@ def _commit(state, disk_cfg, actor, action, summary, dry_run):
         if not config_validation_database({"DATABASE": live_dbs}):
             raise OpError(422, "Invalid database parameters (see the server log)")
 
+    probe_live = dict(copy.deepcopy({k: v for k, v in live.items() if k != "SERVER"}),
+                      SERVER=dict(live.get("SERVER", {})), MESH_GROUP=copy.deepcopy(groups),
+                      SERVER_CLIENT=copy.deepcopy(live_clients))
+    _apply_live_server(probe_live, old_disk, disk_cfg)
     scratch = {}
     try:
-        _, tuples = generate_client_config_mesh(
-            dict(copy.deepcopy(live), MESH_GROUP=copy.deepcopy(groups), SERVER_CLIENT=copy.deepcopy(live_clients)),
-            scratch)
+        _, tuples = generate_client_config_mesh(probe_live, scratch)
     except (SystemExit, Exception) as exc:  # noqa: BLE001 - sys.exit() quand un client dépasse son MAX_BANDWIDTH
         log.error(f"{action} REFUSED, CLIENT CONFIG GENERATION FAILED: {type(exc).__name__}:{exc}")
         raise OpError(409, "Not applied: a client would exceed its MAX_BANDWIDTH, or the client configuration "
@@ -657,7 +794,8 @@ def _commit(state, disk_cfg, actor, action, summary, dry_run):
     old_text = _read_text(state["config_file_path"])
     new_text = toml.dumps(disk_cfg)
     result = {"message": summary, "diff": store.redacted_diff(old_text, new_text), "affected_clients": affected,
-              "reconnected_clients": [], "recreated_databases": recreated, "dry_run": dry_run}
+              "reconnected_clients": [], "recreated_databases": recreated,
+              "restart_required": _restart_keys(old_disk, disk_cfg), "dry_run": dry_run}
     if dry_run:
         return result
 
@@ -668,6 +806,7 @@ def _commit(state, disk_cfg, actor, action, summary, dry_run):
         raise OpError(500, f"Not applied: unable to write the configuration file ({exc})")
 
     # Sur place : les autres threads gardent une référence à ces listes.
+    _apply_live_server(live, old_disk, disk_cfg)
     live["MESH_GROUP"][:] = groups
     live.setdefault("IPERF3_PROFILE", [])[:] = profiles
     if changed_clients:

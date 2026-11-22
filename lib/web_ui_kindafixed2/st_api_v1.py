@@ -141,6 +141,37 @@ def delete_client_config(uid):
     return jsonify(ops.delete_client(_state(), uid, _actor(), _dry_run()))
 
 
+@st_api_v1.get("/config/server")
+def get_server_config():
+    return jsonify(ops.get_server(_state()))
+
+
+@st_api_v1.put("/config/server")
+def update_server_config():
+    return jsonify(ops.update_server(_state(), _body(), _actor(), _dry_run()))
+
+
+@st_api_v1.get("/config/tokens")
+def list_tokens():
+    return jsonify(ops.list_tokens(_state()))
+
+
+@st_api_v1.post("/config/tokens")
+def create_token():
+    return _created(ops.create_token(_state(), _body(), _actor(), _dry_run()))
+
+
+@st_api_v1.post("/config/tokens/<name>/reveal")
+def reveal_token(name):
+    """POST : chaque consultation de la valeur d'un jeton est inscrite au journal d'audit."""
+    return jsonify({"name": name, "token": ops.reveal_token(_state(), name, _actor())})
+
+
+@st_api_v1.delete("/config/tokens/<name>")
+def delete_token(name):
+    return jsonify(ops.delete_token(_state(), name, _actor(), _dry_run()))
+
+
 @st_api_v1.get("/config/profiles")
 def list_profile_configs():
     return jsonify(ops.list_profiles(_state()))
@@ -422,6 +453,13 @@ OPENAPI = {
         "/api/v1/config/clients/{uid}": {"get": _op("Get a client declaration", params=("uid",)),
                                          "put": _op("Update a client declaration", False, True, ("uid",)),
                                          "delete": _op("Remove a client", False, True, ("uid",))},
+        "/api/v1/config/server": {"get": _op("Server settings (tokens excluded) and the values in service"),
+                                  "put": _op("Update server settings; the response lists those that need a restart",
+                                             False, True)},
+        "/api/v1/config/tokens": {"get": _op("Shared token names (values are never listed)"),
+                                  "post": _op("Create a random token ({NAME}); its value is returned once", False, True)},
+        "/api/v1/config/tokens/{name}": {"delete": _op("Revoke a token", False, True, ("name",))},
+        "/api/v1/config/tokens/{name}/reveal": {"post": _op("Value of a token (audited)", params=("name",))},
         "/api/v1/config/profiles": {"get": _op("iperf3 profiles and the mesh groups using them"),
                                     "post": _op("Create a profile", False, True)},
         "/api/v1/config/profiles/{uid}": {"get": _op("Get a profile", params=("uid",)),

@@ -194,9 +194,11 @@ def test_server_page_hides_secrets_and_binary_values(env):
     server = env["app"].config["config"]["SERVER"]
     server["RSA_KEY_LISTENERS"] = b"-----BEGIN PRIVATE KEY-----secret"
     server["IPERF3_PASSWORD"] = "hunter2"
+    env["app"].config["config"]["GLOBAL"].update({"API_SECRET": "s3cr3t", "BLOB": b"binary-key"})
     html = env["client"].get("/server.html").get_data(as_text=True)
     assert "BEGIN PRIVATE KEY" not in html and "hunter2" not in html
-    assert "RSA_KEY_LISTENERS" in html
+    assert "s3cr3t" not in html and "binary-key" not in html
+    assert "API_SECRET" in html
 
 
 def test_version_view_and_diffs_hide_tokens(env):
@@ -276,3 +278,17 @@ def test_data_page_api_status_snapshots_and_audited_purge(env):
     assert c.post("/api/v1/data/INFLUX1/snapshots").status_code == 409
     actions = [e["action"] for e in c.get("/api/v1/audit").json]
     assert actions[:2] == ["CREATE_SNAPSHOT", "PURGE_DATA"]
+
+
+def test_server_settings_and_tokens_api(env):
+    c = env["client"]
+    server = c.get("/api/v1/config/server").json
+    assert "TOKEN" not in server and "tok" not in c.get("/api/v1/config/server").get_data(as_text=True)
+    r = c.put("/api/v1/config/server", json={"SERVER_PORT": "7000", "MESH_LISTENERS_PORT_RANGE": "15000-15100"})
+    assert r.status_code == 200 and r.json["restart_required"] == ["SERVER.SERVER_PORT"]
+    created = c.post("/api/v1/config/tokens", json={"NAME": "site_b"})
+    assert created.status_code == 201 and created.json["token"]
+    assert created.json["token"] not in c.get("/api/v1/config/tokens").get_data(as_text=True)
+    assert c.post("/api/v1/config/tokens/site_b/reveal").json["token"] == created.json["token"]
+    assert c.get("/api/v1/audit").json[0]["action"] == "REVEAL_TOKEN"
+    assert c.delete("/api/v1/config/tokens/site_b").status_code == 200

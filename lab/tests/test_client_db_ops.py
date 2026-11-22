@@ -202,6 +202,6 @@ def test_restore_applies_clients_and_databases_live(state):
     ops.delete_client(state, "NODE_B", actor="x")
     original = store.versions(state["config_file_path"])[-1]["version"]
     result = ops.restore(state, original, actor="y")
-    assert result["restart_required"] is False
+    assert result["restart_required"] == []
     assert find(state["config"]["SERVER_CLIENT"], "UID", "NODE_B") is not None
     assert state["conn_db"][0].server == "10.0.0.10"

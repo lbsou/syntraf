@@ -141,7 +141,7 @@ def test_restore_brings_back_a_previous_version(state):
     result = ops.restore(state, original, actor="y")
     assert group(disk(state), "GROUP1")["BANDWIDTH"] == "100K"
     assert group(state["config"], "GROUP1")["BANDWIDTH"] == "100K"
-    assert result["restart_required"] is False
+    assert result["restart_required"] == []
     assert store.audit_entries(state["config_file_path"])[0]["action"] == "RESTORE_CONFIG"
 
 
@@ -149,7 +149,7 @@ def test_restore_flags_sections_that_need_a_restart(state):
     path = state["config_file_path"]
     store.save(path, dict(disk(state), GLOBAL={"LOGDIR": "/elsewhere"}), "x", "TEST", "global changed")
     original = store.versions(path)[-1]["version"]
-    assert ops.restore(state, original, actor="y", dry_run=True)["restart_required"] is True
+    assert ops.restore(state, original, actor="y", dry_run=True)["restart_required"] == ["GLOBAL"]
 
 
 def test_list_groups_counts_members_and_bandwidth_per_node(state):
