@@ -53,6 +53,57 @@ def expected_points(flows, now=None):
     return [{"measurement": "SYNTRAF_FLOW", "tags": dict(f), "time": now, "fields": {"EXPECTED": 1}} for f in flows]
 
 
+def bandwidth_bps(text):
+    """« 100K », « 2M », « 1G » ou un nombre de bit/s ; 0 si illisible."""
+    t = str(text or "").strip().upper()
+    factor = {"K": 1e3, "M": 1e6, "G": 1e9}.get(t[-1:], 1)
+    try:
+        return float(t[:-1] if factor != 1 else t) * factor if t else 0
+    except ValueError:
+        return 0
+
+
+def _human_bps(bps):
+    for unit, size in (("Gbps", 1e9), ("Mbps", 1e6), ("Kbps", 1e3)):
+        if bps >= size:
+            return f"{bps / size:g} {unit}"
+    return f"{bps:g} bps"
+
+
+def _number(text):
+    try:
+        value = float(str(text).strip())
+        return int(value) if value.is_integer() else value
+    except ValueError:
+        return None
+
+
+def group_points(config, flows, now=None):
+    """Un point par mesh group actif : ses paramètres en vigueur (profil appliqué), pour les tableaux de bord.
+    Étiquettes lisibles (bandeau) et champs numériques (ligne « débit prévu » sur les graphiques)."""
+    now = now or dt.datetime.now(dt.timezone.utc)
+    points = []
+    for g in config.get("MESH_GROUP", []):
+        if g.get("DISABLED"):
+            continue
+        uid = g.get("UID")
+        mine = [f for f in flows if f["MESH_GROUP"] == uid]
+        members = {n for f in mine for n in (f["CLIENT"], f["SERVER"])}
+        bps = bandwidth_bps(g.get("BANDWIDTH"))
+        size = _number(g.get("PACKET_SIZE", "")) or 0
+        pps = bps / (size * 8) if bps and size else 0
+        tags = {"MESH_GROUP": uid, "TOPOLOGY": st_topology.topology(g), "HUBS": ", ".join(st_topology.hubs(g)) or "-",
+                "PROFILE": g.get("IPERF3_PROFILE") or "-", "BANDWIDTH": _human_bps(bps) if bps else "-",
+                "DSCP": str(g.get("DSCP", "-")), "PACKET_SIZE": f"{size} B" if size else "-",
+                "INTERVAL": f"{g.get('INTERVAL')} s" if g.get("INTERVAL") not in (None, "") else "-",
+                "PPS": f"{pps:.0f}" if pps else "-", "MEMBERS": str(len(members)), "FLOWS": str(len(mine))}
+        fields = {"INFO": 1, "BANDWIDTH_KBPS": bps / 1000, "PPS": pps, "PACKET_SIZE": size,
+                  "DSCP": _number(g.get("DSCP", "")) or 0, "INTERVAL": _number(g.get("INTERVAL", "")) or 0,
+                  "FLOWS": len(mine), "MEMBERS": len(members)}
+        points.append({"measurement": "SYNTRAF_GROUP", "tags": tags, "time": now, "fields": fields})
+    return points
+
+
 def event_point(entry):
     summary = " ".join(str(entry.get("summary", "")).split())[:200]
     try:
@@ -81,9 +132,12 @@ def _write(points, conn_db, what):
 
 def publish_expected(config, generated, conn_db):
     """Écrit les flux attendus dans chaque base ; renvoie leur nombre."""
-    points = expected_points(expected_flows(config, generated))
-    if points:
-        _write(points, conn_db, "EXPECTED_FLOWS")
+    now = dt.datetime.now(dt.timezone.utc)
+    flows = expected_flows(config, generated)
+    points = expected_points(flows, now)
+    groups = group_points(config, flows, now)  # même horodatage : les tableaux de bord prennent la dernière publication
+    if points or groups:
+        _write(points + groups, conn_db, "EXPECTED_FLOWS")
     return len(points)
 
 

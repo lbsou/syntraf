@@ -94,7 +94,40 @@ def var(name, label, metric="SYNTRAF_RX_PCT_LOSS"):
             "current": {"selected": True, "text": ["All"], "value": ["$__all"]}}
 
 
+BANNER_H = 4
+GROUP_COLUMNS = (("MESH_GROUP", "Groupe"), ("TOPOLOGY", "Topologie"), ("HUBS", "Hubs"), ("PROFILE", "Profil"),
+                 ("BANDWIDTH", "Débit par flux"), ("PPS", "Paquets/s"), ("PACKET_SIZE", "Taille de paquet"),
+                 ("DSCP", "DSCP"), ("INTERVAL", "Intervalle"), ("MEMBERS", "Membres"), ("FLOWS", "Flux"))
+
+
+def group_banner():
+    """Paramètres en vigueur de chaque groupe (profil appliqué), publiés par le serveur avec les flux attendus."""
+    metric = 'SYNTRAF_GROUP_INFO{MESH_GROUP=~"$mesh_group"}'
+    last = f"tlast_over_time({metric}[90s])"
+    keep = [k for k, _ in GROUP_COLUMNS]
+    return {"id": 100, "type": "table", "title": "Paramètres des groupes", "datasource": DS,
+            "description": "Valeurs en vigueur, profil appliqué. Paquets/s = débit par flux ÷ (taille × 8).",
+            "gridPos": {"x": 0, "y": 0, "w": 24, "h": BANNER_H},
+            "targets": [{"refId": "A", "datasource": DS, "instant": True, "format": "table",
+                         "expr": f"last_over_time({metric}[90s]) and ({last} >= scalar(max({last})) - 5)"}],
+            "transformations": [{"id": "organize", "options": {
+                "excludeByName": {"Time": True, "Value": True, "__name__": True},
+                "indexByName": {k: i for i, k in enumerate(keep)},
+                "renameByName": dict(GROUP_COLUMNS)}}],
+            "fieldConfig": {"defaults": {"custom": {"align": "left"}}, "overrides": []},
+            "options": {"showHeader": True, "cellHeight": "sm"}}
+
+
+def expected_bitrate():
+    """Débit configuré par flux, à superposer au débit reçu."""
+    return {"refId": "B", "datasource": DS, "legendFormat": "débit prévu · {{MESH_GROUP}}",
+            "expr": 'max by (MESH_GROUP) (last_over_time(SYNTRAF_GROUP_BANDWIDTH_KBPS{MESH_GROUP=~"$mesh_group"}[40s]))'}
+
+
 def dashboard(uid, title, panels, refresh="5s", time_from="now-15m", variables=None):
+    for p in panels:  # le bandeau des paramètres occupe le haut
+        p["gridPos"] = dict(p["gridPos"], y=p["gridPos"]["y"] + BANNER_H)
+    panels = [group_banner()] + panels
     return {"uid": uid, "title": title, "tags": ["syntraf", "lab"], "timezone": "browser",
             "schemaVersion": 39, "version": 1, "editable": False, "refresh": refresh,
             "time": {"from": time_from, "to": "now"}, "links": LINKS,
@@ -137,10 +170,16 @@ def series_dashboard():
                    SILENCE_STEPS, 0, 0,
                    description="Seuls les flux que la configuration fait mesurer. « no data » : flux attendu sans "
                                "aucune mesure depuis une heure.")
+    bitrate = timeseries(3, "Débit reçu par flux", f"SYNTRAF_RX_BITRATE{{{SEL}}}", "Kbits", 12, 5)
+    bitrate["targets"].append(expected_bitrate())
+    bitrate["fieldConfig"]["overrides"].append({
+        "matcher": {"id": "byFrameRefID", "options": "B"},
+        "properties": [{"id": "custom.lineStyle", "value": {"fill": "dash", "dash": [10, 10]}},
+                       {"id": "custom.fillOpacity", "value": 0}, {"id": "color", "value": {"mode": "fixed", "fixedColor": "#aaaaaa"}}]})
     return dashboard("syntraf-lab", "SYNTRAF — mesures du maillage", [
         silence,
         timeseries(2, "Pertes (%) par flux", f"SYNTRAF_RX_PCT_LOSS{{{SEL}}}", "percent", 0, 5, {"min": 0, "max": 100}),
-        timeseries(3, "Débit reçu par flux", f"SYNTRAF_RX_BITRATE{{{SEL}}}", "Kbits", 12, 5),
+        bitrate,
         timeseries(4, "Gigue par flux", f"SYNTRAF_RX_JITTER{{{SEL}}}", "ms", 0, 14),
         timeseries(5, "Paquets perdus par intervalle", f"SYNTRAF_RX_PACKET_LOSS{{{SEL}}}", "none", 12, 14),
     ])
@@ -197,7 +236,7 @@ def matrix_dashboard():
                current(f"avg_over_time(SYNTRAF_RX_JITTER{{{SEL}}}[30s])", "30s"), "ms", 2, JITTER_STEPS, 12, 8),
         matrix(5, "Débit reçu (kbit/s) — moyenne 30 s",
                current(f"avg_over_time(SYNTRAF_RX_BITRATE{{{SEL}}}[30s])", "30s"), "Kbits", 1, BITRATE_STEPS, 0, 16,
-               "Débit configuré du groupe : 100 kbit/s."),
+               "Comparer au débit par flux du bandeau « Paramètres des groupes »."),
         matrix(6, "Paquets perdus — total sur la période affichée",
                only_expected(f"sum_over_time(SYNTRAF_RX_PACKET_LOSS{{{SEL}}}[$__range])"), "none", 0,
                steps(("green", None), ("orange", 1), ("red", 100)), 12, 16),

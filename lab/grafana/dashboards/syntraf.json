@@ -134,6 +134,84 @@
   },
   "panels": [
     {
+      "id": 100,
+      "type": "table",
+      "title": "Paramètres des groupes",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "syntraf-vm"
+      },
+      "description": "Valeurs en vigueur, profil appliqué. Paquets/s = débit par flux ÷ (taille × 8).",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "syntraf-vm"
+          },
+          "instant": true,
+          "format": "table",
+          "expr": "last_over_time(SYNTRAF_GROUP_INFO{MESH_GROUP=~\"$mesh_group\"}[90s]) and (tlast_over_time(SYNTRAF_GROUP_INFO{MESH_GROUP=~\"$mesh_group\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_GROUP_INFO{MESH_GROUP=~\"$mesh_group\"}[90s]))) - 5)"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true,
+              "__name__": true
+            },
+            "indexByName": {
+              "MESH_GROUP": 0,
+              "TOPOLOGY": 1,
+              "HUBS": 2,
+              "PROFILE": 3,
+              "BANDWIDTH": 4,
+              "PPS": 5,
+              "PACKET_SIZE": 6,
+              "DSCP": 7,
+              "INTERVAL": 8,
+              "MEMBERS": 9,
+              "FLOWS": 10
+            },
+            "renameByName": {
+              "MESH_GROUP": "Groupe",
+              "TOPOLOGY": "Topologie",
+              "HUBS": "Hubs",
+              "PROFILE": "Profil",
+              "BANDWIDTH": "Débit par flux",
+              "PPS": "Paquets/s",
+              "PACKET_SIZE": "Taille de paquet",
+              "DSCP": "DSCP",
+              "INTERVAL": "Intervalle",
+              "MEMBERS": "Membres",
+              "FLOWS": "Flux"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
       "id": 1,
       "type": "stat",
       "title": "Silence par flux attendu (s depuis le dernier point)",
@@ -144,7 +222,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 0,
+        "y": 4,
         "w": 24,
         "h": 5
       },
@@ -219,7 +297,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 5,
+        "y": 9,
         "w": 12,
         "h": 9
       },
@@ -274,7 +352,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 5,
+        "y": 9,
         "w": 12,
         "h": 9
       },
@@ -287,6 +365,15 @@
           },
           "expr": "SYNTRAF_RX_BITRATE{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}",
           "legendFormat": "{{CLIENT}} → {{SERVER}}"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "syntraf-vm"
+          },
+          "legendFormat": "débit prévu · {{MESH_GROUP}}",
+          "expr": "max by (MESH_GROUP) (last_over_time(SYNTRAF_GROUP_BANDWIDTH_KBPS{MESH_GROUP=~\"$mesh_group\"}[40s]))"
         }
       ],
       "fieldConfig": {
@@ -299,7 +386,37 @@
             "showPoints": "never"
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#aaaaaa"
+                }
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "legend": {
@@ -327,7 +444,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 14,
+        "y": 18,
         "w": 12,
         "h": 9
       },
@@ -380,7 +497,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 14,
+        "y": 18,
         "w": 12,
         "h": 9
       },

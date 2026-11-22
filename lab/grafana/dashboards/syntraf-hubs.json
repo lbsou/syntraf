@@ -134,6 +134,84 @@
   },
   "panels": [
     {
+      "id": 100,
+      "type": "table",
+      "title": "Paramètres des groupes",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "syntraf-vm"
+      },
+      "description": "Valeurs en vigueur, profil appliqué. Paquets/s = débit par flux ÷ (taille × 8).",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "syntraf-vm"
+          },
+          "instant": true,
+          "format": "table",
+          "expr": "last_over_time(SYNTRAF_GROUP_INFO{MESH_GROUP=~\"$mesh_group\"}[90s]) and (tlast_over_time(SYNTRAF_GROUP_INFO{MESH_GROUP=~\"$mesh_group\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_GROUP_INFO{MESH_GROUP=~\"$mesh_group\"}[90s]))) - 5)"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true,
+              "__name__": true
+            },
+            "indexByName": {
+              "MESH_GROUP": 0,
+              "TOPOLOGY": 1,
+              "HUBS": 2,
+              "PROFILE": 3,
+              "BANDWIDTH": 4,
+              "PPS": 5,
+              "PACKET_SIZE": 6,
+              "DSCP": 7,
+              "INTERVAL": 8,
+              "MEMBERS": 9,
+              "FLOWS": 10
+            },
+            "renameByName": {
+              "MESH_GROUP": "Groupe",
+              "TOPOLOGY": "Topologie",
+              "HUBS": "Hubs",
+              "PROFILE": "Profil",
+              "BANDWIDTH": "Débit par flux",
+              "PPS": "Paquets/s",
+              "PACKET_SIZE": "Taille de paquet",
+              "DSCP": "DSCP",
+              "INTERVAL": "Intervalle",
+              "MEMBERS": "Membres",
+              "FLOWS": "Flux"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
       "id": 1,
       "type": "table",
       "title": "Spokes → hubs : pertes (%) — moyenne 30 s",
@@ -144,7 +222,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 0,
+        "y": 4,
         "w": 12,
         "h": 8
       },
@@ -275,7 +353,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 0,
+        "y": 4,
         "w": 12,
         "h": 8
       },
@@ -406,7 +484,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 8,
+        "y": 12,
         "w": 12,
         "h": 8
       },
@@ -537,7 +615,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 8,
+        "y": 12,
         "w": 12,
         "h": 8
       },
@@ -664,7 +742,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 16,
+        "y": 20,
         "w": 24,
         "h": 4
       },
@@ -743,7 +821,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 20,
+        "y": 24,
         "w": 24,
         "h": 9
       },

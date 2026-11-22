@@ -72,7 +72,8 @@ class FakeDb:
 def test_publish_writes_to_every_database_and_survives_a_failing_one():
     good, bad = FakeDb(), FakeDb(fail=True)
     assert fc.publish_expected(CONFIG, GENERATED, [bad, good]) == 4
-    assert len(good.batches[0]) == 4
+    assert len(good.batches[0]) == 4 + 2  # les flux, et les paramètres de chaque groupe (même publication)
+    assert {p["measurement"] for p in good.batches[0]} == {"SYNTRAF_FLOW", "SYNTRAF_GROUP"}
 
 
 def test_publication_is_throttled_unless_forced():
@@ -99,10 +100,40 @@ def test_audit_entries_are_announced_to_listeners(tmp_path):
     assert [e["action"] for e in seen] == ["ACT", "EVT"]
 
 
+def test_group_points_carry_the_effective_parameters():
+    config = {"MESH_GROUP": [
+        {"UID": "G1", "TOPOLOGY": "DUAL_HUB", "HUBS": ["H1", "H2"], "BANDWIDTH": "100K", "DSCP": "46",
+         "PACKET_SIZE": "218", "INTERVAL": "1", "IPERF3_PROFILE": "LAB_PROFILE"},
+        {"UID": "G2", "DISABLED": True, "BANDWIDTH": "1M", "DSCP": "0", "PACKET_SIZE": "1400", "INTERVAL": "1"}]}
+    now = datetime(2026, 11, 22, tzinfo=timezone.utc)
+    [p] = fc.group_points(config, fc.expected_flows(config, GENERATED), now)  # groupe désactivé : rien
+    assert p["measurement"] == "SYNTRAF_GROUP" and p["time"] == now
+    assert p["tags"] == {"MESH_GROUP": "G1", "TOPOLOGY": "DUAL_HUB", "HUBS": "H1, H2", "PROFILE": "LAB_PROFILE",
+                         "BANDWIDTH": "100 Kbps", "DSCP": "46", "PACKET_SIZE": "218 B", "INTERVAL": "1 s",
+                         "PPS": "57", "MEMBERS": "3", "FLOWS": "3"}
+    f = p["fields"]
+    assert (f["INFO"], f["BANDWIDTH_KBPS"], f["PACKET_SIZE"], f["DSCP"], f["INTERVAL"], f["FLOWS"]) == (1, 100.0, 218, 46, 1, 3)
+    assert round(f["PPS"], 1) == 57.3  # 100 000 bit/s ÷ (218 octets × 8)
+
+
+def test_bandwidth_texts_are_parsed():
+    assert [fc.bandwidth_bps(t) for t in ("100K", "2M", "1G", "64000", "", "x")] == [1e5, 2e6, 1e9, 64000, 0, 0]
+
+
+@pytest.mark.skipif(bd is None, reason="générateur des tableaux de bord introuvable")
+def test_dashboards_show_the_group_parameters_and_the_expected_bitrate():
+    for dash in (bd.series_dashboard(), bd.matrix_dashboard(), bd.hubs_dashboard()):
+        banner = dash["panels"][0]
+        assert banner["type"] == "table" and "SYNTRAF_GROUP_INFO" in banner["targets"][0]["expr"]
+    bitrate = next(p for p in bd.series_dashboard()["panels"] if p["title"].startswith("Débit"))
+    assert any("SYNTRAF_GROUP_BANDWIDTH_KBPS" in t["expr"] for t in bitrate["targets"])
+
+
 @pytest.mark.skipif(bd is None, reason="générateur des tableaux de bord introuvable")
 def test_dashboards_use_expected_flows_annotations_and_a_hubs_view():
     matrix = bd.matrix_dashboard()
-    exprs = [t["expr"] for p in matrix["panels"] for t in p["targets"]]
+    exprs = [t["expr"] for p in matrix["panels"] if "SYNTRAF_GROUP_INFO" not in p["targets"][0]["expr"]
+             for t in p["targets"]]
     assert all("SYNTRAF_FLOW_EXPECTED" in e for e in exprs)
     assert matrix["annotations"]["list"][0]["expr"].startswith("last_over_time(SYNTRAF_CONFIG_CHANGE")
     hubs = bd.hubs_dashboard()
