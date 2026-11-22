@@ -18,3 +18,14 @@ releases/
 
 # Paquets des clients embarqués dans la release du serveur (tools/build_wheelhouse.py)
 wheelhouse/
+
+# Secrets et bases locales : jamais dans le dépôt (publiés par le passé, retirés de l historique)
+.env
+.env.*
+*.db
+*.access.json
+*.secret_key
+*.initial_admin_password
+syntraf_client_token
+syntraf_client_uid
+syntraf_server_pin
