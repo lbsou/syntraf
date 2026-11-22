@@ -307,6 +307,11 @@ def test_web_interface_settings_are_validated(state):
     assert {"WEBUI_BIND_ADDRESS", "WEBUI_PORT", "WEBUI_X509_CERTIFICATE", "WEBUI_X509_PRIVATE_KEY"} <= set(err.value.fields)
 
 
+def test_requiring_key_proof_applies_live(state):
+    result = ops.update_server(state, webui_values(REQUIRE_KEY_PROOF=True), actor="x")
+    assert state["config"]["SERVER"]["REQUIRE_KEY_PROOF"] is True and "SERVER.REQUIRE_KEY_PROOF" not in result["restart_required"]
+
+
 def test_https_is_a_restart_setting_stored_as_a_boolean(state):
     result = ops.update_server(state, webui_values(WEBUI_PORT="5443", WEBUI_TLS="true"), actor="x")
     assert disk(state)["SERVER"]["WEBUI_TLS"] is True and disk(state)["SERVER"]["WEBUI_PORT"] == "5443"

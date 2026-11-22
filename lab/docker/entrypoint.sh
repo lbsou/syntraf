@@ -2,7 +2,8 @@
 # Copie le code (montÃ© en lecture seule sur /src) dans /app, gÃ©nÃ¨re la config, lance SYNTRAF.
 set -eu
 
-rm -rf /app/* /app/.[!.]* 2>/dev/null || true
+# Tout sauf crypto/ (volume) : les clés du serveur et des clients survivent aux redémarrages (clés épinglées)
+find /app -mindepth 1 -maxdepth 1 ! -name crypto -exec rm -rf {} + 2>/dev/null || true
 tar -C /src \
     --exclude='./venv*' --exclude='./.git' --exclude='./.idea' --exclude='./.superpowers' \
     --exclude='./crypto' --exclude='./proc' --exclude='./log' --exclude='./lab' \

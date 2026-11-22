@@ -9,6 +9,7 @@ from lib.st_obj_cc_client import cc_client
 from lib.st_cc_commands import queue_client_ip_update, next_command, dynamic_client_uids, ForgetScheduler
 from lib.st_sockutil import recv_exact, recv_message, ProtocolViolation
 from lib import st_channel_guard as guard
+from lib import st_identity
 from lib.st_config_diff import edges_to_restart, reuse_keys
 from lib.st_iperf3_credentials import load_or_create
 from lib import st_enrollment, st_log_forward, st_log_store, st_nat, st_release, st_syslog, st_updater
@@ -150,6 +151,7 @@ def client_sck_init(_config):
         ssl_conn.settimeout(DefaultValues.CONTROL_CHANNEL_CONNECT_TIMEOUT)
         ssl_conn.connect((server_ip_addr, int(_config['CLIENT']['SERVER_PORT'])))
         ssl_conn.settimeout(DefaultValues.CONTROL_CHANNEL_TIMEOUT)
+        client_check_server_identity(_config, ssl_conn)
 
         if server_ip_addr != _config['CLIENT']['SERVER']:
             client_log.info(f"CONNECTED TO : {_config['CLIENT']['SERVER']}({server_ip_addr}):{_config['CLIENT']['SERVER_PORT']}")
@@ -250,6 +252,19 @@ def client_command_update(_config, ssl_conn, received_data):
     place, puis demande au superviseur de basculer. Un compte rendu est envoyé au serveur dans tous les cas."""
     info = received_data.get('PAYLOAD') or {}
     rid, expected_sha256, size = info.get('RELEASE'), info.get('SHA256'), int(info.get('SIZE') or 0)
+    # Nom sûr (il entre dans des chemins) et signature de la clé du serveur épinglée : sinon rien n'est installé
+    if not re.fullmatch(r"[A-Za-z0-9_.+-]{1,80}", str(rid or "")) or ".." in str(rid):
+        client_log.error(f"UPDATE REFUSED: INVALID RELEASE NAME {guard.clean(rid)}")
+        return
+    if not st_identity.verify_release(_config['CLIENT'].get('_SERVER_PUBLIC_PEM', ""), rid, expected_sha256, size,
+                                      info.get('SIGNATURE')):
+        client_log.error(f"UPDATE TO {rid} REFUSED: THE RELEASE IS NOT SIGNED BY THE PINNED SERVER KEY")
+        try:
+            sock_send(ssl_conn, {"RELEASE": rid, "STATE": "FAILED", "MESSAGE": "release not signed by the server"},
+                      "UPDATE_STATUS")
+        except OSError:
+            pass
+        return
     base = str(DefaultValues.SYNTRAF_DATA_DIR)
     client_log.info(f"UPDATE TO RELEASE {rid} REQUESTED BY THE SERVER")
     path = os.path.join(base, "releases", f"download-{rid}.tar.gz")
@@ -345,6 +360,38 @@ def client_apply_uid_file(_config):
         _config['CLIENT']['CLIENT_UID'] = uid
 
 
+def client_check_server_identity(_config, ssl_conn):
+    """Le serveur doit présenter la clé attendue (CLIENT.SERVER_CERT_SHA256, sinon celle épinglée à la première
+    connexion) : sinon la connexion est abandonnée avant d'envoyer le moindre jeton (homme du milieu)."""
+    der = ssl_conn.getpeercert(binary_form=True)
+    pin_file = _config['CLIENT'].get('_SERVER_PIN_FILE') or os.path.join(
+        os.path.dirname(os.path.abspath(_config['CLIENT'].get('_TOKEN_FILE') or "x")), "syntraf_server_pin")
+    pin = st_identity.ServerPin(pin_file, _config['CLIENT'].get('SERVER_CERT_SHA256', ""))
+    try:
+        state = pin.check(der)
+    except st_identity.IdentityError as exc:
+        client_log.error(f"{exc}: NOT THE SYNTRAF SERVER (OR ITS KEY CHANGED: SET CLIENT.SERVER_CERT_SHA256, "
+                         f"OR DELETE {pin_file} IF THE CHANGE IS EXPECTED). CONNECTION ABANDONED")
+        ssl_conn.close()
+        sys.exit()
+    fp = st_identity.spki_sha256(der)
+    if state == "PINNED":
+        client_log.warning(f"SERVER KEY PINNED ON FIRST CONNECTION: {fp} (COMPARE IT WITH THE SERVER PAGE; "
+                           f"SET CLIENT.SERVER_CERT_SHA256 TO FIX IT FROM THE START)")
+    _config['CLIENT']['_SERVER_FP'] = fp
+    _config['CLIENT']['_SERVER_PUBLIC_PEM'] = st_identity.public_key_pem_of_cert(der)
+
+
+def client_key_proof(_config):
+    """Preuve de possession de la clé du client (signature), ou None si sa clé privée est introuvable."""
+    path = _config['CLIENT'].get('CLIENT_X509_PRIVATE_KEY')
+    fp = _config['CLIENT'].get('_SERVER_FP')
+    if not path or not fp or not os.path.isfile(path):
+        return None
+    with open(path, encoding="utf-8") as f:
+        return st_identity.auth_proof(f.read(), _config['CLIENT']['CLIENT_UID'], fp)
+
+
 def client_send_auth(_config, client_utime, ssl_conn):
     try:
         # Sending TOKEN and UID for authentication, timestamp and version
@@ -355,7 +402,7 @@ def client_send_auth(_config, client_utime, ssl_conn):
                              'TIMESTAMP': client_utime, 'SYNTRAF_CLIENT_VERSION': DefaultValues.SYNTRAF_VERSION,
                              'PUBLIC_KEY': _config['CLIENT']['PUBLIC_KEY'],
                              'SYNTRAF_RELEASE': running_release(), 'UPDATE_FAILED': last_failed_release(),
-                             'LOCAL_ADDRESSES': st_nat.local_ipv4_addresses()}
+                             'LOCAL_ADDRESSES': st_nat.local_ipv4_addresses(), 'PROOF': client_key_proof(_config)}
 
         sock_send(ssl_conn, payload_greetings, "AUTH")
         received_data = sock_rcv(ssl_conn)
@@ -665,6 +712,8 @@ def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processe
                                                              "syntraf_client_token"))
     _config['CLIENT'].setdefault('_UID_FILE', os.path.join(os.path.dirname(os.path.abspath(config_file_path)),
                                                            "syntraf_client_uid"))
+    _config['CLIENT'].setdefault('_SERVER_PIN_FILE', os.path.join(os.path.dirname(os.path.abspath(config_file_path)),
+                                                                  "syntraf_server_pin"))
     client_apply_uid_file(_config)
     try:
         ssl_conn = client_sck_init(_config)
@@ -792,6 +841,56 @@ def validate_clock_skew(_config, received_data, obj_client):
             f"CONTEXT: {obj_client.client_uid} - CLOCK SKEW BETWEEN CLIENT AND SERVER IS TOO GREAT '{clock_skew} SECONDS'. WARNING : IF THE SAME SKEW HAPPEN BETWEEN NODES, THE IPERF3 CONTROL CHANNEL WILL FAIL. IF YOU CANNOT TIME SYNC THE NODES, YOU CAN ADJUST THE CLOCK OF THE NODES OR CHANGE THE VAR 'SERVER_IPERF3_TIME_SKEW_THRESHOLD'")
 
 
+_KEY_PROOF_NONCES = st_identity.NonceCache()
+_SERVER_IDENTITY = {}
+_SERVER_CONFIG = {}  # configuration du serveur, posée à son démarrage (signature des releases)
+_UNPROVEN_WARNED = set()
+
+
+def server_identity(_config=None):
+    """(empreinte, clé privée PEM) du certificat du canal de contrôle, lus une fois."""
+    if not _SERVER_IDENTITY:
+        srv = (_config or _SERVER_CONFIG.get('config') or {}).get('SERVER', {})
+        with open(srv['SERVER_X509_CERTIFICATE'], "rb") as f:
+            _SERVER_IDENTITY['fp'] = st_identity.spki_sha256(st_identity.pem_to_der(f.read()))
+        with open(srv['SERVER_X509_PRIVATE_KEY'], encoding="utf-8") as f:
+            _SERVER_IDENTITY['key'] = f.read()
+    return _SERVER_IDENTITY['fp'], _SERVER_IDENTITY['key']
+
+
+def server_sign_release(_config, update):
+    try:
+        _, key = server_identity(_config)
+        return st_identity.sign_release(key, update.get("RELEASE"), update.get("SHA256"), update.get("SIZE") or 0)
+    except Exception as exc:  # noqa: BLE001 - sans signature, le client refusera la release : signalé ici
+        server_log.error(f"UNABLE TO SIGN RELEASE {update.get('RELEASE')}: {type(exc).__name__}: {exc}")
+        return ""
+
+
+def server_check_key_proof(_config, payload, decision):
+    """Le client prouve qu'il détient la clé qu'il présente (signature liée à ce serveur, horodatée, à usage
+    unique). Absente : client d'une version antérieure, accepté avec un avertissement, sauf si
+    SERVER.REQUIRE_KEY_PROOF l'exige. Invalide : refusé."""
+    proof = payload.get('PROOF')
+    uid = str(payload.get('CLIENT_UID') or "")
+    if proof:
+        try:
+            fp, _ = server_identity(_config)
+        except Exception as exc:  # noqa: BLE001
+            server_log.error(f"UNABLE TO READ THE CONTROL CERTIFICATE TO CHECK KEY PROOFS: {exc}")
+            return decision
+        if st_identity.check_auth_proof(payload.get('PUBLIC_KEY') or "", uid, fp, proof, _KEY_PROOF_NONCES):
+            return decision
+        return st_enrollment.Decision(False, "INVALID KEY PROOF", None)
+    if _config.get('SERVER', {}).get('REQUIRE_KEY_PROOF'):
+        return st_enrollment.Decision(False, "KEY PROOF REQUIRED (UPDATE THE CLIENT)", None)
+    if uid not in _UNPROVEN_WARNED:
+        _UNPROVEN_WARNED.add(uid)
+        server_log.warning(f"CONTEXT: {guard.clean(uid)} - DOES NOT PROVE IT HOLDS ITS KEY (OLDER CLIENT): UPDATE IT, "
+                           f"THEN ENABLE SERVER.REQUIRE_KEY_PROOF")
+    return decision
+
+
 def authenticate_server_client(_config, data, obj_client, sckt, enrollment=None, dict_of_commands_for_network_clients=None):
     """Décide de l'admission d'un client (voir st_enrollment.authorize) : clé épinglée, jeton propre, jetons partagés,
     demandes en attente. Remet son jeton propre à un client épinglé qui s'est présenté avec un jeton partagé."""
@@ -804,6 +903,8 @@ def authenticate_server_client(_config, data, obj_client, sckt, enrollment=None,
     obj_client.nat_detected = st_nat.nat_detected(ip_addr, payload.get('LOCAL_ADDRESSES'))
     decision = st_enrollment.authorize(_config, payload, ip_addr,
                                        enrollment if isinstance(enrollment, st_enrollment.Enrollment) else None)
+    if decision.accepted:
+        decision = server_check_key_proof(_config, payload, decision)
     if decision.accepted and decision.rename_to:
         # Client renommé pendant son absence : admis sous son nouveau nom, qu'on lui remet
         server_log.warning(f"CONTEXT: {decision.rename_to} - PRESENTED ITS PREVIOUS NAME '{guard.clean(payload['CLIENT_UID'])}': "
@@ -1075,7 +1176,9 @@ def server_awaiting_commands(client_uid, dict_of_commands_for_network_clients, s
             sock_send(sckt, "", "RESTART_CLIENT")
             sent_an_action = True
         elif action['ACTION'] == "UPDATE":
-            sock_send(sckt, {k: action[k] for k in ("RELEASE", "SHA256", "SIZE", "FORCE") if k in action}, "UPDATE")
+            update = {k: action[k] for k in ("RELEASE", "SHA256", "SIZE", "FORCE") if k in action}
+            update["SIGNATURE"] = server_sign_release(None, update)
+            sock_send(sckt, update, "UPDATE")
             sent_an_action = True
         elif action['ACTION'] == "SET_TOKEN":
             sock_send(sckt, {"TOKEN": action['TOKEN']}, "SET_TOKEN")
@@ -1414,6 +1517,7 @@ class SSLnThreadingTCPServer(ThreadingMixIn, SSL_TCPServer):
 def server(_config, threads_n_processes, stop_thread, dict_by_node_generated_config, obj_stats, conn_db,
            dict_of_commands_for_network_clients, dict_of_clients, dict_of_client_pending_acceptance):
     global DYNAMIC_UIDS
+    _SERVER_CONFIG['config'] = _config
     # Union: if this thread is restarted, the IPs of connected dynamic clients are already filled in _config
     DYNAMIC_UIDS |= dynamic_client_uids(_config)
 

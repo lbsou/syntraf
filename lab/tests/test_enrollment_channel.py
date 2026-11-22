@@ -83,3 +83,54 @@ def test_client_falls_back_to_the_shared_token_after_a_refusal(tmp_path, monkeyp
     assert st_mesh.client_send_auth(cfg, 0, None) is False
     assert st_mesh.client_send_auth(cfg, 0, None) is True
     assert sent == ["old-own", "shared"]
+
+
+# ---------------------------------------------------------------------------------- preuve de la clé du client
+
+@pytest.fixture
+def identity(tmp_path, monkeypatch):
+    from lib import st_identity
+    from lib.st_crypto import ensure_self_signed
+    scert, skey = ensure_self_signed(str(tmp_path / "srv"), "server")
+    fp = st_identity.spki_sha256(st_identity.pem_to_der(open(scert, "rb").read()))
+    monkeypatch.setattr(st_mesh, "_SERVER_IDENTITY", {"fp": fp, "key": open(skey).read()})
+    ccert, ckey = ensure_self_signed(str(tmp_path / "cli"), "client")
+    return fp, open(ckey).read(), st_identity.public_key_pem_of_cert(open(ccert, "rb").read())
+
+
+def proved(identity, uid="NODE_A", token="shared"):
+    from lib import st_identity
+    fp, key, pub = identity
+    p = payload(token, uid=uid, key=pub)
+    p["PAYLOAD"]["PROOF"] = st_identity.auth_proof(key, uid, fp)
+    return p
+
+
+def test_a_client_that_proves_its_key_is_admitted(tmp_path, identity):
+    cfg = server_config()
+    ok, reason = st_mesh.authenticate_server_client(cfg, proved(identity), cc_client("UNKNOWN", None, "", False, "NODE_A"),
+                                                    FakeSocket(), st_enrollment.Enrollment(str(tmp_path / "p.json")), {})
+    assert ok, reason
+
+
+def test_a_proof_made_with_another_key_is_refused(tmp_path, identity):
+    from lib import st_identity
+    from lib.st_crypto import ensure_self_signed
+    fp, _, pub = identity
+    _, other_key = ensure_self_signed(str(tmp_path / "other"), "client")
+    p = payload("shared", key=pub)
+    p["PAYLOAD"]["PROOF"] = st_identity.auth_proof(open(other_key).read(), "NODE_A", fp)
+    ok, reason = st_mesh.authenticate_server_client(server_config(), p, cc_client("UNKNOWN", None, "", False, "NODE_A"),
+                                                    FakeSocket(), st_enrollment.Enrollment(str(tmp_path / "p.json")), {})
+    assert (ok, reason) == (False, "INVALID KEY PROOF")
+
+
+def test_an_older_client_without_proof_is_accepted_unless_required(tmp_path, identity):
+    cfg = server_config()
+    ok, _ = st_mesh.authenticate_server_client(cfg, payload("shared"), cc_client("UNKNOWN", None, "", False, "NODE_A"),
+                                               FakeSocket(), st_enrollment.Enrollment(str(tmp_path / "p.json")), {})
+    assert ok
+    cfg["SERVER"]["REQUIRE_KEY_PROOF"] = True
+    ok, reason = st_mesh.authenticate_server_client(cfg, payload("shared"), cc_client("UNKNOWN", None, "", False, "NODE_A"),
+                                                    FakeSocket(), st_enrollment.Enrollment(str(tmp_path / "p.json")), {})
+    assert not ok and "KEY PROOF REQUIRED" in reason

@@ -52,15 +52,32 @@ def relay(monkeypatch):
     return statuses
 
 
-def update_command(info, **extra):
-    return {"PAYLOAD": dict({"RELEASE": info["id"], "SHA256": info["sha256"], "SIZE": info["size"]}, **extra)}
+@pytest.fixture
+def keys(tmp_path, monkeypatch):
+    """Clé du serveur (signature des releases) ; le client la connaît (épinglée à la connexion)."""
+    from lib import st_identity
+    from lib.st_crypto import ensure_self_signed
+    cert, key = ensure_self_signed(str(tmp_path / "srv_crypto"), "server")
+    key_pem, cert_pem = open(key).read(), open(cert, "rb").read()
+    monkeypatch.setattr(st_mesh, "_SERVER_IDENTITY", {"fp": st_identity.spki_sha256(st_identity.pem_to_der(cert_pem)),
+                                                      "key": key_pem})
+    return key_pem, {"CLIENT": {"_SERVER_PUBLIC_PEM": st_identity.public_key_pem_of_cert(cert_pem)}}
 
 
-def test_client_downloads_installs_and_asks_to_switch(server_release, monkeypatch):
+def update_command(info, key_pem=None, **extra):
+    from lib import st_identity
+    payload = dict({"RELEASE": info["id"], "SHA256": info["sha256"], "SIZE": info["size"]}, **extra)
+    if key_pem:
+        payload["SIGNATURE"] = st_identity.sign_release(key_pem, payload["RELEASE"], payload["SHA256"],
+                                                        payload["SIZE"])
+    return {"PAYLOAD": payload}
+
+
+def test_client_downloads_installs_and_asks_to_switch(server_release, keys, monkeypatch):
     info, client = server_release
     monkeypatch.setenv(st_updater.ENV_CHILD, "1")
     statuses = relay(monkeypatch)
-    st_mesh.client_command_update({}, "client-side", update_command(info))
+    st_mesh.client_command_update(keys[1], "client-side", update_command(info, keys[0]))
     state = st_updater.read_state(str(client))
     assert state["current"] == info["id"] and state["restart"] is True
     assert (client / "releases" / info["id"] / "lib" / "st_x.py").read_text() == "X = 2\n" * 50000
@@ -68,29 +85,60 @@ def test_client_downloads_installs_and_asks_to_switch(server_release, monkeypatc
     assert not list((client / "releases").glob("download-*"))  # l'archive téléchargée est supprimée
 
 
-def test_unsupervised_client_reports_that_it_cannot_switch(server_release, monkeypatch):
+def test_unsupervised_client_reports_that_it_cannot_switch(server_release, keys, monkeypatch):
     info, client = server_release
     monkeypatch.delenv(st_updater.ENV_CHILD, raising=False)
     statuses = relay(monkeypatch)
-    st_mesh.client_command_update({}, "client-side", update_command(info))
+    st_mesh.client_command_update(keys[1], "client-side", update_command(info, keys[0]))
     assert statuses[0]["STATE"] == "FAILED" and "supervisor" in statuses[0]["MESSAGE"]
     assert st_updater.read_state(str(client))["current"] is None
 
 
-def test_server_only_distributes_its_own_release(server_release, monkeypatch):
+def test_server_only_distributes_its_own_release(server_release, keys, monkeypatch):
     info, client = server_release
     monkeypatch.setenv(st_updater.ENV_CHILD, "1")
     statuses = relay(monkeypatch)
-    st_mesh.client_command_update({}, "client-side", update_command(info, RELEASE="0.1+0000000000"))
+    st_mesh.client_command_update(keys[1], "client-side", update_command(info, keys[0], RELEASE="0.1+0000000000"))
     assert statuses[0]["STATE"] == "FAILED" and "distributes release" in statuses[0]["MESSAGE"]
 
 
-def test_update_command_is_sent_to_the_client(monkeypatch):
+def test_an_unsigned_release_is_never_installed(server_release, keys, monkeypatch):
+    info, client = server_release
+    monkeypatch.setenv(st_updater.ENV_CHILD, "1")
+    statuses = relay(monkeypatch)
+    st_mesh.client_command_update(keys[1], "client-side", update_command(info))  # sans signature
+    assert statuses[0]["STATE"] == "FAILED" and "not signed" in statuses[0]["MESSAGE"]
+    assert st_updater.read_state(str(client))["current"] is None
+
+
+def test_a_release_signed_for_another_archive_is_refused(server_release, keys, monkeypatch):
+    from lib import st_identity
+    info, client = server_release
+    monkeypatch.setenv(st_updater.ENV_CHILD, "1")
+    statuses = relay(monkeypatch)
+    command = update_command(info)
+    command["PAYLOAD"]["SIGNATURE"] = st_identity.sign_release(keys[0], info["id"], "0" * 64, info["size"])
+    st_mesh.client_command_update(keys[1], "client-side", command)
+    assert statuses[0]["STATE"] == "FAILED" and st_updater.read_state(str(client))["current"] is None
+
+
+def test_an_invalid_release_name_is_refused(server_release, keys, monkeypatch):
+    info, client = server_release
+    statuses = relay(monkeypatch)
+    st_mesh.client_command_update(keys[1], "client-side", update_command(info, keys[0], RELEASE="../../etc"))
+    assert statuses == [] and not (client / "releases").exists()
+
+
+def test_update_command_is_sent_signed_to_the_client(keys, monkeypatch):
+    from lib import st_identity
     sent = []
     monkeypatch.setattr(st_mesh, "sock_send", lambda s, p, c: sent.append((c, p)))
     st_mesh.server_awaiting_commands("NODE_A", {"NODE_A": [{"ACTION": "UPDATE", "RELEASE": "r", "SHA256": "s",
                                                             "SIZE": 3}]}, None)
-    assert sent == [("UPDATE", {"RELEASE": "r", "SHA256": "s", "SIZE": 3})]
+    [(command, payload)] = sent
+    assert command == "UPDATE" and {k: payload[k] for k in ("RELEASE", "SHA256", "SIZE")} == {"RELEASE": "r",
+                                                                                              "SHA256": "s", "SIZE": 3}
+    assert st_identity.verify_release(keys[1]["CLIENT"]["_SERVER_PUBLIC_PEM"], "r", "s", 3, payload["SIGNATURE"])
 
 
 def test_server_records_the_update_status():

@@ -312,9 +312,11 @@ def _check_profile_reference(cfg, values):
 SERVER_FIELDS = ("BIND_ADDRESS", "SERVER_PORT", "MESH_LISTENERS_PORT_RANGE", "SERVER_X509_CERTIFICATE",
                  "SERVER_X509_PRIVATE_KEY", "WEBUI_BIND_ADDRESS", "WEBUI_PORT", "WEBUI_X509_CERTIFICATE",
                  "WEBUI_X509_PRIVATE_KEY")
-SERVER_BOOL_FIELDS = ("WEBUI_TLS",)  # interface web en HTTPS (certificat donné, sinon autosigné)
+SERVER_BOOL_FIELDS = ("WEBUI_TLS",  # interface web en HTTPS (certificat donné, sinon autosigné)
+                      "REQUIRE_KEY_PROOF")  # refuser un client qui ne prouve pas détenir sa clé (versions anciennes)
 SERVER_LIVE_KEYS = ("TOKEN", "MESH_LISTENERS_PORT_RANGE",  # appliquées à chaud ; les autres au redémarrage
-                    "MAX_FLOWS_PER_CLIENT", "MAX_TOTAL_FLOWS", "FLOW_ALERT_ADDED", "FLOW_ALERT_RATIO")
+                    "MAX_FLOWS_PER_CLIENT", "MAX_TOTAL_FLOWS", "FLOW_ALERT_ADDED", "FLOW_ALERT_RATIO",
+                    "REQUIRE_KEY_PROOF")
 SERVER_MESSAGES = {
     "BIND_ADDRESS": "An IP address of this server, or 0.0.0.0 for all interfaces",
     "SERVER_PORT": "A port between 1 and 65534",
@@ -338,7 +340,18 @@ def get_server(state):
     row["CAPACITY_DEFAULTS"] = {k: str(v) for k, v in st_capacity.DEFAULTS.items()}
     row["RUNNING"] = {k: live_server.get(k, "") for k in SERVER_FIELDS if not isinstance(live_server.get(k), bytes)}
     row["LIVE_KEYS"] = list(SERVER_LIVE_KEYS)
+    row["CONTROL_KEY_SHA256"] = _control_key_fingerprint(live_server)
     return row
+
+
+def _control_key_fingerprint(live_server):
+    """Empreinte de la clé du canal de contrôle, à recopier dans CLIENT.SERVER_CERT_SHA256."""
+    try:
+        from lib import st_identity
+        with open(live_server.get("SERVER_X509_CERTIFICATE", ""), "rb") as f:
+            return st_identity.spki_sha256(st_identity.pem_to_der(f.read()))
+    except Exception:  # noqa: BLE001 - simple information
+        return ""
 
 
 def update_server(state, values, actor, dry_run=False):
@@ -403,6 +416,8 @@ def _apply_live_server(live, old_disk, new_disk):
         tokens = live_server.setdefault("TOKEN", {})
         tokens.clear()  # sur place : la boucle d'authentification garde une référence à ce dictionnaire
         tokens.update(copy.deepcopy(new_server.get("TOKEN", {})))
+    if bool(old_server.get("REQUIRE_KEY_PROOF")) != bool(new_server.get("REQUIRE_KEY_PROOF")):
+        live_server["REQUIRE_KEY_PROOF"] = bool(new_server.get("REQUIRE_KEY_PROOF"))
     if old_server.get("MESH_LISTENERS_PORT_RANGE") != new_server.get("MESH_LISTENERS_PORT_RANGE"):
         from lib.st_global import DefaultValues
         live_server["MESH_LISTENERS_PORT_RANGE"] = new_server.get("MESH_LISTENERS_PORT_RANGE",

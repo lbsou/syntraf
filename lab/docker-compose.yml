@@ -8,6 +8,8 @@ x-syntraf: &syntraf
   restart: "no"
   cap_add: [NET_ADMIN]
   mem_limit: 192m
+  # le script du dépôt (et non la copie figée dans l'image) : il évolue sans reconstruire l'image
+  entrypoint: ["sh", "/src/lab/docker/entrypoint.sh"]
   volumes:
     - ../:/src:ro
 
@@ -58,6 +60,7 @@ services:
     volumes:
       - ../:/src:ro
       - ./reports/logs/server:/logs
+      - server-crypto:/app/crypto
     ports:
       - "127.0.0.1:${WEBUI_HOST_PORT}:5000"
     depends_on:
@@ -71,21 +74,21 @@ services:
     <<: [*syntraf, *client-depends]
     container_name: syntraf-lab-c1
     environment: {ROLE: client, CLIENT_UID: LAB_C1}
-    volumes: ["../:/src:ro", "./reports/logs/c1:/logs"]
+    volumes: ["../:/src:ro", "./reports/logs/c1:/logs", "c1-crypto:/app/crypto"]
     networks: {syntraf_lab: {ipv4_address: 172.30.0.31}}
 
   c2:
     <<: [*syntraf, *client-depends]
     container_name: syntraf-lab-c2
     environment: {ROLE: client, CLIENT_UID: LAB_C2}
-    volumes: ["../:/src:ro", "./reports/logs/c2:/logs"]
+    volumes: ["../:/src:ro", "./reports/logs/c2:/logs", "c2-crypto:/app/crypto"]
     networks: {syntraf_lab: {ipv4_address: 172.30.0.32}}
 
   c3:
     <<: [*syntraf, *client-depends]
     container_name: syntraf-lab-c3
     environment: {ROLE: client, CLIENT_UID: LAB_C3}
-    volumes: ["../:/src:ro", "./reports/logs/c3:/logs"]
+    volumes: ["../:/src:ro", "./reports/logs/c3:/logs", "c3-crypto:/app/crypto"]
     networks: {syntraf_lab: {ipv4_address: 172.30.0.33}}
 
   c4:
@@ -93,8 +96,7 @@ services:
     container_name: syntraf-lab-c4
     # Derrière le routeur NAT starlink-gw : aucune connexion entrante possible (BEHIND_NAT dans server.toml)
     environment: {ROLE: client, CLIENT_UID: STARLINK, LAB_GATEWAY: 10.99.0.2}
-    entrypoint: ["sh", "/src/lab/docker/entrypoint.sh"]  # le script du dépôt (LAB_GATEWAY), sans reconstruire l'image
-    volumes: ["../:/src:ro", "./reports/logs/c4:/logs"]
+    volumes: ["../:/src:ro", "./reports/logs/c4:/logs", "c4-crypto:/app/crypto"]
     networks: {starlink_lan: {ipv4_address: 10.99.0.34}}
     depends_on:
       server:
@@ -147,6 +149,12 @@ services:
 
 volumes:
   vm-data:
+  # clés et certificats de SYNTRAF (serveur, clients) : gardés d'un redémarrage à l'autre
+  server-crypto:
+  c1-crypto:
+  c2-crypto:
+  c3-crypto:
+  c4-crypto:
 
 networks:
   syntraf_lab:

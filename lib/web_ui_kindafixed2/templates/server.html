@@ -43,6 +43,13 @@
             <div class="invalid-feedback" data-feedback="SERVER_X509_PRIVATE_KEY"></div>
         </div>
     </div>
+    <h2 class="h6 mt-2">Client identity <span class="badge bg-success">live</span></h2>
+    <p class="small mb-1">Key of the control channel: <code id="s_fp" data-no-i18n>–</code></p>
+    <p class="small text-white-50">Clients pin this key on their first connection; to protect even that one, set it in each client's configuration: <code data-no-i18n>SERVER_CERT_SHA256 = "…"</code> in [CLIENT].</p>
+    <div class="form-check form-switch mb-3">
+        <input class="form-check-input" type="checkbox" role="switch" id="s_proof">
+        <label class="form-check-label" for="s_proof">Require clients to prove they hold their key (enable once every client is up to date)</label>
+    </div>
     <h2 class="h6 mt-2">Web interface <span class="badge bg-secondary">restart</span></h2>
     <div class="row">
         <div class="col-md-3 mb-3">
@@ -310,6 +317,7 @@ function stage(review) {
     el("btn_apply").hidden = !review;
     Object.values(FIELDS).forEach(id => { el(id).readOnly = review; });
     el("w_tls").disabled = review;
+    el("s_proof").disabled = review;
 }
 
 async function load() {
@@ -321,6 +329,8 @@ async function load() {
         else if (r.data.CAPACITY_DEFAULTS[k]) el(id).placeholder = `${r.data.CAPACITY_DEFAULTS[k]} (default)`;
     });
     el("w_tls").checked = !!r.data.WEBUI_TLS;
+    el("s_proof").checked = !!r.data.REQUIRE_KEY_PROOF;
+    el("s_fp").textContent = r.data.CONTROL_KEY_SHA256 || "–";
     form.querySelectorAll("[data-running]").forEach(node => {
         const k = node.dataset.running, running = r.data.RUNNING[k] || "", saved = r.data[k] || "";
         node.textContent = running && saved && running !== saved ? `In service: ${running} until the server restarts.` : "";
@@ -329,7 +339,7 @@ async function load() {
 }
 
 const body = () => Object.assign(Object.fromEntries(Object.entries(FIELDS).map(([k, id]) => [k, el(id).value.trim()])),
-                                  {WEBUI_TLS: el("w_tls").checked});
+                                  {WEBUI_TLS: el("w_tls").checked, REQUIRE_KEY_PROOF: el("s_proof").checked});
 
 form.addEventListener("submit", async e => {
     e.preventDefault();
