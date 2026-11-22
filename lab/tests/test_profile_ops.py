@@ -90,3 +90,21 @@ def test_a_profile_in_use_cannot_be_deleted(state):
     ops.create_profile(state, {"UID": "BULK1", "BANDWIDTH": "1M"}, actor="x")
     ops.delete_profile(state, "BULK1", actor="x")
     assert [p["UID"] for p in ops.list_profiles(state)] == ["VOICE"]
+
+
+def test_a_group_defined_only_by_its_profile_is_listed_with_the_profile_values(state):
+    cfg = toml.load(state["config_file_path"])
+    cfg["MESH_GROUP"][1] = {"UID": "GROUP2", "IPERF3_PROFILE": "VOICE"}
+    cfg["IPERF3_PROFILE"][0]["INTERVAL"] = "1"
+    Path(state["config_file_path"]).write_text(toml.dumps(cfg))
+    g2 = next(g for g in ops.list_groups(state) if g["UID"] == "GROUP2")
+    assert g2["EFFECTIVE"] == {"BANDWIDTH": "64K", "DSCP": "46", "PACKET_SIZE": "160", "INTERVAL": "1"}
+    assert g2["BW_PER_NODE_KBPS"] == 64
+
+
+def test_with_a_profile_the_group_values_are_optional(state):
+    ops.update(state, "GROUP1", {"IPERF3_PROFILE": "VOICE", "BANDWIDTH": "", "DSCP": "", "PACKET_SIZE": "",
+                                 "INTERVAL": "1"}, actor="x")
+    g1 = next(g for g in toml.load(state["config_file_path"])["MESH_GROUP"] if g["UID"] == "GROUP1")
+    assert g1 == {"UID": "GROUP1", "IPERF3_PROFILE": "VOICE", "INTERVAL": "1"}
+    assert live_group(state, "GROUP1")["DSCP"] == "46"

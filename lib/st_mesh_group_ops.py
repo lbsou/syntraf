@@ -24,7 +24,7 @@ from lib import st_config_store as store
 from lib.st_conf_validation import (validate_bandwidth, validate_dscp, validate_packet_size, validate_interval,
                                     validate_uid, validate_group, generate_client_config_mesh,
                                     validate_excluded_client, validate_override_dst_node_ip,
-                                    config_validation_database, FQDN)
+                                    config_validation_database, explode_profile, FQDN)
 
 log = logging.getLogger("syntraf." + __name__)
 
@@ -58,13 +58,19 @@ def read_disk(state):
 
 
 def list_groups(state):
-    """Mesh groups tels qu'écrits dans le fichier, avec le nombre de membres et le débit sortant par membre."""
+    """Mesh groups tels qu'écrits dans le fichier, avec le nombre de membres, le débit sortant par membre, et les
+    valeurs effectives (EFFECTIVE) : celles du profil quand le groupe en utilise un."""
     cfg = read_disk(state)
     groups = copy.deepcopy(cfg.get("MESH_GROUP", []))
     for g in groups:
+        effective = copy.deepcopy(g)
+        if effective.get("IPERF3_PROFILE"):
+            explode_profile(effective, cfg)
+        g["EFFECTIVE"] = {k: effective.get(k) for k in EDITABLE_FIELDS}
         g["MEMBERS"] = len(_members(cfg, g["UID"]))
         n = g["MEMBERS"]
-        g["BW_PER_NODE_KBPS"] = (n * (n - 1) * validate_bandwidth(g["BANDWIDTH"]) / n / 1000) if n else 0
+        bandwidth = _ok(lambda x: validate_bandwidth(x) >= 0, effective.get("BANDWIDTH")) and validate_bandwidth(effective["BANDWIDTH"])
+        g["BW_PER_NODE_KBPS"] = (n * (n - 1) * (bandwidth or 0) / n / 1000) if n else 0
         g["DISABLED"] = g.get("DISABLED", False) is True
     return groups
 
@@ -76,8 +82,9 @@ def get_group(state, uid):
     raise OpError(404, f"Mesh group '{uid}' not found")
 
 
-def field_errors(values, with_uid=False):
-    """Erreurs par champ du formulaire : {"BANDWIDTH": "message", ...} (vide si tout est valide)."""
+def field_errors(values, with_uid=False, optional=False):
+    """Erreurs par champ du formulaire : {"BANDWIDTH": "message", ...} (vide si tout est valide).
+    optional : un champ vide est accepté (groupe dont un profil fournit les valeurs)."""
     v = {k: str(values.get(k, "")).strip() for k in ("UID",) + EDITABLE_FIELDS}
     checks = {
         "BANDWIDTH": lambda x: validate_bandwidth(x) > 0,
@@ -89,6 +96,8 @@ def field_errors(values, with_uid=False):
         checks["UID"] = validate_uid
     errors = {}
     for name, check in checks.items():
+        if optional and name != "UID" and not v[name]:
+            continue
         try:
             ok = bool(v[name]) and check(v[name])
         except Exception:  # noqa: BLE001 - les fonctions de validation lèvent parfois sur une entrée invalide
@@ -102,7 +111,7 @@ def field_errors(values, with_uid=False):
 
 def create(state, values, actor, dry_run=False):
     uid = str(values.get("UID", "")).strip()
-    _raise_on_field_errors(values, with_uid=True)
+    _raise_on_field_errors(values, with_uid=True, optional=bool(str(values.get("IPERF3_PROFILE", "") or "").strip()))
     cfg = read_disk(state)
     _check_profile_reference(cfg, values)
     if _find(cfg, uid) is not None:
@@ -114,7 +123,7 @@ def create(state, values, actor, dry_run=False):
 
 
 def update(state, uid, values, actor, dry_run=False):
-    _raise_on_field_errors(values)
+    _raise_on_field_errors(values, optional=bool(str(values.get("IPERF3_PROFILE", "") or "").strip()))
     cfg = read_disk(state)
     _check_profile_reference(cfg, values)
     g = _require(cfg, uid)
@@ -692,7 +701,11 @@ def _edges(generated):
 
 def _apply_form(g, values):
     for k in EDITABLE_FIELDS:
-        g[k] = str(values.get(k, "")).strip()
+        value = str(values.get(k, "") or "").strip()
+        if value:
+            g[k] = value
+        else:
+            g.pop(k, None)  # seulement possible avec un profil, qui fournit alors la valeur
     g.pop("PACKET_PER_SECOND", None)  # le formulaire fixe le débit et la taille : le 3e est recalculé
     for key in ("DESCRIPTION", "IPERF3_PROFILE"):
         value = str(values.get(key, "") or "").strip()
@@ -702,8 +715,8 @@ def _apply_form(g, values):
             g.pop(key, None)
 
 
-def _raise_on_field_errors(values, with_uid=False):
-    errors = field_errors(values, with_uid)
+def _raise_on_field_errors(values, with_uid=False, optional=False):
+    errors = field_errors(values, with_uid, optional)
     if errors:
         raise OpError(400, "Some fields are invalid", errors)
 

@@ -1,10 +1,16 @@
 # Config du serveur SYNTRAF du lab. Les ${...} sont remplacés par entrypoint.sh.
-[[MESH_GROUP]]
-UID = "LAB_MESH"
+# Les réglages du trafic viennent d'un profil : c'est lui qu'on modifie (page Profiles) pour changer le débit.
+[[IPERF3_PROFILE]]
+UID = "LAB_PROFILE"
+DESCRIPTION = "Lab traffic: 100 Kbps per flow, 218-byte packets"
 BANDWIDTH = "100K"
 DSCP = "0"
 PACKET_SIZE = "218"
 INTERVAL = "1"
+
+[[MESH_GROUP]]
+UID = "LAB_MESH"
+IPERF3_PROFILE = "LAB_PROFILE"
 
 [[SERVER_CLIENT]]
 UID = "LAB_C1"

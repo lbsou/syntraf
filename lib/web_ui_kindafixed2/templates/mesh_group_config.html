@@ -43,7 +43,7 @@
             <div class="mb-3">
                 <label for="mg_profile" class="form-label">iperf3 profile <span class="text-white-50">(optional)</span></label>
                 <select class="form-select" id="mg_profile" data-field="IPERF3_PROFILE" aria-describedby="mg_profile_help"></select>
-                <div id="mg_profile_help" class="form-text">The profile's values replace the values below. Profiles are managed on the Profiles page.</div>
+                <div id="mg_profile_help" class="form-text">The profile's values replace the values below, which become optional. Profiles are managed on the Profiles page.</div>
                 <div class="invalid-feedback" data-feedback="IPERF3_PROFILE"></div>
             </div>
             <div class="mb-3">
@@ -103,6 +103,14 @@ function refreshButtons() {
     $("#btn_disable_text").text(sel.length && sel.every(g => g.DISABLED) ? "Enable" : "Disable");
 }
 
+// Valeur effective : celle du profil quand le groupe en utilise un (en italique, avec la source en info-bulle).
+const effective = key => (value, row) => {
+    const v = row.EFFECTIVE ? row.EFFECTIVE[key] : value;
+    if (v === null || v === undefined) return '<span class="text-white-50">–</span>';
+    return row.IPERF3_PROFILE && v !== value
+        ? `<em title="From profile ${st.esc(row.IPERF3_PROFILE)}">${st.esc(v)}</em>` : st.esc(v);
+};
+
 async function load() {
     const r = await st.api("GET", "/api/v1/mesh-groups");
     if (!r.ok) { st.toast(r.error.message, "danger"); return; }
@@ -116,10 +124,10 @@ async function load() {
              formatter: v => v ? '<span class="badge bg-warning text-dark">Disabled</span>' : '<span class="badge bg-success">Enabled</span>'},
             {field: "DESCRIPTION", title: "Description", formatter: v => st.esc(v || "")},
             {field: "IPERF3_PROFILE", title: "Profile", formatter: v => v ? `<span class="badge bg-info text-dark">${st.esc(v)}</span>` : ""},
-            {field: "BANDWIDTH", title: "Bandwidth"},
-            {field: "PACKET_SIZE", title: "Packet size", sortable: true},
-            {field: "DSCP", title: "DSCP"},
-            {field: "INTERVAL", title: "Interval", sortable: true},
+            {field: "BANDWIDTH", title: "Bandwidth", formatter: effective("BANDWIDTH")},
+            {field: "PACKET_SIZE", title: "Packet size", formatter: effective("PACKET_SIZE")},
+            {field: "DSCP", title: "DSCP", formatter: effective("DSCP")},
+            {field: "INTERVAL", title: "Interval", formatter: effective("INTERVAL")},
             {field: "MEMBERS", title: "Members", sortable: true},
             {field: "BW_PER_NODE_KBPS", title: "Kbps per member*", sortable: true, formatter: v => Math.round(v * 10) / 10},
         ],
