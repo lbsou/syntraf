@@ -1029,7 +1029,11 @@ def config_validation_server(_config, parameters):
         if validate_group(_config, "MESH_GROUP"):
             # As a mesh server, this SYNTRAF must generate the client configuration for each nodes
             if 'SERVER_CLIENT' in _config:
-                _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map = generate_client_config_mesh(_config)
+                try:
+                    _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map = generate_client_config_mesh(_config)
+                except PortExhausted as exc:
+                    log.error(f"CLIENT CONFIGURATION CANNOT BE GENERATED: {exc}")
+                    return False, None, None
             else:
                 return True, {}, {}
         else:
@@ -1564,6 +1568,15 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
 ### Use the "port_ref" key of provided dictionary, associated with a
 ### UID to remove a port from the available list and return that port.
 #################################################################################
+class PortExhausted(ValueError):
+    """Plus de port libre dans la plage des listeners d'un client (MESH_LISTENERS_PORT_RANGE)."""
+
+    def __init__(self, uid):
+        super().__init__(f"client '{uid}' has no free listener port left: widen MESH_LISTENERS_PORT_RANGE "
+                         f"(server or client) or reduce its flows")
+        self.uid = uid
+
+
 def find_free_port(_dict_port_ref, uid):
     assigned_port = 0
     for key, port_ref in _dict_port_ref.items():
@@ -1574,7 +1587,8 @@ def find_free_port(_dict_port_ref, uid):
             else:
                 log.error(
                     f"Port exhaustion encountered when generating client configuration. Please expand the MESH_LISTENERS_PORT_RANGE value.")
-                return assigned_port
+                # Avant : le port 0 était renvoyé et utilisé, produisant une config de listener invalide
+                raise PortExhausted(uid)
 
     return assigned_port
 

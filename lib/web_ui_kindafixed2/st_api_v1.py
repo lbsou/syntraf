@@ -11,7 +11,7 @@ import os
 import re
 import time
 
-from flask import Blueprint, Response, current_app, jsonify, request, send_file
+from flask import Blueprint, Response, current_app, g, jsonify, request, send_file
 
 from lib import st_config_store as store
 from lib import st_mesh_group_ops as ops
@@ -50,6 +50,19 @@ def _body():
 
 def _error(status, message, fields=None):
     return jsonify({"error": {"message": message, "fields": fields or {}}}), status
+
+
+@st_api_v1.before_request
+def _large_change_confirmation():
+    # ?confirm=1 : l'utilisateur a confirmé un changement qui franchit le seuil d'alerte de capacité
+    g._st_confirm_token = ops.CONFIRMED.set(request.args.get("confirm") == "1")
+
+
+@st_api_v1.teardown_request
+def _large_change_confirmation_reset(_exc):
+    token = g.pop("_st_confirm_token", None)
+    if token is not None:
+        ops.CONFIRMED.reset(token)
 
 
 @st_api_v1.errorhandler(ops.OpError)

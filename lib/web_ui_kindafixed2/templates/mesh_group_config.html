@@ -195,7 +195,7 @@ async function previewAndApply(method, url, body, title, confirmText, danger) {
     if (!preview.ok) return preview;
     const ok = await st.confirm({title: title, body: st.previewNode(preview.data), confirmText: confirmText, danger: danger});
     if (!ok) return {ok: false, cancelled: true};
-    return await st.api(method, url, body);
+    return await st.api(method, st.applyUrl(url, preview.data), body);
 }
 
 function report(result, okMessage) {
@@ -309,10 +309,11 @@ form.addEventListener("submit", async e => {
         return;
     }
     st.showFieldErrors(form, {});
-    pending = {method, url, body};
+    pending = {method, url: st.applyUrl(url, preview.data), body};
     const review = document.getElementById("mg_review");
     review.replaceChildren(st.previewNode(preview.data, editing ? `Changes to “${editing}”:` : `New mesh group “${body.UID}”:`));
     stage(true);
+    st.gate(review, document.getElementById("btn_apply"));
     document.getElementById("btn_apply").focus();
 });
 

@@ -32,13 +32,26 @@ async function dump(page, why) {
 async function confirmModal(page) {
     try {
         await page.waitForSelector("#st-confirm.show #st-confirm-ok", {visible: true, timeout: 15000});
+        // comme un utilisateur : cliquer une fois la fenêtre en place (pendant l'animation, le bouton se déplace)
+        await page.waitForSelector('#st-confirm[data-st-shown="1"]', {timeout: 15000});
     } catch (e) {
         await dump(page, "confirmation dialog expected");
         throw e;
     }
     const text = await page.$eval("#st-confirm-body", el => el.textContent);
     await page.click("#st-confirm-ok");
-    await page.waitForSelector("#st-confirm", {hidden: true});
+    try {
+        await page.waitForSelector("#st-confirm", {hidden: true, timeout: 15000});
+    } catch (e) {
+        const hit = await page.evaluate(() => {
+            const r = document.getElementById("st-confirm-ok").getBoundingClientRect();
+            const e = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+            return `${e.tagName}#${e.id}.${e.className}`;
+        });
+        console.log("element under the OK button:", hit);
+        await dump(page, "confirmation dialog should have closed");
+        throw e;
+    }
     return text;
 }
 

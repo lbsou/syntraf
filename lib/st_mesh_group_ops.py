@@ -13,6 +13,7 @@ Principe de chaque changement :
   5. sinon : écriture du fichier (version + audit), application à la config en mémoire, puis demande de
      reconnexion aux clients connectés dont la config a changé (chacun ne relance que les flux modifiés).
 """
+import contextvars
 import copy
 import ipaddress
 import logging
@@ -22,8 +23,12 @@ import re
 import toml
 
 from lib import st_config_store as store
+from lib import st_capacity
 from lib import st_topology
-from lib.st_conf_validation import (validate_bandwidth, validate_dscp, validate_packet_size, validate_interval,
+
+# Confirmation explicite d'un changement qui franchit le seuil d'alerte de capacité (posée par l'API, ?confirm=1)
+CONFIRMED = contextvars.ContextVar("syntraf_large_change_confirmed", default=False)
+from lib.st_conf_validation import (PortExhausted, validate_bandwidth, validate_dscp, validate_packet_size, validate_interval,
                                     validate_uid, validate_group, generate_client_config_mesh,
                                     validate_excluded_client, validate_override_dst_node_ip,
                                     config_validation_database, explode_profile, FQDN)
@@ -266,7 +271,8 @@ def _check_profile_reference(cfg, values):
 
 SERVER_FIELDS = ("BIND_ADDRESS", "SERVER_PORT", "MESH_LISTENERS_PORT_RANGE", "SERVER_X509_CERTIFICATE",
                  "SERVER_X509_PRIVATE_KEY")
-SERVER_LIVE_KEYS = ("TOKEN", "MESH_LISTENERS_PORT_RANGE")  # appliquées à chaud ; les autres au redémarrage
+SERVER_LIVE_KEYS = ("TOKEN", "MESH_LISTENERS_PORT_RANGE",  # appliquées à chaud ; les autres au redémarrage
+                    "MAX_FLOWS_PER_CLIENT", "MAX_TOTAL_FLOWS", "FLOW_ALERT_ADDED", "FLOW_ALERT_RATIO")
 SERVER_MESSAGES = {
     "BIND_ADDRESS": "An IP address of this server, or 0.0.0.0 for all interfaces",
     "SERVER_PORT": "A port between 1 and 65534",
@@ -281,7 +287,8 @@ def get_server(state):
     """Réglages de la section SERVER tels qu'écrits (sans les jetons), et ceux en service (RUNNING)."""
     disk_server = read_disk(state).get("SERVER", {})
     live_server = state["config"].get("SERVER", {})
-    row = {k: disk_server.get(k, "") for k in SERVER_FIELDS}
+    row = {k: disk_server.get(k, "") for k in SERVER_FIELDS + tuple(st_capacity.DEFAULTS)}
+    row["CAPACITY_DEFAULTS"] = {k: str(v) for k, v in st_capacity.DEFAULTS.items()}
     row["RUNNING"] = {k: live_server.get(k, "") for k in SERVER_FIELDS if not isinstance(live_server.get(k), bytes)}
     row["LIVE_KEYS"] = list(SERVER_LIVE_KEYS)
     return row
@@ -289,9 +296,9 @@ def get_server(state):
 
 def update_server(state, values, actor, dry_run=False):
     cfg = read_disk(state)
-    _raise(_server_field_errors(values))
+    _raise(dict(_server_field_errors(values), **st_capacity.limit_errors(values)))
     server = cfg.setdefault("SERVER", {})
-    for key in SERVER_FIELDS:
+    for key in SERVER_FIELDS + tuple(st_capacity.DEFAULTS):
         value = str(values.get(key, "") or "").strip()
         if value:
             server[key] = value
@@ -1038,6 +1045,8 @@ def _commit(state, disk_cfg, actor, action, summary, dry_run):
     scratch = {}
     try:
         _, tuples = generate_client_config_mesh(probe_live, scratch)
+    except PortExhausted as exc:
+        raise OpError(409, f"Not applied: {exc}")
     except (SystemExit, Exception) as exc:  # noqa: BLE001 - sys.exit() quand un client dépasse son MAX_BANDWIDTH
         log.error(f"{action} REFUSED, CLIENT CONFIG GENERATION FAILED: {type(exc).__name__}:{exc}")
         raise OpError(409, "Not applied: a client would exceed its MAX_BANDWIDTH, or the client configuration "
@@ -1049,9 +1058,16 @@ def _commit(state, disk_cfg, actor, action, summary, dry_run):
     everyone = set(new_clients) if forward_level_changed else set()  # le niveau leur parvient à la reconnexion
     affected = sorted({uid for uid in set(current) | set(scratch) if _edges(current.get(uid)) != _edges(scratch.get(uid))}
                       | changed_clients | everyone)
+    assessment = st_capacity.assess(st_capacity.measure(current), st_capacity.measure(scratch),
+                                    st_capacity.limits(disk_cfg.get("SERVER", {})))
+    if assessment["violations"]:
+        raise OpError(409, "Not applied: " + "; ".join(assessment["violations"]) + _hub_suggestion(disk_cfg))
+    impact = _impact(assessment)
+    if impact["alert"] and not dry_run and not CONFIRMED.get():
+        raise OpError(428, f"Large change ({impact['alert_reason']}): review it and confirm explicitly")
     old_text = _read_text(state["config_file_path"])
     new_text = toml.dumps(disk_cfg)
-    result = {"message": summary, "diff": store.redacted_diff(old_text, new_text), "affected_clients": affected,
+    result = {"impact": impact, "message": summary, "diff": store.redacted_diff(old_text, new_text), "affected_clients": affected,
               "reconnected_clients": [], "recreated_databases": recreated,
               "restart_required": _restart_keys(old_disk, disk_cfg), "dry_run": dry_run}
     if dry_run:
@@ -1110,6 +1126,29 @@ def _apply_topology(cfg, g, values):
 def _hub_groups_left(cfg, uid, new_groups):
     """Groupes dont le client est hub et qu'il quitterait."""
     return [g["UID"] for g in cfg.get("MESH_GROUP", []) if uid in (g.get("HUBS") or []) and g["UID"] not in new_groups]
+
+
+def _impact(assessment):
+    """Résumé de l'impact d'un changement, pour l'aperçu."""
+    before, after = assessment["before"], assessment["after"]
+    busiest = assessment["busiest"]
+    entry = after["clients"].get(busiest) if busiest else None
+    return {"flows_before": before["total_flows"], "flows_after": after["total_flows"],
+            "added_flows": assessment["added_flows"],
+            "points_per_s_before": before["points_per_s"], "points_per_s_after": after["points_per_s"],
+            "busiest": dict(entry, uid=busiest) if entry else None,
+            "alert": assessment["alert"], "alert_reason": assessment["alert_reason"], "limits": assessment["limits"]}
+
+
+def _hub_suggestion(cfg):
+    """Pour les grands groupes en maillage complet : ce que donnerait une topologie à deux hubs."""
+    hints = []
+    for g in cfg.get("MESH_GROUP", []):
+        n = len(_members(cfg, g["UID"]))
+        if st_topology.topology(g) == "MESH" and n >= 6 and not g.get("DISABLED"):
+            hints.append(f"{g['UID']} ({n} members): {n * (n - 1)} flows as a full mesh, "
+                         f"{st_topology.flow_count({'TOPOLOGY': 'DUAL_HUB'}, n)} with a dual hub")
+    return (". Consider a hub topology: " + "; ".join(hints)) if hints else ""
 
 
 def _edges(generated):

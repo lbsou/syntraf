@@ -41,6 +41,32 @@
             <div class="invalid-feedback" data-feedback="SERVER_X509_PRIVATE_KEY"></div>
         </div>
     </div>
+    <h2 class="h6 mt-2">Capacity limits <span class="badge bg-success">live</span></h2>
+    <p class="small text-white-50">Protect clients and the database from a change that multiplies the measurement flows (for example switching a large group to a full mesh). Above a hard limit a change is refused; above the alert threshold it must be confirmed by typing its name.</p>
+    <div class="row">
+        <div class="col-md-3 mb-3">
+            <label for="s_max_client" class="form-label">Max flows per client</label>
+            <input class="form-control" id="s_max_client" data-field="MAX_FLOWS_PER_CLIENT" inputmode="numeric" aria-describedby="s_max_client_help">
+            <div id="s_max_client_help" class="form-text">In each direction; a client runs twice as many iperf3 processes.</div>
+            <div class="invalid-feedback" data-feedback="MAX_FLOWS_PER_CLIENT"></div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <label for="s_max_total" class="form-label">Max flows in total</label>
+            <input class="form-control" id="s_max_total" data-field="MAX_TOTAL_FLOWS" inputmode="numeric" aria-describedby="s_max_total_help">
+            <div id="s_max_total_help" class="form-text">Each flow writes one point per interval to the database.</div>
+            <div class="invalid-feedback" data-feedback="MAX_TOTAL_FLOWS"></div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <label for="s_alert_added" class="form-label">Alert: flows added</label>
+            <input class="form-control" id="s_alert_added" data-field="FLOW_ALERT_ADDED" inputmode="numeric">
+            <div class="invalid-feedback" data-feedback="FLOW_ALERT_ADDED"></div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <label for="s_alert_ratio" class="form-label">Alert: total multiplied by</label>
+            <input class="form-control" id="s_alert_ratio" data-field="FLOW_ALERT_RATIO" inputmode="decimal">
+            <div class="invalid-feedback" data-feedback="FLOW_ALERT_RATIO"></div>
+        </div>
+    </div>
     <div id="server_review" class="mb-3" hidden></div>
     <div class="d-flex gap-2">
         <button type="submit" class="btn btn-primary" id="btn_review">Review changes…</button>
@@ -61,7 +87,9 @@
 const el = id => document.getElementById(id);
 const form = el("server_form");
 const FIELDS = {BIND_ADDRESS: "s_bind", SERVER_PORT: "s_port", MESH_LISTENERS_PORT_RANGE: "s_range",
-                SERVER_X509_CERTIFICATE: "s_cert", SERVER_X509_PRIVATE_KEY: "s_key"};
+                SERVER_X509_CERTIFICATE: "s_cert", SERVER_X509_PRIVATE_KEY: "s_key",
+                MAX_FLOWS_PER_CLIENT: "s_max_client", MAX_TOTAL_FLOWS: "s_max_total",
+                FLOW_ALERT_ADDED: "s_alert_added", FLOW_ALERT_RATIO: "s_alert_ratio"};
 let pending = null;
 
 function stage(review) {
@@ -78,6 +106,7 @@ async function load() {
     Object.entries(FIELDS).forEach(([k, id]) => {
         el(id).value = r.data[k] || "";
         if (r.data.RUNNING[k]) el(id).placeholder = `${r.data.RUNNING[k]} (in service)`;  // valeur par défaut appliquée
+        else if (r.data.CAPACITY_DEFAULTS[k]) el(id).placeholder = `${r.data.CAPACITY_DEFAULTS[k]} (default)`;
     });
     form.querySelectorAll("[data-running]").forEach(node => {
         const k = node.dataset.running, running = r.data.RUNNING[k] || "", saved = r.data[k] || "";
@@ -95,14 +124,15 @@ form.addEventListener("submit", async e => {
     st.setBusy(el("btn_review"), false);
     if (!r.ok) { st.showFieldErrors(form, r.error.fields); if (!Object.keys(r.error.fields || {}).length) st.toast(r.error.message, "danger"); return; }
     st.showFieldErrors(form, {});
-    pending = body();
+    pending = {body: body(), url: st.applyUrl("/api/v1/config/server", r.data)};
     el("server_review").replaceChildren(st.previewNode(r.data, "Changes to the server settings:"));
     stage(true);
+    st.gate(el("server_review"), el("btn_apply"));
 });
 el("btn_back").addEventListener("click", () => stage(false));
 el("btn_apply").addEventListener("click", async () => {
     st.setBusy(el("btn_apply"), true);
-    const r = await st.api("PUT", "/api/v1/config/server", pending);
+    const r = await st.api("PUT", pending.url, pending.body);
     st.setBusy(el("btn_apply"), false);
     if (!r.ok) { st.toast(r.error.message, "danger"); stage(false); return; }
     const restart = r.data.restart_required || [];

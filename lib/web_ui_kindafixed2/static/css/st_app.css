@@ -58,6 +58,12 @@ body { min-height: 100vh; }
 .st-topo .btn-check:focus-visible + label { outline: 2px solid #3498db; outline-offset: 2px; }
 @media (max-width: 576px) { .st-topologies { grid-template-columns: 1fr; } }
 
+/* Notifications : sous la barre du haut, au-dessus des fenêtres de dialogue sans masquer leurs boutons */
+.st-toasts { top: var(--st-topbar-h); }
+
+/* Mot à retaper dans une alerte (lisible sur fond rouge) */
+.alert-danger code { color: #fff; background: rgba(0, 0, 0, .35); padding: 0 .3em; border-radius: .2rem; font-weight: 600; }
+
 /* Diff de configuration */
 .st-diff { background: #1e1e1e; border: 1px solid #333; border-radius: .25rem; padding: .5rem; max-height: 50vh; overflow: auto;
            font-family: SFMono-Regular, Consolas, "Liberation Mono", monospace; font-size: .8rem; white-space: pre; margin: 0; }

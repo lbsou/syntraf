@@ -349,3 +349,13 @@ def test_updates_api_lists_the_release_and_sends_it_to_eligible_clients(env, mon
     assert command["ACTION"] == "UPDATE" and command["RELEASE"] == "0.46+abc"
     assert c.get("/api/v1/audit").json[0]["action"] == "REQUEST_UPDATE"
     assert c.post("/api/v1/updates", json={}).status_code == 400
+
+
+def test_large_changes_need_confirm_through_the_api(env):
+    c = env["client"]
+    c.put("/api/v1/config/server", json={"MESH_LISTENERS_PORT_RANGE": "15000-15100", "FLOW_ALERT_ADDED": "1"})
+    body = {"UID": "NODE_C", "IP_ADDRESS": "10.0.0.3", "MESH_GROUP_UID_LIST": ["GROUP1"]}  # 2 -> 6 flux
+    preview = c.post("/api/v1/config/clients?dry_run=1", json=body).json
+    assert preview["impact"]["alert"] is True and preview["impact"]["flows_after"] == 6
+    assert c.post("/api/v1/config/clients", json=body).status_code == 428
+    assert c.post("/api/v1/config/clients?confirm=1", json=body).status_code == 201

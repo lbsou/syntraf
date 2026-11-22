@@ -194,7 +194,7 @@ el("settings_form").addEventListener("submit", async e => {
     if (!preview.ok) { st.showFieldErrors(e.target, preview.error.fields); return; }
     st.showFieldErrors(e.target, {});
     if (!await st.confirm({title: "Apply the logging settings?", body: st.previewNode(preview.data), confirmText: "Apply"})) return;
-    const r = await st.api("PUT", "/api/v1/config/logging", body);
+    const r = await st.api("PUT", st.applyUrl("/api/v1/config/logging", preview.data), body);
     if (!r.ok) { st.toast(r.error.message, "danger"); return; }
     const restart = r.data.restart_required || [];
     st.toast(restart.length ? `Saved. Restart the server to apply: ${restart.join(", ")}.` : "Logging settings applied.", restart.length ? "warning" : "success");

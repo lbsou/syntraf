@@ -146,7 +146,7 @@ async function approveForm(uid, request) {
     const preview = await st.api("POST", url + "?dry_run=1", body);
     if (!preview.ok) { st.toast(preview.error.message + " " + Object.values(preview.error.fields || {}).join(" "), "danger"); return; }
     if (!await st.confirm({title: `Approve client “${uid}”?`, body: st.previewNode(preview.data), confirmText: "Approve"})) return;
-    const done = await st.api("POST", url, body);
+    const done = await st.api("POST", st.applyUrl(url, preview.data), body);
     st.toast(done.ok ? `Client “${uid}” approved: it receives its token at its next attempt.` : done.error.message, done.ok ? "success" : "danger");
     loadPending(); crud.load();
 }
