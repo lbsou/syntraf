@@ -49,6 +49,7 @@ body { min-height: 100vh; }
 .st-topo label { display: flex; flex-direction: column; align-items: center; text-align: center; gap: .25rem; height: 100%;
                  padding: .75rem .5rem; border: 2px solid #444; border-radius: .5rem; cursor: pointer; background: #2b2b2b; }
 .st-topo label span { font-size: .75rem; color: #aaa; }
+.st-topo label .st-topo-stats { color: #ddd; font-weight: 600; min-height: 1.1em; }
 .st-topo svg { width: 100%; max-width: 140px; height: auto; }
 .st-topo svg .link line { stroke: #777; stroke-width: 2; }
 .st-topo svg .node circle { fill: #375a7f; stroke: #8fb3d9; stroke-width: 2; }

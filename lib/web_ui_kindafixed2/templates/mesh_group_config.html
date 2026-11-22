@@ -50,7 +50,7 @@
                                 <g class="link"><line x1="25" y1="20" x2="95" y2="20"/><line x1="25" y1="70" x2="95" y2="70"/><line x1="25" y1="20" x2="25" y2="70"/><line x1="95" y1="20" x2="95" y2="70"/><line x1="25" y1="20" x2="95" y2="70"/><line x1="95" y1="20" x2="25" y2="70"/></g>
                                 <g class="node"><circle cx="25" cy="20" r="8"/><circle cx="95" cy="20" r="8"/><circle cx="25" cy="70" r="8"/><circle cx="95" cy="70" r="8"/></g>
                             </svg>
-                            <strong>Full mesh</strong><span>every member with every other</span>
+                            <strong>Full mesh</strong><span>every member with every other</span><span class="st-topo-stats" data-stats="MESH"></span>
                         </label>
                     </div>
                     <div class="st-topo">
@@ -61,7 +61,7 @@
                                 <g class="node"><circle cx="20" cy="15" r="8"/><circle cx="100" cy="15" r="8"/><circle cx="20" cy="75" r="8"/><circle cx="100" cy="75" r="8"/></g>
                                 <circle class="hub" cx="60" cy="45" r="11"/>
                             </svg>
-                            <strong>Hub &amp; spoke</strong><span>every member with one hub</span>
+                            <strong>Hub &amp; spoke</strong><span>every member with one hub</span><span class="st-topo-stats" data-stats="HUB_SPOKE"></span>
                         </label>
                     </div>
                     <div class="st-topo">
@@ -72,7 +72,7 @@
                                 <g class="node"><circle cx="15" cy="15" r="8"/><circle cx="105" cy="15" r="8"/><circle cx="15" cy="75" r="8"/><circle cx="105" cy="75" r="8"/></g>
                                 <circle class="hub" cx="42" cy="45" r="10"/><circle class="hub" cx="78" cy="45" r="10"/>
                             </svg>
-                            <strong>Dual hub</strong><span>every member with two hubs</span>
+                            <strong>Dual hub</strong><span>every member with two hubs</span><span class="st-topo-stats" data-stats="DUAL_HUB"></span>
                         </label>
                     </div>
                 </div>
@@ -81,8 +81,9 @@
                         <select class="form-select form-select-sm" id="mg_hub1"></select></div>
                     <div class="col-sm-6" id="mg_hub2_wrap"><label for="mg_hub2" class="form-label small mb-0">Second hub</label>
                         <select class="form-select form-select-sm" id="mg_hub2"></select></div>
-                    <div class="col-12 form-text">A hub that is not yet a member of the group joins it. <span id="mg_flows"></span></div>
+                    <div class="col-12 form-text">A hub that is not yet a member of the group joins it.</div>
                 </div>
+                <div id="mg_topology_summary" class="mt-2" aria-live="polite"></div>
                 <div class="invalid-feedback d-block" data-feedback="HUBS"></div>
                 <div class="invalid-feedback d-block" data-feedback="TOPOLOGY"></div>
             </fieldset>
@@ -247,10 +248,70 @@ function syncTopology() {
     const t = topoValue();
     document.getElementById("mg_hubs").hidden = t === "MESH";
     document.getElementById("mg_hub2_wrap").hidden = t !== "DUAL_HUB";
-    document.getElementById("mg_flows").textContent = {MESH: "", HUB_SPOKE: "Flows: 2 × (members − 1).",
-        DUAL_HUB: "Flows: 2 × (2 × (members − 2) + 1)."}[t];
+    renderTopologySummary();
 }
 document.querySelectorAll('input[name="mg_topology"]').forEach(r => r.addEventListener("change", syncTopology));
+
+// ---- Résumé : connexions et bande passante par nœud (mêmes formules que lib/st_topology.py)
+let groupMembers = [];   // membres actuels du groupe édité (aucun pour une création)
+const HUB_COUNT = {MESH: 0, HUB_SPOKE: 1, DUAL_HUB: 2};
+
+function parseBps(text) {
+    const t = String(text || "").trim().toUpperCase(), units = {K: 1e3, M: 1e6, G: 1e9};
+    const n = parseFloat(t);
+    return isNaN(n) ? 0 : n * (units[t.slice(-1)] || 1);
+}
+
+function formatBps(bps) {
+    if (bps >= 1e6) return `${(bps / 1e6).toFixed(bps >= 1e7 ? 0 : 1)} Mbps`;
+    if (bps >= 1e3) return `${Math.round(bps / 1e3)} Kbps`;
+    return `${Math.round(bps)} bps`;
+}
+
+function topologyFigures(t, n) {
+    // flux (un par sens) et connexions sortantes par rôle ; les entrantes sont égales (chaque paire va dans les deux sens)
+    if (n < 2) return {flows: 0, roles: t === "MESH" ? {member: 0} : {hub: 0, spoke: 0}};
+    if (t === "MESH") return {flows: n * (n - 1), roles: {member: n - 1}};
+    const k = HUB_COUNT[t];
+    return {flows: 2 * (k * (n - k) + k * (k - 1) / 2), roles: {hub: n - 1, spoke: k}};
+}
+
+function flowBandwidth() {
+    const profile = (typeof profileValues !== "undefined" && profileValues[document.getElementById("mg_profile").value]) || {};
+    if (profile.BANDWIDTH) return parseBps(profile.BANDWIDTH);
+    const v = document.getElementById("mg_bandwidth").value.trim();
+    return v ? parseBps(v + document.getElementById("mg_bandwidth_unit").value) : 0;
+}
+
+function renderTopologySummary() {
+    const t = topoValue();
+    const hubs = topologyBody().HUBS;
+    const n = new Set(groupMembers.concat(hubs)).size;
+    const bw = flowBandwidth();
+    for (const key of ["MESH", "HUB_SPOKE", "DUAL_HUB"]) {
+        const f = topologyFigures(key, n);
+        const perNode = Math.max(...Object.values(f.roles));
+        document.querySelector(`[data-stats="${key}"]`).textContent = n >= 2 ? `${f.flows} flows · up to ${perNode} per node` : "";
+    }
+    const box = document.getElementById("mg_topology_summary");
+    if (n < 2) {
+        box.innerHTML = `<p class="small text-white-50 mb-0"><i class="fas fa-info-circle me-1"></i>${n} member(s): flows appear once the group has at least two members (Clients page).</p>`;
+        return;
+    }
+    const f = topologyFigures(t, n);
+    const label = {member: "Each member", hub: hubs.length > 1 ? "Each hub" : "The hub", spoke: "Each spoke"};
+    const count = {member: n, hub: HUB_COUNT[t], spoke: n - HUB_COUNT[t]};
+    const rows = Object.entries(f.roles).map(([role, out]) => `<tr><th scope="row">${label[role]} <span class="text-white-50">(${count[role]})</span></th>
+        <td class="text-end">${out}</td><td class="text-end">${out}</td><td class="text-end">${2 * out}</td>
+        <td class="text-end">${bw ? formatBps(out * bw) : "–"}</td></tr>`).join("");
+    box.innerHTML = `<table class="table table-sm small mb-0">
+        <caption class="small text-white-50 pt-1">${n} members · ${f.flows} flows in total${bw ? ` · ${formatBps(bw)} per flow` : " · set a bandwidth to see the throughput"}</caption>
+        <thead><tr><th scope="col">Node</th><th scope="col" class="text-end">Connections out</th><th scope="col" class="text-end">In</th>
+            <th scope="col" class="text-end">iperf3 processes</th><th scope="col" class="text-end">Bandwidth out</th></tr></thead>
+        <tbody>${rows}</tbody></table>`;
+}
+["mg_hub1", "mg_hub2", "mg_bandwidth_unit", "mg_profile"].forEach(id => document.getElementById(id).addEventListener("change", renderTopologySummary));
+document.getElementById("mg_bandwidth").addEventListener("input", renderTopologySummary);
 
 async function fillTopology(group) {
     const r = await st.api("GET", "/api/v1/config/clients");
@@ -274,7 +335,8 @@ function topologyBody() {
 }
 
 function openForm(group) {
-    fillProfiles(group ? group.IPERF3_PROFILE : "");
+    groupMembers = group && group.MEMBER_UIDS ? group.MEMBER_UIDS : [];
+    fillProfiles(group ? group.IPERF3_PROFILE : "").then(renderTopologySummary);
     fillTopology(group);
     editing = group ? group.UID : null;
     form.reset();
