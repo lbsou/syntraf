@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SYNTRAF — Documentation</title>
+<style>
+  :root { --bg:#16181c; --panel:#1f2228; --text:#e4e6ea; --muted:#9aa1ab; --accent:#00bc8c; --link:#5fb3ff; --code:#2a2e36; --border:#323741; }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin:0; font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--text); }
+  a { color:var(--link); }
+  nav { position:fixed; top:0; bottom:0; left:0; width:280px; overflow-y:auto; background:var(--panel); border-right:1px solid var(--border); padding:1.25rem 1rem 2rem; }
+  nav .brand { font-weight:800; font-size:1.35rem; color:var(--accent); text-decoration:none; display:block; margin-bottom:.25rem; }
+  nav .sub { color:var(--muted); font-size:.85rem; margin-bottom:1rem; }
+  nav ol { list-style:none; padding:0; margin:0; }
+  nav li a { display:block; padding:.2rem .5rem; color:var(--text); text-decoration:none; border-radius:4px; font-size:.92rem; }
+  nav li a:hover { background:#2b3038; }
+  nav li ol a { padding-left:1.4rem; color:var(--muted); font-size:.86rem; }
+  main { margin-left:280px; max-width:1060px; padding:2rem 3rem 5rem; }
+  h1 { font-size:2.1rem; margin-top:0; }
+  h2 { font-size:1.6rem; margin-top:3rem; padding-top:.5rem; border-top:1px solid var(--border); scroll-margin-top:1rem; }
+  h3 { font-size:1.2rem; margin-top:2rem; scroll-margin-top:1rem; }
+  h4 { margin-bottom:.3rem; }
+  code { background:var(--code); padding:.1rem .35rem; border-radius:4px; font-size:.9em; }
+  pre { background:var(--code); padding:1rem; border-radius:6px; overflow-x:auto; line-height:1.4; }
+  pre code { background:none; padding:0; }
+  table { border-collapse:collapse; width:100%; margin:1rem 0; font-size:.93rem; }
+  th, td { border:1px solid var(--border); padding:.45rem .6rem; text-align:left; vertical-align:top; }
+  th { background:#262a31; }
+  td code { white-space:nowrap; }
+  .note, .warn, .tip { border-left:4px solid; padding:.6rem 1rem; border-radius:4px; margin:1rem 0; background:#1d2127; }
+  .note { border-color:var(--link); } .warn { border-color:#f39c12; } .tip { border-color:var(--accent); }
+  figure { margin:1.5rem 0; }
+  figure img { max-width:100%; border:1px solid var(--border); border-radius:6px; }
+  figcaption { color:var(--muted); font-size:.88rem; margin-top:.3rem; }
+  .badge { display:inline-block; font-size:.75rem; padding:.05rem .45rem; border-radius:4px; background:#2f6f5e; color:#fff; vertical-align:middle; }
+  .badge.r { background:#555; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px,1fr)); gap:1rem; }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:6px; padding:.9rem 1rem; }
+  .card h4 { margin-top:0; }
+  @media (max-width: 900px) { nav { position:static; width:auto; } main { margin-left:0; padding:1.5rem; } }
+</style>
+</head>
+<body>
+<nav aria-label="Table of contents">
+  <a class="brand" href="#top">SYNTRAF</a>
+  <div class="sub">Synthetic traffic for network quality of experience — v0.45</div>
+  <ol>
+    <li><a href="#intro">1. Introduction</a></li>
+    <li><a href="#architecture">2. Architecture</a></li>
+    <li><a href="#install">3. Installation</a>
+      <ol><li><a href="#install-req">Requirements</a></li><li><a href="#install-iperf">iperf3</a></li>
+        <li><a href="#install-server">Server</a></li><li><a href="#install-client">Clients</a></li>
+        <li><a href="#install-service">Running as a service</a></li><li><a href="#install-firewall">Firewall</a></li></ol></li>
+    <li><a href="#quickstart">4. Quick start</a></li>
+    <li><a href="#webui">5. Web interface</a>
+      <ol><li><a href="#ui-dashboard">Dashboard</a></li><li><a href="#ui-meshgroups">Mesh groups</a></li>
+        <li><a href="#ui-profiles">Profiles</a></li><li><a href="#ui-clients">Clients</a></li>
+        <li><a href="#ui-databases">Databases</a></li><li><a href="#ui-server">Server</a></li>
+        <li><a href="#ui-tokens">Tokens</a></li><li><a href="#ui-logs">Logs</a></li>
+        <li><a href="#ui-audit">Audit &amp; versions</a></li><li><a href="#ui-updates">Updates</a></li>
+        <li><a href="#ui-data">Data retention</a></li><li><a href="#ui-language">Language</a></li></ol></li>
+    <li><a href="#topologies">6. Topologies &amp; capacity</a></li>
+    <li><a href="#security">7. Enrollment &amp; security</a></li>
+    <li><a href="#nat">8. Clients behind a NAT</a></li>
+    <li><a href="#rename">9. Renaming a client</a></li>
+    <li><a href="#logging">10. Logs, retention, syslog &amp; CEF</a></li>
+    <li><a href="#updates">11. Remote updates</a></li>
+    <li><a href="#databases">12. Databases &amp; metrics</a></li>
+    <li><a href="#grafana">13. Grafana dashboards</a></li>
+    <li><a href="#config">14. Configuration reference</a></li>
+    <li><a href="#api">15. REST API</a></li>
+    <li><a href="#lab">16. The test lab</a></li>
+    <li><a href="#troubleshooting">17. Troubleshooting</a></li>
+  </ol>
+</nav>
+
+<main id="top">
+<h1>SYNTRAF documentation</h1>
+<p>SYNTRAF (<em>synthetic traffic</em>) measures the quality of a network as users experience it. It runs continuous,
+low-rate UDP flows with <a href="https://github.com/esnet/iperf">iperf3</a> between probes placed across the network,
+stores loss, jitter and throughput in a time-series database, and shows them in Grafana. A central server manages
+the probes, their configuration and their lifecycle from a web interface and a REST API.</p>
+
+<h2 id="intro">1. Introduction</h2>
+<div class="grid">
+  <div class="card"><h4>What it measures</h4>Packet loss, jitter, received bitrate and lost packets for every
+    direction between every pair of probes, at the iperf3 interval (1 s by default).</div>
+  <div class="card"><h4>How</h4>Each probe (a SYNTRAF <em>client</em>) runs iperf3 listeners and connectors as the
+    server tells it; the receiving side reports what it measured.</div>
+  <div class="card"><h4>Central management</h4>Mesh groups, profiles, clients, databases, tokens, logs, updates
+    and data retention are managed live from the server's web interface or API.</div>
+  <div class="card"><h4>Operations</h4>Audit log with restorable versions, capacity guardrails, remote updates with
+    automatic rollback, log forwarding to syslog/CEF, English or French interface.</div>
+</div>
+<p>Typical uses: watch a WAN or SD-WAN continuously, compare the quality between sites, detect and date outages,
+validate a QoS class (DSCP) end to end, check a satellite or LTE link.</p>
+
+<h2 id="architecture">2. Architecture</h2>
+<pre><code>                  ┌──────────────── SYNTRAF server ─────────────────┐
+  browser ──HTTP──▶│ web UI + REST API (port 5000)                   │
+                  │ control channel (TLS, port 6531) ◀── clients     │──▶ VictoriaMetrics / InfluxDB 2 ──▶ Grafana
+                  │ configuration file (TOML) + versions + audit     │
+                  └──────────────────────────────────────────────────┘
+        client A ◀──── iperf3 UDP flows (listener ports 15000-16000) ────▶ client B</code></pre>
+<ul>
+  <li><strong>Server.</strong> Holds the configuration (<code>config.toml</code>), authenticates the clients over a
+    TLS control channel, generates each client's listeners and connectors, receives their measurements and writes
+    them to the databases. It serves the web interface and the API.</li>
+  <li><strong>Clients.</strong> Connect to the server (outbound only), receive their configuration, run iperf3 and send
+    back their measurements and their logs. A client buffers its measurements while the server is unreachable.</li>
+  <li><strong>Flows.</strong> A <em>connector</em> is an iperf3 client (sender), a <em>listener</em> an iperf3 server
+    (receiver). The receiver measures. A flow is named <code>SENDER__TO__RECEIVER__ON__DSCPn</code>.</li>
+  <li><strong>Live changes.</strong> A change made in the web interface is validated, previewed, saved (with a
+    version), then applied live: only the clients whose measurements change reconnect.</li>
+</ul>
+
+<h2 id="install">3. Installation</h2>
+<h3 id="install-req">Requirements</h3>
+<ul>
+  <li>Python 3 on Linux, Windows or macOS (the lab and the tests run Python 3.14). A single standard Linux distribution is
+    recommended for the probes, so that the same Python wheels apply everywhere.</li>
+  <li>iperf3 3.9 or later with timestamp support; the <em>keepalive</em> branch below is recommended.</li>
+  <li>A database: VictoriaMetrics (recommended) or InfluxDB 2. Grafana to view the measurements.</li>
+  <li>Time synchronization (NTP) on every node: iperf3 authentication refuses a clock skew above 10 s by default.</li>
+</ul>
+
+<h3 id="install-iperf">iperf3</h3>
+<p>SYNTRAF relies on iperf3 timestamps. A control-connection keepalive makes long-running flows more robust; it
+is available in a fork:</p>
+<pre><code>git clone https://github.com/davidBar-On/iperf.git --branch issue-812-835-control-connection-keepalive
+cd iperf && ./configure && make && sudo make install && sudo ldconfig</code></pre>
+<p>Prerequisites: <code>build-essential libssl-dev libtool</code> (Debian/Ubuntu) or
+<code>"Development Tools" openssl-devel</code> (RHEL family). On Windows, iperf3 can be built with Cygwin (see the
+README); ESnet does not support iperf3 on Windows.</p>
+
+<h3 id="install-server">Server</h3>
+<pre><code>git clone https://github.com/lbsou/syntraf.git /opt/syntraf
+cd /opt/syntraf
+python3 -m venv venv &amp;&amp; . venv/bin/activate
+pip install -r requirements_server.txt
+python syntraf.py -c /etc/syntraf/config.toml -l /var/log/syntraf</code></pre>
+<p>Options: <code>-c</code> configuration file, <code>-l</code> log directory, <code>-v</code> version. A minimal
+server configuration:</p>
+<pre><code>[GLOBAL]
+IPERF3_BINARY_PATH = "DISABLE"          # the server itself runs no iperf3
+
+[SERVER]
+BIND_ADDRESS = "0.0.0.0"
+SERVER_PORT = "6531"
+MESH_LISTENERS_PORT_RANGE = "15000-16000"
+TOKEN = { site_a = "a-long-random-enrollment-token" }
+
+[[DATABASE]]
+DB_UID = "VM"
+DB_ENGINE = "VictoriaMetrics"
+DB_SERVER = "10.0.0.10"
+DB_PORT = "8428"
+DB_SERVER_USE_SSL = false
+
+[[MESH_GROUP]]
+UID = "WAN"
+BANDWIDTH = "100K"
+DSCP = "0"
+PACKET_SIZE = "218"
+INTERVAL = "1"</code></pre>
+<p>The web interface listens on port <strong>5000</strong>. Everything else (clients, profiles, tokens...) can be
+added from it.</p>
+
+<h3 id="install-client">Clients</h3>
+<pre><code>pip install -r requirements_client.txt
+python syntraf.py -c /etc/syntraf/config.toml -l /var/log/syntraf</code></pre>
+<pre><code>[CLIENT]
+CLIENT_UID = "PARIS_01"
+SERVER = "syntraf.example.org"
+SERVER_PORT = "6531"
+TOKEN = "a-long-random-enrollment-token"
+
+[GLOBAL]
+IPERF3_BINARY_PATH = "/usr/local/bin/iperf3"</code></pre>
+<p>A new client presenting a valid shared token appears under <em>Waiting for approval</em> on the Clients page
+(see <a href="#security">Enrollment</a>). A client that the server renames or secures keeps what it receives (its
+own token, its new name) next to its configuration file.</p>
+
+<h3 id="install-service">Running as a service</h3>
+<p>Always start <code>syntraf.py</code> from the installation directory: it then acts as a <em>supervisor</em>
+that runs the current release as a child process, restarts it on request (web interface, remote update) and rolls
+back a failed update. Data (keys, certificates, releases) stays in the installation directory.</p>
+<pre><code># /etc/systemd/system/syntraf.service
+[Unit]
+Description=SYNTRAF
+After=network-online.target
+
+[Service]
+WorkingDirectory=/opt/syntraf
+ExecStart=/opt/syntraf/venv/bin/python /opt/syntraf/syntraf.py -c /etc/syntraf/config.toml -l /var/log/syntraf
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target</code></pre>
+<pre><code>systemctl daemon-reload &amp;&amp; systemctl enable --now syntraf
+journalctl -u syntraf -f</code></pre>
+<p>On Windows, run the same command from a service wrapper (NSSM, WinSW) or the Task Scheduler.
+<code>SYNTRAF_NO_SUPERVISOR=1</code> runs SYNTRAF without its supervisor (debugging).</p>
+
+<h3 id="install-firewall">Firewall</h3>
+<table>
+  <tr><th>Node</th><th>Inbound</th><th>Purpose</th></tr>
+  <tr><td>Server</td><td>TCP 6531</td><td>Control channel (clients)</td></tr>
+  <tr><td>Server</td><td>TCP 5000</td><td>Web interface and API (restrict to administrators)</td></tr>
+  <tr><td>Client</td><td>TCP and UDP 15000-16000</td><td>iperf3 listeners (not needed for a client behind a NAT)</td></tr>
+</table>
+
+<h2 id="quickstart">4. Quick start</h2>
+<ol>
+  <li>Start the server and open <code>http://server:5000</code>.</li>
+  <li><strong>Databases</strong> → New: declare VictoriaMetrics (or InfluxDB 2), click <em>Test connection</em>.</li>
+  <li><strong>Mesh groups</strong> → New: choose a topology, a bandwidth, a DSCP, a packet size and an interval (or a
+    profile). The summary shows the connections and bandwidth per node before you save.</li>
+  <li><strong>Tokens</strong>: create a shared enrollment token, copy it into each client configuration.</li>
+  <li>Start the clients. Approve them on <strong>Clients</strong> (their key is pinned and each receives a token of
+    its own), choosing their mesh groups.</li>
+  <li>Open Grafana: the dashboards show the parameters of each group and the state of every expected flow.</li>
+</ol>
+
+<h2 id="webui">5. Web interface</h2>
+<p>Every page is live (status pushed by Server-Sent Events, indicator <em>live</em> in the top bar). Every change
+follows the same path: form → validation (fields in error are highlighted) → <strong>preview</strong> (diff of the
+file, affected clients, impact on the flows) → apply. Settings marked <span class="badge">live</span> apply
+immediately; <span class="badge r">restart</span> ones after a server restart, which the interface offers.</p>
+
+<h3 id="ui-dashboard">Dashboard</h3>
+<figure><img src="img/home.png" alt="Dashboard"><figcaption>Clients, mesh groups, databases, server threads,
+waiting clients, queued points; recent configuration changes.</figcaption></figure>
+<p>Links: <code>/healthz</code> (200 or 503) for monitoring, <code>/metrics</code> in Prometheus format.</p>
+
+<h3 id="ui-meshgroups">Mesh groups</h3>
+<p>A mesh group is a set of clients that measure each other with the same traffic settings. Actions: New, Edit,
+Duplicate, Enable/Disable, Delete (only when no client uses it).</p>
+<figure><img src="img/topology.png" alt="Topology choice"><figcaption>Choosing a topology: each card gives its flow
+count; the table gives connections, iperf3 processes and outgoing bandwidth per role.</figcaption></figure>
+<ul>
+  <li><strong>Topology</strong>: full mesh, hub &amp; spoke, or dual hub (see <a href="#topologies">Topologies</a>).
+    A hub that is not yet a member joins the group.</li>
+  <li><strong>Profile</strong>: when a group uses a profile, the values the profile sets are greyed and cannot be
+    changed on the group (the server also refuses them); only the values the profile leaves free are set on the group.</li>
+  <li><strong>Bandwidth, DSCP, packet size, interval</strong>: per flow and per direction.</li>
+</ul>
+
+<h3 id="ui-profiles">Profiles</h3>
+<p>Reusable traffic settings (<code>IPERF3_PROFILE</code>). Editing a profile regenerates every group that uses it and
+reconnects their members. Example: a G.711 voice profile, 87.2 Kbps, 218-byte packets, DSCP 46.</p>
+
+<h3 id="ui-clients">Clients</h3>
+<figure><img src="img/clients.png" alt="Clients"><figcaption>Security state, address (static, dynamic, behind
+NAT), mesh groups.</figcaption></figure>
+<ul>
+  <li><strong>Waiting for approval</strong>: clients that presented a valid shared token but are not declared, with
+    their key fingerprint. <em>Approve…</em> declares them; <em>Reject</em> refuses them (they may be allowed to ask
+    again).</li>
+  <li><strong>Address</strong>: fixed IP or host name, or dynamic (learned at each connection).</li>
+  <li><strong>Behind a NAT or a firewall</strong>: see <a href="#nat">Clients behind a NAT</a>. A <em>NAT detected</em>
+    badge appears when the server sees another address than the client's own.</li>
+  <li><strong>Secure</strong> pins the key of a connected client and gives it a token of its own;
+    <strong>Rotate token</strong> issues a new one; <strong>Rename…</strong> renames it with its history.</li>
+  <li>Optional: maximum outgoing bandwidth, listener port range.</li>
+</ul>
+
+<h3 id="ui-databases">Databases</h3>
+<p>Where measurements are written. VictoriaMetrics needs host and port; InfluxDB 2 also needs organization, bucket
+and token. Tokens are never sent back to the browser (leave the field empty to keep the current one).
+<em>Test connection</em> checks parameters without saving. A changed database connection is re-created live.</p>
+
+<h3 id="ui-server">Server</h3>
+<ul>
+  <li><strong>Server</strong> section: listening address and port, listener port range <span class="badge">live</span>,
+    TLS certificate and key (empty: a self-signed certificate).</li>
+  <li><strong>Capacity limits</strong> <span class="badge">live</span>: see <a href="#topologies">Capacity</a>.</li>
+  <li><strong>Global</strong>: watchdog interval <span class="badge">live</span>, clock skew tolerated by iperf3
+    authentication <span class="badge">live</span>, log output, iperf3 authentication, iperf3 program, RSA key
+    directory, purge of the logs at startup.</li>
+  <li><strong>Logs</strong> and <strong>Syslog forwarding</strong>: see <a href="#logging">Logs</a>.</li>
+  <li><strong>Restart the server</strong>: SYNTRAF stops cleanly and starts again within seconds; clients reconnect
+    and keep their buffered measurements.</li>
+</ul>
+
+<h3 id="ui-tokens">Tokens</h3>
+<p>Shared enrollment tokens (<code>SERVER.TOKEN</code>). New tokens are random and shown once; revealing an existing
+one is recorded in the audit log. Revoking a token stops new connections that use it.</p>
+
+<h3 id="ui-logs">Logs</h3>
+<figure><img src="img/logs.png" alt="Logs"><figcaption>Server and client logs in one view, in your time zone.</figcaption></figure>
+<p>Filter by node, type (control, measurement, database, config, webui, system), minimum level, period and
+keywords (<code>word</code>, <code>"exact phrase"</code>, <code>-excluded</code>); follow live; export as text. The
+settings are on the Server page.</p>
+
+<h3 id="ui-audit">Audit &amp; versions</h3>
+<p>Every change made from the interface or the API: when, who (address), what, and the diff. Each change keeps a
+version of the configuration file; any version can be compared with the current file and restored.</p>
+
+<h3 id="ui-updates">Updates</h3>
+<figure><img src="img/updates.png" alt="Updates"><figcaption>The server's built-in release and where each client stands.</figcaption></figure>
+<p>See <a href="#updates">Remote updates</a>.</p>
+
+<h3 id="ui-data">Data retention</h3>
+<figure><img src="img/data.png" alt="Data retention"><figcaption>Per database: actual and target retention, size,
+oldest data, snapshots, orphan data.</figcaption></figure>
+<p>VictoriaMetrics: compare the actual retention (<code>-retentionPeriod</code>) with the target
+(<code>DB_RETENTION</code>), create and delete snapshots, delete the series of clients or groups that no longer exist.</p>
+
+<h3 id="ui-language">Language</h3>
+<p>The selector in the top bar switches the interface between English and French; the choice is remembered by the
+browser, and the default follows the browser's language. Logs are shown as written.</p>
+
+<h2 id="topologies">6. Topologies &amp; capacity</h2>
+<table>
+  <tr><th>Topology</th><th>Who measures whom</th><th>Flows for n members</th><th>Per node</th></tr>
+  <tr><td>Full mesh</td><td>every member with every other</td><td>n(n−1)</td><td>n−1 out, n−1 in</td></tr>
+  <tr><td>Hub &amp; spoke</td><td>every spoke with the hub</td><td>2(n−1)</td><td>hub n−1; spoke 1</td></tr>
+  <tr><td>Dual hub</td><td>every spoke with both hubs, and the hubs together</td><td>4n−6</td><td>hubs n−1; spoke 2</td></tr>
+</table>
+<p>Each flow is one iperf3 process on the sender and one on the receiver, and writes one point per interval to the
+database. A full mesh of 50 probes is 2 450 flows; a dual hub of 50 probes is 194.</p>
+<h3>Capacity guardrails</h3>
+<table>
+  <tr><th>Setting</th><th>Default</th><th>Effect</th></tr>
+  <tr><td><code>MAX_FLOWS_PER_CLIENT</code></td><td>50</td><td>Refuses a change that puts a client above this many flows in one direction</td></tr>
+  <tr><td><code>MAX_TOTAL_FLOWS</code></td><td>2000</td><td>Refuses a change above this total</td></tr>
+  <tr><td><code>FLOW_ALERT_ADDED</code></td><td>100</td><td>A change adding more flows must be confirmed by typing the group's name</td></tr>
+  <tr><td><code>FLOW_ALERT_RATIO</code></td><td>2.0</td><td>Same when the total is multiplied by more than this (beyond the added threshold)</td></tr>
+</table>
+<p>A limit is only enforced when the change makes things worse, so a configuration already above a limit can still
+be reduced. For a large full mesh, the preview suggests what a dual hub would give.</p>
+
+<h2 id="security">7. Enrollment &amp; security</h2>
+<ol>
+  <li>A new client connects with a <strong>shared token</strong>. If its name is not declared it is recorded as
+    <em>waiting for approval</em> with the fingerprint of its public key, and refused for now.</li>
+  <li>An administrator <strong>approves</strong> it (choosing its mesh groups): the server declares it, pins its key
+    (<code>PUBLIC_KEY_SHA256</code>) and issues a <strong>token of its own</strong>, handed over at its next attempt.</li>
+  <li>From then on only the device holding that key can use the name. A declared client presenting a new key
+    (reinstall) is held for approval of the key change.</li>
+  <li>Tokens can be rotated; a secured client that missed a rotation recovers its new token with the shared token
+    because its key is pinned.</li>
+</ol>
+<p>The control channel is TLS; iperf3 flows are authenticated with RSA credentials managed by SYNTRAF. Token values
+are never shown in listings, logs or API responses.</p>
+<div class="warn">The web interface has no login of its own: expose port 5000 only to administrators (VPN,
+reverse proxy with authentication, firewall).</div>
+
+<h2 id="nat">8. Clients behind a NAT</h2>
+<p>A client that cannot receive connections (NAT, CGNAT, firewall) is declared <strong>Behind a NAT</strong>
+(<code>BEHIND_NAT = true</code>). It then opens no port: it starts iperf3 in <code>--bidir</code> mode towards each
+peer, and the same session measures both directions. Every flow stays measured.</p>
+<ul>
+  <li>Two clients behind a NAT cannot measure each other (no flow between them). A hub &amp; spoke with a reachable
+    hub suits sites behind NATs.</li>
+  <li>To keep the NAT mapping of the return stream open, the client sends an empty UDP datagram from the return
+    stream's port to the peer every 15 seconds (raw socket: Linux with root or <code>CAP_NET_RAW</code>; elsewhere a
+    single warning is logged and the mapping relies on the traffic itself).</li>
+  <li>Detection: clients send their local addresses when they connect. If the server sees another address, the
+    client is flagged <em>NAT detected</em> on the Clients page.</li>
+</ul>
+
+<h2 id="rename">9. Renaming a client</h2>
+<p><em>Clients → Rename…</em> (or <code>POST /api/v1/config/clients/{uid}/rename</code>):</p>
+<ul>
+  <li>the configuration follows (hubs of mesh groups, forced addresses of the other clients);</li>
+  <li>the client receives its new name, saves it next to its configuration and reconnects. If it is offline, its old
+    name stays recognized (<code>PREVIOUS_UIDS</code>, same key and token rules) and it is renamed at its next
+    connection;</li>
+  <li>its <strong>history follows</strong>: in VictoriaMetrics, every series where it appears (sender, receiver, hub)
+    is rewritten under the new name in the background, hour by hour and in batches of at most 1 MB, then the old
+    series are deleted; a second pass catches measurements sent late. The result is in the audit log.</li>
+</ul>
+
+<h2 id="logging">10. Logs, retention, syslog &amp; CEF</h2>
+<h3>Collection and retention</h3>
+<ul>
+  <li>Clients forward their logs to the server (level <code>LOG_FORWARD_LEVEL</code>), stored under
+    <code>LOGDIR/clients/&lt;name&gt;/</code>. A client buffers them while disconnected (bounded; dropped lines are
+    counted).</li>
+  <li>Each node keeps at most <code>LOG_FILE_TO_KEEP</code> × <code>LOG_MAX_SIZE_PER_FILE_MB</code>; files older than
+    <code>LOG_RETENTION_DAYS</code> are removed.</li>
+  <li>Timestamps carry their UTC offset; the web interface shows them in your time zone.</li>
+</ul>
+<h3>Forwarding to syslog (SIEM)</h3>
+<figure><img src="img/syslog.png" alt="Syslog forwarding"><figcaption>Server page, Syslog forwarding.</figcaption></figure>
+<table>
+  <tr><th>Setting</th><th>Values</th></tr>
+  <tr><td>Collector, port</td><td>host or IP; 514 (6514 with TLS) by default; empty host disables forwarding</td></tr>
+  <tr><td>Transport</td><td>UDP (RFC 5426), TCP (RFC 6587, octet counting), TLS (RFC 5425; system CAs or a PEM file;
+    certificate verification can be disabled)</td></tr>
+  <tr><td>Format</td><td>Syslog RFC 5424, or CEF (ArcSight) inside a syslog header</td></tr>
+  <tr><td>Minimum level, facility</td><td>DEBUG…CRITICAL; local0–local7, user, daemon, auth, syslog</td></tr>
+  <tr><td>Include client logs</td><td>the client is then the syslog host</td></tr>
+</table>
+<pre><code>&lt;132&gt;1 2026-11-21T18:45:00.123-05:00 PARIS_01 syntraf - control - st_mesh (handle,1008) - SOCKET TIMEOUT: 10.0.0.2
+&lt;132&gt;1 2026-11-21T18:45:00.123-05:00 PARIS_01 syntraf - - - CEF:0|SYNTRAF|SYNTRAF|0.45|control|SOCKET TIMEOUT: 10.0.0.2|6|rt=1795304700123 dvchost=PARIS_01 cs1Label=module cs1=st_mesh (handle,1008) cs2Label=level cs2=WARNING msg=SOCKET TIMEOUT: 10.0.0.2</code></pre>
+<p>Messages are sent from a bounded queue: an unreachable collector never slows SYNTRAF. The status shows sent and
+dropped messages and the last error; <em>Send a test message</em> checks the path.</p>
+
+<h2 id="updates">11. Remote updates</h2>
+<ul>
+  <li>The server ships its own code as a <strong>built-in release</strong> (id <code>version+digest</code>), optionally
+    with a wheelhouse of Python packages.</li>
+  <li><em>Updates</em> → select clients → <em>Update selected</em>: each client downloads the release over the control
+    channel, installs it beside its current version (<code>releases/&lt;id&gt;/</code>), switches and restarts.</li>
+  <li>The new version must reconnect and receive its configuration; otherwise the supervisor rolls back to the
+    previous one (after 3 attempts or 10 minutes). A rolled-back release is not retried unless forced.</li>
+  <li>Recommended: update one client first, then the others.</li>
+</ul>
+
+<h2 id="databases">12. Databases &amp; metrics</h2>
+<table>
+  <tr><th>Metric</th><th>Meaning</th></tr>
+  <tr><td><code>SYNTRAF_RX_PCT_LOSS</code></td><td>Lost packets (%) measured by the receiver, per interval</td></tr>
+  <tr><td><code>SYNTRAF_RX_JITTER</code></td><td>Jitter (ms)</td></tr>
+  <tr><td><code>SYNTRAF_RX_BITRATE</code></td><td>Received bitrate (kbit/s)</td></tr>
+  <tr><td><code>SYNTRAF_RX_PACKET_LOSS</code>, <code>SYNTRAF_RX_PACKET_TOTAL</code></td><td>Lost and total packets</td></tr>
+  <tr><td><code>SYNTRAF_FLOW_EXPECTED</code></td><td>Flows the configuration makes measure (labels <code>TOPOLOGY</code>,
+    <code>CLIENT_ROLE</code>, <code>SERVER_ROLE</code>), published every 30 s and after each change</td></tr>
+  <tr><td><code>SYNTRAF_GROUP_*</code></td><td>Parameters in force of each mesh group: <code>INFO</code> (labels:
+    topology, hubs, profile, bandwidth, DSCP, packet size, interval, packets/s, members, flows),
+    <code>BANDWIDTH_KBPS</code>, <code>PPS</code>, <code>PACKET_SIZE</code>, <code>DSCP</code>, <code>INTERVAL</code>,
+    <code>FLOWS</code>, <code>MEMBERS</code></td></tr>
+  <tr><td><code>SYNTRAF_CONFIG_CHANGE</code></td><td>Configuration changes (from the audit log), for annotations</td></tr>
+</table>
+<p>Labels: <code>MESH_GROUP</code>, <code>CLIENT</code> (sender), <code>SERVER</code> (receiver), <code>UID</code>
+(flow). SYNTRAF does not measure latency: iperf3 UDP reports loss, jitter and throughput.</p>
+
+<h2 id="grafana">13. Grafana dashboards</h2>
+<figure><img src="img/grafana.png" alt="Grafana"><figcaption>Group parameters on top; silence per expected flow; loss,
+bitrate (with the expected bitrate dashed), jitter, lost packets.</figcaption></figure>
+<p>Three dashboards are generated by <code>lab/grafana/build_dashboards.py</code> (VictoriaMetrics data source):</p>
+<ul>
+  <li><strong>Mesh measurements</strong>: time series per flow;</li>
+  <li><strong>Source × destination matrix</strong>: current loss, silence, jitter, bitrate, lost packets;</li>
+  <li><strong>Hub topologies</strong>: spokes × hubs, the link between the hubs, average per hub.</li>
+</ul>
+<p>Only the flows the configuration currently makes measure are shown: a flow removed by a topology change
+disappears instead of looking like an outage, and an expected flow without any measurement shows <em>no data</em>
+in red. Configuration changes are annotations.</p>
+
+<h2 id="config">14. Configuration reference</h2>
+<p>TOML file, read at startup and edited by the web interface (which keeps versions in
+<code>config.toml.history/</code> and the audit log in <code>config.toml.audit.jsonl</code>).</p>
+
+<h3>[GLOBAL] — server and client</h3>
+<table>
+  <tr><th>Key</th><th>Description</th><th>Default</th></tr>
+  <tr><td><code>IPERF3_BINARY_PATH</code></td><td>Path of iperf3, or <code>DISABLE</code> (a server running no iperf3)</td><td>found in PATH</td></tr>
+  <tr><td><code>IPERF3_RSA_KEY_DIRECTORY</code></td><td>RSA key pair and credentials for iperf3 authentication</td><td><code>crypto/rsa_key_iperf3</code></td></tr>
+  <tr><td><code>IPERF3_TIME_SKEW_THRESHOLD</code></td><td>Clock difference (s) tolerated by iperf3 authentication; the server passes it to the clients</td><td>10</td></tr>
+  <tr><td><code>IPERF3_AUTH</code></td><td>iperf3 authentication (true/false)</td><td>true</td></tr>
+  <tr><td><code>WATCHDOG_CHECK_RATE</code></td><td>Seconds between two checks of the threads</td><td>—</td></tr>
+  <tr><td><code>LOG_TO</code></td><td><code>stdout</code>, <code>file</code> or <code>all</code></td><td>file</td></tr>
+  <tr><td><code>LOG_LEVEL</code></td><td>DEBUG, INFO, WARNING, ERROR, CRITICAL</td><td>INFO</td></tr>
+  <tr><td><code>LOG_MAX_SIZE_PER_FILE_MB</code>, <code>LOG_FILE_TO_KEEP</code></td><td>Rotation of the log files</td><td>10, 5</td></tr>
+  <tr><td><code>LOG_RETENTION_DAYS</code></td><td>Age limit of the log files (empty: none)</td><td>—</td></tr>
+  <tr><td><code>LOG_FORWARD_LEVEL</code></td><td>Level of the logs clients forward to the server</td><td>INFO</td></tr>
+  <tr><td><code>LOG_PURGE_ON_START</code></td><td>Delete the logs at startup</td><td>false</td></tr>
+  <tr><td><code>SYSLOG_HOST</code>, <code>SYSLOG_PORT</code>, <code>SYSLOG_PROTOCOL</code>, <code>SYSLOG_FORMAT</code>,
+    <code>SYSLOG_LEVEL</code>, <code>SYSLOG_FACILITY</code>, <code>SYSLOG_INCLUDE_CLIENTS</code>,
+    <code>SYSLOG_TLS_CA</code>, <code>SYSLOG_TLS_VERIFY</code></td><td>Syslog forwarding (server); see <a href="#logging">Logs</a></td><td>disabled</td></tr>
+</table>
+
+<h3>[SERVER]</h3>
+<table>
+  <tr><th>Key</th><th>Description</th><th>Default</th></tr>
+  <tr><td><code>BIND_ADDRESS</code>, <code>SERVER_PORT</code></td><td>Control channel</td><td>—, 6531</td></tr>
+  <tr><td><code>TOKEN</code></td><td>Shared enrollment tokens: <code>{ name = "value", ... }</code></td><td>—</td></tr>
+  <tr><td><code>MESH_LISTENERS_PORT_RANGE</code></td><td>Ports of the clients' iperf3 listeners</td><td>15000-16000</td></tr>
+  <tr><td><code>SERVER_X509_CERTIFICATE</code>, <code>SERVER_X509_PRIVATE_KEY</code></td><td>TLS certificate of the control channel (empty: self-signed)</td><td>—</td></tr>
+  <tr><td><code>MAX_FLOWS_PER_CLIENT</code>, <code>MAX_TOTAL_FLOWS</code>, <code>FLOW_ALERT_ADDED</code>, <code>FLOW_ALERT_RATIO</code></td><td>Capacity guardrails</td><td>50, 2000, 100, 2.0</td></tr>
+</table>
+
+<h3>[[MESH_GROUP]]</h3>
+<table>
+  <tr><th>Key</th><th>Description</th></tr>
+  <tr><td><code>UID</code>, <code>DESCRIPTION</code></td><td>Name (4–50 characters: letters, digits, <code>_</code>, <code>-</code>) and description</td></tr>
+  <tr><td><code>TOPOLOGY</code>, <code>HUBS</code></td><td><code>MESH</code>, <code>HUB_SPOKE</code> (one hub) or <code>DUAL_HUB</code> (two hubs)</td></tr>
+  <tr><td><code>IPERF3_PROFILE</code></td><td>Profile whose values take priority</td></tr>
+  <tr><td><code>BANDWIDTH</code></td><td>Per flow and direction, e.g. <code>100K</code>, <code>1.5M</code></td></tr>
+  <tr><td><code>DSCP</code></td><td>0–63 (RFC 2474)</td></tr>
+  <tr><td><code>PACKET_SIZE</code></td><td>UDP payload, 16–65507 bytes</td></tr>
+  <tr><td><code>INTERVAL</code></td><td>Reporting interval, 1–60 s (the graph resolution)</td></tr>
+  <tr><td><code>DISABLED</code></td><td>true: members stop measuring this group</td></tr>
+</table>
+
+<h3>[[IPERF3_PROFILE]]</h3>
+<p><code>UID</code>, <code>DESCRIPTION</code>, and any of <code>BANDWIDTH</code>, <code>DSCP</code>,
+<code>PACKET_SIZE</code>, <code>INTERVAL</code> (at least one).</p>
+
+<h3>[[SERVER_CLIENT]]</h3>
+<table>
+  <tr><th>Key</th><th>Description</th></tr>
+  <tr><td><code>UID</code></td><td>Name the client announces</td></tr>
+  <tr><td><code>IP_ADDRESS</code></td><td>IP or host name; <code>0.0.0.0</code> for a dynamic address</td></tr>
+  <tr><td><code>MESH_GROUP_UID_LIST</code></td><td>Mesh groups, e.g. <code>["WAN", "VOICE"]</code></td></tr>
+  <tr><td><code>BEHIND_NAT</code></td><td>true: opens no port, measures both directions itself</td></tr>
+  <tr><td><code>MAX_BANDWIDTH</code></td><td>Maximum outgoing bandwidth; changes exceeding it are refused</td></tr>
+  <tr><td><code>MESH_LISTENERS_PORT_RANGE</code></td><td>Overrides the server range for this client</td></tr>
+  <tr><td><code>EXCLUDED_CLIENT_UID</code>, <code>INCLUDE_ONLY_CLIENT_UID</code></td><td>Per group, exclude or restrict pairs: <code>{ WAN = ["OTHER_UID"] }</code></td></tr>
+  <tr><td><code>OVERRIDE_DST_NODE_IP</code></td><td>Address to use to reach another client: <code>{ OTHER_UID = "203.0.113.5" }</code></td></tr>
+  <tr><td><code>PUBLIC_KEY_SHA256</code>, <code>TOKEN</code>, <code>PREVIOUS_UIDS</code></td><td>Managed by SYNTRAF (pinned key, own token, former names)</td></tr>
+</table>
+
+<h3>[[DATABASE]]</h3>
+<table>
+  <tr><th>Key</th><th>Description</th></tr>
+  <tr><td><code>DB_UID</code>, <code>DB_ENGINE</code></td><td>Name; <code>VictoriaMetrics</code> or <code>InfluxDB2</code></td></tr>
+  <tr><td><code>DB_SERVER</code>, <code>DB_PORT</code>, <code>DB_SERVER_USE_SSL</code></td><td>Address and TLS</td></tr>
+  <tr><td><code>DB_ORG</code>, <code>DB_BUCKET</code>, <code>DB_TOKEN</code></td><td>InfluxDB 2 (token optional for VictoriaMetrics)</td></tr>
+  <tr><td><code>DB_USE_WEB_PROXY</code>, <code>DB_CONNECTION_POOL_MAXSIZE</code></td><td>Proxy URL; connection pool size</td></tr>
+  <tr><td><code>DB_RETENTION</code></td><td>Target retention, e.g. <code>30d</code>, <code>12w</code>, <code>1y</code> (compared on the Data page)</td></tr>
+</table>
+
+<h3>[CLIENT]</h3>
+<table>
+  <tr><th>Key</th><th>Description</th><th>Default</th></tr>
+  <tr><td><code>CLIENT_UID</code></td><td>Name (replaced by the one the server gives when it renames the client)</td><td>—</td></tr>
+  <tr><td><code>SERVER</code>, <code>SERVER_PORT</code></td><td>Server address and control port</td><td>—, 6531</td></tr>
+  <tr><td><code>TOKEN</code></td><td>Shared enrollment token (5–255 characters)</td><td>—</td></tr>
+</table>
+
+<h2 id="api">15. REST API</h2>
+<p>JSON over HTTP on the web interface's port, base <code>/api/v1</code>. The OpenAPI description is at
+<code>/api/v1/openapi.json</code>. Every write accepts <code>?dry_run=1</code> (preview: diff, affected clients,
+impact, settings needing a restart). A change that triggers a capacity alert answers HTTP 428 until repeated with
+<code>?confirm=1</code>; a refused change answers 400 (with <code>fields</code>), 404, 409 or 422.</p>
+<table>
+  <tr><th>Resource</th><th>Endpoints</th></tr>
+  <tr><td>Status</td><td><code>GET /status</code>, <code>GET /events</code> (SSE), <code>GET /clients</code>, <code>GET /databases</code>, <code>GET /healthz</code>, <code>GET /metrics</code></td></tr>
+  <tr><td>Mesh groups</td><td><code>GET|POST /mesh-groups</code>, <code>GET|PUT|PATCH|DELETE /mesh-groups/{uid}</code>, <code>POST /mesh-groups/{uid}/duplicate</code></td></tr>
+  <tr><td>Profiles</td><td><code>GET|POST /config/profiles</code>, <code>GET|PUT|DELETE /config/profiles/{uid}</code></td></tr>
+  <tr><td>Clients</td><td><code>GET|POST /config/clients</code>, <code>GET|PUT|DELETE /config/clients/{uid}</code>, <code>POST /config/clients/{uid}/secure|rotate-token|rename</code></td></tr>
+  <tr><td>Enrollment</td><td><code>GET /clients/pending</code>, <code>POST /clients/pending/{uid}/approve|reject</code>, <code>DELETE /clients/rejected/{uid}</code></td></tr>
+  <tr><td>Databases</td><td><code>GET|POST /config/databases</code>, <code>POST /config/databases/test</code>, <code>GET|PUT|DELETE /config/databases/{uid}</code></td></tr>
+  <tr><td>Server</td><td><code>GET|PUT /config/server</code>, <code>GET|PUT /config/global</code>, <code>POST /server/restart</code></td></tr>
+  <tr><td>Logs</td><td><code>GET|PUT /config/logging</code>, <code>GET|PUT /config/syslog</code>, <code>POST /logging/syslog/test</code>, <code>GET /logs/search</code>, <code>GET /logs/nodes</code>, <code>GET /logs</code>, <code>GET /logs/{name}</code></td></tr>
+  <tr><td>Tokens</td><td><code>GET|POST /config/tokens</code>, <code>DELETE /config/tokens/{name}</code>, <code>POST /config/tokens/{name}/reveal</code></td></tr>
+  <tr><td>Audit &amp; versions</td><td><code>GET /audit</code>, <code>GET /config/versions</code>, <code>GET /config/versions/{v}</code>, <code>GET /config/versions/{v}/diff</code>, <code>POST /config/versions/{v}/restore</code></td></tr>
+  <tr><td>Updates</td><td><code>GET|POST /updates</code></td></tr>
+  <tr><td>Data</td><td><code>GET /data</code>, <code>POST /data/{uid}/purge</code>, <code>POST /data/{uid}/snapshots</code>, <code>DELETE /data/{uid}/snapshots/{name}</code></td></tr>
+</table>
+<pre><code># preview, then create a mesh group
+curl -s -X POST "http://server:5000/api/v1/mesh-groups?dry_run=1" -H "Content-Type: application/json" \
+     -d '{"UID":"VOICE","TOPOLOGY":"HUB_SPOKE","HUBS":["PARIS_01"],"IPERF3_PROFILE":"G711"}'
+curl -s -X POST "http://server:5000/api/v1/mesh-groups" -H "Content-Type: application/json" \
+     -d '{"UID":"VOICE","TOPOLOGY":"HUB_SPOKE","HUBS":["PARIS_01"],"IPERF3_PROFILE":"G711"}'</code></pre>
+
+<h2 id="lab">16. The test lab</h2>
+<p><code>lab/</code> runs a complete SYNTRAF in Docker: server, four clients, VictoriaMetrics and Grafana, plus a
+satellite site (<code>STARLINK</code>, client <code>c4</code>) behind a NAT router with added latency, jitter and loss.</p>
+<pre><code>python lab/labctl.py bootstrap         # Python environment of the lab tools
+lab/start-lab.ps1                      # or: docker compose -f lab/docker-compose.yml --env-file lab/config/lab.env up -d
+python lab/labctl.py status
+python lab/labctl.py degrade c2 --delay 200 --jitter 20 --loss 10 [--to c3]
+python lab/labctl.py cut c3 --mode drop|disconnect|pause [--for 60]
+python lab/labctl.py heal --all</code></pre>
+<p>Web interface <code>http://127.0.0.1:18080</code>, Grafana <code>http://127.0.0.1:18300</code>. Tests:
+<code>pytest lab/tests</code> (unit, from <code>lab/.venv</code>), the Docker-based scenarios, and the browser
+end-to-end test <code>lab/e2e/webui_e2e.js</code>. Details in <code>lab/README.md</code>.</p>
+
+<h2 id="troubleshooting">17. Troubleshooting</h2>
+<table>
+  <tr><th>Symptom</th><th>Cause and fix</th></tr>
+  <tr><td><code>IPERF3: ERROR - TEST AUTHORIZATION FAILED</code></td><td>Clock skew above the threshold (synchronize the clocks, or raise
+    <em>Clock skew tolerated</em>); rarely an RSA key problem.</td></tr>
+  <tr><td>A client stays <em>waiting for approval</em></td><td>Approve it on the Clients page, or declare its name.</td></tr>
+  <tr><td><em>KEY MISMATCH</em> in the logs</td><td>The client was reinstalled: approve its new key (Clients → waiting).</td></tr>
+  <tr><td>Expected flow shows <em>no data</em></td><td>The receiver reports nothing: check the client state, its firewall (listener ports),
+    or declare it behind a NAT.</td></tr>
+  <tr><td>A change is refused with 409/428</td><td>Capacity guardrails: reduce the group, choose a hub topology, or confirm.</td></tr>
+  <tr><td>Losses appear on every flow at once</td><td>Usually the measuring host (CPU, clock jumps) rather than the network: check the
+    host's load and time synchronization.</td></tr>
+  <tr><td>Syslog status shows an error</td><td>Check collector address, port, transport; with TLS, the CA file or verification.</td></tr>
+</table>
+<p style="color:var(--muted);margin-top:3rem">SYNTRAF — documentation for version 0.45. Source:
+<a href="https://github.com/lbsou/syntraf">github.com/lbsou/syntraf</a>.</p>
+</main>
+</body>
+</html>

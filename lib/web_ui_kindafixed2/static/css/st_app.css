@@ -39,7 +39,7 @@ body { min-height: 100vh; }
 .st-kpi.st-bad { border-left: 4px solid #e74c3c; }
 
 .st-card { background: #2b2b2b; border: 1px solid #3a3a3a; border-radius: .5rem; padding: 1rem; margin-bottom: 1.5rem; }
-.st-card > h2 { font-size: 1.1rem; margin-bottom: .75rem; }
+.st-card h2:not(.accordion-header) { font-size: 1.1rem; margin-bottom: .75rem; }  /* aussi un titre imbriqué (barre d'outils) */
 
 .st-empty { text-align: center; color: #999; padding: 2rem 1rem; }
 .st-empty i { font-size: 2rem; display: block; margin-bottom: .5rem; color: #666; }
