@@ -134,3 +134,36 @@ def test_restore_reports_restart_only_for_settings_that_need_it(state):
     ops.update_server(state, server_values(SERVER_PORT="7000"), actor="x")
     original = store.versions(state["config_file_path"])[-1]["version"]
     assert ops.restore(state, original, actor="y", dry_run=True)["restart_required"] == ["SERVER.SERVER_PORT"]
+
+
+# ------------------------------------------------------------------------------------------- journalisation
+
+def logging_values(**over):
+    return dict({"LOG_LEVEL": "INFO", "LOG_FORWARD_LEVEL": "INFO", "LOG_MAX_SIZE_PER_FILE_MB": "10",
+                 "LOG_FILE_TO_KEEP": "5", "LOG_RETENTION_DAYS": ""}, **over)
+
+
+def test_logging_settings_have_defaults(state):
+    settings = ops.get_logging(state)
+    assert settings["LOG_FORWARD_LEVEL"] == "INFO" and settings["LOG_RETENTION_DAYS"] == ""
+
+
+def test_forward_level_change_applies_live_and_reconnects_clients(state):
+    result = ops.update_logging(state, logging_values(LOG_FORWARD_LEVEL="WARNING", LOG_RETENTION_DAYS="30"), actor="x")
+    assert state["config"]["GLOBAL"]["LOG_FORWARD_LEVEL"] == "WARNING"
+    assert state["config"]["GLOBAL"]["LOG_RETENTION_DAYS"] == "30"
+    assert result["restart_required"] == [] and result["reconnected_clients"] == ["NODE_A", "NODE_B"]
+
+
+def test_server_log_file_size_needs_a_restart(state):
+    result = ops.update_logging(state, logging_values(LOG_MAX_SIZE_PER_FILE_MB="50"), actor="x")
+    assert result["restart_required"] == ["GLOBAL.LOG_MAX_SIZE_PER_FILE_MB"]
+    assert result["reconnected_clients"] == []
+
+
+def test_logging_settings_are_validated(state):
+    with pytest.raises(ops.OpError) as err:
+        ops.update_logging(state, logging_values(LOG_LEVEL="LOUD", LOG_FORWARD_LEVEL="x", LOG_MAX_SIZE_PER_FILE_MB="0",
+                                                 LOG_FILE_TO_KEEP="abc", LOG_RETENTION_DAYS="-3"), actor="x")
+    assert set(err.value.fields) == {"LOG_LEVEL", "LOG_FORWARD_LEVEL", "LOG_MAX_SIZE_PER_FILE_MB", "LOG_FILE_TO_KEEP",
+                                     "LOG_RETENTION_DAYS"}

@@ -1,95 +1,217 @@
 {% extends "base.html" %}
+{% from "_macros.html" import page_header %}
 {% block title %}Logs{% endblock %}
+{% block head %}
+<style>
+  .st-logtable td { font-family: SFMono-Regular, Consolas, "Liberation Mono", monospace; font-size: .78rem; vertical-align: top; }
+  .st-logtable tr.lv-ERROR td, .st-logtable tr.lv-CRITICAL td { color: #ff7b72; }
+  .st-logtable tr.lv-WARNING td { color: #f0b72f; }
+  .st-logtable tr.lv-DEBUG td { color: #8b949e; }
+  .st-logtable tr.has-detail { cursor: pointer; }
+  .st-logtable pre { white-space: pre-wrap; margin: .25rem 0 0; color: #ccc; }
+  .st-logtable mark { padding: 0 .1em; background: #6e5a00; color: inherit; }
+  .st-filters .form-check { margin-right: .75rem; }
+</style>
+{% endblock %}
 {% block content %}
-<div class="st-page-header">
-    <div>
-        <h1>Logs</h1>
-        <div class="st-subtitle">End of the server log files, filtered on the server side.</div>
-    </div>
-    <div class="st-actions">
-        <a class="btn btn-outline-light btn-sm" id="download" href="#"><i class="fas fa-download me-1"></i>Download file</a>
-    </div>
-</div>
+{{ page_header("Logs", "Server and client logs in one place. Times are shown in your time zone.") }}
 
-<form class="row g-2 align-items-end mb-2" id="filters" role="search" aria-label="Log filters">
-    <div class="col-auto">
-        <label class="form-label small mb-0" for="file">File</label>
-        <select class="form-select form-select-sm" id="file"></select>
+<form class="st-card st-filters" id="filters" role="search" aria-label="Log filters" novalidate>
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <fieldset><legend class="form-label small mb-1">Nodes</legend><div id="f_nodes" class="d-flex flex-wrap"></div></fieldset>
     </div>
-    <div class="col-auto">
-        <label class="form-label small mb-0" for="level">Minimum level</label>
-        <select class="form-select form-select-sm" id="level">
-            <option value="">All</option><option>DEBUG</option><option>INFO</option>
-            <option selected>WARNING</option><option>ERROR</option><option>CRITICAL</option>
-        </select>
+    <div class="col-lg-6">
+      <fieldset><legend class="form-label small mb-1">Types</legend><div id="f_types" class="d-flex flex-wrap"></div></fieldset>
     </div>
-    <div class="col-auto">
-        <label class="form-label small mb-0" for="q">Contains</label>
-        <input class="form-control form-control-sm" id="q" type="search" placeholder="text…">
+    <div class="col-md-5">
+      <label for="f_q" class="form-label small mb-1">Keywords</label>
+      <input type="search" class="form-control form-control-sm" id="f_q" placeholder='disconnected "socket timeout" -pywsgi' aria-describedby="f_q_help">
+      <div id="f_q_help" class="form-text">All words must appear; "quotes" for an exact phrase; -word to exclude.</div>
     </div>
-    <div class="col-auto">
-        <label class="form-label small mb-0" for="lines">Lines</label>
-        <select class="form-select form-select-sm" id="lines"><option>200</option><option selected>500</option><option>2000</option><option>10000</option></select>
+    <div class="col-md-2">
+      <label for="f_level" class="form-label small mb-1">Minimum level</label>
+      <select class="form-select form-select-sm" id="f_level">
+        <option value="">All</option><option>DEBUG</option><option>INFO</option><option selected>WARNING</option><option>ERROR</option><option>CRITICAL</option>
+      </select>
     </div>
-    <div class="col-auto form-check form-switch ms-2 mb-1">
-        <input class="form-check-input" type="checkbox" role="switch" id="follow" checked>
-        <label class="form-check-label small" for="follow">Follow (every 5 s)</label>
+    <div class="col-md-2">
+      <label for="f_since" class="form-label small mb-1">Period</label>
+      <select class="form-select form-select-sm" id="f_since">
+        <option value="15m">Last 15 minutes</option><option value="1h" selected>Last hour</option><option value="6h">Last 6 hours</option>
+        <option value="1d">Last 24 hours</option><option value="7d">Last 7 days</option><option value="">Everything kept</option>
+      </select>
     </div>
-    <div class="col-auto ms-auto small text-white-50" id="meta" aria-live="polite"></div>
+    <div class="col-md-1">
+      <label for="f_limit" class="form-label small mb-1">Max</label>
+      <select class="form-select form-select-sm" id="f_limit"><option>200</option><option selected>1000</option><option>5000</option></select>
+    </div>
+    <div class="col-md-2 d-flex align-items-end gap-2 flex-wrap">
+      <div class="form-check form-switch mb-1">
+        <input class="form-check-input" type="checkbox" role="switch" id="f_follow" checked>
+        <label class="form-check-label small" for="f_follow">Follow</label>
+      </div>
+      <a class="btn btn-sm btn-outline-light" id="export" href="#"><i class="fas fa-download me-1"></i>Export</a>
+    </div>
+  </div>
 </form>
 
-<pre class="st-log" id="log" tabindex="0" aria-label="Log content"></pre>
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <div class="small text-white-50" id="meta" aria-live="polite"></div>
+  <button class="btn btn-sm btn-outline-light" type="button" data-bs-toggle="collapse" data-bs-target="#settings" aria-expanded="false" aria-controls="settings">
+    <i class="fas fa-cog me-1"></i>Retention &amp; levels</button>
+</div>
+
+<section class="st-card collapse" id="settings" aria-label="Logging settings">
+  <form id="settings_form" novalidate>
+    <div class="row g-3">
+      <div class="col-md-2">
+        <label for="l_level" class="form-label small">Server log level <span class="badge bg-success">live</span></label>
+        <select class="form-select form-select-sm" id="l_level" data-field="LOG_LEVEL"></select>
+        <div class="invalid-feedback" data-feedback="LOG_LEVEL"></div>
+      </div>
+      <div class="col-md-2">
+        <label for="l_forward" class="form-label small">Forwarded by clients <span class="badge bg-success">live</span></label>
+        <select class="form-select form-select-sm" id="l_forward" data-field="LOG_FORWARD_LEVEL"></select>
+        <div class="invalid-feedback" data-feedback="LOG_FORWARD_LEVEL"></div>
+      </div>
+      <div class="col-md-3">
+        <label for="l_days" class="form-label small">Keep logs for (days) <span class="badge bg-success">live</span></label>
+        <input class="form-control form-control-sm" id="l_days" data-field="LOG_RETENTION_DAYS" inputmode="numeric" placeholder="no age limit">
+        <div class="invalid-feedback" data-feedback="LOG_RETENTION_DAYS"></div>
+      </div>
+      <div class="col-md-2">
+        <label for="l_size" class="form-label small">File size (MB) <span class="badge bg-secondary" title="For the server's own log; client logs use it live">restart</span></label>
+        <input class="form-control form-control-sm" id="l_size" data-field="LOG_MAX_SIZE_PER_FILE_MB" inputmode="numeric">
+        <div class="invalid-feedback" data-feedback="LOG_MAX_SIZE_PER_FILE_MB"></div>
+      </div>
+      <div class="col-md-2">
+        <label for="l_files" class="form-label small">Files kept <span class="badge bg-secondary" title="For the server's own log; client logs use it live">restart</span></label>
+        <input class="form-control form-control-sm" id="l_files" data-field="LOG_FILE_TO_KEEP" inputmode="numeric">
+        <div class="invalid-feedback" data-feedback="LOG_FILE_TO_KEEP"></div>
+      </div>
+      <div class="col-md-1 d-flex align-items-end"><button type="submit" class="btn btn-sm btn-primary">Save</button></div>
+    </div>
+    <p class="small text-white-50 mt-2 mb-0">Each node keeps at most “files kept” × “file size” of logs; files older than the retention in days are removed. Client logs are stored on this server under the log directory, in clients/&lt;name&gt;/.</p>
+  </form>
+</section>
+
+<div class="table-responsive">
+  <table class="table table-sm st-logtable">
+    <thead><tr><th scope="col" style="width:11rem">Time</th><th scope="col" style="width:7rem">Node</th><th scope="col" style="width:5rem">Level</th>
+      <th scope="col" style="width:7rem">Type</th><th scope="col">Message</th></tr></thead>
+    <tbody id="rows"><tr><td colspan="5" class="st-empty"><span class="spinner-border spinner-border-sm"></span> Loading…</td></tr></tbody>
+  </table>
+</div>
 
 <script>
 const el = id => document.getElementById(id);
-let timer = null;
+let timer = null, debounce = null;
 
-async function loadFiles() {
-    const r = await st.api("GET", "/api/v1/logs");
+function checkboxes(container, name, values, checked) {
+    el(container).innerHTML = values.map((v, i) => `<div class="form-check form-check-inline">
+        <input class="form-check-input" type="checkbox" id="${name}${i}" value="${st.esc(v)}"${checked(v) ? " checked" : ""}>
+        <label class="form-check-label small" for="${name}${i}">${st.esc(v)}</label></div>`).join("");
+}
+const picked = container => [...el(container).querySelectorAll("input:checked")].map(i => i.value);
+
+function params() {
+    const all = (c) => el(c).querySelectorAll("input").length === picked(c).length;
+    const p = new URLSearchParams({level: el("f_level").value, q: el("f_q").value.trim(), since: el("f_since").value,
+                                   limit: el("f_limit").value});
+    if (!all("f_nodes")) p.set("nodes", picked("f_nodes").join(","));
+    if (!all("f_types")) p.set("types", picked("f_types").join(","));
+    return p;
+}
+
+function highlight(text) {
+    let html = st.esc(text);
+    const words = (el("f_q").value.match(/"[^"]+"|\S+/g) || []).filter(w => !w.startsWith("-")).map(w => w.replace(/"/g, ""));
+    for (const w of words) {
+        if (!w) continue;
+        const safe = st.esc(w).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        html = html.replace(new RegExp(`(${safe})`, "gi"), "<mark>$1</mark>");
+    }
+    return html;
+}
+
+async function search() {
+    const p = params();
+    if (el("f_nodes").querySelectorAll("input").length && !picked("f_nodes").length) { render([]); return; }
+    el("export").href = `/api/v1/logs/search?${p}&format=text`;
+    const r = await st.api("GET", `/api/v1/logs/search?${p}`);
     if (!r.ok) { st.toast(r.error.message, "danger"); return; }
-    if (!r.data.length) {
-        el("log").innerHTML = '<div class="st-empty"><i class="fas fa-file-alt"></i>No log file in the log directory (GLOBAL.LOGDIR).</div>';
+    render(r.data);
+}
+
+function render(entries) {
+    el("meta").textContent = `${entries.length} entr${entries.length === 1 ? "y" : "ies"} · updated ${new Date().toLocaleTimeString()}`;
+    if (!entries.length) {
+        el("rows").innerHTML = '<tr><td colspan="5" class="st-empty"><i class="fas fa-filter"></i>No log entry matches these filters for this period.</td></tr>';
         return;
     }
-    el("file").innerHTML = r.data.map(f => `<option value="${st.esc(f.name)}">${st.esc(f.name)} (${Math.round(f.size / 1024)} KiB, ${st.esc(f.modified)})</option>`).join("");
-    loadLog();
+    el("rows").innerHTML = entries.map((e, i) => `<tr class="lv-${e.level}${e.detail ? " has-detail" : ""}" data-i="${i}"${e.detail ? ' tabindex="0" aria-expanded="false"' : ""}>
+        <td class="text-nowrap" title="${st.esc(e.time)}">${st.esc(st.time(e.time))}</td>
+        <td><span class="badge ${e.node === "server" ? "bg-primary" : "bg-secondary"}">${st.esc(e.node)}</span></td>
+        <td>${st.esc(e.level)}</td><td>${st.esc(e.type)}</td>
+        <td>${highlight(e.message)} <span class="text-white-50">· ${st.esc(e.module)}</span>${e.detail ? ' <i class="fas fa-caret-down text-white-50"></i>' : ""}
+            <pre hidden>${highlight(e.detail)}</pre></td></tr>`).join("");
 }
 
-function colorize(text) {
-    return text.split("\n").map(line => {
-        const m = line.match(/ - (DEBUG|INFO|WARNING|ERROR|CRITICAL) - /);
-        return m ? `<span class="lv-${m[1]}">${st.esc(line)}</span>` : st.esc(line);
-    }).join("\n");
+function toggleDetail(row) {
+    const pre = row && row.querySelector("pre");
+    if (!pre) return;
+    pre.hidden = !pre.hidden;
+    row.setAttribute("aria-expanded", String(!pre.hidden));
 }
-
-async function loadLog() {
-    const name = el("file").value;
-    if (!name) return;
-    const params = new URLSearchParams({lines: el("lines").value, level: el("level").value, q: el("q").value.trim()});
-    const base = `/api/v1/logs/${encodeURIComponent(name)}`;
-    el("download").href = base + "?download=1";
-    const r = await st.api("GET", `${base}?${params}`);
-    if (!r.ok) { st.toast(r.error.message, "danger"); return; }
-    const pre = el("log");
-    const atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 20;
-    const text = r.data.replace(/\n$/, "");
-    pre.innerHTML = text ? colorize(text) : '<div class="st-empty"><i class="fas fa-filter"></i>No line matches these filters.</div>';
-    el("meta").textContent = `${text ? text.split("\n").length : 0} line(s) · ${new Date().toLocaleTimeString()}`;
-    if (atBottom) pre.scrollTop = pre.scrollHeight;
-}
+el("rows").addEventListener("click", ev => toggleDetail(ev.target.closest("tr.has-detail")));
+el("rows").addEventListener("keydown", ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); toggleDetail(ev.target.closest("tr.has-detail")); } });
 
 function schedule() {
     clearInterval(timer);
-    if (el("follow").checked) timer = setInterval(loadLog, 5000);
+    if (el("f_follow").checked) timer = setInterval(search, 5000);
 }
 
-let debounce = null;
-el("q").addEventListener("input", () => { clearTimeout(debounce); debounce = setTimeout(loadLog, 400); });
-["file", "level", "lines"].forEach(id => el(id).addEventListener("change", loadLog));
-el("follow").addEventListener("change", schedule);
-el("filters").addEventListener("submit", e => { e.preventDefault(); loadLog(); });
+el("filters").addEventListener("change", e => { if (e.target.id === "f_follow") schedule(); else search(); });
+el("f_q").addEventListener("input", () => { clearTimeout(debounce); debounce = setTimeout(search, 400); });
+el("filters").addEventListener("submit", e => { e.preventDefault(); search(); });
 
-loadFiles();
-schedule();
+// Réglages de rétention et de niveaux
+async function loadSettings(levels) {
+    const r = await st.api("GET", "/api/v1/config/logging");
+    if (!r.ok) return;
+    for (const id of ["l_level", "l_forward"]) el(id).innerHTML = levels.map(l => `<option>${l}</option>`).join("");
+    el("l_level").value = r.data.LOG_LEVEL; el("l_forward").value = r.data.LOG_FORWARD_LEVEL;
+    el("l_days").value = r.data.LOG_RETENTION_DAYS; el("l_size").value = r.data.LOG_MAX_SIZE_PER_FILE_MB;
+    el("l_files").value = r.data.LOG_FILE_TO_KEEP;
+}
+
+el("settings_form").addEventListener("submit", async e => {
+    e.preventDefault();
+    const body = {LOG_LEVEL: el("l_level").value, LOG_FORWARD_LEVEL: el("l_forward").value, LOG_RETENTION_DAYS: el("l_days").value.trim(),
+                  LOG_MAX_SIZE_PER_FILE_MB: el("l_size").value.trim(), LOG_FILE_TO_KEEP: el("l_files").value.trim()};
+    const preview = await st.api("PUT", "/api/v1/config/logging?dry_run=1", body);
+    if (!preview.ok) { st.showFieldErrors(e.target, preview.error.fields); return; }
+    st.showFieldErrors(e.target, {});
+    if (!await st.confirm({title: "Apply the logging settings?", body: st.previewNode(preview.data), confirmText: "Apply"})) return;
+    const r = await st.api("PUT", "/api/v1/config/logging", body);
+    if (!r.ok) { st.toast(r.error.message, "danger"); return; }
+    const restart = r.data.restart_required || [];
+    st.toast(restart.length ? `Saved. Restart the server to apply: ${restart.join(", ")}.` : "Logging settings applied.", restart.length ? "warning" : "success");
+    loadSettings([...el("l_level").options].map(o => o.value));
+});
+
+(async () => {
+    const r = await st.api("GET", "/api/v1/logs/nodes");
+    if (!r.ok) { st.toast(r.error.message, "danger"); return; }
+    if (!r.data.nodes.length) {
+        el("rows").innerHTML = '<tr><td colspan="5" class="st-empty"><i class="fas fa-file-alt"></i>No log yet in the log directory (GLOBAL.LOGDIR).</td></tr>';
+    }
+    checkboxes("f_nodes", "fn", r.data.nodes, () => true);
+    checkboxes("f_types", "ft", r.data.types, t => t !== "webui");  // les accès HTTP de l'interface noient le reste
+    loadSettings(r.data.levels);
+    search();
+    schedule();
+})();
 </script>
 {% endblock %}

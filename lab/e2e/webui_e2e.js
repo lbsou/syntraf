@@ -229,8 +229,14 @@ async function selectRow(page, uid) {
     const clients = await page.$eval("#kpi-clients .st-kpi-value", el => el.textContent);
     check(/^\d+ \/ \d+$/.test(clients), `dashboard is live, clients connected: ${clients}`);
     await page.goto(BASE + "/log_viewer.html", {waitUntil: "domcontentloaded"});
-    await page.waitForFunction(() => document.getElementById("meta").textContent.includes("line"), {timeout: 15000});
-    check(true, "log viewer shows " + await page.$eval("#meta", el => el.textContent));
+    await page.waitForFunction(() => document.getElementById("meta").textContent.includes("entr"), {timeout: 15000});
+    const nodes = await page.$$eval("#f_nodes input", els => els.map(e => e.value));
+    check(nodes.includes("server") && nodes.length >= 2, `log viewer lists the server and the clients: ${nodes.join(", ")}`);
+    await page.select("#f_level", "");
+    await page.select("#f_since", "1d");
+    await page.waitForFunction(() => document.querySelectorAll("#rows tr[data-i]").length > 0, {timeout: 15000});
+    const clientRows = await page.$$eval("#rows tr[data-i] .badge.bg-secondary", els => els.length);
+    check(clientRows > 0, "log viewer shows " + await page.$eval("#meta", el => el.textContent) + `, ${clientRows} from clients`);
 
     await browser.close();
     console.log(failures.length ? `\n${failures.length} FAILURE(S)` : "\nALL CHECKS PASSED");

@@ -149,7 +149,7 @@ def test_restore_flags_sections_that_need_a_restart(state):
     path = state["config_file_path"]
     store.save(path, dict(disk(state), GLOBAL={"LOGDIR": "/elsewhere"}), "x", "TEST", "global changed")
     original = store.versions(path)[-1]["version"]
-    assert ops.restore(state, original, actor="y", dry_run=True)["restart_required"] == ["GLOBAL"]
+    assert ops.restore(state, original, actor="y", dry_run=True)["restart_required"] == ["GLOBAL.LOGDIR"]
 
 
 def test_list_groups_counts_members_and_bandwidth_per_node(state):

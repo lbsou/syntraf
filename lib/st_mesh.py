@@ -10,6 +10,7 @@ from lib.st_cc_commands import queue_client_ip_update, next_command, dynamic_cli
 from lib.st_sockutil import recv_exact
 from lib.st_config_diff import edges_to_restart, reuse_keys
 from lib.st_iperf3_credentials import load_or_create
+from lib import st_log_forward, st_log_store
 
 from tabulate import tabulate
 # SYNTRAF SERVER IMPORT
@@ -391,6 +392,16 @@ def client_send_system_stats(ssl_conn, obj_stats, dict_data_to_send_to_server=No
         raise exc
 
 
+def client_send_logs(ssl_conn):
+    """Envoie au serveur les lignes de journal en attente (voir st_log_forward), par lots."""
+    handler = st_log_forward.HANDLER
+    if handler is None:
+        return
+    lines, dropped = handler.drain()
+    if lines or dropped:
+        sock_send(ssl_conn, {"LINES": lines, "DROPPED": dropped}, "SAVE_LOGS")
+
+
 def client_awaiting_command(ssl_conn):
     try:
         # We give the chance to the server to send us an action
@@ -544,6 +555,8 @@ def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processe
 
             client_send_system_stats(ssl_conn, obj_stats, dict_data_to_send_to_server)
 
+            client_send_logs(ssl_conn)
+
             received_data = client_awaiting_command(ssl_conn)
 
             if not received_data is None:
@@ -684,7 +697,8 @@ def send_config(dict_by_node_generated_config, client_uid, sckt, _config):
                             "IPERF3_PASSWORD": _config['SERVER']['IPERF3_PASSWORD'],
                             "IPERF3_PASSWORD_HASH": _config['SERVER']['IPERF3_PASSWORD_HASH']}
                         dict_by_node_generated_config[server_client['UID']]['GLOBAL'] = {
-                            "IPERF3_TIME_SKEW_THRESHOLD": _config['GLOBAL']['IPERF3_TIME_SKEW_THRESHOLD']}
+                            "IPERF3_TIME_SKEW_THRESHOLD": _config['GLOBAL']['IPERF3_TIME_SKEW_THRESHOLD'],
+                            "LOG_FORWARD_LEVEL": _config['GLOBAL'].get('LOG_FORWARD_LEVEL', st_log_forward.DEFAULT_LEVEL)}
                         sock_send(sckt, dict_by_node_generated_config[server_client['UID']], "NEWCONFIG")
                         bool_we_have_config_for_this_client = True
     except Exception as exc:
@@ -850,6 +864,28 @@ def server_save_stats_metric(obj_client, received_data):
         (received_data['PAYLOAD']['timestamp'], received_data['PAYLOAD']['cpu_pct_usage']))
 
 
+_LAST_LOG_PURGE = [0.0]
+
+
+def server_save_logs(_config, client_uid, received_data):
+    """Écrit les lignes de journal reçues d'un client sous LOGDIR/clients/<UID>/ (rotation comme les journaux du
+    serveur) ; au plus une fois par heure, supprime les fichiers plus vieux que LOG_RETENTION_DAYS."""
+    g = _config.get('GLOBAL', {})
+    try:
+        max_bytes = int(g.get('LOG_MAX_SIZE_PER_FILE_MB', DefaultValues.DEFAULT_LOG_MAX_SIZE_PER_FILE_MB)) * 1024 * 1024
+        backups = int(g.get('LOG_FILE_TO_KEEP', DefaultValues.DEFAULT_LOG_FILE_TO_KEEP))
+        payload = received_data.get('PAYLOAD') or {}
+        st_log_store.append(g.get('LOGDIR', ''), client_uid, payload.get('LINES') or [], int(payload.get('DROPPED') or 0),
+                            max_bytes, backups)
+        if g.get('LOG_RETENTION_DAYS') and time.time() - _LAST_LOG_PURGE[0] > 3600:
+            _LAST_LOG_PURGE[0] = time.time()
+            removed = st_log_store.purge_older_than(g.get('LOGDIR', ''), int(g['LOG_RETENTION_DAYS']))
+            if removed:
+                server_log.info(f"LOG RETENTION: {len(removed)} FILE(S) OLDER THAN {g['LOG_RETENTION_DAYS']} DAYS REMOVED")
+    except Exception as exc:
+        server_log.error(f"server_save_logs:{type(exc).__name__}:{exc}")
+
+
 def server_awaiting_commands(client_uid, dict_of_commands_for_network_clients, sckt):
     """
     Read a dictionary of pending command and send them to the client
@@ -1002,6 +1038,9 @@ class Handler(StreamRequestHandler):
                         elif received_data['COMMAND'] == "AWAITING_COMMAND":
                             server_awaiting_commands(dict_of_clients[uid].client_uid, dict_of_commands_for_network_clients,
                                                      sckt)
+
+                        elif received_data['COMMAND'] == "SAVE_LOGS":
+                            server_save_logs(_config, dict_of_clients[uid].client_uid, received_data)
 
                         elif received_data['COMMAND'] == "HEARTBEAT":
                             pass
@@ -1322,6 +1361,9 @@ def update_config(data, _config):
     _config['CLIENT']['IPERF3_PASSWORD'] = data['PAYLOAD']['CLIENT']['IPERF3_PASSWORD']
     _config['CLIENT']['IPERF3_HASH'] = data['PAYLOAD']['CLIENT']['IPERF3_PASSWORD_HASH']
     _config['GLOBAL']['IPERF3_TIME_SKEW_THRESHOLD'] = data['PAYLOAD']['GLOBAL']['IPERF3_TIME_SKEW_THRESHOLD']
+    # Journaux transmis au serveur, à partir du niveau qu'il demande (absent : serveur d'une version antérieure)
+    if data['PAYLOAD']['GLOBAL'].get('LOG_FORWARD_LEVEL'):
+        st_log_forward.install(data['PAYLOAD']['GLOBAL']['LOG_FORWARD_LEVEL'])
     _config.update(new_config)
 
 

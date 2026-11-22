@@ -169,7 +169,7 @@ def conf_logging(name, log_file, level, level_int, logto, logmaxsizeperfile, log
     log_dict_config['formatters'] = {
         f'formatter_for_{name}': {
             'format': ' %(asctime)s - %(levelname)s - ' + '%(module)s (%(funcName)s,%(lineno)d) - %(message)s',
-            'datefmt': '%Y-%m-%d %H:%M:%S'}
+            'datefmt': '%Y-%m-%d %H:%M:%S%z'}  # avec le décalage : l'heure se lit sans ambiguïté (serveur en UTC)
     }
     log_dict_config['handlers'] = {
         f'console_for_{name}': {

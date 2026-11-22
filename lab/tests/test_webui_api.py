@@ -292,3 +292,23 @@ def test_server_settings_and_tokens_api(env):
     assert c.post("/api/v1/config/tokens/site_b/reveal").json["token"] == created.json["token"]
     assert c.get("/api/v1/audit").json[0]["action"] == "REVEAL_TOKEN"
     assert c.delete("/api/v1/config/tokens/site_b").status_code == 200
+
+
+def test_log_search_and_logging_settings_api(env):
+    c = env["client"]
+    logdir = Path(env["app"].config["config"]["GLOBAL"]["LOGDIR"])
+    client_dir = logdir / "clients" / "NODE_A"
+    client_dir.mkdir(parents=True)
+    (client_dir / "syntraf.log").write_text(" 2026-11-21 18:50:00-0500 - WARNING - st_outage (record,1) - OUTAGE A\n")
+    assert c.get("/api/v1/logs/nodes").json["nodes"] == ["server", "NODE_A"]
+    found = c.get("/api/v1/logs/search?nodes=NODE_A&level=WARNING&q=outage").json
+    assert [(e["node"], e["type"], e["time"]) for e in found] == [("NODE_A", "measurement", "2026-11-21T23:50:00+00:00")]
+    assert len(c.get("/api/v1/logs/search?types=control").json) == 0
+    text = c.get("/api/v1/logs/search?format=text&nodes=NODE_A").get_data(as_text=True)
+    assert "[NODE_A] WARNING st_outage" in text
+    assert c.get("/api/v1/logs/search?since=yesterday").status_code == 400
+    r = c.put("/api/v1/config/logging", json={"LOG_LEVEL": "INFO", "LOG_FORWARD_LEVEL": "WARNING",
+                                              "LOG_MAX_SIZE_PER_FILE_MB": "10", "LOG_FILE_TO_KEEP": "5",
+                                              "LOG_RETENTION_DAYS": "30"})
+    assert r.status_code == 200 and r.json["restart_required"] == []
+    assert c.get("/api/v1/config/logging").json["LOG_RETENTION_DAYS"] == "30"

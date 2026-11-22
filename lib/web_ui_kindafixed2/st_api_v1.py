@@ -5,14 +5,17 @@ Toute requête qui modifie la configuration accepte ?dry_run=1 : rien n'est écr
 fichier et les clients qui se reconnecteraient.
 """
 import collections
+import datetime as dt
 import json
 import os
+import re
 import time
 
 from flask import Blueprint, Response, current_app, jsonify, request, send_file
 
 from lib import st_config_store as store
 from lib import st_mesh_group_ops as ops
+from lib import st_log_search
 from lib.web_ui_kindafixed2 import st_status
 from lib.st_vm_admin import VmAdmin, VmError
 
@@ -395,6 +398,62 @@ def log_files():
     return logdir, sorted(f for f in os.listdir(logdir) if os.path.isfile(os.path.join(logdir, f)))
 
 
+@st_api_v1.get("/config/logging")
+def get_logging_config():
+    return jsonify(ops.get_logging(_state()))
+
+
+@st_api_v1.put("/config/logging")
+def update_logging_config():
+    return jsonify(ops.update_logging(_state(), _body(), _actor(), _dry_run()))
+
+
+@st_api_v1.get("/logs/nodes")
+def log_nodes():
+    logdir, _ = log_files()
+    return jsonify({"nodes": st_log_search.nodes(logdir) if logdir else [], "types": list(st_log_search.TYPES),
+                    "levels": list(st_log_search.LEVELS)})
+
+
+_RELATIVE = re.compile(r"^(\d+)([mhd])$")
+
+
+def _when(value):
+    """« 15m », « 6h », « 2d » (avant maintenant) ou une date ISO ; None si vide."""
+    value = (value or "").strip()
+    if not value:
+        return None
+    m = _RELATIVE.match(value)
+    if m:
+        seconds = int(m.group(1)) * {"m": 60, "h": 3600, "d": 86400}[m.group(2)]
+        return dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=seconds)
+    try:
+        t = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return t if t.tzinfo else t.astimezone()
+    except ValueError:
+        raise ops.OpError(400, f"Invalid time '{value}' (use 15m, 6h, 2d or an ISO date)")
+
+
+@st_api_v1.get("/logs/search")
+def log_search():
+    """Journaux du serveur et des clients, filtrés : nodes, types (séparés par des virgules), level (minimum),
+    q (mots, "expression", -exclu), since / until (15m, 6h, 2d ou ISO), limit ; format=text pour l'export."""
+    logdir, _ = log_files()
+    if not logdir:
+        return jsonify([])
+    split = lambda name: [x for x in request.args.get(name, "").split(",") if x]  # noqa: E731
+    entries = st_log_search.search(logdir, nodes=split("nodes") or None, types=split("types") or None,
+                                   level=request.args.get("level", ""), query=request.args.get("q", ""),
+                                   since=_when(request.args.get("since")), until=_when(request.args.get("until")),
+                                   limit=min(max(request.args.get("limit", 1000, type=int), 1), 20000))
+    if request.args.get("format") == "text":
+        text = "".join(f"{e['time']} [{e['node']}] {e['level']} {e['module']} ({e['where']}) - {e['message']}\n{e['detail']}"
+                       for e in reversed(entries))
+        return Response(text, mimetype="text/plain",
+                        headers={"Content-Disposition": "attachment; filename=syntraf-logs.txt"})
+    return jsonify(entries)
+
+
 @st_api_v1.get("/logs")
 def logs():
     logdir, names = log_files()
@@ -488,6 +547,11 @@ OPENAPI = {
         "/api/v1/config/versions/{version}/diff": {"get": _op("Diff between the current file and a version",
                                                               params=("version",))},
         "/api/v1/config/versions/{version}/restore": {"post": _op("Restore a version", False, True, ("version",))},
+        "/api/v1/config/logging": {"get": _op("Logging settings (levels, file size and count, retention in days)"),
+                                   "put": _op("Update logging settings", False, True)},
+        "/api/v1/logs/nodes": {"get": _op("Nodes with logs (server, clients), log types and levels")},
+        "/api/v1/logs/search": {"get": _op("Search the server and client logs (nodes, types, level, q, since, until, "
+                                           "limit; format=text to export)")},
         "/api/v1/logs": {"get": _op("Log files")},
         "/api/v1/logs/{name}": {"get": _op("Tail of a log file (?lines=&level=&q=, ?download=1)", params=("name",))},
         "/healthz": {"get": _op("Health check: 200 ok, 503 degraded")},

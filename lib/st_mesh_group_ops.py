@@ -333,13 +333,83 @@ def _restart_keys(old_disk, new_disk):
         if section in LIVE_SECTIONS:
             continue
         old, new = old_disk.get(section), new_disk.get(section)
-        if section == "SERVER" and isinstance(old or {}, dict) and isinstance(new or {}, dict):
+        live_keys = {"SERVER": SERVER_LIVE_KEYS, "GLOBAL": GLOBAL_LIVE_KEYS}.get(section)
+        if live_keys is not None and isinstance(old or {}, dict) and isinstance(new or {}, dict):
             old, new = old or {}, new or {}
-            keys += [f"SERVER.{k}" for k in sorted(set(old) | set(new))
-                     if k not in SERVER_LIVE_KEYS and old.get(k) != new.get(k)]
+            keys += [f"{section}.{k}" for k in sorted(set(old) | set(new))
+                     if k not in live_keys and old.get(k) != new.get(k)]
         elif old != new:
             keys.append(section)
     return keys
+
+
+# ---------------------------------------------------------------------------------------- journalisation
+
+LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
+LOGGING_FIELDS = ("LOG_LEVEL", "LOG_FORWARD_LEVEL", "LOG_MAX_SIZE_PER_FILE_MB", "LOG_FILE_TO_KEEP", "LOG_RETENTION_DAYS")
+LOGGING_DEFAULTS = {"LOG_LEVEL": "INFO", "LOG_FORWARD_LEVEL": "INFO", "LOG_MAX_SIZE_PER_FILE_MB": "10",
+                    "LOG_FILE_TO_KEEP": "5", "LOG_RETENTION_DAYS": ""}
+GLOBAL_LIVE_KEYS = ("LOG_LEVEL", "LOG_FORWARD_LEVEL", "LOG_RETENTION_DAYS")
+LOGGING_MESSAGES = {
+    "LOG_LEVEL": "DEBUG, INFO, WARNING, ERROR or CRITICAL",
+    "LOG_FORWARD_LEVEL": "DEBUG, INFO, WARNING, ERROR or CRITICAL",
+    "LOG_MAX_SIZE_PER_FILE_MB": "An integer between 1 and 100",
+    "LOG_FILE_TO_KEEP": "An integer between 1 and 50",
+    "LOG_RETENTION_DAYS": "Empty (no age limit), or a number of days between 1 and 3650",
+}
+
+
+def get_logging(state):
+    g = read_disk(state).get("GLOBAL", {})
+    row = {k: str(g.get(k, LOGGING_DEFAULTS[k])) for k in LOGGING_FIELDS}
+    row["LIVE_KEYS"] = list(GLOBAL_LIVE_KEYS)
+    return row
+
+
+def update_logging(state, values, actor, dry_run=False):
+    v = {k: str(values.get(k, "") or "").strip() for k in LOGGING_FIELDS}
+    errors = {}
+    for key in ("LOG_LEVEL", "LOG_FORWARD_LEVEL"):
+        if v[key].upper() not in LOG_LEVELS:
+            errors[key] = LOGGING_MESSAGES[key]
+    for key, low, high in (("LOG_MAX_SIZE_PER_FILE_MB", 1, 100), ("LOG_FILE_TO_KEEP", 1, 50)):
+        if not (v[key].isdigit() and low <= int(v[key]) <= high):
+            errors[key] = LOGGING_MESSAGES[key]
+    if v["LOG_RETENTION_DAYS"] and not (v["LOG_RETENTION_DAYS"].isdigit() and 1 <= int(v["LOG_RETENTION_DAYS"]) <= 3650):
+        errors["LOG_RETENTION_DAYS"] = LOGGING_MESSAGES["LOG_RETENTION_DAYS"]
+    _raise(errors)
+    cfg = read_disk(state)
+    g = cfg.setdefault("GLOBAL", {})
+    for key in LOGGING_FIELDS:
+        value = v[key].upper() if key in ("LOG_LEVEL", "LOG_FORWARD_LEVEL") else v[key]
+        if value == LOGGING_DEFAULTS[key] and key not in g:
+            continue  # valeur par défaut d'un réglage absent du fichier : il reste absent
+        if value:
+            g[key] = value
+        else:
+            g.pop(key, None)
+    return _commit(state, cfg, actor, "UPDATE_LOGGING", "Logging settings updated", dry_run)
+
+
+def _apply_live_global(live, old_disk, new_disk):
+    """Reporte à chaud les réglages de journalisation ; renvoie True si le niveau transmis par les clients change."""
+    old_g, new_g = old_disk.get("GLOBAL", {}), new_disk.get("GLOBAL", {})
+    live_g = live.setdefault("GLOBAL", {})
+    for key in GLOBAL_LIVE_KEYS:
+        if old_g.get(key) != new_g.get(key):
+            if key in new_g:
+                live_g[key] = new_g[key]
+            else:
+                live_g.pop(key, None)
+    if old_g.get("LOG_LEVEL") != new_g.get("LOG_LEVEL") and new_g.get("LOG_LEVEL"):
+        level = logging.getLevelName(str(new_g["LOG_LEVEL"]).upper())
+        if isinstance(level, int):
+            syntraf_logger = logging.getLogger("syntraf")
+            syntraf_logger.setLevel(level)
+            for handler in syntraf_logger.handlers:
+                if not handler.__class__.__name__ == "ForwardHandler":
+                    handler.setLevel(level)
+    return old_g.get("LOG_FORWARD_LEVEL", "INFO") != new_g.get("LOG_FORWARD_LEVEL", "INFO")
 
 
 # --------------------------------------------------------------------------------------- jetons partagés
@@ -789,8 +859,11 @@ def _commit(state, disk_cfg, actor, action, summary, dry_run):
                            "could not be generated (see the server log)")
 
     current = state["_dict_by_node_generated_config"]
+    forward_level_changed = (old_disk.get("GLOBAL", {}).get("LOG_FORWARD_LEVEL", "INFO")
+                             != disk_cfg.get("GLOBAL", {}).get("LOG_FORWARD_LEVEL", "INFO"))
+    everyone = set(new_clients) if forward_level_changed else set()  # le niveau leur parvient à la reconnexion
     affected = sorted({uid for uid in set(current) | set(scratch) if _edges(current.get(uid)) != _edges(scratch.get(uid))}
-                      | changed_clients)
+                      | changed_clients | everyone)
     old_text = _read_text(state["config_file_path"])
     new_text = toml.dumps(disk_cfg)
     result = {"message": summary, "diff": store.redacted_diff(old_text, new_text), "affected_clients": affected,
@@ -807,6 +880,7 @@ def _commit(state, disk_cfg, actor, action, summary, dry_run):
 
     # Sur place : les autres threads gardent une référence à ces listes.
     _apply_live_server(live, old_disk, disk_cfg)
+    _apply_live_global(live, old_disk, disk_cfg)
     live["MESH_GROUP"][:] = groups
     live.setdefault("IPERF3_PROFILE", [])[:] = profiles
     if changed_clients:
