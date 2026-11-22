@@ -24,6 +24,7 @@ import toml
 
 from lib import st_config_store as store
 from lib import st_capacity
+from lib import st_flow_catalog
 from lib import st_topology
 
 # Confirmation explicite d'un changement qui franchit le seuil d'alerte de capacité (posée par l'API, ?confirm=1)
@@ -1101,6 +1102,10 @@ def _commit(state, disk_cfg, actor, action, summary, dry_run):
         if client is not None and client.status == "CONNECTED":
             state["dict_of_commands_for_network_clients"].setdefault(uid, []).append({"ACTION": "RECONNECT_CLIENT"})
             result["reconnected_clients"].append(uid)
+    try:  # les tableaux de bord suivent tout de suite (flux retirés, rôles)
+        st_flow_catalog.PUBLISHER.maybe(live, current, state.get("conn_db"), force=True)
+    except Exception as exc:  # noqa: BLE001
+        log.error(f"EXPECTED FLOWS NOT PUBLISHED: {type(exc).__name__}:{exc}")
     log.info(f"{action} BY {actor}: {summary}; RECONNECTING {result['reconnected_clients']}; "
              f"RECREATED DATABASE CONNECTIONS {recreated}")
     return dict(result, version=entry["version"])

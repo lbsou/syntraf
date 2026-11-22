@@ -215,6 +215,14 @@ def run():
                                                                                 cli_parameters.config_file, conn_db,
                                                                                 subprocess_iperf_dict)
         proc_dump(threads_n_processes, dict_of_clients, config)
+        if "SERVER" in config:
+            # Flux attendus écrits dans les bases (au plus toutes les 30 s) : les tableaux de bord savent quels flux
+            # doivent être mesurés et quel rôle (hub, spoke) a chaque extrémité
+            try:
+                from lib.st_flow_catalog import PUBLISHER
+                PUBLISHER.maybe(config, _dict_by_node_generated_config, conn_db)
+            except Exception as exc:
+                log.error(f"EXPECTED FLOWS NOT PUBLISHED: {type(exc).__name__}:{exc}")
         time.sleep(float(config['GLOBAL']['WATCHDOG_CHECK_RATE']))
 
 

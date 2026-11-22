@@ -50,6 +50,10 @@ def create_app(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generat
         app.register_blueprint(st_api_v1)
         app.register_blueprint(st_ops_bp)
 
+        # Chaque entrée du journal d'audit est aussi écrite dans les bases : repères des changements dans Grafana
+        from lib import st_config_store, st_flow_catalog
+        st_config_store.set_listener("databases", lambda entry: st_flow_catalog.publish_event(entry, conn_db))
+
         from lib.web_ui_kindafixed2.st_status import display_value
         app.jinja_env.filters["st_display"] = display_value
 

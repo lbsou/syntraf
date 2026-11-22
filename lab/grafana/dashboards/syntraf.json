@@ -115,13 +115,29 @@
     ]
   },
   "annotations": {
-    "list": []
+    "list": [
+      {
+        "name": "Changements de configuration",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "syntraf-vm"
+        },
+        "enable": true,
+        "iconColor": "orange",
+        "expr": "last_over_time(SYNTRAF_CONFIG_CHANGE[1m])",
+        "step": "60s",
+        "titleFormat": "{{ACTION}}",
+        "textFormat": "{{SUMMARY}} — {{ACTOR}}",
+        "useValueForTime": false
+      }
+    ]
   },
   "panels": [
     {
       "id": 1,
       "type": "stat",
-      "title": "Silence par flux (s depuis le dernier point)",
+      "title": "Silence par flux attendu (s depuis le dernier point)",
+      "description": "Seuls les flux que la configuration fait mesurer. « no data » : flux attendu sans aucune mesure depuis une heure.",
       "datasource": {
         "type": "prometheus",
         "uid": "syntraf-vm"
@@ -141,7 +157,7 @@
           },
           "instant": true,
           "legendFormat": "{{CLIENT}} → {{SERVER}}",
-          "expr": "time() - tlast_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[1h])"
+          "expr": "(label_keep(((time() - tlast_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[1h])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") or (label_keep((last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5)), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") * 0 + -1) unless on(MESH_GROUP,CLIENT,SERVER) label_keep(((time() - tlast_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[1h])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\"))"
         }
       ],
       "fieldConfig": {
@@ -164,7 +180,19 @@
                 "value": 15
               }
             ]
-          }
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "no data",
+                  "color": "red",
+                  "index": 0
+                }
+              }
+            }
+          ]
         },
         "overrides": []
       },

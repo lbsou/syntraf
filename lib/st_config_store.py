@@ -15,6 +15,7 @@ import tempfile
 import toml
 
 HISTORY_LIMIT = 200
+_LISTENERS = {}  # nom -> fonction(entrée d'audit), ex. l'écriture des changements dans les bases (repères Grafana)
 MASK = "••••••••"
 _SECRET_RE = re.compile(r"TOKEN|PASSWORD|SECRET|KEY", re.IGNORECASE)
 _ASSIGN_RE = re.compile(r"^(\s*)([^=\s#\[][^=]*?)(\s*=\s*)(.*?)(\r?\n?)$")
@@ -51,7 +52,24 @@ def save_text(path, new_text, actor, action, summary, now=None):
     with open(audit_path(path), "a", encoding="utf-8") as f:
         f.write(json.dumps(entry) + "\n")
     _prune(path)
+    _announce(entry)
     return entry
+
+
+def set_listener(name, fn):
+    """Abonne (ou désabonne, fn=None) une fonction aux nouvelles entrées du journal d'audit."""
+    if fn is None:
+        _LISTENERS.pop(name, None)
+    else:
+        _LISTENERS[name] = fn
+
+
+def _announce(entry):
+    for fn in list(_LISTENERS.values()):
+        try:
+            fn(entry)
+        except Exception:  # noqa: BLE001 - un abonné défaillant n'empêche pas l'écriture de la config
+            pass
 
 
 def log_event(path, actor, action, summary, now=None):
@@ -61,6 +79,7 @@ def log_event(path, actor, action, summary, now=None):
              "diff": ""}
     with open(audit_path(path), "a", encoding="utf-8") as f:
         f.write(json.dumps(entry) + "\n")
+    _announce(entry)
     return entry
 
 
