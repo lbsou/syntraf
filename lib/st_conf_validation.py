@@ -880,8 +880,7 @@ def config_validation_server(_config, parameters):
                     f"TOKEN MUST BE BETWEEN 5 AND 255 CHARACTER INCLUSIVELY")
                 return False, None, None
             else:
-                log.debug(
-                    f"IS TOKEN '{_config['SERVER']['TOKEN'][token]}' VALID : YES")
+                log.debug(f"IS TOKEN '{token}' VALID : YES")  # le nom du jeton, jamais sa valeur
     else:
         log.error(
             f"IS TOKEN SPECIFIED IN SERVER CONFIGURATION : NO")

@@ -10,6 +10,7 @@ from lib.st_cc_commands import queue_client_ip_update, next_command, dynamic_cli
 from lib.st_sockutil import recv_exact, recv_message, ProtocolViolation
 from lib import st_channel_guard as guard
 from lib import st_identity
+from lib.st_files import open_private
 from lib.st_config_diff import edges_to_restart, reuse_keys
 from lib.st_iperf3_credentials import load_or_create
 from lib import st_enrollment, st_log_forward, st_log_store, st_nat, st_release, st_syslog, st_updater
@@ -1190,7 +1191,7 @@ def server_awaiting_commands(client_uid, dict_of_commands_for_network_clients, s
             sock_send(sckt, action, "DIFFCONFIG")
             sent_an_action = True
         else:
-            server_log.warning(f"CONTEXT: {client_uid} - UNKNOWN ACTION DROPPED: {action}")
+            server_log.warning(f"CONTEXT: {client_uid} - UNKNOWN ACTION DROPPED: {guard.clean(action.get('ACTION'))}")
 
     # The client is waiting for a command, if we don't have any, we should send a NOP to unblock it.
     if not sent_an_action:
@@ -1707,14 +1708,14 @@ def update_config(data, _config):
 
 
 def save_credentials(data, _config):
-    with open(os.path.join(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'private_key_iperf_client.pem'), 'wb') as f:
+    with open_private(os.path.join(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'private_key_iperf_client.pem'), 'wb') as f:
         f.write(data['PAYLOAD']['CLIENT']['RSA_KEY_LISTENERS'].encode())
 
     with open(os.path.join(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'public_key_iperf_client.pem'), 'wb') as f:
         f.write(data['PAYLOAD']['CLIENT']['RSA_KEY_CONNECTORS'].encode())
 
     try:
-        with open(os.path.join(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'credentials.csv'), 'w') as f:
+        with open_private(os.path.join(_config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'credentials.csv'), 'w') as f:
             f.write(_config['CLIENT']['IPERF3_USERNAME'] + "," + _config['CLIENT']['IPERF3_HASH'])
 
     except Exception as exc:

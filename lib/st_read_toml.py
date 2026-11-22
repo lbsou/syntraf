@@ -1,4 +1,5 @@
 from lib.st_global import DefaultValues
+from lib.st_files import open_private
 from lib.st_logging import *
 import pathlib
 import toml
@@ -61,7 +62,7 @@ def write_toml(config, config_file_path):
         log.error(f"UNABLE TO OPEN '{p.absolute()}', FILE DOES NOT EXIST")
         return False
     try:
-        with open(p, "w") as toml_file:
+        with open_private(p) as toml_file:  # la configuration d'un client contient son jeton
             toml.dump(config, toml_file)
     except TypeError as err:
         log.error(f"AN ERROR OCCURED WHILE WRITING CONFIG TO FILE '{p.absolute()}'")

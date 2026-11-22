@@ -1,5 +1,7 @@
 # SYNTRAF GLOBAL IMPORT
 from lib.st_global import CompilationOptions, DefaultValues
+from lib.st_files import open_private
+import secrets
 from lib.st_read_toml import read_toml, write_toml
 
 # SYNTRAF SERVER IMPORT
@@ -47,8 +49,9 @@ def gen_user_pass_iperf3(log, _config):
     try:
         username_char = string.ascii_letters + string.digits
         password_characters = string.ascii_letters + string.digits + string.punctuation
-        username = ''.join(random.sample(username_char, 20))
-        password = ''.join(random.sample(password_characters, 20))
+        # générateur cryptographique (random.sample : prévisible, et jamais deux fois le même caractère)
+        username = ''.join(secrets.choice(username_char) for _ in range(20))
+        password = ''.join(secrets.choice(password_characters) for _ in range(32))
         _config['SERVER']['IPERF3_USERNAME'] = username
         _config['SERVER']['IPERF3_PASSWORD'] = password
     except Exception as exc:
@@ -71,7 +74,7 @@ def gen_rsa_iperf3(log, _config):
             encryption_algorithm=serialization.NoEncryption()
         )
 
-        with open(os.path.join(path, 'private_key_iperf.pem'), 'wb') as f:
+        with open_private(os.path.join(path, 'private_key_iperf.pem'), 'wb') as f:
             f.write(private_pem)
 
         public_pem = public_key.public_bytes(
@@ -131,7 +134,7 @@ def gen_cert(log, path, suffix_filename, parameters, config, type_of_service):
             encoding=serialization.Encoding.PEM,
             format=serialization.PublicFormat.SubjectPublicKeyInfo)
 
-        with open(os.path.join(path, "private_key_" + suffix_filename + ".pem"), "wb") as f:
+        with open_private(os.path.join(path, "private_key_" + suffix_filename + ".pem"), "wb") as f:
             # Write our private key to disk, will override existing certificate
             f.write(private_key.private_bytes(
                 encoding=serialization.Encoding.PEM,

@@ -12,6 +12,8 @@ import re
 import shutil
 import tempfile
 
+from lib.st_files import open_private
+
 import toml
 
 HISTORY_LIMIT = 200
@@ -158,8 +160,7 @@ def _atomic_write(path, text):
             f.write(text)
             f.flush()
             os.fsync(f.fileno())
-        if os.path.exists(path):
-            shutil.copymode(path, tmp)
+        os.chmod(tmp, 0o600)  # la configuration contient les jetons : lisible par le seul propriétaire
         os.replace(tmp, path)
     except BaseException:
         if os.path.exists(tmp):
@@ -175,7 +176,7 @@ def _snapshot(path, text, now):
     while os.path.exists(os.path.join(d, name)):
         n += 1
         name = f"{base}-{n}.toml"
-    with open(os.path.join(d, name), "w", encoding="utf-8") as f:
+    with open_private(os.path.join(d, name)) as f:  # une version contient les jetons en clair
         f.write(text)
     return name
 

@@ -84,3 +84,32 @@ def test_redact_masks_secret_keys_and_whole_secret_sections():
 def test_audit_diff_never_contains_secret_values(path):
     store.save(path, {"SERVER": {"TOKEN": {"site_a": "abc123"}}, "MESH_GROUP": []}, "a", "ACT", "x", now=t(1))
     assert "abc123" not in store.audit_entries(path)[0]["diff"]
+
+
+def test_the_config_and_its_versions_are_private(tmp_path):
+    import os
+    import stat
+    path = str(tmp_path / "config.toml")
+    store.save(path, {"SERVER": {"TOKEN": {"site": "secret"}}}, "x", "ACT", "one")
+    store.save(path, {"SERVER": {"TOKEN": {"site": "secret2"}}}, "x", "ACT", "two")
+    if os.name == "posix":
+        assert stat.S_IMODE(os.stat(path).st_mode) == 0o600
+        for v in store.versions(path):
+            assert stat.S_IMODE(os.stat(os.path.join(store.history_dir(path), v["version"])).st_mode) == 0o600
+
+
+def test_secret_files_of_an_older_install_are_tightened(tmp_path):
+    import os
+    import stat
+    from lib import st_files
+    cfg = tmp_path / "config.toml"
+    cfg.write_text("x")
+    (tmp_path / "config.toml.history").mkdir()
+    (tmp_path / "config.toml.history" / "v1.toml").write_text("TOKEN")
+    key = tmp_path / "private_key_client.pem"
+    key.write_text("k")
+    for f in (cfg, tmp_path / "config.toml.history" / "v1.toml", key):
+        os.chmod(f, 0o644)
+    changed = st_files.tighten(st_files.private_paths({"CLIENT": {"CLIENT_X509_PRIVATE_KEY": str(key)}}, str(cfg)))
+    if os.name == "posix":
+        assert len(changed) == 3 and stat.S_IMODE(os.stat(key).st_mode) == 0o600

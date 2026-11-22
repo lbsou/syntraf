@@ -128,6 +128,12 @@ def run():
         cli_parameters)
 
     if bool_config_valid: config['GLOBAL']['LOGDIR'] = cli_parameters.log_dir
+    if bool_config_valid:
+        # Fichiers secrets d'une installation antérieure (écrits avec les droits par défaut) : ramenés à 0600
+        from lib import st_files
+        tightened = st_files.tighten(st_files.private_paths(config, cli_parameters.config_file))
+        if tightened:
+            log.warning(f"PERMISSIONS OF {len(tightened)} SECRET FILE(S) RESTRICTED TO THEIR OWNER (0600)")
     if bool_config_valid and "SERVER" in config:
         # Renvoi vers un collecteur syslog (SIEM), si configuré ; réglable à chaud depuis la page Logs
         from lib import st_syslog

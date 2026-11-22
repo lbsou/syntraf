@@ -12,6 +12,7 @@ Règles (authorize) :
 Les demandes et les refus sont gardés dans un fichier JSON à côté du fichier de configuration.
 """
 import collections
+import hmac
 import datetime as dt
 import hashlib
 import json
@@ -32,6 +33,18 @@ def fingerprint(public_key):
     return "sha256:" + hashlib.sha256(str(public_key or "").strip().encode()).hexdigest()
 
 
+def _same(a, b):
+    """Comparaison de jetons en temps constant (la durée ne révèle pas la longueur du préfixe juste)."""
+    return bool(a) and bool(b) and hmac.compare_digest(str(a).encode(), str(b).encode())
+
+
+def _among(token, tokens):
+    found = False
+    for t in tokens:  # sans arrêt anticipé
+        found |= _same(token, t)
+    return found
+
+
 def authorize(config, payload, ip, enrollment):
     uid = str(payload.get("CLIENT_UID") or "")
     token = str(payload.get("TOKEN") or "")
@@ -43,17 +56,17 @@ def authorize(config, payload, ip, enrollment):
         pinned = client.get("PUBLIC_KEY_SHA256")
         if pinned and fingerprint(key) != pinned:
             # Nouvelle clé (réinstallation ?) avec un jeton valide : demande de changement de clé à approuver
-            if enrollment is not None and (token == client.get("TOKEN") or token in shared):
+            if enrollment is not None and (_same(token, client.get("TOKEN")) or _among(token, shared)):
                 enrollment.record(uid, ip, key, payload.get("SYNTRAF_CLIENT_VERSION", ""), key_change=True)
             return Decision(False, "KEY MISMATCH", None)
         own = client.get("TOKEN")
         if own:
-            if token == own:
+            if _same(token, own):
                 return Decision(True, "", None)
-            if pinned and token in shared:
+            if pinned and _among(token, shared):
                 return Decision(True, "", own)
             return Decision(False, "INVALID TOKEN", None)
-        return Decision(True, "", None) if token in shared else Decision(False, "INVALID TOKEN", None)
+        return Decision(True, "", None) if _among(token, shared) else Decision(False, "INVALID TOKEN", None)
 
     renamed = next((c for c in config.get("SERVER_CLIENT", []) if uid and uid in (c.get("PREVIOUS_UIDS") or [])), None)
     if renamed is not None:
@@ -63,7 +76,7 @@ def authorize(config, payload, ip, enrollment):
 
     if enrollment is not None and enrollment.is_rejected(uid):
         return Decision(False, "REJECTED", None)
-    if token in shared and SAFE_UID.match(uid) and enrollment is not None:
+    if _among(token, shared) and SAFE_UID.match(uid) and enrollment is not None:
         enrollment.record(uid, ip, key, payload.get("SYNTRAF_CLIENT_VERSION", ""))
         return Decision(False, "PENDING APPROVAL", None)
     return Decision(False, "UNKNOWN CLIENT", None)
