@@ -152,6 +152,24 @@ def gen_cert(log, path, suffix_filename, parameters, config, type_of_service):
         sys.exit()
 
 
+def reuse_self_signed(log, private_key_file, certificate_file, parameters, config, type_of_service):
+    """Réutilise un certificat autosigné existant : clé publique et chemins réinscrits dans la config, dans le même
+    format que gen_cert (la clé publique doit rester identique, elle est épinglée par le serveur)."""
+    try:
+        with open(private_key_file, "rb") as f:
+            private_key = serialization.load_pem_private_key(f.read(), password=None)
+        public_key_pem = private_key.public_key().public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo)
+    except Exception as exc:
+        log.error(f"reuse_self_signed:{type(exc).__name__}:{exc}", exc_info=True)
+        return False
+    log.info(f"REUSING THE EXISTING SELF-SIGNED X509 CERTIFICATE '{certificate_file}'")
+    return (write_public_key_to_config_file(config, str(public_key_pem), parameters, log, type_of_service)
+            and write_private_key_path_to_config_file(config, private_key_file, parameters, log, type_of_service)
+            and write_certificate_path_to_config_file(config, certificate_file, parameters, log, type_of_service))
+
+
 def write_public_key_to_config_file(config, public_key_pem, parameters, log, type_of_service):
     try:
         #if not isinstance(config[type_of_service.upper()], dict):

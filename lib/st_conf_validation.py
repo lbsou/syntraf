@@ -169,9 +169,14 @@ def config_validation_certificate(_config, type_of_service, parameters):
             log.error(f"UNABLE TO CREATE {type_of_service.upper()}_X509_SELFSIGNED_DIRECTORY")
             return False
 
-    # We should have a directory by now, check if we already have the files in it
-    if file_exist("private_key_" + type_of_service.lower() + ".pem") and file_exist("certificate_" + type_of_service.lower() + ".pem"):
-        return True
+    # We should have a directory by now, check if we already have the files in it.
+    # Les fichiers sont cherchés dans le dossier des certificats (avant : dans le dossier courant, jamais trouvés, et
+    # une nouvelle clé était générée à chaque config remise à zéro). Réutilisés, ils sont aussi réinscrits dans la
+    # config, comme après une génération : la clé publique du client reste la même (clé épinglée côté serveur).
+    private_key_file = os.path.join(cert_path, "private_key_" + type_of_service.lower() + ".pem")
+    certificate_file = os.path.join(cert_path, "certificate_" + type_of_service.lower() + ".pem")
+    if file_exist(private_key_file) and file_exist(certificate_file):
+        return reuse_self_signed(server_log, private_key_file, certificate_file, parameters, _config, type_of_service)
     else:
         gen_cert(server_log, cert_path, type_of_service.lower(), parameters, _config, type_of_service)
 
