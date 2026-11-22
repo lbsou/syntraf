@@ -36,7 +36,8 @@ def _state():
 
 
 def _actor():
-    return request.remote_addr or "unknown"
+    from lib.web_ui_kindafixed2.st_auth import actor
+    return actor()
 
 
 def _dry_run():
@@ -44,8 +45,9 @@ def _dry_run():
 
 
 def _body():
+    # JSON seulement : un formulaire (envoyable depuis n'importe quel site) n'est plus lu
     data = request.get_json(silent=True)
-    return data if isinstance(data, dict) else request.values.to_dict()
+    return data if isinstance(data, dict) else {}
 
 
 def _error(status, message, fields=None):

@@ -3,6 +3,7 @@
 #from . import db
 #from .st_models import User
 from lib import st_mesh_group_ops
+from lib.web_ui_kindafixed2.st_auth import actor as _actor
 from lib.st_global import CompilationOptions, DefaultValues
 
 # SYNTRAF SERVER IMPORT
@@ -251,7 +252,7 @@ def api():
             ''' =============================================================================================== '''
             try:
                 st_mesh_group_ops.save_map(app.config, request.values.get('MESH_GROUP', ''),
-                                           request.values.get('CYTO_JSON', ''), request.remote_addr or "unknown")
+                                           request.values.get('CYTO_JSON', ''), _actor())
             except st_mesh_group_ops.OpError as exc:
                 return Response(exc.message, status=exc.status, mimetype="text/plain")
 

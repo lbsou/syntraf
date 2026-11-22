@@ -202,8 +202,7 @@ def started(state):
 
 def global_values(**over):
     return dict({"WATCHDOG_CHECK_RATE": "2", "IPERF3_TIME_SKEW_THRESHOLD": "10", "LOG_TO": "all",
-                 "IPERF3_AUTH": "true", "LOG_PURGE_ON_START": "false", "IPERF3_BINARY_PATH": "",
-                 "IPERF3_RSA_KEY_DIRECTORY": ""}, **over)
+                 "IPERF3_AUTH": "true", "LOG_PURGE_ON_START": "false"}, **over)
 
 
 def test_global_settings_report_logdir_as_read_only(state):
@@ -238,8 +237,16 @@ def test_global_settings_are_validated(state):
         ops.update_global(state, global_values(WATCHDOG_CHECK_RATE="0", IPERF3_TIME_SKEW_THRESHOLD="x",
                                                LOG_TO="syslog", IPERF3_BINARY_PATH="/no/such/iperf3",
                                                IPERF3_RSA_KEY_DIRECTORY="relative/dir"), actor="x")
+    # le programme iperf3 et le dossier des clés ne se changent pas à distance (exécution d'un fichier choisi)
     assert set(err.value.fields) == {"WATCHDOG_CHECK_RATE", "IPERF3_TIME_SKEW_THRESHOLD", "LOG_TO",
                                      "IPERF3_BINARY_PATH", "IPERF3_RSA_KEY_DIRECTORY"}
+    assert err.value.fields["IPERF3_BINARY_PATH"] == ops.FILE_ONLY_MESSAGE
+
+
+def test_the_iperf3_program_cannot_be_changed_remotely_even_to_an_existing_file(state):
+    with pytest.raises(ops.OpError) as err:
+        ops.update_global(state, global_values(IPERF3_BINARY_PATH="/bin/sh"), actor="x")
+    assert "IPERF3_BINARY_PATH" in err.value.fields
 
 
 def test_directories_and_paths_are_not_masked_as_secrets():
@@ -285,3 +292,23 @@ def test_syslog_test_message_needs_a_collector(state, syslog_reset):
     with pytest.raises(ops.OpError) as err:
         ops.syslog_test(state, actor="x")
     assert err.value.status == 409
+
+
+# ---------------------------------------------------------------------------------------- interface web
+
+def webui_values(**over):
+    return dict(server_values(), **over)
+
+
+def test_web_interface_settings_are_validated(state):
+    with pytest.raises(ops.OpError) as err:
+        ops.update_server(state, webui_values(WEBUI_BIND_ADDRESS="nope", WEBUI_PORT="6531",
+                                               WEBUI_X509_CERTIFICATE="/no/such.pem"), actor="x")
+    assert {"WEBUI_BIND_ADDRESS", "WEBUI_PORT", "WEBUI_X509_CERTIFICATE", "WEBUI_X509_PRIVATE_KEY"} <= set(err.value.fields)
+
+
+def test_https_is_a_restart_setting_stored_as_a_boolean(state):
+    result = ops.update_server(state, webui_values(WEBUI_PORT="5443", WEBUI_TLS="true"), actor="x")
+    assert disk(state)["SERVER"]["WEBUI_TLS"] is True and disk(state)["SERVER"]["WEBUI_PORT"] == "5443"
+    assert "SERVER.WEBUI_TLS" in result["restart_required"]
+    assert ops.get_server(state)["WEBUI_TLS"] is True

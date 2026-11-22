@@ -110,6 +110,14 @@ async function selectRow(page, uid) {
     page.on("requestfailed", r => { if (!r.url().includes("/api/v1/events")) errors.push("failed: " + r.url()); });
     page.on("response", r => { if (r.status() >= 400) errors.push(`HTTP ${r.status()} ${r.url()}`); });
 
+    // 0. Connexion (toutes les pages sont protégées) ; une page sans session renvoie vers /login
+    await page.goto(BASE + "/home.html", {waitUntil: "domcontentloaded"});
+    check(page.url().includes("/login"), "an anonymous visitor is sent to the login page");
+    await page.type("#username", "admin");
+    await page.type("#password", process.env.SYNTRAF_ADMIN_PASSWORD || "lab-admin-not-a-secret");
+    await Promise.all([page.waitForNavigation({waitUntil: "domcontentloaded"}), page.click("button[type=submit]")]);
+    check(page.url().includes("/home.html"), "signed in");
+
     // 1. Toutes les pages du menu
     await page.goto(BASE + "/", {waitUntil: "domcontentloaded"});
     const links = await page.$$eval("#st-sidebar a.nav-link", as => as.map(a => a.getAttribute("href")));

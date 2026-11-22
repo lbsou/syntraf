@@ -431,7 +431,7 @@
         fd.append('GROUP', "{{ selected_map }}");
 
         // send `POST` request
-        const response = await fetch('/api', {
+        const response = await fetch('/api', {headers: {'X-Requested-With': 'syntraf'},
             method: 'POST',
             body: fd
         })

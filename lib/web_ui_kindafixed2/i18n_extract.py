@@ -17,7 +17,7 @@ HERE = Path(__file__).resolve().parent
 TEMPLATES = HERE / "templates"
 SCRIPTS = [HERE / "static" / "js" / "st_app.js", HERE / "static" / "js" / "st_crud.js"]
 PYTHON = [HERE / "st_api_v1.py", HERE.parent / "st_mesh_group_ops.py", HERE.parent / "st_capacity.py",
-          HERE.parent / "st_syslog.py"]
+          HERE.parent / "st_syslog.py", HERE / "st_auth.py"]
 DICTIONARY = HERE / "static" / "i18n" / "fr.json"
 # Pages de l'ancienne interface, non servies par la navigation actuelle
 SKIP = {"login2.html", "map.html", "maps.html", "config.html", "global_config.html", "users_config.html"}

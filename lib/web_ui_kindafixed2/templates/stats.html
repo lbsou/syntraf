@@ -213,7 +213,7 @@ async function update_system_stats() {
     fd.append('ACTION', "GET_SYSTEM_STATS");
 
     // send `POST` request
-    const response = await fetch('/api', {
+    const response = await fetch('/api', {headers: {'X-Requested-With': 'syntraf'},
         method: 'POST',
         body: fd
     })
@@ -363,7 +363,7 @@ async function restart_client(client) {
         //xhr.open("POST", API_URL);
         //xhr.send(fd);
 
-        const response = await fetch('/api', {
+        const response = await fetch('/api', {headers: {'X-Requested-With': 'syntraf'},
             method: 'POST',
             body: fd
         })
@@ -386,7 +386,7 @@ async function reconnect_client(client) {
         //xhr.send(fd);
 
 
-        const response = await fetch('/api', {
+        const response = await fetch('/api', {headers: {'X-Requested-With': 'syntraf'},
             method: 'POST',
             body: fd
         })
@@ -416,7 +416,7 @@ async function get_sys_infos(source)
     fd.append('CLIENT_UID', client_uid);
 
     // send `POST` request
-    const response = await fetch('/api', {
+    const response = await fetch('/api', {headers: {'X-Requested-With': 'syntraf'},
         method: 'POST',
         body: fd
     })
@@ -456,7 +456,7 @@ async function get_thread_status(source)
     fd.append('CLIENT_UID', client_uid);
 
     // send `POST` request
-    const response = await fetch('/api', {
+    const response = await fetch('/api', {headers: {'X-Requested-With': 'syntraf'},
         method: 'POST',
         body: fd
     })

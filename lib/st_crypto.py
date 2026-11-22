@@ -88,6 +88,34 @@ def gen_rsa_iperf3(log, _config):
         log.error(f"gen_cert:{type(exc).__name__}:{exc}", exc_info=True)
 
 
+def ensure_self_signed(directory, name):
+    """Certificat autosigné et sa clé (<directory>/certificate_<name>.pem, private_key_<name>.pem, clé en 0600),
+    créés au premier appel puis réutilisés ; renvoie (certificat, clé)."""
+    os.makedirs(directory, exist_ok=True)
+    cert_file = os.path.join(directory, f"certificate_{name}.pem")
+    key_file = os.path.join(directory, f"private_key_{name}.pem")
+    if os.path.isfile(cert_file) and os.path.isfile(key_file):
+        return cert_file, key_file
+    key = rsa.generate_private_key(public_exponent=65537, key_size=DefaultValues.DEFAULT_KEY_SIZE,
+                                   backend=default_backend())
+    host = socket.gethostname()
+    subject = x509.Name([x509.NameAttribute(NameOID.ORGANIZATION_NAME, u"SYNTRAF"),
+                         x509.NameAttribute(NameOID.COMMON_NAME, host)])
+    cert = (x509.CertificateBuilder().subject_name(subject).issuer_name(subject).public_key(key.public_key())
+            .serial_number(x509.random_serial_number()).not_valid_before(datetime.now(timezone.utc))
+            .not_valid_after(datetime.now(timezone.utc) + timedelta(days=1825))
+            .add_extension(x509.SubjectAlternativeName([x509.DNSName(host), x509.DNSName("localhost")]),
+                           critical=False)
+            .sign(key, hashes.SHA256(), default_backend()))
+    fd = os.open(key_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "wb") as f:
+        f.write(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL,
+                                  serialization.NoEncryption()))
+    with open(cert_file, "wb") as f:
+        f.write(cert.public_bytes(serialization.Encoding.PEM))
+    return cert_file, key_file
+
+
 def gen_cert(log, path, suffix_filename, parameters, config, type_of_service):
     public_key_pem = ""
 

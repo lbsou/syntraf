@@ -310,7 +310,9 @@ def _check_profile_reference(cfg, values):
 # --------------------------------------------------------------------------------------------- section SERVER
 
 SERVER_FIELDS = ("BIND_ADDRESS", "SERVER_PORT", "MESH_LISTENERS_PORT_RANGE", "SERVER_X509_CERTIFICATE",
-                 "SERVER_X509_PRIVATE_KEY")
+                 "SERVER_X509_PRIVATE_KEY", "WEBUI_BIND_ADDRESS", "WEBUI_PORT", "WEBUI_X509_CERTIFICATE",
+                 "WEBUI_X509_PRIVATE_KEY")
+SERVER_BOOL_FIELDS = ("WEBUI_TLS",)  # interface web en HTTPS (certificat donné, sinon autosigné)
 SERVER_LIVE_KEYS = ("TOKEN", "MESH_LISTENERS_PORT_RANGE",  # appliquées à chaud ; les autres au redémarrage
                     "MAX_FLOWS_PER_CLIENT", "MAX_TOTAL_FLOWS", "FLOW_ALERT_ADDED", "FLOW_ALERT_RATIO")
 SERVER_MESSAGES = {
@@ -319,6 +321,10 @@ SERVER_MESSAGES = {
     "MESH_LISTENERS_PORT_RANGE": "A port range such as 15000-15100",
     "SERVER_X509_CERTIFICATE": "Path of a readable certificate file on the server; empty for a self-signed certificate",
     "SERVER_X509_PRIVATE_KEY": "Path of a readable private key file, given together with the certificate",
+    "WEBUI_BIND_ADDRESS": "An IP address of this server, or 0.0.0.0 for all interfaces (127.0.0.1: this host only)",
+    "WEBUI_PORT": "A port between 1 and 65535, other than the control port",
+    "WEBUI_X509_CERTIFICATE": "Path of a readable certificate file on the server; empty for a self-signed certificate",
+    "WEBUI_X509_PRIVATE_KEY": "Path of a readable private key file, given together with the certificate",
 }
 TOKEN_NAME = re.compile(r"^[A-Za-z0-9_.-]{1,50}$")
 
@@ -328,6 +334,7 @@ def get_server(state):
     disk_server = read_disk(state).get("SERVER", {})
     live_server = state["config"].get("SERVER", {})
     row = {k: disk_server.get(k, "") for k in SERVER_FIELDS + tuple(st_capacity.DEFAULTS)}
+    row.update({k: bool(disk_server.get(k)) for k in SERVER_BOOL_FIELDS})
     row["CAPACITY_DEFAULTS"] = {k: str(v) for k, v in st_capacity.DEFAULTS.items()}
     row["RUNNING"] = {k: live_server.get(k, "") for k in SERVER_FIELDS if not isinstance(live_server.get(k), bytes)}
     row["LIVE_KEYS"] = list(SERVER_LIVE_KEYS)
@@ -344,6 +351,12 @@ def update_server(state, values, actor, dry_run=False):
             server[key] = value
         else:
             server.pop(key, None)
+    for key in SERVER_BOOL_FIELDS:
+        if key in values:  # absent d'un ancien appel : inchangé
+            if _bool_text(values.get(key)):
+                server[key] = True
+            else:
+                server.pop(key, None)
     return _commit(state, cfg, actor, "UPDATE_SERVER", "Server settings updated", dry_run)
 
 
@@ -357,6 +370,20 @@ def _server_field_errors(values):
             errors["BIND_ADDRESS"] = SERVER_MESSAGES["BIND_ADDRESS"]
     if v["SERVER_PORT"] and not (v["SERVER_PORT"].isdigit() and 1 <= int(v["SERVER_PORT"]) <= 65534):
         errors["SERVER_PORT"] = SERVER_MESSAGES["SERVER_PORT"]
+    if v["WEBUI_BIND_ADDRESS"]:
+        try:
+            ipaddress.ip_address(v["WEBUI_BIND_ADDRESS"])
+        except ValueError:
+            errors["WEBUI_BIND_ADDRESS"] = SERVER_MESSAGES["WEBUI_BIND_ADDRESS"]
+    if v["WEBUI_PORT"] and not (v["WEBUI_PORT"].isdigit() and 1 <= int(v["WEBUI_PORT"]) <= 65535
+                                and v["WEBUI_PORT"] != (v["SERVER_PORT"] or "6531")):
+        errors["WEBUI_PORT"] = SERVER_MESSAGES["WEBUI_PORT"]
+    wcert, wkey = v["WEBUI_X509_CERTIFICATE"], v["WEBUI_X509_PRIVATE_KEY"]
+    if wcert or wkey:
+        if not (wcert and os.path.isfile(wcert)):
+            errors["WEBUI_X509_CERTIFICATE"] = SERVER_MESSAGES["WEBUI_X509_CERTIFICATE"]
+        if not (wkey and os.path.isfile(wkey)):
+            errors["WEBUI_X509_PRIVATE_KEY"] = SERVER_MESSAGES["WEBUI_X509_PRIVATE_KEY"]
     if v["MESH_LISTENERS_PORT_RANGE"] and not _valid_port_range(v["MESH_LISTENERS_PORT_RANGE"]):
         errors["MESH_LISTENERS_PORT_RANGE"] = SERVER_MESSAGES["MESH_LISTENERS_PORT_RANGE"]
     cert, key = v["SERVER_X509_CERTIFICATE"], v["SERVER_X509_PRIVATE_KEY"]
@@ -536,11 +563,13 @@ GLOBAL_FIELDS = {
     "LOG_TO": (lambda v: v.lower() in ("stdout", "file", "all"), "stdout, file or all", False),
     "IPERF3_AUTH": (lambda v: True, "", True),
     "LOG_PURGE_ON_START": (lambda v: True, "", True),
-    "IPERF3_BINARY_PATH": (lambda v: v == "DISABLE" or os.path.isfile(v),
-                           "Path of the iperf3 program on this server, or DISABLE", False),
-    "IPERF3_RSA_KEY_DIRECTORY": (lambda v: os.path.isabs(v), "An absolute directory path", False),
 }
 GLOBAL_READ_ONLY = ("LOGDIR",)  # imposé par l'option -l au démarrage
+# Un programme exécuté par le serveur et le dossier où il écrit ses clés : jamais modifiables à distance (un
+# appelant de l'API ferait exécuter n'importe quel fichier) ; seulement dans le fichier de configuration
+GLOBAL_FILE_ONLY = ("IPERF3_BINARY_PATH", "IPERF3_RSA_KEY_DIRECTORY")
+FILE_ONLY_MESSAGE = "Set in the configuration file on the server only"
+
 
 
 def get_global(state):
@@ -549,6 +578,7 @@ def get_global(state):
     row = {k: ("" if g.get(k) is None else str(g.get(k))) for k in GLOBAL_FIELDS}
     row["RUNNING"] = {k: str(live.get(k)) for k in GLOBAL_FIELDS if live.get(k) is not None}
     row["READ_ONLY"] = {k: live.get(k) for k in GLOBAL_READ_ONLY if live.get(k)}
+    row["FILE_ONLY"] = {k: str(g.get(k) or live.get(k) or "") for k in GLOBAL_FILE_ONLY}
     row["LIVE_KEYS"] = [k for k in GLOBAL_FIELDS if k in GLOBAL_LIVE_KEYS]
     return row
 
@@ -558,8 +588,13 @@ def update_global(state, values, actor, dry_run=False):
     v = {k: str(values.get(k, "") or "").strip() for k in GLOBAL_FIELDS}
     errors = {k: GLOBAL_FIELDS[k][1] for k in GLOBAL_FIELDS
               if v[k] and not GLOBAL_FIELDS[k][2] and not _ok(GLOBAL_FIELDS[k][0], v[k])}
-    _raise(errors)
     cfg = read_disk(state)
+    current = cfg.get("GLOBAL", {})
+    for key in GLOBAL_FILE_ONLY:  # absent ou inchangé : accepté (anciens appels) ; autre valeur : refusée
+        given = str(values.get(key, "") or "").strip()
+        if given and given != str(current.get(key, "") or ""):
+            errors[key] = FILE_ONLY_MESSAGE
+    _raise(errors)
     g = cfg.setdefault("GLOBAL", {})
     live = state["config"].get("GLOBAL", {})
     for key, (_, _, is_bool) in GLOBAL_FIELDS.items():
@@ -1125,7 +1160,7 @@ def _db_field_errors(values, existing, with_uid=False):
     if not (v["DB_PORT"].isdigit() and 1 <= int(v["DB_PORT"]) <= 65534):
         errors["DB_PORT"] = DB_MESSAGES["DB_PORT"]
     if engine == "InfluxDB2":
-        has_token = bool(v["DB_TOKEN"]) or (bool((existing or {}).get("DB_TOKEN"))
+        has_token = bool(v["DB_TOKEN"]) or (_token_may_follow(existing, values)
                                             and not _truthy(values.get("DB_TOKEN_CLEAR")))
         if not has_token:
             errors["DB_TOKEN"] = DB_MESSAGES["DB_TOKEN"]
@@ -1142,15 +1177,28 @@ def _db_field_errors(values, existing, with_uid=False):
     return errors
 
 
+def _db_endpoint(d):
+    """Où part le jeton : adresse, port, TLS et mandataire."""
+    return (str(d.get("DB_SERVER", "")).strip().lower(), str(d.get("DB_PORT", "")).strip(),
+            bool(_truthy(d.get("DB_SERVER_USE_SSL"))), str(d.get("DB_USE_WEB_PROXY", "") or "").strip())
+
+
+def _token_may_follow(existing, values):
+    """Le jeton enregistré n'est gardé que vers la même adresse : sinon il partirait vers l'hôte choisi par
+    l'appelant (test de connexion, modification)."""
+    return bool((existing or {}).get("DB_TOKEN")) and _db_endpoint(existing) == _db_endpoint(values)
+
+
 def _apply_db_form(d, values):
+    keep_token = _token_may_follow(d, values)
     d["DB_ENGINE"] = DB_ENGINES[str(values.get("DB_ENGINE", "")).strip().upper()]
     d["DB_SERVER"] = str(values.get("DB_SERVER", "")).strip()
     d["DB_PORT"] = str(values.get("DB_PORT", "")).strip()
     d["DB_SERVER_USE_SSL"] = _truthy(values.get("DB_SERVER_USE_SSL"))
     token = str(values.get("DB_TOKEN", "") or "").strip()
     if token:
-        d["DB_TOKEN"] = token  # laissé vide : le jeton enregistré est gardé
-    elif _truthy(values.get("DB_TOKEN_CLEAR")):
+        d["DB_TOKEN"] = token  # laissé vide : le jeton enregistré est gardé, vers la même adresse seulement
+    elif _truthy(values.get("DB_TOKEN_CLEAR")) or not keep_token:
         d.pop("DB_TOKEN", None)
     for key in DB_OPTIONAL:
         value = str(values.get(key, "") or "").strip()

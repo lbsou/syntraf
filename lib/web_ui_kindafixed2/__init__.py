@@ -19,10 +19,9 @@ def create_app(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generat
 
     app = Flask(__name__, instance_relative_config=False, static_folder=os.path.abspath('lib/web_ui_kindafixed2/static/'), static_url_path="/static")
     app.config.from_object(st_config.ProductionConfig)
-    if not app.config.get("SECRET_KEY"):
-        # Sans SECRET_KEY dans l'environnement (.env), une clé aléatoire par démarrage : rien ne repose encore sur
-        # des sessions persistantes.
-        app.config["SECRET_KEY"] = secrets.token_hex(32)
+    # Authentification (comptes, jetons d'API, CSRF, en-têtes) ; clé de session gardée à côté de la configuration
+    from lib.web_ui_kindafixed2 import st_auth
+    st_auth.init_app(app, config_file_path, tls=bool((config.get("SERVER") or {}).get("WEBUI_TLS")))
 
     # Initialize flask-login plugin
     # login_manager.login_view = "users.login"
@@ -59,7 +58,8 @@ def create_app(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generat
 
         @app.context_processor
         def _globals():
-            return {"syntraf_version": DefaultValues.SYNTRAF_VERSION}
+            from flask import session
+            return {"syntraf_version": DefaultValues.SYNTRAF_VERSION, "current_user": session.get("user")}
         #app.register_blueprint(st_auth_bp)
 
         """ Converting a dict of tuple to a dict of arrays for javascript """

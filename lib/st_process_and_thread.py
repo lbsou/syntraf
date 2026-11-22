@@ -134,14 +134,27 @@ def launch_webui(threads_n_processes, subprocess_iperf_dict, _dict_by_node_gener
                          config_file_path, conn_db, dict_of_commands_for_network_clients, dict_of_clients)
         # app = ProfilerMiddleware(app)
         cert_path = os.path.join(DefaultValues.SYNTRAF_DATA_DIR, "crypto", "WEBUI_X509_SELFSIGNED_DIRECTORY")
-        pool = Pool(100)
+        # Connexions simultanées bornées (le pool n'était pas branché : sans limite ; un flux SSE dure 300 s)
+        pool = Pool(200)
+        srv = config.get("SERVER") or {}
+        bind = srv.get("WEBUI_BIND_ADDRESS") or "0.0.0.0"
+        port = int(srv.get("WEBUI_PORT") or DefaultValues.DEFAULT_WEBUI_PORT)
+        tls = {}
+        if srv.get("WEBUI_TLS"):
+            cert, key = srv.get("WEBUI_X509_CERTIFICATE"), srv.get("WEBUI_X509_PRIVATE_KEY")
+            if not (cert and key):
+                from lib.st_crypto import ensure_self_signed
+                cert, key = ensure_self_signed(cert_path, "webui")
+            tls = {"certfile": cert, "keyfile": key}
+        log.warning(f"WEB INTERFACE ON {'https' if tls else 'http'}://{bind}:{port}"
+                    f"{'' if tls else ' (PLAIN HTTP: ENABLE HTTPS ON THE SERVER PAGE)'}")
 
         try:
             # Accès HTTP de l'interface en DEBUG : au niveau INFO, ils faisaient 86 % du journal du serveur
             # (actualisation en direct, tableaux) et noyaient le reste ; les erreurs restent dans error_log
             from gevent.pywsgi import LoggingLogAdapter
-            http_server = WSGIServer(('0.0.0.0', DefaultValues.DEFAULT_WEBUI_PORT), app, error_log=log,
-                                     log=LoggingLogAdapter(log, logging.DEBUG))
+            http_server = WSGIServer((bind, port), app, error_log=log, log=LoggingLogAdapter(log, logging.DEBUG),
+                                     spawn=pool, **tls)
 
             # try:
             #    http_server = WSGIServer(('0.0.0.0', DefaultValues.DEFAULT_WEBUI_PORT), app,

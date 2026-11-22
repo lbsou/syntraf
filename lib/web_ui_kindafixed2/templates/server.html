@@ -43,6 +43,37 @@
             <div class="invalid-feedback" data-feedback="SERVER_X509_PRIVATE_KEY"></div>
         </div>
     </div>
+    <h2 class="h6 mt-2">Web interface <span class="badge bg-secondary">restart</span></h2>
+    <div class="row">
+        <div class="col-md-3 mb-3">
+            <label for="w_bind" class="form-label">Listening address</label>
+            <input class="form-control" id="w_bind" data-field="WEBUI_BIND_ADDRESS" placeholder="0.0.0.0">
+            <div class="form-text">127.0.0.1: reachable from this host only (behind a reverse proxy).</div>
+            <div class="invalid-feedback" data-feedback="WEBUI_BIND_ADDRESS"></div>
+        </div>
+        <div class="col-md-2 mb-3">
+            <label for="w_port" class="form-label">Port</label>
+            <input class="form-control" id="w_port" data-field="WEBUI_PORT" inputmode="numeric" placeholder="5000">
+            <div class="invalid-feedback" data-feedback="WEBUI_PORT"></div>
+        </div>
+        <div class="col-md-7 mb-3 d-flex align-items-end">
+            <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" role="switch" id="w_tls">
+                <label class="form-check-label" for="w_tls">HTTPS (recommended)</label>
+            </div>
+        </div>
+        <div class="col-md-6 mb-3">
+            <label for="w_cert" class="form-label">HTTPS certificate (optional)</label>
+            <input class="form-control" id="w_cert" data-field="WEBUI_X509_CERTIFICATE" placeholder="/etc/syntraf/webui.pem">
+            <div class="invalid-feedback" data-feedback="WEBUI_X509_CERTIFICATE"></div>
+        </div>
+        <div class="col-md-6 mb-3">
+            <label for="w_key" class="form-label">HTTPS private key (optional)</label>
+            <input class="form-control" id="w_key" data-field="WEBUI_X509_PRIVATE_KEY" placeholder="/etc/syntraf/webui.key">
+            <div class="form-text">Both empty: a self-signed certificate is used.</div>
+            <div class="invalid-feedback" data-feedback="WEBUI_X509_PRIVATE_KEY"></div>
+        </div>
+    </div>
     <h2 class="h6 mt-2">Capacity limits <span class="badge bg-success">live</span></h2>
     <p class="small text-white-50">Protect clients and the database from a change that multiplies the measurement flows (for example switching a large group to a full mesh). Above a hard limit a change is refused; above the alert threshold it must be confirmed by typing its name.</p>
     <div class="row">
@@ -105,15 +136,14 @@
     </div>
     <div class="row">
         <div class="col-md-6 mb-3">
-            <label for="g_iperf3" class="form-label">iperf3 program <span class="badge bg-secondary">restart</span></label>
-            <input class="form-control" id="g_iperf3" data-field="IPERF3_BINARY_PATH">
-            <div class="form-text">On this server; DISABLE if it runs no iperf3.</div>
-            <div class="invalid-feedback" data-feedback="IPERF3_BINARY_PATH"></div>
+            <label for="g_iperf3" class="form-label">iperf3 program</label>
+            <input class="form-control" id="g_iperf3" readonly>
+            <div class="form-text">Set in the configuration file on the server only: a program the server runs is never chosen from the web.</div>
         </div>
         <div class="col-md-6 mb-3">
-            <label for="g_rsadir" class="form-label">iperf3 RSA key directory <span class="badge bg-secondary">restart</span></label>
-            <input class="form-control" id="g_rsadir" data-field="IPERF3_RSA_KEY_DIRECTORY">
-            <div class="invalid-feedback" data-feedback="IPERF3_RSA_KEY_DIRECTORY"></div>
+            <label for="g_rsadir" class="form-label">iperf3 RSA key directory</label>
+            <input class="form-control" id="g_rsadir" readonly>
+            <div class="form-text">Set in the configuration file on the server only.</div>
         </div>
     </div>
     <div class="row align-items-center">
@@ -129,6 +159,33 @@
     </div>
     <button type="submit" class="btn btn-primary">Save…</button>
   </form>
+</section>
+
+<section class="st-card" id="access" aria-labelledby="access_title">
+  <h2 id="access_title">Access</h2>
+  <p class="small text-white-50">Who may use this interface and the API. Every page and every API call needs a session or an API token (Authorization: Bearer). Changes are recorded in the audit log.</p>
+  <div class="row g-4">
+    <div class="col-lg-6">
+      <h3 class="h6">Administrators</h3>
+      <table class="table table-sm align-middle mb-2"><thead><tr><th>Name</th><th>Password changed</th><th></th></tr></thead>
+        <tbody id="ac_users"></tbody></table>
+      <form id="ac_user_form" class="row g-2" novalidate>
+        <div class="col-sm-4"><input class="form-control form-control-sm" id="ac_name" placeholder="Name" aria-label="Name" autocomplete="off"></div>
+        <div class="col-sm-5"><input class="form-control form-control-sm" id="ac_pass" type="password" placeholder="Password (12 characters or more)" aria-label="Password" autocomplete="new-password"></div>
+        <div class="col-sm-3"><button type="submit" class="btn btn-sm btn-outline-light w-100">Add</button></div>
+      </form>
+    </div>
+    <div class="col-lg-6">
+      <h3 class="h6">API tokens</h3>
+      <table class="table table-sm align-middle mb-2"><thead><tr><th>Name</th><th>Created</th><th>Last used</th><th></th></tr></thead>
+        <tbody id="ac_tokens"></tbody></table>
+      <form id="ac_token_form" class="row g-2" novalidate>
+        <div class="col-sm-8"><input class="form-control form-control-sm" id="ac_token_name" placeholder="Name (e.g. grafana, prometheus)" aria-label="Token name" autocomplete="off"></div>
+        <div class="col-sm-4"><button type="submit" class="btn btn-sm btn-outline-light w-100">Create</button></div>
+      </form>
+      <div id="ac_token_value" class="alert alert-warning py-2 small mt-2" hidden></div>
+    </div>
+  </div>
 </section>
 
 <section class="st-card" id="logging" aria-labelledby="logging_title">
@@ -240,6 +297,8 @@ const el = id => document.getElementById(id);
 const form = el("server_form");
 const FIELDS = {BIND_ADDRESS: "s_bind", SERVER_PORT: "s_port", MESH_LISTENERS_PORT_RANGE: "s_range",
                 SERVER_X509_CERTIFICATE: "s_cert", SERVER_X509_PRIVATE_KEY: "s_key",
+                WEBUI_BIND_ADDRESS: "w_bind", WEBUI_PORT: "w_port", WEBUI_X509_CERTIFICATE: "w_cert",
+                WEBUI_X509_PRIVATE_KEY: "w_key",
                 MAX_FLOWS_PER_CLIENT: "s_max_client", MAX_TOTAL_FLOWS: "s_max_total",
                 FLOW_ALERT_ADDED: "s_alert_added", FLOW_ALERT_RATIO: "s_alert_ratio"};
 let pending = null;
@@ -250,6 +309,7 @@ function stage(review) {
     el("btn_back").hidden = !review;
     el("btn_apply").hidden = !review;
     Object.values(FIELDS).forEach(id => { el(id).readOnly = review; });
+    el("w_tls").disabled = review;
 }
 
 async function load() {
@@ -260,6 +320,7 @@ async function load() {
         if (r.data.RUNNING[k]) el(id).placeholder = `${r.data.RUNNING[k]} (in service)`;  // valeur par défaut appliquée
         else if (r.data.CAPACITY_DEFAULTS[k]) el(id).placeholder = `${r.data.CAPACITY_DEFAULTS[k]} (default)`;
     });
+    el("w_tls").checked = !!r.data.WEBUI_TLS;
     form.querySelectorAll("[data-running]").forEach(node => {
         const k = node.dataset.running, running = r.data.RUNNING[k] || "", saved = r.data[k] || "";
         node.textContent = running && saved && running !== saved ? `In service: ${running} until the server restarts.` : "";
@@ -267,7 +328,8 @@ async function load() {
     stage(false);
 }
 
-const body = () => Object.fromEntries(Object.entries(FIELDS).map(([k, id]) => [k, el(id).value.trim()]));
+const body = () => Object.assign(Object.fromEntries(Object.entries(FIELDS).map(([k, id]) => [k, el(id).value.trim()])),
+                                  {WEBUI_TLS: el("w_tls").checked});
 
 form.addEventListener("submit", async e => {
     e.preventDefault();
@@ -295,7 +357,7 @@ el("btn_restart").addEventListener("click", st.restartServer);
 
 // ---- Section GLOBAL
 const GLOBAL_TEXT = {WATCHDOG_CHECK_RATE: "g_watchdog", IPERF3_TIME_SKEW_THRESHOLD: "g_skew", LOG_TO: "g_logto",
-                     IPERF3_BINARY_PATH: "g_iperf3", IPERF3_RSA_KEY_DIRECTORY: "g_rsadir"};
+                     };
 const GLOBAL_BOOL = {IPERF3_AUTH: "g_auth", LOG_PURGE_ON_START: "g_purge"};
 
 async function loadGlobal() {
@@ -310,6 +372,8 @@ async function loadGlobal() {
         el(id).checked = String(v).toLowerCase() === "true";
     }
     el("g_logdir").textContent = r.data.READ_ONLY.LOGDIR || "–";
+    el("g_iperf3").value = r.data.FILE_ONLY.IPERF3_BINARY_PATH || "(found in PATH)";
+    el("g_rsadir").value = r.data.FILE_ONLY.IPERF3_RSA_KEY_DIRECTORY || "(default)";
 }
 
 el("global_form").addEventListener("submit", async e => {
@@ -410,5 +474,68 @@ loadSyslog();
 setInterval(() => { if (!document.hidden) loadSyslog(); }, 15000);
 
 loadSettings(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]);
+
+// ---- Accès : administrateurs et jetons d'API
+async function loadAccess() {
+    const [u, t, me] = await Promise.all([st.api("GET", "/api/v1/auth/users"), st.api("GET", "/api/v1/auth/tokens"),
+                                          st.api("GET", "/api/v1/auth/me")]);
+    if (u.ok) el("ac_users").innerHTML = u.data.map(x => `<tr data-name="${st.esc(x.NAME)}"><td>${st.esc(x.NAME)}${me.ok && me.data.user === x.NAME ? ' <span class="badge bg-secondary">you</span>' : ""}</td>
+        <td class="small">${st.esc(x.PASSWORD_CHANGED ? st.time(x.PASSWORD_CHANGED) : "")}</td>
+        <td class="text-end text-nowrap"><button type="button" class="btn btn-sm btn-outline-light" data-act="password">Change password…</button>
+        <button type="button" class="btn btn-sm btn-outline-danger" data-act="delete">Delete</button></td></tr>`).join("");
+    if (t.ok) el("ac_tokens").innerHTML = t.data.length ? t.data.map(x => `<tr data-name="${st.esc(x.NAME)}"><td>${st.esc(x.NAME)}</td>
+        <td class="small">${st.esc(x.CREATED ? st.time(x.CREATED) : "")}</td><td class="small">${st.esc(x.LAST_USED ? st.time(x.LAST_USED) : "never")}</td>
+        <td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger" data-act="revoke">Revoke</button></td></tr>`).join("")
+        : '<tr><td colspan="4" class="text-white-50 small">No API token.</td></tr>';
+}
+
+el("ac_user_form").addEventListener("submit", async e => {
+    e.preventDefault();
+    const r = await st.api("POST", "/api/v1/auth/users", {NAME: el("ac_name").value.trim(), PASSWORD: el("ac_pass").value});
+    st.toast(r.ok ? `User “${el("ac_name").value.trim()}” added.` : r.error.message, r.ok ? "success" : "danger");
+    if (r.ok) { el("ac_name").value = ""; el("ac_pass").value = ""; loadAccess(); }
+});
+
+el("ac_users").addEventListener("click", async e => {
+    const b = e.target.closest("[data-act]");
+    if (!b) return;
+    const name = b.closest("[data-name]").dataset.name;
+    if (b.dataset.act === "delete") {
+        if (!await st.confirm({title: `Delete user “${name}”?`, body: "This account can no longer sign in.", confirmText: "Delete", danger: true})) return;
+        const r = await st.api("DELETE", `/api/v1/auth/users/${encodeURIComponent(name)}`);
+        st.toast(r.ok ? `User “${name}” deleted.` : r.error.message, r.ok ? "success" : "danger");
+    } else {
+        const box = document.createElement("div");
+        box.innerHTML = `<label for="ac_newpass" class="form-label">New password (12 characters or more)</label>
+            <input id="ac_newpass" class="form-control" type="password" autocomplete="new-password">
+            <p class="small text-white-50 mt-2 mb-0">Other sessions of this account are signed out.</p>`;
+        if (!await st.confirm({title: `Change the password of “${name}”?`, body: box, confirmText: "Change"})) return;
+        const r = await st.api("PUT", `/api/v1/auth/users/${encodeURIComponent(name)}`, {PASSWORD: box.querySelector("#ac_newpass").value});
+        st.toast(r.ok ? "Password changed." : r.error.message, r.ok ? "success" : "danger");
+    }
+    loadAccess();
+});
+
+el("ac_token_form").addEventListener("submit", async e => {
+    e.preventDefault();
+    const r = await st.api("POST", "/api/v1/auth/tokens", {NAME: el("ac_token_name").value.trim()});
+    if (!r.ok) { st.toast(r.error.message, "danger"); return; }
+    const box = el("ac_token_value");
+    box.hidden = false;
+    box.innerHTML = `<div>Token “${st.esc(r.data.name)}”: copy it now, it will not be shown again.</div><code class="d-block mt-1 user-select-all" data-no-i18n>${st.esc(r.data.value)}</code>`;
+    el("ac_token_name").value = "";
+    loadAccess();
+});
+
+el("ac_tokens").addEventListener("click", async e => {
+    const b = e.target.closest("[data-act]");
+    if (!b) return;
+    const name = b.closest("[data-name]").dataset.name;
+    if (!await st.confirm({title: `Revoke API token “${name}”?`, body: "Scripts using it are refused from then on.", confirmText: "Revoke", danger: true})) return;
+    const r = await st.api("DELETE", `/api/v1/auth/tokens/${encodeURIComponent(name)}`);
+    st.toast(r.ok ? `API token “${name}” revoked.` : r.error.message, r.ok ? "success" : "danger");
+    loadAccess();
+});
+loadAccess();
 </script>
 {% endblock %}

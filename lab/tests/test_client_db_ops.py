@@ -156,12 +156,17 @@ def test_listing_databases_never_returns_the_token(state):
 
 def test_editing_a_database_keeps_an_unchanged_token_and_recreates_its_connection(state):
     old = state["conn_db"][0]
-    result = ops.update_database(state, "VM_ONE", db_values(), actor="x")
+    original = find(disk(state)["DATABASE"], "DB_UID", "VM_ONE")
+    same_address = db_values(DB_SERVER=original["DB_SERVER"], DB_PORT=original["DB_PORT"],
+                             DB_SERVER_USE_SSL=original.get("DB_SERVER_USE_SSL", False), DB_RETENTION="30d")
+    result = ops.update_database(state, "VM_ONE", same_address, actor="x")
     assert find(disk(state)["DATABASE"], "DB_UID", "VM_ONE")["DB_TOKEN"] == "s3cret"
-    assert find(disk(state)["DATABASE"], "DB_UID", "VM_ONE")["DB_SERVER"] == "10.0.0.11"
-    assert state["conn_db"][0] is not old and state["conn_db"][0].server == "10.0.0.11"
-    assert result["recreated_databases"] == ["VM_ONE"]
     assert result["affected_clients"] == []
+    # une autre adresse : le jeton enregistré n'y part pas (il faut le saisir à nouveau)
+    ops.update_database(state, "VM_ONE", db_values(), actor="x")
+    moved = find(disk(state)["DATABASE"], "DB_UID", "VM_ONE")
+    assert moved["DB_SERVER"] == "10.0.0.11" and "DB_TOKEN" not in moved
+    assert state["conn_db"][0] is not old and state["conn_db"][0].server == "10.0.0.11"
 
 
 def test_database_fields_are_validated(state):
@@ -205,3 +210,23 @@ def test_restore_applies_clients_and_databases_live(state):
     assert result["restart_required"] == []
     assert find(state["config"]["SERVER_CLIENT"], "UID", "NODE_B") is not None
     assert state["conn_db"][0].server == "10.0.0.10"
+
+
+# ---------------------------------------------------------------------------------- jeton enregistré
+
+def test_the_saved_token_never_follows_a_changed_address(tmp_path):
+    """Un jeton enregistré ne part vers une autre adresse que si on le saisit à nouveau (sinon : fuite vers l'hôte
+    choisi par l'appelant, via le test de connexion ou une modification)."""
+    import lib.st_mesh_group_ops as o
+    existing = {"DB_UID": "VM1", "DB_ENGINE": "VictoriaMetrics", "DB_SERVER": "10.0.0.10", "DB_PORT": "8428",
+                "DB_TOKEN": "secret-token"}
+    same = dict(existing)
+    o._apply_db_form(same, {"DB_ENGINE": "VictoriaMetrics", "DB_SERVER": "10.0.0.10", "DB_PORT": "8428"})
+    assert same["DB_TOKEN"] == "secret-token"
+    moved = dict(existing)
+    o._apply_db_form(moved, {"DB_ENGINE": "VictoriaMetrics", "DB_SERVER": "attacker.example", "DB_PORT": "80"})
+    assert "DB_TOKEN" not in moved
+    retyped = dict(existing)
+    o._apply_db_form(retyped, {"DB_ENGINE": "VictoriaMetrics", "DB_SERVER": "10.0.0.11", "DB_PORT": "8428",
+                               "DB_TOKEN": "new-token"})
+    assert retyped["DB_TOKEN"] == "new-token"

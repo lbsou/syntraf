@@ -50,6 +50,8 @@
                 <span id="st-live" class="st-live" title="Live status updates"><span class="st-dot"></span><span class="st-live-text">connecting…</span></span>
                 <a class="link-light" href="/api/v1/openapi.json" target="_blank" rel="noopener" title="REST API description (OpenAPI)"><i class="fas fa-code"></i> API</a>
                 <span class="text-white-50">v{{ syntraf_version }}</span>
+                {% if current_user %}<span class="text-white-50"><i class="fas fa-user me-1"></i>{{ current_user }}</span>
+                <button type="button" class="btn btn-sm btn-outline-light" id="st-logout"><i class="fas fa-sign-out-alt me-1"></i>Sign out</button>{% endif %}
                 <select id="st-lang" class="form-select form-select-sm st-lang" aria-label="Language" data-no-i18n>
                     <option value="en">English</option><option value="fr">Français</option>
                 </select>
@@ -102,6 +104,8 @@
 
         {% block scripts %}{% endblock %}
         <script>
+            (() => { const out = document.getElementById("st-logout");
+                     if (out) out.addEventListener("click", async () => { await st.api("POST", "/logout"); location.href = "/login"; }); })();
             (() => { const sel = document.getElementById("st-lang");
                      sel.value = window.st_i18n ? st_i18n.lang : "en";
                      sel.addEventListener("change", () => st_i18n.set(sel.value)); })();

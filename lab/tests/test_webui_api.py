@@ -79,7 +79,11 @@ def env(tmp_path):
     clients = {"NODE_A": FakeClient("CONNECTED"), "NODE_B": FakeClient("DISCONNECTED")}
     app = create_app(threads, {}, generated, tuples, {}, live, str(path), [FakeDb()], {}, clients)
     app.config["TESTING"] = True
-    return {"client": app.test_client(), "app": app, "path": path, "threads": threads}
+    # Les tests de l'API passent par un jeton d'API (tests de l'authentification : test_auth.py)
+    from lib.web_ui_kindafixed2 import st_auth
+    client = app.test_client()
+    client.environ_base["HTTP_AUTHORIZATION"] = "Bearer " + st_auth.store_of(app).create_token("tests")
+    return {"client": client, "app": app, "path": path, "threads": threads}
 
 
 def test_list_mesh_groups(env):
@@ -111,7 +115,7 @@ def test_update_is_audited_with_the_caller_address(env):
     assert r.status_code == 200
     assert r.json["reconnected_clients"] == ["NODE_A"]
     [entry] = c.get("/api/v1/audit").json
-    assert (entry["actor"], entry["action"]) == ("127.0.0.1", "UPDATE_MESH_GROUP")
+    assert (entry["actor"], entry["action"]) == ("token:tests (127.0.0.1)", "UPDATE_MESH_GROUP")
 
 
 def test_patch_disables_and_delete_in_use_conflicts(env):
