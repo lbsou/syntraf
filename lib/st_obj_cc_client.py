@@ -13,7 +13,9 @@ class cc_client:
     _clock_skew_in_seconds = -1
     _syntraf_version = ""
     _thread_status = {}
-    metrics_buffer = None  # mesures en attente d'envoi chez le client, rapportées avec ses statistiques système
+    metrics_buffer = None
+    public_key = None          # clé publique présentée à la dernière authentification
+    public_key_sha256 = None   # son empreinte (pour l'épingler depuis la webui)  # mesures en attente d'envoi chez le client, rapportées avec ses statistiques système
 
     def __init__(self, status, status_since, status_explanation, bool_dynamic_client, client_uid, tcp_port=0,
                  ip_address=""):

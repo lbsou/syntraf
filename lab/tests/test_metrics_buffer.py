@@ -51,3 +51,10 @@ def test_status_and_metrics_show_the_buffer_per_client():
              "dict_of_clients": {"NODE_A": client}, "_dict_by_node_generated_config": {}}
     assert st_status.clients(state)[0]["metrics_buffer"] == 7
     assert 'syntraf_client_buffered_points{client="NODE_A"} 7' in st_status.metrics(state)
+
+
+def test_pre_authentication_placeholders_are_not_listed_as_clients():
+    placeholder = cc_client("KEY MISMATCH", None, "", False, "172.30.0.31")
+    state = {"config": {"SERVER_CLIENT": [{"UID": "NODE_A", "IP_ADDRESS": "10.0.0.1"}]},
+             "dict_of_clients": {"172.30.0.31": placeholder}, "_dict_by_node_generated_config": {}}
+    assert [c["uid"] for c in st_status.clients(state)] == ["NODE_A"]

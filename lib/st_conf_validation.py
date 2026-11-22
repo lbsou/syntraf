@@ -807,7 +807,7 @@ def config_validation_client(_config, parameters):
     if 'TOKEN' in _config['CLIENT']:
         if not 5 <= len(_config['CLIENT']['TOKEN']) <= 255:
             log.error(
-                f"IS TOKEN '{_config['CLIENT']['TOKEN']}' VALID : NO")
+                f"IS THE CLIENT TOKEN VALID : NO")  # jamais la valeur d'un jeton dans un journal
             log.error(
                 f"TOKEN MUST BE BETWEEN 5 AND 255 CHARACTER INCLUSIVELY")
             return False
@@ -866,7 +866,7 @@ def config_validation_server(_config, parameters):
             # Token must be between 5 and 255 char long
             if not 5 <= len(_config['SERVER']['TOKEN'][token]) <= 255:
                 log.error(
-                    f"IS TOKEN '{_config['SERVER']['TOKEN'][token]}' VALID : NO")
+                    f"IS TOKEN '{token}' VALID : NO")  # le nom du jeton, jamais sa valeur
                 log.error(
                     f"TOKEN MUST BE BETWEEN 5 AND 255 CHARACTER INCLUSIVELY")
                 return False, None, None

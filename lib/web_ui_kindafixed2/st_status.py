@@ -1,5 +1,6 @@
 """État du serveur pour le tableau de bord, /healthz et /metrics. Lit les objets partagés, ne les modifie pas."""
 import datetime as dt
+import ipaddress
 import json
 
 from lib.st_global import DefaultValues
@@ -34,6 +35,9 @@ def clients(state):
     known = state["dict_of_clients"]
     generated = state["_dict_by_node_generated_config"]
     rows = []
+    # Avant son authentification, une connexion est rangée sous son adresse IP (objet temporaire, gardé après un
+    # refus) : ce n'est pas un client. Les demandes refusées ou en attente ont leur propre panneau.
+    known = {u: o for u, o in known.items() if u in declared or not _is_ip(u)}
     for uid in sorted(set(declared) | set(known)):
         obj, decl, gen = known.get(uid), declared.get(uid, {}), generated.get(uid) or {}
         rows.append({
@@ -52,6 +56,14 @@ def clients(state):
             "declared": uid in declared,
         })
     return rows
+
+
+def _is_ip(text):
+    try:
+        ipaddress.ip_address(text)
+        return True
+    except ValueError:
+        return False
 
 
 def databases(state, refresh=False):
@@ -97,7 +109,19 @@ def snapshot(state, refresh_databases=False):
         "databases": databases(state, refresh_databases),
         "threads": th,
         "queue_length": len(state.get("dict_data_to_send_to_server") or {}),
+        "pending_clients": _pending_count(state),
     }
+
+
+def _pending_count(state):
+    path = state.get("config_file_path")
+    if not path:
+        return 0
+    from lib.st_enrollment import Enrollment
+    try:
+        return len(Enrollment(path + ".pending.json").pending())
+    except OSError:
+        return 0
 
 
 def health(state):

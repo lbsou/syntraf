@@ -312,3 +312,20 @@ def test_log_search_and_logging_settings_api(env):
                                               "LOG_RETENTION_DAYS": "30"})
     assert r.status_code == 200 and r.json["restart_required"] == []
     assert c.get("/api/v1/config/logging").json["LOG_RETENTION_DAYS"] == "30"
+
+
+def test_pending_clients_api(env):
+    from lib import st_enrollment
+    c = env["client"]
+    live = env["app"].config["config"]
+    live["SERVER"]["TOKEN"] = {"T1": "tok"}
+    enrollment = st_enrollment.Enrollment(str(env["path"]) + ".pending.json")
+    st_enrollment.authorize(live, {"CLIENT_UID": "NEW_NODE", "TOKEN": "tok", "PUBLIC_KEY": "K"}, "10.0.0.9", enrollment)
+    assert c.get("/api/v1/status").json["pending_clients"] == 1
+    assert [p["UID"] for p in c.get("/api/v1/clients/pending").json["pending"]] == ["NEW_NODE"]
+    r = c.post("/api/v1/clients/pending/NEW_NODE/approve", json={"MESH_GROUP_UID_LIST": ["GROUP1"], "IP_MODE": "dynamic"})
+    assert r.status_code == 201
+    row = c.get("/api/v1/config/clients/NEW_NODE").json
+    assert row["PINNED"] and row["OWN_TOKEN"] and "TOKEN" not in row and row["DYNAMIC"]
+    assert c.post("/api/v1/clients/pending/NEW_NODE/reject").status_code == 200
+    assert c.delete("/api/v1/clients/rejected/NEW_NODE").status_code == 200

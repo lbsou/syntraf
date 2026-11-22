@@ -17,6 +17,7 @@
     <div class="st-kpi" id="kpi-groups"><div class="st-kpi-label">Mesh groups enabled</div><div class="st-kpi-value">–</div><div class="st-kpi-note"></div></div>
     <div class="st-kpi" id="kpi-databases"><div class="st-kpi-label">Databases online</div><div class="st-kpi-value">–</div><div class="st-kpi-note"></div></div>
     <div class="st-kpi" id="kpi-threads"><div class="st-kpi-label">Server threads alive</div><div class="st-kpi-value">–</div><div class="st-kpi-note"></div></div>
+    <a class="st-kpi text-decoration-none text-reset" id="kpi-pending" href="/client_config.html#pending"><div class="st-kpi-label">Clients waiting for approval</div><div class="st-kpi-value">–</div><div class="st-kpi-note"></div></a>
     <div class="st-kpi" id="kpi-queue"><div class="st-kpi-label">Queued points</div><div class="st-kpi-value">–</div><div class="st-kpi-note">waiting to be forwarded</div></div>
 </div>
 
@@ -68,6 +69,7 @@ function render(snap) {
     kpi("kpi-threads", `${snap.threads.length - dead.length} / ${snap.threads.length}`,
         dead.length ? "dead: " + dead.map(t => t.name).join(", ") : "all alive", dead.length ? "bad" : "ok");
     kpi("kpi-queue", snap.queue_length, null, snap.queue_length > 1000 ? "warn" : "ok");
+    kpi("kpi-pending", snap.pending_clients, snap.pending_clients ? "approve or reject them" : "none", snap.pending_clients ? "warn" : "ok");
 
     const body = document.getElementById("clients-body");
     if (!snap.clients.length) {

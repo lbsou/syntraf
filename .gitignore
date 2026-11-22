@@ -8,3 +8,7 @@ __pycache__/
 # Historique et journal d’audit écrits à côté du fichier de configuration par la webui
 *.toml.history/
 *.toml.audit.jsonl
+
+# Demandes d'admission en attente (à côté du fichier de configuration du serveur) et jeton propre d'un client
+*.toml.pending.json
+syntraf_client_token

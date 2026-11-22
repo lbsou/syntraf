@@ -144,6 +144,36 @@ def delete_client_config(uid):
     return jsonify(ops.delete_client(_state(), uid, _actor(), _dry_run()))
 
 
+@st_api_v1.get("/clients/pending")
+def pending_clients():
+    return jsonify(ops.list_pending(_state()))
+
+
+@st_api_v1.post("/clients/pending/<uid>/approve")
+def approve_pending_client(uid):
+    return _created(ops.approve_client(_state(), uid, _body(), _actor(), _dry_run()))
+
+
+@st_api_v1.post("/clients/pending/<uid>/reject")
+def reject_pending_client(uid):
+    return jsonify(ops.reject_client(_state(), uid, _actor()))
+
+
+@st_api_v1.delete("/clients/rejected/<uid>")
+def forgive_rejected_client(uid):
+    return jsonify(ops.forgive_client(_state(), uid, _actor()))
+
+
+@st_api_v1.post("/config/clients/<uid>/secure")
+def secure_client(uid):
+    return jsonify(ops.secure_client(_state(), uid, _actor(), _dry_run()))
+
+
+@st_api_v1.post("/config/clients/<uid>/rotate-token")
+def rotate_client_token(uid):
+    return jsonify(ops.rotate_client_token(_state(), uid, _actor(), _dry_run()))
+
+
 @st_api_v1.get("/config/server")
 def get_server_config():
     return jsonify(ops.get_server(_state()))
@@ -512,6 +542,16 @@ OPENAPI = {
         "/api/v1/config/clients/{uid}": {"get": _op("Get a client declaration", params=("uid",)),
                                          "put": _op("Update a client declaration", False, True, ("uid",)),
                                          "delete": _op("Remove a client", False, True, ("uid",))},
+        "/api/v1/clients/pending": {"get": _op("Clients waiting for approval, and rejected clients")},
+        "/api/v1/clients/pending/{uid}/approve": {"post": _op("Approve a pending client ({MESH_GROUP_UID_LIST, "
+                                                              "IP_MODE: static|dynamic}): its key is pinned, a token "
+                                                              "of its own is issued", False, True, ("uid",))},
+        "/api/v1/clients/pending/{uid}/reject": {"post": _op("Reject a pending client", params=("uid",))},
+        "/api/v1/clients/rejected/{uid}": {"delete": _op("Allow a rejected client to ask again", params=("uid",))},
+        "/api/v1/config/clients/{uid}/secure": {"post": _op("Pin the key of a connected client and issue its own "
+                                                            "token", False, True, ("uid",))},
+        "/api/v1/config/clients/{uid}/rotate-token": {"post": _op("Issue a new token to a client (sent to it if "
+                                                                  "connected)", False, True, ("uid",))},
         "/api/v1/config/server": {"get": _op("Server settings (tokens excluded) and the values in service"),
                                   "put": _op("Update server settings; the response lists those that need a restart",
                                              False, True)},

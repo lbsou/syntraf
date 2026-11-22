@@ -477,6 +477,8 @@ def list_clients(state):
     for c in rows:
         c["DYNAMIC"] = c.get("IP_ADDRESS") == DYNAMIC_IP
         c.setdefault("MESH_GROUP_UID_LIST", [])
+        c["PINNED"] = bool(c.get("PUBLIC_KEY_SHA256"))
+        c["OWN_TOKEN"] = bool(c.pop("TOKEN", None))  # jamais la valeur du jeton
     return rows
 
 
@@ -510,6 +512,107 @@ def delete_client(state, uid, actor, dry_run=False):
         raise OpError(404, f"Client '{uid}' not found")
     cfg["SERVER_CLIENT"].remove(c)
     return dict(_commit(state, cfg, actor, "DELETE_CLIENT", f"Client '{uid}' deleted", dry_run), uid=uid)
+
+
+# --------------------------------------------------------------------------- admission : approbation et jetons
+
+def _enrollment(state):
+    from lib.st_enrollment import Enrollment
+    return Enrollment(state["config_file_path"] + ".pending.json")
+
+
+def list_pending(state):
+    """Demandes d'admission en attente (sans la clé complète) et clients refusés."""
+    e = _enrollment(state)
+    pending = [{k: v for k, v in p.items() if k != "PUBLIC_KEY"} for p in e.pending()]
+    return {"pending": pending, "rejected": e.rejected()}
+
+
+def approve_client(state, uid, values, actor, dry_run=False):
+    """Déclare un client en attente : sa clé est épinglée et un jeton propre est généré ; il lui est remis à sa
+    prochaine tentative (il se présente encore avec le jeton partagé, sa clé prouve son identité)."""
+    import secrets
+    request = next((p for p in _enrollment(state).pending() if p["UID"] == uid), None)
+    if request is None:
+        raise OpError(404, f"No pending request for '{uid}'")
+    cfg = read_disk(state)
+    existing = _find_by(cfg.get("SERVER_CLIENT", []), "UID", uid)
+    if request.get("KEY_CHANGE") and existing is not None:
+        # Client déclaré qui s'est présenté avec une nouvelle clé : on ré-épingle, le reste de sa déclaration est gardé
+        existing["PUBLIC_KEY_SHA256"] = request["PUBLIC_KEY_SHA256"]
+        existing["TOKEN"] = secrets.token_urlsafe(32)
+        result = _commit(state, cfg, actor, "APPROVE_KEY_CHANGE",
+                         f"New key of client '{uid}' approved ({request['PUBLIC_KEY_SHA256'][:19]}…)", dry_run)
+        if not dry_run:
+            _enrollment(state).take(uid)
+        return dict(result, uid=uid)
+    if existing is not None:
+        raise OpError(409, f"Client '{uid}' is already declared")
+    dynamic = str(values.get("IP_MODE", "static")).lower() == "dynamic"
+    form = {"IP_ADDRESS": DYNAMIC_IP if dynamic else request.get("IP_ADDRESS", ""),
+            "MESH_GROUP_UID_LIST": values.get("MESH_GROUP_UID_LIST")}
+    _raise(_client_field_errors(form, cfg))
+    client = {"UID": uid}
+    _apply_client_form(client, form)
+    client["PUBLIC_KEY_SHA256"] = request["PUBLIC_KEY_SHA256"]
+    client["TOKEN"] = secrets.token_urlsafe(32)
+    cfg.setdefault("SERVER_CLIENT", []).append(client)
+    result = _commit(state, cfg, actor, "APPROVE_CLIENT",
+                     f"Client '{uid}' approved (key {request['PUBLIC_KEY_SHA256'][:19]}…)", dry_run)
+    if not dry_run:
+        _enrollment(state).take(uid)
+    return dict(result, uid=uid)
+
+
+def reject_client(state, uid, actor):
+    _enrollment(state).reject(uid, actor)
+    store.log_event(state["config_file_path"], actor, "REJECT_CLIENT", f"Client '{uid}' rejected")
+    return {"uid": uid}
+
+
+def forgive_client(state, uid, actor):
+    _enrollment(state).forgive(uid)
+    store.log_event(state["config_file_path"], actor, "FORGIVE_CLIENT", f"Client '{uid}' may ask again")
+    return {"uid": uid}
+
+
+def secure_client(state, uid, actor, dry_run=False):
+    """Client déclaré à l'ancienne (jeton partagé, clé non épinglée) : épingle la clé de sa connexion actuelle et lui
+    remet un jeton propre."""
+    connected = state["dict_of_clients"].get(uid)
+    fp = getattr(connected, "public_key_sha256", None)
+    if not fp:
+        raise OpError(409, f"Client '{uid}' must be connected once with this version so that its key is known")
+    return _issue_token(state, uid, actor, dry_run, "SECURE_CLIENT", f"Client '{uid}' secured (key {fp[:19]}…)", pin=fp)
+
+
+def rotate_client_token(state, uid, actor, dry_run=False):
+    cfg = read_disk(state)
+    c = _find_by(cfg.get("SERVER_CLIENT", []), "UID", uid)
+    if c is None:
+        raise OpError(404, f"Client '{uid}' not found")
+    if not c.get("PUBLIC_KEY_SHA256"):
+        raise OpError(409, f"Client '{uid}' must be secured first (pinned key), otherwise it could not recover a token "
+                           f"rotated while it is offline")
+    return _issue_token(state, uid, actor, dry_run, "ROTATE_CLIENT_TOKEN", f"Token of client '{uid}' rotated")
+
+
+def _issue_token(state, uid, actor, dry_run, action, summary, pin=None):
+    import secrets
+    cfg = read_disk(state)
+    c = _find_by(cfg.get("SERVER_CLIENT", []), "UID", uid)
+    if c is None:
+        raise OpError(404, f"Client '{uid}' not found")
+    if pin:
+        c["PUBLIC_KEY_SHA256"] = pin
+    c["TOKEN"] = secrets.token_urlsafe(32)
+    result = _commit(state, cfg, actor, action, summary, dry_run)
+    if not dry_run:
+        connected = state["dict_of_clients"].get(uid)
+        if connected is not None and connected.status == "CONNECTED":
+            state["dict_of_commands_for_network_clients"].setdefault(uid, []).append(
+                {"ACTION": "SET_TOKEN", "TOKEN": c["TOKEN"]})
+    return dict(result, uid=uid)
 
 
 def _client_field_errors(values, cfg, with_uid=False):

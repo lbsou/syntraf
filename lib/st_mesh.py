@@ -10,7 +10,7 @@ from lib.st_cc_commands import queue_client_ip_update, next_command, dynamic_cli
 from lib.st_sockutil import recv_exact
 from lib.st_config_diff import edges_to_restart, reuse_keys
 from lib.st_iperf3_credentials import load_or_create
-from lib import st_log_forward, st_log_store
+from lib import st_enrollment, st_log_forward, st_log_store
 
 from tabulate import tabulate
 # SYNTRAF SERVER IMPORT
@@ -220,11 +220,42 @@ def client_detect_type_if():
     #         print("not wireless")
 
 
+def client_token(_config):
+    """Jeton à présenter : le jeton propre remis par le serveur (fichier), sinon le jeton partagé de la config.
+    Après un refus du jeton propre, une tentative se fait avec le jeton partagé : si la clé du client est épinglée,
+    le serveur l'accepte et lui remet son nouveau jeton (rotation faite pendant son absence)."""
+    client = _config['CLIENT']
+    path = client.get('_TOKEN_FILE')
+    if path and not client.get('_USE_SHARED_TOKEN') and os.path.isfile(path):
+        with open(path, encoding="utf-8") as f:
+            own = f.read().strip()
+        if own:
+            return own
+    return client['TOKEN']
+
+
+def client_command_set_token(_config, received_data):
+    """Le serveur remet au client son jeton propre : il est gardé dans un fichier lisible par le seul propriétaire."""
+    path = _config['CLIENT'].get('_TOKEN_FILE')
+    token = (received_data.get('PAYLOAD') or {}).get('TOKEN')
+    if not path or not token:
+        return
+    tmp = path + ".tmp"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(token)
+    os.replace(tmp, path)
+    _config['CLIENT']['_USE_SHARED_TOKEN'] = False
+    client_log.info("OWN TOKEN RECEIVED FROM THE SERVER AND SAVED")
+
+
 def client_send_auth(_config, client_utime, ssl_conn):
     try:
         # Sending TOKEN and UID for authentication, timestamp and version
         client_log.debug(f"SENDING GREETING PAYLOAD TO SERVER")
-        payload_greetings = {'TOKEN': _config['CLIENT']['TOKEN'], 'CLIENT_UID': _config['CLIENT']['CLIENT_UID'],
+        token = client_token(_config)
+        used_own_token = token != _config['CLIENT']['TOKEN']
+        payload_greetings = {'TOKEN': token, 'CLIENT_UID': _config['CLIENT']['CLIENT_UID'],
                              'TIMESTAMP': client_utime, 'SYNTRAF_CLIENT_VERSION': DefaultValues.SYNTRAF_VERSION,
                              'PUBLIC_KEY': _config['CLIENT']['PUBLIC_KEY']}
 
@@ -233,7 +264,13 @@ def client_send_auth(_config, client_utime, ssl_conn):
 
         if not received_data is None:
             if received_data['COMMAND'] == "AUTH_FAILED":
-                client_log.info(f"AUTHENTICATION FAILED, REASON GIVEN BY SERVER : {received_data['PAYLOAD']}")
+                reason = received_data['PAYLOAD']
+                if reason == "PENDING APPROVAL":
+                    client_log.warning("WAITING FOR AN ADMINISTRATOR TO APPROVE THIS CLIENT ON THE SERVER")
+                else:
+                    client_log.info(f"AUTHENTICATION FAILED, REASON GIVEN BY SERVER : {reason}")
+                # Jeton propre refusé : la prochaine tentative se fera avec le jeton partagé de la config
+                _config['CLIENT']['_USE_SHARED_TOKEN'] = used_own_token and reason == "INVALID TOKEN"
                 return False
             else:
                 client_log.info(f"AUTHENTICATION SUCCESSFULL")
@@ -523,6 +560,9 @@ def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processe
 
     address = "0.0.0.0"
     ssl_conn = None
+    # Jeton propre remis par le serveur : à côté du fichier de configuration
+    _config['CLIENT'].setdefault('_TOKEN_FILE', os.path.join(os.path.dirname(os.path.abspath(config_file_path)),
+                                                             "syntraf_client_token"))
     try:
         ssl_conn = client_sck_init(_config)
         client_utime = client_connect_utime(_config)
@@ -565,6 +605,9 @@ def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processe
 
                 if received_data['COMMAND'] == "RESTART_CLIENT":
                     client_command_restart(ssl_conn)
+
+                elif received_data['COMMAND'] == "SET_TOKEN":
+                    client_command_set_token(_config, received_data)
 
                 # We just received a specific part of the configuration that we should change locally.
                 elif received_data['COMMAND'] == "DIFFCONFIG":
@@ -638,46 +681,27 @@ def validate_clock_skew(_config, received_data, obj_client):
             f"CONTEXT: {obj_client.client_uid} - CLOCK SKEW BETWEEN CLIENT AND SERVER IS TOO GREAT '{clock_skew} SECONDS'. WARNING : IF THE SAME SKEW HAPPEN BETWEEN NODES, THE IPERF3 CONTROL CHANNEL WILL FAIL. IF YOU CANNOT TIME SYNC THE NODES, YOU CAN ADJUST THE CLOCK OF THE NODES OR CHANGE THE VAR 'SERVER_IPERF3_TIME_SKEW_THRESHOLD'")
 
 
-def authenticate_server_client(_config, data, obj_client, sckt):
-    valid_token = False
-    valid_server_client = False
+def authenticate_server_client(_config, data, obj_client, sckt, enrollment=None, dict_of_commands_for_network_clients=None):
+    """Décide de l'admission d'un client (voir st_enrollment.authorize) : clé épinglée, jeton propre, jetons partagés,
+    demandes en attente. Remet son jeton propre à un client épinglé qui s'est présenté avec un jeton partagé."""
     ip_addr = sckt.getpeername()[0]
-    rejection_explanation = ""
-
-    for description, token in _config['SERVER']['TOKEN'].items():
-        if data['PAYLOAD']['TOKEN'] == token:
-            valid_token = True
-
-    if is_valid_server_client(_config, data['PAYLOAD']['CLIENT_UID'], sckt):
-        valid_server_client = True
-
-    if valid_token and valid_server_client:
-        server_log.info(
-            f"AUTHENTICATION SUCCESSFUL FROM IP '{ip_addr}' WITH CLIENT_UID '{data['PAYLOAD']['CLIENT_UID']}'")
-
-        # NEW STATUS TRACKING
+    payload = data['PAYLOAD']
+    obj_client.public_key_sha256 = st_enrollment.fingerprint(payload.get('PUBLIC_KEY'))
+    obj_client.public_key = payload.get('PUBLIC_KEY')
+    decision = st_enrollment.authorize(_config, payload, ip_addr,
+                                       enrollment if isinstance(enrollment, st_enrollment.Enrollment) else None)
+    if decision.accepted:
+        server_log.info(f"AUTHENTICATION SUCCESSFUL FROM IP '{ip_addr}' WITH CLIENT_UID '{payload['CLIENT_UID']}'")
         obj_client.status = "CONNECTED"
         obj_client.status_since = datetime.now()
-
+        if decision.deliver_token and dict_of_commands_for_network_clients is not None:
+            server_log.info(f"CONTEXT: {payload['CLIENT_UID']} - HANDING OVER ITS OWN TOKEN")
+            dict_of_commands_for_network_clients.setdefault(payload['CLIENT_UID'], []).append(
+                {"ACTION": "SET_TOKEN", "TOKEN": decision.deliver_token})
         return True, ""
-
-    elif valid_token and not valid_server_client:
-        # Temporary, testing dynamic IP
-        server_log.error(
-            f"AUTHENTICATION FAILED FROM IP '{ip_addr}' WITH CLIENT UID '{obj_client.client_uid}' CLIENT UID INVALID.")
-        rejection_explanation = "UNKNOWN CLIENT"
-
-    elif not valid_token and valid_server_client:
-        server_log.error(
-            f"AUTHENTICATION FAILED FROM IP '{ip_addr}' WITH CLIENT UID '{obj_client.client_uid}' TOKEN INVALID.")
-        rejection_explanation = "INVALID TOKEN"
-
-    elif not valid_token and not valid_server_client:
-        server_log.error(
-            f"AUTHENTICATION FAILED FROM IP '{ip_addr}' WITH CLIENT UID '{obj_client.client_uid}' CLIENT UID AND TOKEN INVALID.")
-        rejection_explanation = "UNKNOWN CLIENT AND INVALID TOKEN"
-
-    return False, rejection_explanation
+    level = server_log.warning if decision.reason == "PENDING APPROVAL" else server_log.error
+    level(f"AUTHENTICATION REFUSED FROM IP '{ip_addr}' WITH CLIENT UID '{obj_client.client_uid}': {decision.reason}")
+    return False, decision.reason
 
 
 def send_config(dict_by_node_generated_config, client_uid, sckt, _config):
@@ -751,21 +775,10 @@ def server_auth(received_data, obj_client, _config, address, dict_of_commands_fo
     server_log.debug(
         f"CONTEXT: {obj_client.client_uid} - NEW CONNECTION FROM CLIENT_UID : '{obj_client.client_uid}', SOURCE_IP : '{address}'")
 
-    auth_ok = False
-    # CHECK IF PUBLIC KEY IS IN THE CONFIG FILE FOR THIS SPECIFIC CLIENT
-    for server_client in _config['SERVER_CLIENT']:
-        if server_client['UID'] == obj_client.client_uid:
-            if 'PUBLIC_KEY' in server_client:
-                print("NEW AUTH SUCCESSFUL **************************************")
-                auth_ok = True
-                pass
-
-    if not auth_ok:
-        # add this public key and other interesting informations to a dictionnary that will be use to keep pending acceptation
-        dict_of_client_pending_acceptance[obj_client.client_uid] = public_key
-
-    # Authentication, if token is wrong, disconnect
-    is_authenticated, rejection_explanation = authenticate_server_client(_config, received_data, obj_client, sckt)
+    # Admission : clé épinglée, jeton propre ou partagé, demande en attente (dict_of_client_pending_acceptance est
+    # l'objet st_enrollment.Enrollment du serveur)
+    is_authenticated, rejection_explanation = authenticate_server_client(
+        _config, received_data, obj_client, sckt, dict_of_client_pending_acceptance, dict_of_commands_for_network_clients)
 
     if is_authenticated:
         obj_client.status = "CONNECTED"
@@ -898,12 +911,15 @@ def server_awaiting_commands(client_uid, dict_of_commands_for_network_clients, s
     sent_an_action = False
     action = next_command(dict_of_commands_for_network_clients, client_uid)
     if action is not None:
-        server_log.info(f"SENDING THE ACTION '{action}' TO THE CLIENT {client_uid}")
+        server_log.info(f"SENDING THE ACTION '{action['ACTION']}' TO THE CLIENT {client_uid}")  # jamais le contenu (jeton)
         if action['ACTION'] == "RECONNECT_CLIENT":
             sock_send(sckt, "", "RECONNECT_CLIENT")
             sent_an_action = True
         elif action['ACTION'] == "RESTART_CLIENT":
             sock_send(sckt, "", "RESTART_CLIENT")
+            sent_an_action = True
+        elif action['ACTION'] == "SET_TOKEN":
+            sock_send(sckt, {"TOKEN": action['TOKEN']}, "SET_TOKEN")
             sent_an_action = True
         elif action['ACTION'] == "UPDATED_CONFIG" and action.get('ELEMENT') == "CLIENT_IP":
             sock_send(sckt, action, "DIFFCONFIG")
@@ -1017,6 +1033,9 @@ class Handler(StreamRequestHandler):
                             dict_of_clients[new_uid].status_explanation = dict_of_clients[uid].status_explanation
                             dict_of_clients[new_uid].clock_skew_in_seconds = dict_of_clients[uid].clock_skew_in_seconds
                             dict_of_clients[new_uid].syntraf_version = dict_of_clients[uid].syntraf_version
+                            # clé présentée à l'authentification : nécessaire pour l'épingler (Secure)
+                            dict_of_clients[new_uid].public_key = dict_of_clients[uid].public_key
+                            dict_of_clients[new_uid].public_key_sha256 = dict_of_clients[uid].public_key_sha256
                             dict_of_clients[new_uid].ip_address = address[0]
                             dict_of_clients[new_uid].tcp_port = address[1]
                             dict_of_clients.pop(uid)

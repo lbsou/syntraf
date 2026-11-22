@@ -173,7 +173,9 @@ def run():
     dict_of_commands_for_network_clients = {}
 
     # Using a public key mechanism, we have a list of client that are waiting acceptance
-    dict_of_client_pending_acceptance = {}
+    # Demandes d'admission en attente et refus (clients inconnus présentant un jeton partagé), à côté de la config
+    from lib.st_enrollment import Enrollment
+    dict_of_client_pending_acceptance = Enrollment(cli_parameters.config_file + ".pending.json")
 
     # thread_run = threading.Thread(target=udp_server,
     #                               args=(),
