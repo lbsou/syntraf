@@ -136,3 +136,14 @@ def test_approving_a_key_change_repins_and_keeps_the_declaration(state):
     assert after["PUBLIC_KEY_SHA256"] == st_enrollment.fingerprint(new_key) and after["TOKEN"] != before["TOKEN"]
     assert after["MESH_GROUP_UID_LIST"] == before["MESH_GROUP_UID_LIST"] and after["IP_ADDRESS"] == before["IP_ADDRESS"]
     assert store.audit_entries(state["config_file_path"])[0]["action"] == "APPROVE_KEY_CHANGE"
+
+
+def test_a_request_from_a_client_declared_since_is_dropped(state):
+    # Le client s'est présenté avant d'être déclaré (fichier modifié, ajout dans la page Clients) : sa demande est
+    # caduque ; elle ne doit plus apparaître ni pouvoir être « approuvée » (erreur « already declared »).
+    ops.create_client(state, {"UID": "NEW_NODE", "IP_ADDRESS": "10.0.0.9", "MESH_GROUP_UID_LIST": ["GROUP1"]},
+                      actor="admin")
+    assert ops.list_pending(state)["pending"] == []
+    with pytest.raises(ops.OpError) as err:
+        ops.approve_client(state, "NEW_NODE", {"MESH_GROUP_UID_LIST": ["GROUP1"]}, actor="admin")
+    assert err.value.status == 404

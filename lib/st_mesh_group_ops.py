@@ -772,9 +772,19 @@ def _enrollment(state):
     return Enrollment(state["config_file_path"] + ".pending.json")
 
 
+def _drop_stale_requests(state, e):
+    """Une demande d'admission d'un client déclaré depuis (fichier modifié, page Clients) est caduque : le client
+    se connecte normalement. Seules restent, pour un client déclaré, les demandes de changement de clé."""
+    declared = {c.get("UID") for c in read_disk(state).get("SERVER_CLIENT", [])}
+    for p in e.pending():
+        if p["UID"] in declared and not p.get("KEY_CHANGE"):
+            e.take(p["UID"])
+
+
 def list_pending(state):
     """Demandes d'admission en attente (sans la clé complète) et clients refusés."""
     e = _enrollment(state)
+    _drop_stale_requests(state, e)
     pending = [{k: v for k, v in p.items() if k != "PUBLIC_KEY"} for p in e.pending()]
     return {"pending": pending, "rejected": e.rejected()}
 
@@ -783,6 +793,7 @@ def approve_client(state, uid, values, actor, dry_run=False):
     """Déclare un client en attente : sa clé est épinglée et un jeton propre est généré ; il lui est remis à sa
     prochaine tentative (il se présente encore avec le jeton partagé, sa clé prouve son identité)."""
     import secrets
+    _drop_stale_requests(state, _enrollment(state))
     request = next((p for p in _enrollment(state).pending() if p["UID"] == uid), None)
     if request is None:
         raise OpError(404, f"No pending request for '{uid}'")
