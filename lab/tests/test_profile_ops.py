@@ -60,11 +60,27 @@ def test_editing_a_profile_applies_it_live_to_its_groups_only(state):
     assert result["reconnected_clients"] == ["NODE_B", "NODE_C"]
 
 
-def test_assigning_a_profile_to_a_group_overrides_its_values(state):
-    ops.update(state, "GROUP1", {"BANDWIDTH": "100K", "DSCP": "0", "PACKET_SIZE": "218", "INTERVAL": "1",
+def test_assigning_a_profile_to_a_group_applies_its_values(state):
+    # VOICE fixe DSCP, PACKET_SIZE et BANDWIDTH : le groupe ne garde que ce que le profil laisse libre (INTERVAL)
+    ops.update(state, "GROUP1", {"BANDWIDTH": "", "DSCP": "", "PACKET_SIZE": "", "INTERVAL": "1",
                                  "IPERF3_PROFILE": "VOICE"}, actor="x")
     assert live_group(state, "GROUP1")["DSCP"] == "46"
     assert live_group(state, "GROUP1")["BANDWIDTH"] == "64K"
+    g1 = next(g for g in toml.load(state["config_file_path"])["MESH_GROUP"] if g["UID"] == "GROUP1")
+    assert g1 == {"UID": "GROUP1", "IPERF3_PROFILE": "VOICE", "INTERVAL": "1"}
+
+
+def test_a_value_for_a_field_fixed_by_the_profile_is_refused_not_ignored(state):
+    with pytest.raises(ops.OpError) as err:
+        ops.update(state, "GROUP1", {"BANDWIDTH": "", "DSCP": "0", "PACKET_SIZE": "", "INTERVAL": "1",
+                                     "IPERF3_PROFILE": "VOICE"}, actor="x")
+    assert err.value.status == 400 and list(err.value.fields) == ["DSCP"]
+    assert "46" in err.value.fields["DSCP"] and "VOICE" in err.value.fields["DSCP"]
+
+
+def test_profiles_listing_exposes_their_values_for_the_form(state):
+    [voice] = ops.list_profiles(state)
+    assert (voice["DSCP"], voice["PACKET_SIZE"], voice["BANDWIDTH"]) == ("46", "160", "64K")
 
 
 def test_unknown_profile_on_a_group_is_a_field_error(state):

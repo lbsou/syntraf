@@ -263,9 +263,18 @@ def _apply_profile_form(p, values):
 
 
 def _check_profile_reference(cfg, values):
+    """Le profil existe, et aucune valeur n'est donnée pour un champ qu'il fixe : le profil a priorité, une telle
+    valeur serait ignorée en silence (elle est donc refusée, avec la valeur du profil dans le message)."""
     profile = str(values.get("IPERF3_PROFILE", "") or "").strip()
-    if profile and _find_by(cfg.get("IPERF3_PROFILE", []), "UID", profile) is None:
+    if not profile:
+        return
+    p = _find_by(cfg.get("IPERF3_PROFILE", []), "UID", profile)
+    if p is None:
         raise OpError(400, "Some fields are invalid", {"IPERF3_PROFILE": f"Profile '{profile}' does not exist"})
+    conflicts = {k: f"Set by profile {profile} ({p[k]}): leave it empty, or change the profile"
+                 for k in EDITABLE_FIELDS if p.get(k) and str(values.get(k, "") or "").strip()}
+    if conflicts:
+        raise OpError(400, "Some fields are set by the profile", conflicts)
 
 
 # --------------------------------------------------------------------------------------------- section SERVER

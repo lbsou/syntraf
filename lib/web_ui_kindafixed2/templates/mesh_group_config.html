@@ -89,7 +89,7 @@
             <div class="mb-3">
                 <label for="mg_profile" class="form-label">iperf3 profile <span class="text-white-50">(optional)</span></label>
                 <select class="form-select" id="mg_profile" data-field="IPERF3_PROFILE" aria-describedby="mg_profile_help"></select>
-                <div id="mg_profile_help" class="form-text">The profile's values replace the values below, which become optional. Profiles are managed on the Profiles page.</div>
+                <div id="mg_profile_help" class="form-text">A profile has priority: the values it sets are shown greyed below and cannot be changed here (edit the profile instead); only the values it leaves free are set on the group. Profiles are managed on the Profiles page.</div>
                 <div class="invalid-feedback" data-feedback="IPERF3_PROFILE"></div>
             </div>
             <div class="mb-3">
@@ -206,12 +206,37 @@ function report(result, okMessage) {
     return true;
 }
 
+// ---- Priorité du profil : les champs qu'il fixe sont grisés et montrent sa valeur
+let profileValues = {};
+const PROFILE_FIELDS = {BANDWIDTH: "mg_bandwidth", DSCP: "mg_dscp", PACKET_SIZE: "mg_packet_size", INTERVAL: "mg_interval"};
+
+function applyProfileLock() {
+    const uid = document.getElementById("mg_profile").value;
+    const p = profileValues[uid] || {};
+    for (const [key, id] of Object.entries(PROFILE_FIELDS)) {
+        const input = document.getElementById(id);
+        const fixed = uid && p[key] !== undefined && p[key] !== "";
+        if (fixed) {
+            input.value = "";
+            input.placeholder = `${p[key]} (profile)`;
+        } else if (input.disabled) {
+            input.placeholder = "";
+        }
+        input.disabled = !!fixed;
+        input.title = fixed ? `Set by profile ${uid}: edit the profile to change it` : "";
+        if (key === "BANDWIDTH") document.getElementById("mg_bandwidth_unit").hidden = !!fixed;  // l'unité est dans la valeur
+    }
+}
+document.getElementById("mg_profile").addEventListener("change", applyProfileLock);
+
 async function fillProfiles(selected) {
     const r = await st.api("GET", "/api/v1/config/profiles");
     const profiles = r.ok ? r.data : [];
+    profileValues = Object.fromEntries(profiles.map(p => [p.UID, p]));
     document.getElementById("mg_profile").innerHTML = '<option value="">None: use the values below</option>' +
         profiles.map(p => `<option value="${st.esc(p.UID)}">${st.esc(p.UID)}${p.DESCRIPTION ? " — " + st.esc(p.DESCRIPTION) : ""}</option>`).join("");
     document.getElementById("mg_profile").value = selected || "";
+    applyProfileLock();
 }
 
 // ---- Topologie : cartes cliquables (boutons radio) et choix des hubs
@@ -292,7 +317,7 @@ form.addEventListener("submit", async e => {
     const v = id => document.getElementById(id).value.trim();
     const body = {
         UID: v("mg_name"), DESCRIPTION: v("mg_description"),
-        BANDWIDTH: v("mg_bandwidth") + document.getElementById("mg_bandwidth_unit").value,
+        BANDWIDTH: v("mg_bandwidth") ? v("mg_bandwidth") + document.getElementById("mg_bandwidth_unit").value : "",
         DSCP: v("mg_dscp"), PACKET_SIZE: v("mg_packet_size"), INTERVAL: v("mg_interval"),
         IPERF3_PROFILE: document.getElementById("mg_profile").value,
         ...topologyBody(),
