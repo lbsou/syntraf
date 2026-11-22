@@ -473,6 +473,21 @@ def log_files():
     return logdir, sorted(f for f in os.listdir(logdir) if os.path.isfile(os.path.join(logdir, f)))
 
 
+@st_api_v1.get("/config/syslog")
+def get_syslog_config():
+    return jsonify(ops.get_syslog(_state()))
+
+
+@st_api_v1.put("/config/syslog")
+def update_syslog_config():
+    return jsonify(ops.update_syslog(_state(), _body(), _actor(), _dry_run()))
+
+
+@st_api_v1.post("/logging/syslog/test")
+def syslog_test():
+    return jsonify(ops.syslog_test(_state(), _actor()))
+
+
 @st_api_v1.get("/config/logging")
 def get_logging_config():
     return jsonify(ops.get_logging(_state()))
@@ -637,6 +652,9 @@ OPENAPI = {
         "/api/v1/config/versions/{version}/diff": {"get": _op("Diff between the current file and a version",
                                                               params=("version",))},
         "/api/v1/config/versions/{version}/restore": {"post": _op("Restore a version", False, True, ("version",))},
+        "/api/v1/config/syslog": {"get": _op("Syslog forwarding settings and status"),
+                                  "put": _op("Update syslog forwarding (empty host: disabled)", False, True)},
+        "/api/v1/logging/syslog/test": {"post": _op("Send a test message to the syslog collector")},
         "/api/v1/config/logging": {"get": _op("Logging settings (levels, file size and count, retention in days)"),
                                    "put": _op("Update logging settings", False, True)},
         "/api/v1/logs/nodes": {"get": _op("Nodes with logs (server, clients), log types and levels")},

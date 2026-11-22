@@ -247,3 +247,41 @@ def test_directories_and_paths_are_not_masked_as_secrets():
     assert display_value("/etc/syntraf/rsa", "IPERF3_RSA_KEY_DIRECTORY") == "/etc/syntraf/rsa"
     assert display_value("abc", "IPERF3_PASSWORD") == MASK
     assert display_value("tok", "DB_TOKEN") == MASK
+
+
+# ---------------------------------------------------------------------------------------- renvoi syslog
+
+@pytest.fixture
+def syslog_reset():
+    from lib import st_syslog
+    yield st_syslog.FORWARDER
+    st_syslog.FORWARDER.configure(st_syslog.Settings())
+
+
+def test_syslog_settings_are_validated(state):
+    with pytest.raises(ops.OpError) as err:
+        ops.update_syslog(state, {"SYSLOG_HOST": "siem", "SYSLOG_PROTOCOL": "ftp", "SYSLOG_FORMAT": "leef"}, actor="x")
+    assert set(err.value.fields) == {"SYSLOG_PROTOCOL", "SYSLOG_FORMAT"}
+
+
+def test_syslog_applies_live_without_restart(state, syslog_reset):
+    result = ops.update_syslog(state, {"SYSLOG_HOST": "127.0.0.1", "SYSLOG_PORT": "9", "SYSLOG_FORMAT": "CEF",
+                                       "SYSLOG_LEVEL": "error", "SYSLOG_INCLUDE_CLIENTS": "false"}, actor="x")
+    assert result["restart_required"] == []
+    s = syslog_reset.settings
+    assert (s.host, s.port, s.format, s.level, s.include_clients) == ("127.0.0.1", 9, "cef", "ERROR", False)
+    g = disk(state)["GLOBAL"]
+    assert g["SYSLOG_FORMAT"] == "cef" and g["SYSLOG_INCLUDE_CLIENTS"] is False
+    assert ops.get_syslog(state)["STATUS"]["target"] == "udp://127.0.0.1:9"
+
+
+def test_syslog_is_disabled_by_clearing_the_host(state, syslog_reset):
+    ops.update_syslog(state, {"SYSLOG_HOST": "127.0.0.1", "SYSLOG_PORT": "9"}, actor="x")
+    ops.update_syslog(state, {"SYSLOG_HOST": ""}, actor="x")
+    assert syslog_reset.settings.enabled is False and "SYSLOG_HOST" not in disk(state)["GLOBAL"]
+
+
+def test_syslog_test_message_needs_a_collector(state, syslog_reset):
+    with pytest.raises(ops.OpError) as err:
+        ops.syslog_test(state, actor="x")
+    assert err.value.status == 409

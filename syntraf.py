@@ -128,6 +128,10 @@ def run():
         cli_parameters)
 
     if bool_config_valid: config['GLOBAL']['LOGDIR'] = cli_parameters.log_dir
+    if bool_config_valid and "SERVER" in config:
+        # Renvoi vers un collecteur syslog (SIEM), si configuré ; réglable à chaud depuis la page Logs
+        from lib import st_syslog
+        st_syslog.install(config['GLOBAL'], DefaultValues.SYNTRAF_VERSION)
 
     if not bool_config_valid:
         log.error(f"CONFIGURATION VALIDATION FAILED")

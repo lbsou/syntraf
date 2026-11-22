@@ -364,3 +364,10 @@ def test_large_changes_need_confirm_through_the_api(env):
     assert preview["impact"]["alert"] is True and preview["impact"]["flows_after"] == 6
     assert c.post("/api/v1/config/clients", json=body).status_code == 428
     assert c.post("/api/v1/config/clients?confirm=1", json=body).status_code == 201
+
+
+def test_syslog_api(env):
+    c = env["client"]
+    assert "STATUS" in c.get("/api/v1/config/syslog").json
+    assert c.put("/api/v1/config/syslog", json={"SYSLOG_HOST": "bad host!"}).status_code == 400
+    assert c.post("/api/v1/logging/syslog/test").status_code == 409

@@ -27,6 +27,7 @@ import toml
 from lib import st_config_store as store
 from lib import st_capacity
 from lib import st_flow_catalog
+from lib import st_syslog
 from lib import st_topology
 
 # Confirmation explicite d'un changement qui franchit le seuil d'alerte de capacité (posée par l'API, ?confirm=1)
@@ -404,7 +405,7 @@ LOGGING_FIELDS = ("LOG_LEVEL", "LOG_FORWARD_LEVEL", "LOG_MAX_SIZE_PER_FILE_MB", 
 LOGGING_DEFAULTS = {"LOG_LEVEL": "INFO", "LOG_FORWARD_LEVEL": "INFO", "LOG_MAX_SIZE_PER_FILE_MB": "10",
                     "LOG_FILE_TO_KEEP": "5", "LOG_RETENTION_DAYS": ""}
 GLOBAL_LIVE_KEYS = ("LOG_LEVEL", "LOG_FORWARD_LEVEL", "LOG_RETENTION_DAYS", "WATCHDOG_CHECK_RATE",
-                    "IPERF3_TIME_SKEW_THRESHOLD")
+                    "IPERF3_TIME_SKEW_THRESHOLD") + st_syslog.KEYS
 # Réglages transmis aux clients à leur connexion : un changement les fait se reconnecter pour les recevoir
 GLOBAL_SENT_TO_CLIENTS = (("LOG_FORWARD_LEVEL", "INFO"), ("IPERF3_TIME_SKEW_THRESHOLD", None))
 LOGGING_MESSAGES = {
@@ -466,7 +467,48 @@ def _apply_live_global(live, old_disk, new_disk):
             for handler in syntraf_logger.handlers:
                 if not handler.__class__.__name__ == "ForwardHandler":
                     handler.setLevel(level)
+    if any(old_g.get(k) != new_g.get(k) for k in st_syslog.KEYS):
+        st_syslog.install(live_g)
     return old_g.get("LOG_FORWARD_LEVEL", "INFO") != new_g.get("LOG_FORWARD_LEVEL", "INFO")
+
+
+# ---------------------------------------------------------------------------------------- renvoi syslog
+
+SYSLOG_BOOLS = ("SYSLOG_INCLUDE_CLIENTS", "SYSLOG_TLS_VERIFY")
+
+
+def get_syslog(state):
+    g = read_disk(state).get("GLOBAL", {})
+    row = {k: "" if g.get(k) is None else str(g.get(k)) for k in st_syslog.KEYS}
+    row["STATUS"] = st_syslog.FORWARDER.status()
+    return row
+
+
+def update_syslog(state, values, actor, dry_run=False):
+    """Collecteur syslog (SIEM) ; sans hôte, le renvoi est désactivé. Appliqué à chaud."""
+    v = {k: str(values.get(k, "") if values.get(k) is not None else "").strip() for k in st_syslog.KEYS}
+    _raise(st_syslog.setting_errors(v))
+    cfg = read_disk(state)
+    g = cfg.setdefault("GLOBAL", {})
+    for key in st_syslog.KEYS:
+        value = v[key]
+        if key in SYSLOG_BOOLS:
+            value = _bool_text(value) if value else None
+        elif key in ("SYSLOG_PROTOCOL", "SYSLOG_FORMAT", "SYSLOG_FACILITY"):
+            value = value.lower()
+        elif key == "SYSLOG_LEVEL":
+            value = value.upper()
+        if value is None or value == "":
+            g.pop(key, None)
+        else:
+            g[key] = value
+    return _commit(state, cfg, actor, "UPDATE_SYSLOG", "Syslog forwarding updated", dry_run)
+
+
+def syslog_test(state, actor):
+    if not st_syslog.FORWARDER.settings.enabled:
+        raise OpError(409, "Syslog forwarding is not configured: set a collector first")
+    return st_syslog.FORWARDER.send_test(actor)
 
 
 # ------------------------------------------------------------------------------------------ section GLOBAL

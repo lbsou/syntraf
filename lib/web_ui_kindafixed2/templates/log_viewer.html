@@ -96,6 +96,73 @@
   </form>
 </section>
 
+<section class="st-card" id="syslog" aria-labelledby="syslog_title">
+  <div class="d-flex justify-content-between align-items-center">
+    <h2 id="syslog_title" class="h6 mb-0"><i class="fas fa-share-square me-1"></i>Forward to a syslog collector (SIEM) <span class="badge bg-success">live</span></h2>
+    <span id="sy_state" class="small" aria-live="polite"></span>
+  </div>
+  <form id="syslog_form" class="mt-2" novalidate>
+    <div class="row g-3">
+      <div class="col-md-3">
+        <label for="sy_host" class="form-label small">Collector</label>
+        <input class="form-control form-control-sm" id="sy_host" data-field="SYSLOG_HOST" placeholder="empty: disabled">
+        <div class="invalid-feedback" data-feedback="SYSLOG_HOST"></div>
+      </div>
+      <div class="col-md-1">
+        <label for="sy_port" class="form-label small">Port</label>
+        <input class="form-control form-control-sm" id="sy_port" data-field="SYSLOG_PORT" inputmode="numeric" placeholder="514">
+        <div class="invalid-feedback" data-feedback="SYSLOG_PORT"></div>
+      </div>
+      <div class="col-md-2">
+        <label for="sy_protocol" class="form-label small">Transport</label>
+        <select class="form-select form-select-sm" id="sy_protocol" data-field="SYSLOG_PROTOCOL">
+          <option value="udp">UDP</option><option value="tcp">TCP</option><option value="tls">TLS (TCP)</option></select>
+        <div class="invalid-feedback" data-feedback="SYSLOG_PROTOCOL"></div>
+      </div>
+      <div class="col-md-2">
+        <label for="sy_format" class="form-label small">Format</label>
+        <select class="form-select form-select-sm" id="sy_format" data-field="SYSLOG_FORMAT">
+          <option value="rfc5424">Syslog RFC 5424</option><option value="cef">CEF (ArcSight)</option></select>
+        <div class="invalid-feedback" data-feedback="SYSLOG_FORMAT"></div>
+      </div>
+      <div class="col-md-2">
+        <label for="sy_level" class="form-label small">Minimum level</label>
+        <select class="form-select form-select-sm" id="sy_level" data-field="SYSLOG_LEVEL">
+          <option>DEBUG</option><option>INFO</option><option selected>WARNING</option><option>ERROR</option><option>CRITICAL</option></select>
+        <div class="invalid-feedback" data-feedback="SYSLOG_LEVEL"></div>
+      </div>
+      <div class="col-md-2">
+        <label for="sy_facility" class="form-label small">Facility</label>
+        <select class="form-select form-select-sm" id="sy_facility" data-field="SYSLOG_FACILITY">
+          <option>local0</option><option>local1</option><option>local2</option><option>local3</option><option>local4</option>
+          <option>local5</option><option>local6</option><option>local7</option><option>user</option><option>daemon</option>
+          <option>auth</option><option>syslog</option></select>
+        <div class="invalid-feedback" data-feedback="SYSLOG_FACILITY"></div>
+      </div>
+    </div>
+    <div class="row g-3 mt-0 align-items-end">
+      <div class="col-md-3 form-check form-switch ms-2">
+        <input class="form-check-input" type="checkbox" role="switch" id="sy_clients" checked>
+        <label class="form-check-label small" for="sy_clients">Include the logs received from clients</label>
+      </div>
+      <div class="col-md-4 st-tls">
+        <label for="sy_ca" class="form-label small">CA file (PEM) on the server</label>
+        <input class="form-control form-control-sm" id="sy_ca" data-field="SYSLOG_TLS_CA" placeholder="empty: system CAs">
+        <div class="invalid-feedback" data-feedback="SYSLOG_TLS_CA"></div>
+      </div>
+      <div class="col-md-2 form-check form-switch ms-2 st-tls">
+        <input class="form-check-input" type="checkbox" role="switch" id="sy_verify" checked>
+        <label class="form-check-label small" for="sy_verify">Verify the certificate</label>
+      </div>
+      <div class="col d-flex justify-content-end gap-2">
+        <button type="button" class="btn btn-sm btn-outline-light" id="sy_test">Send a test message</button>
+        <button type="submit" class="btn btn-sm btn-primary">Save</button>
+      </div>
+    </div>
+    <p class="small text-white-50 mt-2 mb-0">The server's own logs, and those its clients send it (the client is then the syslog host). Messages at or above the minimum level and the server log level. Sent from a bounded queue: an unreachable collector never slows SYNTRAF; messages it cannot take are counted as dropped. With UDP, “sent” does not mean received.</p>
+  </form>
+</section>
+
 <div class="table-responsive">
   <table class="table table-sm st-logtable">
     <thead><tr><th scope="col" style="width:11rem">Time</th><th scope="col" style="width:7rem">Node</th><th scope="col" style="width:5rem">Level</th>
@@ -185,6 +252,59 @@ async function loadSettings(levels) {
     el("l_days").value = r.data.LOG_RETENTION_DAYS; el("l_size").value = r.data.LOG_MAX_SIZE_PER_FILE_MB;
     el("l_files").value = r.data.LOG_FILE_TO_KEEP;
 }
+
+// ---- Renvoi syslog
+const SY_TEXT = {SYSLOG_HOST: "sy_host", SYSLOG_PORT: "sy_port", SYSLOG_PROTOCOL: "sy_protocol", SYSLOG_FORMAT: "sy_format",
+                 SYSLOG_LEVEL: "sy_level", SYSLOG_FACILITY: "sy_facility", SYSLOG_TLS_CA: "sy_ca"};
+const SY_BOOL = {SYSLOG_INCLUDE_CLIENTS: "sy_clients", SYSLOG_TLS_VERIFY: "sy_verify"};
+const SY_DEFAULT = {SYSLOG_PROTOCOL: "udp", SYSLOG_FORMAT: "rfc5424", SYSLOG_LEVEL: "WARNING", SYSLOG_FACILITY: "local0"};
+
+function syncSyslogForm() {
+    const tls = el("sy_protocol").value === "tls";
+    document.querySelectorAll(".st-tls").forEach(n => n.hidden = !tls);
+    el("sy_port").placeholder = tls ? "6514" : "514";
+}
+el("sy_protocol").addEventListener("change", syncSyslogForm);
+
+function syslogState(s) {
+    const box = el("sy_state");
+    if (!s.enabled) { box.innerHTML = '<span class="text-white-50">Disabled</span>'; return; }
+    const ok = s.connected || (s.sent && !s.last_error);
+    box.innerHTML = `<span class="badge ${ok ? "bg-success" : (s.last_error ? "bg-danger" : "bg-secondary")}">${ok ? "Sending" : (s.last_error ? "Error" : "Waiting")}</span>
+        <span class="ms-1">${st.esc(s.target)} · ${s.sent} sent · ${s.dropped} dropped</span>
+        ${s.last_error ? `<div class="text-danger">${st.esc(s.last_error)}</div>` : ""}`;
+}
+
+async function loadSyslog() {
+    const r = await st.api("GET", "/api/v1/config/syslog");
+    if (!r.ok) return;
+    for (const [k, id] of Object.entries(SY_TEXT)) el(id).value = r.data[k] || SY_DEFAULT[k] || "";
+    for (const [k, id] of Object.entries(SY_BOOL)) el(id).checked = r.data[k] === "" || r.data[k].toLowerCase() === "true";
+    syncSyslogForm();
+    syslogState(r.data.STATUS);
+}
+
+el("syslog_form").addEventListener("submit", async e => {
+    e.preventDefault();
+    const body = {};
+    for (const [k, id] of Object.entries(SY_TEXT)) body[k] = el(id).value.trim();
+    for (const [k, id] of Object.entries(SY_BOOL)) body[k] = el(id).checked ? "true" : "false";
+    if (!body.SYSLOG_HOST) for (const k of Object.keys(body)) if (k !== "SYSLOG_HOST") body[k] = "";
+    const r = await st.api("PUT", "/api/v1/config/syslog", body);
+    st.showFieldErrors(e.target, r.ok ? {} : r.error.fields);
+    if (!r.ok) { if (!Object.keys(r.error.fields || {}).length) st.toast(r.error.message, "danger"); return; }
+    st.toast(body.SYSLOG_HOST ? "Syslog forwarding applied." : "Syslog forwarding disabled.", "success");
+    setTimeout(loadSyslog, 1500);
+});
+
+el("sy_test").addEventListener("click", async () => {
+    const r = await st.api("POST", "/api/v1/logging/syslog/test");
+    if (!r.ok) { st.toast(r.error.message, "warning"); return; }
+    syslogState(r.data);
+    st.toast(r.data.last_error ? `Test failed: ${r.data.last_error}` : "Test message sent.", r.data.last_error ? "danger" : "success");
+});
+loadSyslog();
+setInterval(() => { if (!document.hidden) loadSyslog(); }, 15000);
 
 el("settings_form").addEventListener("submit", async e => {
     e.preventDefault();

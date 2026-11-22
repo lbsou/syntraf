@@ -10,7 +10,7 @@ from lib.st_cc_commands import queue_client_ip_update, next_command, dynamic_cli
 from lib.st_sockutil import recv_exact
 from lib.st_config_diff import edges_to_restart, reuse_keys
 from lib.st_iperf3_credentials import load_or_create
-from lib import st_enrollment, st_log_forward, st_log_store, st_release, st_updater
+from lib import st_enrollment, st_log_forward, st_log_store, st_release, st_syslog, st_updater
 import base64
 
 from tabulate import tabulate
@@ -996,6 +996,7 @@ def server_save_logs(_config, client_uid, received_data):
         payload = received_data.get('PAYLOAD') or {}
         st_log_store.append(g.get('LOGDIR', ''), client_uid, payload.get('LINES') or [], int(payload.get('DROPPED') or 0),
                             max_bytes, backups)
+        st_syslog.FORWARDER.forward_client_lines(client_uid, payload.get('LINES') or [])
         if g.get('LOG_RETENTION_DAYS') and time.time() - _LAST_LOG_PURGE[0] > 3600:
             _LAST_LOG_PURGE[0] = time.time()
             removed = st_log_store.purge_older_than(g.get('LOGDIR', ''), int(g['LOG_RETENTION_DAYS']))
