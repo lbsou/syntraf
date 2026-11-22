@@ -15,3 +15,6 @@ syntraf_client_token
 
 # Releases installées ou fabriquées par la mise à jour à distance
 releases/
+
+# Paquets des clients embarqués dans la release du serveur (tools/build_wheelhouse.py)
+wheelhouse/
