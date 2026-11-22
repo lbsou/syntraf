@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% from "_macros.html" import page_header %}
+{% block title %}Data{% endblock %}
+{% block content %}
+{{ page_header("Data retention", "What each database keeps, for how long, and the actions of its life cycle: snapshots and removal of data that no longer belongs to any declared client or mesh group.") }}
+
+<div id="dbs"><div class="st-empty"><span class="spinner-border spinner-border-sm"></span> Reading the databases…</div></div>
+
+<script>
+const enc = encodeURIComponent;
+
+function bytes(n) {
+    if (n === null || n === undefined) return "–";
+    const units = ["B", "KiB", "MiB", "GiB", "TiB"];
+    let i = 0;
+    while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+    return `${n.toFixed(i ? 1 : 0)} ${units[i]}`;
+}
+
+function day(epoch) {
+    if (!epoch) return "no data";
+    const d = new Date(epoch * 1000), p = n => String(n).padStart(2, "0");
+    const days = Math.round((Date.now() / 1000 - epoch) / 86400);
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} (${days} day${days === 1 ? "" : "s"} ago)`;
+}
+
+function retentionBlock(db) {
+    let badge = '<span class="badge bg-secondary">no target set</span>';
+    if (db.retention_matches === true) badge = '<span class="badge bg-success">matches the target</span>';
+    if (db.retention_matches === false) badge = '<span class="badge bg-warning text-dark">differs from the target</span>';
+    return `<div class="col-md-6">
+        <h3 class="h6 text-uppercase text-white-50">Retention</h3>
+        <p class="mb-1">Kept by the database: <strong>${st.esc(db.retention)}</strong> ${badge}</p>
+        <p class="mb-1">Target: ${db.retention_target ? `<strong>${st.esc(db.retention_target)}</strong>` : '<span class="text-white-50">none</span>'}
+           · <a href="/database_config.html">set the target</a></p>
+        ${db.retention_advice ? `<div class="alert alert-warning py-2 small mt-2 mb-0"><i class="fas fa-exclamation-triangle me-1"></i>${st.esc(db.retention_advice)}</div>` : ""}
+    </div>`;
+}
+
+function storageBlock(db) {
+    return `<div class="col-md-6">
+        <h3 class="h6 text-uppercase text-white-50">Storage</h3>
+        <p class="mb-1">Size on disk: <strong>${bytes(db.data_size_bytes)}</strong> · free: ${bytes(db.free_disk_bytes)}</p>
+        <p class="mb-1">Stored points: ${Number(db.rows || 0).toLocaleString()}</p>
+        <p class="mb-1">Oldest measurements: ${st.esc(day(db.oldest_day))}</p>
+    </div>`;
+}
+
+function snapshotsBlock(db) {
+    const rows = (db.snapshots || []).map(s => `<li class="d-flex justify-content-between align-items-center py-1 border-bottom border-secondary">
+        <code>${st.esc(s)}</code>
+        <button class="btn btn-sm btn-outline-danger" data-act="del-snap" data-db="${st.esc(db.uid)}" data-name="${st.esc(s)}" aria-label="Delete snapshot ${st.esc(s)}"><i class="fas fa-trash"></i></button></li>`).join("");
+    return `<div class="col-md-6">
+        <h3 class="h6 text-uppercase text-white-50">Snapshots</h3>
+        <p class="small text-white-50 mb-2">A snapshot is an instant, consistent copy of the data, kept on the database server (in its storage directory, under <code>snapshots/</code>) until deleted. Copy it elsewhere for a backup.</p>
+        ${rows ? `<ul class="list-unstyled small mb-2">${rows}</ul>` : '<p class="text-white-50 small">No snapshot.</p>'}
+        <button class="btn btn-sm btn-primary" data-act="new-snap" data-db="${st.esc(db.uid)}"><i class="fas fa-camera me-1"></i>Create a snapshot</button>
+    </div>`;
+}
+
+function orphansBlock(db) {
+    const o = db.orphans || {clients: [], mesh_groups: []};
+    const item = (kind, v) => `<li class="d-flex justify-content-between align-items-center py-1 border-bottom border-secondary">
+        <span>${kind === "client" ? "Client" : "Mesh group"} <strong>${st.esc(v)}</strong></span>
+        <button class="btn btn-sm btn-outline-danger" data-act="purge" data-db="${st.esc(db.uid)}" data-kind="${kind}" data-value="${st.esc(v)}"><i class="fas fa-eraser me-1"></i>Delete its data</button></li>`;
+    const list = o.clients.map(v => item("client", v)).concat(o.mesh_groups.map(v => item("mesh_group", v))).join("");
+    return `<div class="col-md-6">
+        <h3 class="h6 text-uppercase text-white-50">Data of removed clients and groups</h3>
+        <p class="small text-white-50 mb-2">Measurements of clients or mesh groups that are no longer declared stay until the retention removes them. They can be deleted now.</p>
+        ${list ? `<ul class="list-unstyled small mb-0">${list}</ul>` : '<p class="text-white-50 small"><i class="fas fa-check me-1"></i>None: every stored series belongs to a declared client and mesh group.</p>'}
+    </div>`;
+}
+
+async function load() {
+    const r = await st.api("GET", "/api/v1/data");
+    const root = document.getElementById("dbs");
+    if (!r.ok) { root.innerHTML = `<div class="alert alert-danger">${st.esc(r.error.message)}</div>`; return; }
+    if (!r.data.length) {
+        root.innerHTML = '<div class="st-empty"><i class="fas fa-database"></i>No database configured. Add one on the <a href="/database_config.html">Databases</a> page.</div>';
+        return;
+    }
+    root.innerHTML = r.data.map(db => {
+        let body;
+        if (!db.supported) body = `<p class="text-white-50 mb-0">Data management is available for VictoriaMetrics databases; this one is ${st.esc(db.engine)}.</p>`;
+        else if (db.error) body = `<div class="alert alert-danger mb-0"><i class="fas fa-plug me-1"></i>${st.esc(db.error)}</div>`;
+        else body = `<div class="row g-4">${retentionBlock(db)}${storageBlock(db)}${snapshotsBlock(db)}${orphansBlock(db)}</div>`;
+        return `<section class="st-card" aria-labelledby="db-${st.esc(db.uid)}">
+            <h2 id="db-${st.esc(db.uid)}"><i class="fas fa-database me-2"></i>${st.esc(db.uid)} <span class="badge bg-secondary ms-1">${st.esc(db.engine)}</span></h2>
+            ${body}</section>`;
+    }).join("");
+}
+
+document.getElementById("dbs").addEventListener("click", async ev => {
+    const b = ev.target.closest("button[data-act]");
+    if (!b) return;
+    const db = b.dataset.db, base = `/api/v1/data/${enc(db)}`;
+    if (b.dataset.act === "new-snap") {
+        st.setBusy(b, true);
+        const r = await st.api("POST", `${base}/snapshots`);
+        st.setBusy(b, false);
+        st.toast(r.ok ? `Snapshot ${r.data.snapshot} created.` : r.error.message, r.ok ? "success" : "danger");
+    } else if (b.dataset.act === "del-snap") {
+        if (!await st.confirm({title: `Delete snapshot ${b.dataset.name}?`, body: "The copy is removed from the database server; the live data is not affected.", confirmText: "Delete", danger: true})) return;
+        const r = await st.api("DELETE", `${base}/snapshots/${enc(b.dataset.name)}`);
+        st.toast(r.ok ? "Snapshot deleted." : r.error.message, r.ok ? "success" : "danger");
+    } else if (b.dataset.act === "purge") {
+        const body = {kind: b.dataset.kind, value: b.dataset.value};
+        const preview = await st.api("POST", `${base}/purge?dry_run=1`, body);
+        if (!preview.ok) { st.toast(preview.error.message, "danger"); return; }
+        const label = body.kind === "client" ? "client" : "mesh group";
+        if (!await st.confirm({title: `Delete the data of ${label} “${body.value}”?`,
+                               body: `${preview.data.series} series (every measurement, for the whole retention period) will be deleted from ${db}. This cannot be undone; create a snapshot first if you may need them.`,
+                               confirmText: "Delete the data", danger: true})) return;
+        const r = await st.api("POST", `${base}/purge`, body);
+        st.toast(r.ok ? `${r.data.series} series deleted.` : r.error.message, r.ok ? "success" : "danger");
+    }
+    load();
+});
+
+load();
+</script>
+{% endblock %}

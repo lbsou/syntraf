@@ -185,7 +185,7 @@ def test_openapi_lists_the_mesh_group_routes(env):
 
 @pytest.mark.parametrize("page", ["/home.html", "/stats.html", "/mesh_group_config.html", "/token_config.html",
                                   "/queue.html", "/log_viewer.html", "/server.html", "/client_config.html",
-                                  "/database_config.html", "/audit.html", "/profile_config.html"])
+                                  "/database_config.html", "/audit.html", "/profile_config.html", "/data.html"])
 def test_every_page_renders(env, page):
     assert env["client"].get(page).status_code == 200
 
@@ -236,3 +236,43 @@ def test_database_declarations_never_expose_the_token(env):
     listed = c.get("/api/v1/config/databases").get_data(as_text=True)
     assert "t0psecret" not in listed and '"DB_TOKEN_SET":true' in listed.replace(" ", "")
     assert "VM_TWO" in [d["uid"] for d in c.get("/api/v1/databases").json]
+
+
+def test_data_page_api_status_snapshots_and_audited_purge(env):
+    calls = []
+
+    class FakeAdmin:
+        def __init__(self, db):
+            self.db = db
+
+        def status(self):
+            return {"uid": self.db["DB_UID"], "retention": "30d", "retention_target": None, "retention_matches": None}
+
+        def snapshots(self):
+            return ["s1"]
+
+        def orphans(self, clients, groups):
+            return {"clients": sorted({"OLD_C9"} - clients), "mesh_groups": []}
+
+        def purge(self, kind, value, dry_run=False):
+            calls.append((kind, value, dry_run))
+            return {"kind": kind, "value": value, "series": 3, "dry_run": dry_run}
+
+        def create_snapshot(self):
+            return "s2"
+
+    app, c = env["app"], env["client"]
+    app.config["vm_admin_factory"] = FakeAdmin
+    cfg = toml.load(env["path"])
+    cfg["DATABASE"] = [{"DB_UID": "VM1", "DB_ENGINE": "VictoriaMetrics", "DB_SERVER": "10.0.0.10", "DB_PORT": "8428"},
+                       {"DB_UID": "INFLUX1", "DB_ENGINE": "InfluxDB2", "DB_SERVER": "10.0.0.11", "DB_PORT": "8086"}]
+    env["path"].write_text(toml.dumps(cfg))
+    rows = {r["uid"]: r for r in c.get("/api/v1/data").json}
+    assert rows["VM1"]["orphans"]["clients"] == ["OLD_C9"] and rows["INFLUX1"]["supported"] is False
+    assert c.post("/api/v1/data/VM1/purge?dry_run=1", json={"kind": "client", "value": "OLD_C9"}).json["series"] == 3
+    assert c.post("/api/v1/data/VM1/purge", json={"kind": "client", "value": "OLD_C9"}).status_code == 200
+    assert calls == [("client", "OLD_C9", True), ("client", "OLD_C9", False)]
+    assert c.post("/api/v1/data/VM1/snapshots").json["snapshot"] == "s2"
+    assert c.post("/api/v1/data/INFLUX1/snapshots").status_code == 409
+    actions = [e["action"] for e in c.get("/api/v1/audit").json]
+    assert actions[:2] == ["CREATE_SNAPSHOT", "PURGE_DATA"]

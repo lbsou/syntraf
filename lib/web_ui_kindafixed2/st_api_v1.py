@@ -14,6 +14,7 @@ from flask import Blueprint, Response, current_app, jsonify, request, send_file
 from lib import st_config_store as store
 from lib import st_mesh_group_ops as ops
 from lib.web_ui_kindafixed2 import st_status
+from lib.st_vm_admin import VmAdmin, VmError
 
 try:
     from gevent import sleep as _sleep  # la webui tourne dans un WSGIServer gevent : ne pas bloquer son hub
@@ -197,6 +198,73 @@ def delete_database_config(uid):
     return jsonify(ops.delete_database(_state(), uid, _actor(), _dry_run()))
 
 
+# ------------------------------------------------------------------------------- données dans VictoriaMetrics
+
+def _vm_admin(uid):
+    db = next((d for d in ops.read_disk(_state()).get("DATABASE", []) if d["DB_UID"] == uid), None)
+    if db is None:
+        raise ops.OpError(404, f"Database '{uid}' not found")
+    if db.get("DB_ENGINE", "").upper() != "VICTORIAMETRICS":
+        raise ops.OpError(409, f"Data management is available for VictoriaMetrics only ('{uid}' is {db.get('DB_ENGINE')})")
+    return _state().get("vm_admin_factory", VmAdmin)(db)
+
+
+def _vm_call(fn):
+    try:
+        return fn()
+    except ValueError as exc:
+        raise ops.OpError(400, str(exc))
+    except VmError as exc:
+        raise ops.OpError(502, f"VictoriaMetrics: {exc}")
+
+
+@st_api_v1.get("/data")
+def data_status():
+    """Par base : rétention réelle et cible, espace disque, plus ancienne donnée, instantanés, données orphelines."""
+    cfg = ops.read_disk(_state())
+    clients = {c["UID"] for c in cfg.get("SERVER_CLIENT", [])}
+    groups = {g["UID"] for g in cfg.get("MESH_GROUP", [])}
+    rows = []
+    for db in cfg.get("DATABASE", []):
+        if db.get("DB_ENGINE", "").upper() != "VICTORIAMETRICS":
+            rows.append({"uid": db["DB_UID"], "engine": db.get("DB_ENGINE"), "supported": False})
+            continue
+        admin = _state().get("vm_admin_factory", VmAdmin)(db)
+        try:
+            row = dict(admin.status(), engine=db["DB_ENGINE"], supported=True, snapshots=admin.snapshots(),
+                       orphans=admin.orphans(clients, groups))
+        except VmError as exc:
+            row = {"uid": db["DB_UID"], "engine": db["DB_ENGINE"], "supported": True, "error": str(exc)}
+        rows.append(row)
+    return jsonify(rows)
+
+
+@st_api_v1.post("/data/<uid>/snapshots")
+def data_create_snapshot(uid):
+    name = _vm_call(lambda: _vm_admin(uid).create_snapshot())
+    store.log_event(_state()["config_file_path"], _actor(), "CREATE_SNAPSHOT", f"Snapshot '{name}' created on '{uid}'")
+    return jsonify({"snapshot": name}), 201
+
+
+@st_api_v1.delete("/data/<uid>/snapshots/<name>")
+def data_delete_snapshot(uid, name):
+    _vm_call(lambda: _vm_admin(uid).delete_snapshot(name))
+    store.log_event(_state()["config_file_path"], _actor(), "DELETE_SNAPSHOT", f"Snapshot '{name}' deleted on '{uid}'")
+    return jsonify({"snapshot": name})
+
+
+@st_api_v1.post("/data/<uid>/purge")
+def data_purge(uid):
+    """Supprime les séries d'un client ou d'un mesh group ({"kind": "client"|"mesh_group", "value": nom})."""
+    body = _body()
+    kind, value = str(body.get("kind", "")), str(body.get("value", ""))
+    result = _vm_call(lambda: _vm_admin(uid).purge(kind, value, dry_run=_dry_run()))
+    if not result["dry_run"]:
+        store.log_event(_state()["config_file_path"], _actor(), "PURGE_DATA",
+                        f"{result['series']} series of {kind.replace('_', ' ')} '{value}' deleted from '{uid}'")
+    return jsonify(result)
+
+
 # ------------------------------------------------------------------------------------------- état et supervision
 
 @st_api_v1.get("/status")
@@ -367,6 +435,11 @@ OPENAPI = {
                                            "put": _op("Update a database (empty DB_TOKEN keeps the current one)",
                                                       False, True, ("uid",)),
                                            "delete": _op("Remove a database", False, True, ("uid",))},
+        "/api/v1/data": {"get": _op("Per database: actual and target retention, disk usage, oldest data, snapshots, orphan data")},
+        "/api/v1/data/{uid}/snapshots": {"post": _op("Create a VictoriaMetrics snapshot", params=("uid",))},
+        "/api/v1/data/{uid}/snapshots/{name}": {"delete": _op("Delete a snapshot", params=("uid", "name"))},
+        "/api/v1/data/{uid}/purge": {"post": _op("Delete the series of a client or mesh group ({kind, value})",
+                                                 False, True, ("uid",))},
         "/api/v1/status": {"get": _op("Server status snapshot (clients, databases, threads, queue)")},
         "/api/v1/events": {"get": _op("Status snapshots as Server-Sent Events")},
         "/api/v1/clients": {"get": _op("Clients and their state")},

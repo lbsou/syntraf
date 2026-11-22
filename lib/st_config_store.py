@@ -54,6 +54,16 @@ def save_text(path, new_text, actor, action, summary, now=None):
     return entry
 
 
+def log_event(path, actor, action, summary, now=None):
+    """Entrée d'audit pour une action qui ne modifie pas le fichier (purge de données, instantané...)."""
+    now = now or dt.datetime.now(dt.timezone.utc)
+    entry = {"time": now.isoformat(), "actor": actor, "action": action, "summary": summary, "version": None,
+             "diff": ""}
+    with open(audit_path(path), "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
+    return entry
+
+
 def redact(text):
     """Texte TOML avec les valeurs secrètes masquées : clés dont le nom évoque un secret, et toutes les clés d'une
     section dont le nom en évoque un (ex. [SERVER.TOKEN], dont les clés sont des noms de sites)."""

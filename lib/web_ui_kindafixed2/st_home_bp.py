@@ -228,6 +228,11 @@ def profile_config():
     return render_template('profile_config.html')
 
 
+@st_home_bp.route('/data.html')
+def data():
+    return render_template('data.html')
+
+
 @st_home_bp.route('/audit.html')
 def audit():
     return render_template('audit.html', syntraf_version=DefaultValues.SYNTRAF_VERSION)
