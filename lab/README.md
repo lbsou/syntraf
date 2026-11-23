@@ -53,7 +53,7 @@ reconstruire l'image.
 ```
 python lab/labctl.py status [--json]          # conteneurs, RAM, iperf3, zombies, pannes, âge des flux
 python lab/labctl.py logs <service> [--since 10m]
-python lab/labctl.py degrade c2 --delay 200 --jitter 20 --loss 10 [--rate 1mbit] [--to c3]
+python lab/labctl.py degrade c2 --delay 200 --jitter 20 --loss 10 [--rate 1mbit] [--to c3] [--reorder]
 python lab/labctl.py cut c3 --mode drop|disconnect|pause [--to server] [--for 60]
 python lab/labctl.py flap c2 --mode drop --off 5 --on 10 --count 30
 python lab/labctl.py kill-iperf c1 [--signal TERM]
@@ -64,6 +64,11 @@ python lab/labctl.py set-version iperf3 3.22.1 [--source esnet|fork]
 python lab/labctl.py set-version python 3.15 | victoriametrics v1.157.0 | grafana 13.1.0
 python lab/labctl.py test [-k s3] [--quick]
 ```
+
+Avec de la gigue, netem retarderait chaque paquet indépendamment et les réordonnerait, ce qu'un vrai lien (files FIFO)
+ne fait presque jamais, et qui fait échouer l'établissement d'iperf3 --bidir (voir `docker/iperf3-patches/`). `degrade`
+ajoute donc un débit (1 Gbit/s si aucun n'est donné) : netem garde alors l'ordre des paquets. `--reorder` garde l'ancien
+comportement (tests de robustesse).
 
 ### Nœud satellite STARLINK (c4), derrière un NAT
 

@@ -30,6 +30,15 @@
         <div class="col-md-6">{{ field("p_packet_size", "PACKET_SIZE", "Packet size (bytes)", type="number", attrs='min="16" max="65507"') }}</div>
         <div class="col-md-6">{{ field("p_interval", "INTERVAL", "Interval (s)", type="number", attrs='min="1" max="60"') }}</div>
     </div>
+    <div class="mb-3">
+        <label for="p_codec" class="form-label">Voice codec for the MOS <span class="text-white-50">(optional)</span></label>
+        <select class="form-select" id="p_codec" data-field="CODEC" aria-describedby="p_codec_help">
+            <option value="">G.711 (default)</option><option value="G711">G.711</option>
+            <option value="G729">G.729</option><option value="OPUS">Opus</option>
+        </select>
+        <div id="p_codec_help" class="form-text">The voice quality score (MOS, ITU-T E-model) of these flows is computed for this codec. No effect on the measurements.</div>
+        <div class="invalid-feedback" data-feedback="CODEC"></div>
+    </div>
 {% endcall %}
 
 <script>
@@ -51,6 +60,7 @@ st.crud({
         {field: "DSCP", title: "DSCP", formatter: v => st.esc(v || "—")},
         {field: "PACKET_SIZE", title: "Packet size", formatter: v => st.esc(v || "—")},
         {field: "INTERVAL", title: "Interval", formatter: v => st.esc(v || "—")},
+        {field: "CODEC", title: "MOS codec", formatter: v => st.esc(v || "G711")},
         {field: "USED_BY", title: "Used by", formatter: v => (v || []).map(st.esc).join(", ") || '<span class="text-white-50">unused</span>'},
     ],
     fill(row) {
@@ -64,11 +74,13 @@ st.crud({
         el("p_dscp").value = row ? (row.DSCP || "") : "";
         el("p_packet_size").value = row ? (row.PACKET_SIZE || "") : "";
         el("p_interval").value = row ? (row.INTERVAL || "") : "";
+        el("p_codec").value = row ? (row.CODEC || "") : "";
     },
     read: () => ({
         UID: el("p_uid").value.trim(), DESCRIPTION: el("p_description").value.trim(),
         BANDWIDTH: el("p_bandwidth").value.trim() ? el("p_bandwidth").value.trim() + el("p_bandwidth_unit").value : "",
         DSCP: el("p_dscp").value.trim(), PACKET_SIZE: el("p_packet_size").value.trim(), INTERVAL: el("p_interval").value.trim(),
+        CODEC: el("p_codec").value,
     }),
 });
 </script>

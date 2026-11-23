@@ -276,6 +276,10 @@ def _profile_field_errors(values, with_uid=False):
     # Seules les valeurs données sont validées (avant : les autres étaient remplacées par une valeur fictive « 1 »,
     # invalide pour une taille de paquet, et le validateur l'écrivait en ERROR dans le journal du serveur)
     errors = field_errors(values, with_uid, optional=True)
+    from lib.st_quality import CODECS
+    codec = str(values.get("CODEC", "") or "").strip().upper()
+    if codec and codec not in CODECS:
+        errors["CODEC"] = f"Empty, or a voice codec for the MOS: {', '.join(CODECS)}"
     if not present and not errors:
         raise OpError(400, "A profile needs at least one value (bandwidth, DSCP, packet size or interval)",
                       {k: "At least one value is needed" for k in PROFILE_FIELDS})
@@ -283,8 +287,10 @@ def _profile_field_errors(values, with_uid=False):
 
 
 def _apply_profile_form(p, values):
-    for key in PROFILE_FIELDS + ("DESCRIPTION",):
+    for key in PROFILE_FIELDS + ("DESCRIPTION", "CODEC"):
         value = str(values.get(key, "") or "").strip()
+        if key == "CODEC":
+            value = value.upper()
         if value:
             p[key] = value
         else:
@@ -449,9 +455,10 @@ LOGGING_FIELDS = ("LOG_LEVEL", "LOG_FORWARD_LEVEL", "LOG_MAX_SIZE_PER_FILE_MB", 
 LOGGING_DEFAULTS = {"LOG_LEVEL": "INFO", "LOG_FORWARD_LEVEL": "INFO", "LOG_MAX_SIZE_PER_FILE_MB": "10",
                     "LOG_FILE_TO_KEEP": "5", "LOG_RETENTION_DAYS": ""}
 GLOBAL_LIVE_KEYS = ("LOG_LEVEL", "LOG_FORWARD_LEVEL", "LOG_RETENTION_DAYS", "WATCHDOG_CHECK_RATE",
-                    "IPERF3_TIME_SKEW_THRESHOLD") + st_syslog.KEYS
+                    "IPERF3_TIME_SKEW_THRESHOLD", "IPERF3_CONNECT_TIMEOUT", "LATENCY", "LATENCY_PORT") + st_syslog.KEYS
 # Réglages transmis aux clients à leur connexion : un changement les fait se reconnecter pour les recevoir
-GLOBAL_SENT_TO_CLIENTS = (("LOG_FORWARD_LEVEL", "INFO"), ("IPERF3_TIME_SKEW_THRESHOLD", None))
+GLOBAL_SENT_TO_CLIENTS = (("LOG_FORWARD_LEVEL", "INFO"), ("IPERF3_TIME_SKEW_THRESHOLD", None),
+                          ("IPERF3_CONNECT_TIMEOUT", None), ("LATENCY", True), ("LATENCY_PORT", "8620"))
 LOGGING_MESSAGES = {
     "LOG_LEVEL": "DEBUG, INFO, WARNING, ERROR or CRITICAL",
     "LOG_FORWARD_LEVEL": "DEBUG, INFO, WARNING, ERROR or CRITICAL",
@@ -575,6 +582,10 @@ GLOBAL_FIELDS = {
     "WATCHDOG_CHECK_RATE": (_check_float_range(0.1, 86400), "Seconds between two watchdog passes, 0.1 to 86400", False),
     "IPERF3_TIME_SKEW_THRESHOLD": (lambda v: v.isdigit() and 1 <= int(v) <= 86400,
                                    "Seconds of clock difference tolerated by iperf3 authentication, 1 to 86400", False),
+    "IPERF3_CONNECT_TIMEOUT": (lambda v: v.isdigit() and 1 <= int(v) <= 60,
+                               "Seconds given to iperf3 to connect to its peer, 1 to 60", False),
+    "LATENCY": (lambda v: True, "", True),
+    "LATENCY_PORT": (lambda v: v.isdigit() and 1 <= int(v) <= 65535, "A UDP port, 1 to 65535", False),
     "LOG_TO": (lambda v: v.lower() in ("stdout", "file", "all"), "stdout, file or all", False),
     "IPERF3_AUTH": (lambda v: True, "", True),
     "LOG_PURGE_ON_START": (lambda v: True, "", True),
@@ -600,7 +611,9 @@ def get_global(state):
 
 def update_global(state, values, actor, dry_run=False):
     """Réglages GLOBAL hors journalisation (celle-ci : update_logging). Vides : valeur par défaut au démarrage."""
-    v = {k: str(values.get(k, "") or "").strip() for k in GLOBAL_FIELDS}
+    # Un interrupteur décoché arrive à False : « false », pas vide (vide = réglage retiré, donc valeur par défaut,
+    # si bien qu'on ne pouvait rien désactiver depuis l'interface)
+    v = {k: ("false" if values.get(k) is False else str(values.get(k, "") or "").strip()) for k in GLOBAL_FIELDS}
     errors = {k: GLOBAL_FIELDS[k][1] for k in GLOBAL_FIELDS
               if v[k] and not GLOBAL_FIELDS[k][2] and not _ok(GLOBAL_FIELDS[k][0], v[k])}
     cfg = read_disk(state)
@@ -723,14 +736,29 @@ def updates_overview(state):
             stage, detail = "NOT_SUPPORTED", "this client version cannot be updated remotely: install once by hand"
         else:
             stage, detail = "OUTDATED", ""
-        rows.append({"uid": c["UID"], "connected": connected, "release": running, "stage": stage, "detail": detail})
-    return {"release": {k: release[k] for k in ("id", "version", "sha256", "size", "has_wheelhouse")}, "clients": rows}
+        rows.append({"uid": c["UID"], "group": c.get("DEPLOYMENT_GROUP", ""), "connected": connected,
+                     "release": running, "stage": stage, "detail": detail})
+    groups = {}
+    for r in rows:
+        g = groups.setdefault(r["group"], {"group": r["group"], "clients": 0, "up_to_date": 0})
+        g["clients"] += 1
+        g["up_to_date"] += r["stage"] == "UP_TO_DATE"
+    # par nom, les clients sans groupe à la fin
+    ordered = sorted(groups.values(), key=lambda g: (g["group"] == "", g["group"].lower()))
+    return {"release": {k: release[k] for k in ("id", "version", "sha256", "size", "has_wheelhouse")}, "clients": rows,
+            "groups": ordered}
 
 
-def request_updates(state, uids, actor, force=False):
-    """Envoie la release intégrée aux clients demandés qui sont connectés, compatibles et pas encore à jour."""
+def request_updates(state, uids, actor, force=False, groups=()):
+    """Envoie la release intégrée aux clients demandés (par nom, ou tous ceux des groupes de déploiement donnés)
+    qui sont connectés, compatibles et pas encore à jour."""
     release = builtin_release()
     overview = {r["uid"]: r for r in updates_overview(state)["clients"]}
+    known = {r["group"] for r in overview.values() if r["group"]}
+    unknown = [g for g in groups if g not in known]
+    if unknown:
+        raise OpError(400, f"Unknown deployment group: {', '.join(unknown)}", {"GROUPS": "Unknown deployment group"})
+    uids = list(dict.fromkeys(list(uids) + [u for u, r in overview.items() if r["group"] and r["group"] in groups]))
     queued, skipped = [], {}
     for uid in uids:
         row = overview.get(uid)
@@ -750,7 +778,8 @@ def request_updates(state, uids, actor, force=False):
             queued.append(uid)
     if queued:
         store.log_event(state["config_file_path"], actor, "REQUEST_UPDATE",
-                        f"Release {release['id']} sent to {', '.join(queued)}")
+                        f"Release {release['id']} sent to {', '.join(queued)}"
+                        + (f" (deployment group {', '.join(groups)})" if groups else ""))
     return {"release": release["id"], "queued": queued, "skipped": skipped}
 
 
@@ -764,7 +793,12 @@ CLIENT_MESSAGES = {
     "MESH_GROUP_UID_LIST": "Existing mesh groups only",
     "MAX_BANDWIDTH": "Empty, or a positive rate such as 10M",
     "MESH_LISTENERS_PORT_RANGE": "Empty, or a port range such as 15000-15100",
+    "DEPLOYMENT_GROUP": "Empty, or up to 32 letters, digits, dots, hyphens or underscores (e.g. pilot, wave-1)",
 }
+# Groupe de déploiement : étiquette libre pour les mises à jour par étapes (pilote, vague 1...). Sans effet sur les
+# mesures (absente de la configuration générée des clients).
+DEPLOYMENT_GROUP_RE = re.compile(r"^[A-Za-z0-9._-]{1,32}$")
+METADATA_CLIENT_KEYS = {"DEPLOYMENT_GROUP"}
 
 
 def list_clients(state):
@@ -817,7 +851,29 @@ def delete_client(state, uid, actor, dry_run=False):
     if left:
         raise OpError(409, f"'{uid}' is a hub of {', '.join(left)}: choose another hub for it first")
     cfg["SERVER_CLIENT"].remove(c)
-    return dict(_commit(state, cfg, actor, "DELETE_CLIENT", f"Client '{uid}' deleted", dry_run), uid=uid)
+    result = dict(_commit(state, cfg, actor, "DELETE_CLIENT", f"Client '{uid}' deleted", dry_run), uid=uid)
+    obj = state["dict_of_clients"].get(uid)
+    if not dry_run and obj is not None and getattr(obj, "status", "") != "CONNECTED":
+        state["dict_of_clients"].pop(uid, None)  # hors ligne : plus rien à superviser (connecté : oublié après)
+    return result
+
+
+def forget_client(state, uid, actor):
+    """Oublie un client qui n'est plus déclaré : il disparaît de la supervision, et ses demandes d'admission (en
+    attente ou refusées) sont effacées (il pourra en refaire une). Ses mesures restent jusqu'à la rétention, ou se
+    purgent sur la page Data."""
+    if uid in {c.get("UID") for c in read_disk(state).get("SERVER_CLIENT", [])}:
+        raise OpError(409, f"Client '{uid}' is declared: delete it on the Clients page")
+    e = _enrollment(state)
+    found = state["dict_of_clients"].pop(uid, None) is not None
+    found |= e.take(uid) is not None
+    if e.is_rejected(uid):
+        e.forgive(uid)
+        found = True
+    if not found:
+        raise OpError(404, f"Client '{uid}' is not known")
+    store.log_event(state["config_file_path"], actor, "FORGET_CLIENT", f"Client '{uid}' forgotten")
+    return {"uid": uid}
 
 
 MAX_PREVIOUS_UIDS = 5
@@ -1027,6 +1083,9 @@ def _client_field_errors(values, cfg, with_uid=False):
     port_range = str(values.get("MESH_LISTENERS_PORT_RANGE", "") or "").strip()
     if port_range and not _valid_port_range(port_range):
         errors["MESH_LISTENERS_PORT_RANGE"] = CLIENT_MESSAGES["MESH_LISTENERS_PORT_RANGE"]
+    group = str(values.get("DEPLOYMENT_GROUP", "") or "").strip()
+    if group and not DEPLOYMENT_GROUP_RE.match(group):
+        errors["DEPLOYMENT_GROUP"] = CLIENT_MESSAGES["DEPLOYMENT_GROUP"]
     return errors
 
 
@@ -1044,6 +1103,12 @@ def _apply_client_form(c, values):
             c["BEHIND_NAT"] = True
         else:
             c.pop("BEHIND_NAT", None)
+    if "DEPLOYMENT_GROUP" in values:  # idem
+        group = str(values.get("DEPLOYMENT_GROUP") or "").strip()
+        if group:
+            c["DEPLOYMENT_GROUP"] = group
+        else:
+            c.pop("DEPLOYMENT_GROUP", None)
     # Les autres clés (EXCLUDED_CLIENT_UID, OVERRIDE_DST_NODE_IP...) ne sont pas dans le formulaire : conservées.
 
 
@@ -1351,6 +1416,9 @@ def _commit(state, disk_cfg, actor, action, summary, dry_run):
     old_clients = {c["UID"]: c for c in old_disk.get("SERVER_CLIENT", [])}
     new_clients = {c["UID"]: c for c in disk_cfg.get("SERVER_CLIENT", [])}
     changed_clients = {u for u in set(old_clients) | set(new_clients) if old_clients.get(u) != new_clients.get(u)}
+    # Clés descriptives (groupe de déploiement) : un client dont seules elles changent ne se reconnecte pas
+    measured = lambda c: {k: v for k, v in c.items() if k not in METADATA_CLIENT_KEYS} if c else c  # noqa: E731
+    reconnecting = {u for u in changed_clients if measured(old_clients.get(u)) != measured(new_clients.get(u))}
     live_clients = live.get("SERVER_CLIENT", [])
     if changed_clients:
         _validate_clients(disk_cfg)
@@ -1385,7 +1453,7 @@ def _commit(state, disk_cfg, actor, action, summary, dry_run):
                        for k, d in GLOBAL_SENT_TO_CLIENTS)
     everyone = set(new_clients) if sent_changed else set()  # ces réglages leur parviennent à la reconnexion
     affected = sorted({uid for uid in set(current) | set(scratch) if _edges(current.get(uid)) != _edges(scratch.get(uid))}
-                      | changed_clients | everyone)
+                      | reconnecting | everyone)
     assessment = st_capacity.assess(st_capacity.measure(current), st_capacity.measure(scratch),
                                     st_capacity.limits(disk_cfg.get("SERVER", {})))
     if assessment["violations"]:
@@ -1533,3 +1601,133 @@ def _read_text(path):
             return f.read()
     except FileNotFoundError:
         return ""
+
+
+# ---------------------------------------------------------------------------------- certificats signés (CSR)
+
+def _cert_store(state):
+    from lib import st_certs
+    from lib.st_global import DefaultValues
+    return st_certs.CertStore(state.get("crypto_dir") or os.path.join(str(DefaultValues.SYNTRAF_DATA_DIR), "crypto"))
+
+
+def _current_cert_paths(state, service):
+    """(certificat, clé) en service : donnés dans la configuration, sinon les autosignés générés."""
+    live = state["config"].get("SERVER", {})
+    if service == "control":
+        return live.get("SERVER_X509_CERTIFICATE"), live.get("SERVER_X509_PRIVATE_KEY")
+    cert, key = live.get("WEBUI_X509_CERTIFICATE"), live.get("WEBUI_X509_PRIVATE_KEY")
+    if cert and key:
+        return cert, key
+    d = os.path.join(_cert_store(state).directory, "WEBUI_X509_SELFSIGNED_DIRECTORY")
+    return os.path.join(d, "certificate_webui.pem"), os.path.join(d, "private_key_webui.pem")
+
+
+def certificates(state):
+    """Pour l'interface web et le canal de contrôle : certificat en service et requête en cours."""
+    from lib import st_certs
+    store, out = _cert_store(state), {}
+    for service in st_certs.SERVICES:
+        cert, _ = _current_cert_paths(state, service)
+        current = None
+        if cert and os.path.isfile(cert):
+            try:
+                with open(cert, encoding="utf-8") as f:
+                    current = st_certs.describe(f.read())
+            except st_certs.CertError:
+                current = None
+        out[service] = {"CURRENT": current, "PENDING": store.pending(service)}
+    out["webui"]["HTTPS"] = bool(state["config"].get("SERVER", {}).get("WEBUI_TLS"))
+    return out
+
+
+def certificate_request(state, service, values, actor):
+    """Requête de signature (CSR). KEY : « reuse » (clé actuelle ; par défaut pour le canal de contrôle, dont les
+    sondes ont épinglé la clé), ou un type de clé neuve (rsa2048, rsa3072, rsa4096, ec256, ec384)."""
+    from lib import st_certs
+    key = str(values.get("KEY") or ("reuse" if service == "control" else "rsa3072")).strip().lower()
+    names = [n.strip() for n in re.split(r"[,\s]+", str(values.get("NAMES", "") or "")) if n.strip()]
+    reuse = None
+    if key == "reuse":
+        _, reuse = _current_cert_paths(state, service)
+        if not reuse or not os.path.isfile(reuse):
+            raise OpError(409, "No current key to reuse: choose a key type", {"KEY": "No current key"})
+    try:
+        csr = _cert_store(state).create_csr(service, values.get("COMMON_NAME"), names, values.get("ORGANIZATION", ""),
+                                            values.get("COUNTRY", ""), key_type=None if reuse else key,
+                                            reuse_key=reuse)
+    except st_certs.CertError as exc:
+        raise OpError(400, str(exc), {"COMMON_NAME": str(exc)})
+    store.log_event(state["config_file_path"], actor, "CREATE_CSR",
+                    f"Certificate request for the {service} ({values.get('COMMON_NAME')}, {'current key' if reuse else key})")
+    return {"CSR": csr}
+
+
+def cancel_certificate_request(state, service, actor):
+    _cert_store(state).cancel(service)
+    store.log_event(state["config_file_path"], actor, "CANCEL_CSR", f"Certificate request for the {service} cancelled")
+    return {"ok": True}
+
+
+def install_certificate(state, service, values, actor, dry_run=False):
+    """Installe le certificat signé retourné par l'autorité (et sa chaîne) ; redémarrage nécessaire."""
+    from lib import st_certs
+    pem = str(values.get("PEM", "") or "")
+    cs = _cert_store(state)
+    try:
+        certs, _ = cs.check(service, pem)
+    except st_certs.CertError as exc:
+        raise OpError(400, str(exc), {"PEM": str(exc)})
+    info = st_certs.describe(pem)
+    if service == "control":
+        cert, _ = _current_cert_paths(state, service)
+        try:
+            with open(cert, encoding="utf-8") as f:
+                same_key = st_certs.describe(f.read())["KEY_SHA256"] == info["KEY_SHA256"]
+        except (OSError, TypeError, st_certs.CertError):
+            same_key = False
+        if not same_key and not _bool_text(values.get("CONFIRM_NEW_KEY")):
+            msg = ("This certificate has a new key: clients that pinned the current key will refuse the server until their SERVER_CERT_SHA256 (or syntraf_server_pin) is updated. Confirm to install it anyway.")  # noqa: E501
+            raise OpError(409, msg, {"PEM": "New key"})
+    if dry_run:
+        return {"certificate": info, "dry_run": True}
+    cs.install(service, pem)
+    cert_file, key_file = cs.installed_paths(service)
+    cfg = read_disk(state)
+    server = cfg.setdefault("SERVER", {})
+    if service == "control":
+        server["SERVER_X509_CERTIFICATE"], server["SERVER_X509_PRIVATE_KEY"] = cert_file, key_file
+    else:
+        server["WEBUI_X509_CERTIFICATE"], server["WEBUI_X509_PRIVATE_KEY"] = cert_file, key_file
+        server["WEBUI_TLS"] = True
+    result = _commit(state, cfg, actor, "INSTALL_CERTIFICATE",
+                     f"Certificate of the {service} installed ({info['SUBJECT']}, issued by {info['ISSUER']}, until {info['NOT_AFTER'][:10]})", False)
+    return dict(result, certificate=info)
+
+
+# ---------------------------------------------------------------------------------- carte en direct
+
+def live_topology(state, mesh_group=None):
+    """Sondes (état, NAT) et liens attendus, colorés selon la qualité de la dernière minute (lib/st_live_map.py)."""
+    from lib import st_flow_catalog, st_live_map
+    cfg = state["config"]
+    flows = st_flow_catalog.expected_flows(cfg, state.get("_dict_by_node_generated_config") or {})
+    clients = []
+    for c in read_disk(state).get("SERVER_CLIENT", []):
+        obj = state["dict_of_clients"].get(c["UID"])
+        clients.append({"uid": c["UID"], "status": getattr(obj, "status", "NEVER_SEEN") if obj else "NEVER_SEEN",
+                        "behind_nat": bool(c.get("BEHIND_NAT")) or bool(getattr(obj, "nat_detected", False)),
+                        "mesh_groups": c.get("MESH_GROUP_UID_LIST", [])})
+    vm = next((d for d in cfg.get("DATABASE", []) if str(d.get("DB_ENGINE", "")).lower() == "victoriametrics"), None)
+    metrics = {"loss": {}, "jitter": {}, "mos": {}, "rtt": {}}
+    if vm is not None:
+        from lib.st_vm_admin import VmAdmin
+        metrics = st_live_map.read_metrics(VmAdmin(vm))
+    result = st_live_map.build(flows, clients, metrics, mesh_group=mesh_group or None)
+    result["mesh_groups"] = sorted(g["UID"] for g in cfg.get("MESH_GROUP", []) if not g.get("DISABLED"))
+    # Hubs des mesh groups affichés (placement : au centre)
+    from lib import st_topology
+    shown = [g for g in cfg.get("MESH_GROUP", []) if not g.get("DISABLED") and mesh_group in (None, "", g.get("UID"))]
+    result["hubs"] = sorted({h for g in shown for h in st_topology.hubs(g)})
+    result["metrics_available"] = vm is not None
+    return result

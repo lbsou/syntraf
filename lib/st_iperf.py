@@ -19,6 +19,56 @@ warnings.filterwarnings("ignore", category=CryptographyDeprecationWarning)
 
 iperf3_connectors_log = logging.getLogger("syntraf." + "lib.st_iperf3_connectors")
 iperf3_listeners_log = logging.getLogger("syntraf." + "lib.st_iperf3_listeners")
+
+
+# ---------------------------------------------------------------------------- options de l'iperf3 installé
+# La branche « keepalive » d'iperf3 (recommandée) a --cntl-ka ; un iperf3 officiel (Windows, distributions Linux)
+# ne l'a pas, et un iperf3 compilé sans OpenSSL n'a pas l'authentification RSA. Passer une option inconnue fait
+# échouer chaque flux : on lit une fois ce que l'iperf3 connaît.
+FULL_FEATURES = frozenset({"cntl-ka", "auth"})
+_FEATURES = {}
+
+
+def parse_iperf3_features(help_text):
+    features = set()
+    if "--cntl-ka" in help_text:
+        features.add("cntl-ka")
+    if "--rsa-public-key-path" in help_text and "--authorized-users-path" in help_text:
+        features.add("auth")
+    return features
+
+
+def iperf3_features(binary):
+    """Options de cet iperf3 (lues dans son --help, une fois). Illisible : toutes supposées présentes."""
+    if binary not in _FEATURES:
+        try:
+            out = subprocess.run([binary, "--help"], capture_output=True, text=True, timeout=10)
+            text = (out.stdout or "") + (out.stderr or "")
+        except (OSError, subprocess.SubprocessError, ValueError):
+            text = ""
+        features = parse_iperf3_features(text) if "Usage" in text or "usage" in text else set(FULL_FEATURES)
+        _FEATURES[binary] = features
+        if "cntl-ka" not in features:
+            iperf3_connectors_log.warning(
+                f"IPERF3 '{binary}' HAS NO --cntl-ka (NOT THE KEEPALIVE BRANCH): CONTROL CONNECTION KEEPALIVE "
+                f"DISABLED, A NAT OR FIREWALL MAY CLOSE AN IDLE IPERF3 CONTROL CONNECTION")
+        if "auth" not in features:
+            iperf3_connectors_log.warning(
+                f"IPERF3 '{binary}' HAS NO RSA AUTHENTICATION (BUILT WITHOUT OPENSSL): IT CANNOT TAKE PART IN "
+                f"FLOWS WHEN IPERF3 AUTHENTICATION IS ENABLED")
+    return _FEATURES[binary]
+
+
+def connect_timeout_ms(config):
+    """--connect-timeout d'iperf3 (ms), depuis GLOBAL.IPERF3_CONNECT_TIMEOUT (secondes, transmis par le serveur)."""
+    value = str(config.get('GLOBAL', {}).get('IPERF3_CONNECT_TIMEOUT', "") or "").strip()
+    seconds = int(value) if value.isdigit() and 1 <= int(value) <= 60 else int(DefaultValues.DEFAULT_IPERF3_CONNECT_TIMEOUT)
+    return str(seconds * 1000)
+
+
+def keepalive_args(binary):
+    """--cntl-ka : keepalive de la connexion de contrôle (KEEPIDLE/KEEPINTV/KEEPCNT), si cet iperf3 le connaît."""
+    return ["--cntl-ka=10/1/5"] if "cntl-ka" in iperf3_features(binary) else []
 HIGH_PRIORITY_CLASS = 0x00000080
 
 
@@ -107,13 +157,13 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes):
         args.extend(["-t", "0"])
         args.extend(["-b", config['CONNECTORS'][connector_key]['BANDWIDTH']])
         args.append("--udp-counters-64bit")
-        args.extend(["--connect-timeout=" + DefaultValues.DEFAULT_IPERF3_CONNECT_TIMEOUT])
+        args.extend(["--connect-timeout=" + connect_timeout_ms(config)])
         args.extend(["--dscp", config['CONNECTORS'][connector_key]['DSCP']])
         args.extend(["--pacing-timer", str(config['CONNECTORS'][connector_key]['PACKET_PACING'])])
         args.extend(["-f", "k"])
         args.extend(["-p", str(config['CONNECTORS'][connector_key]['PORT'])])
         args.append("--timestamps='%F %T '")
-        args.extend([bidir_arg, "--forceflush"])
+        args.extend([a for a in (bidir_arg, "--forceflush") if a])  # pas d'argument vide sans --bidir
 
         ''' 
         --cntl-ka[=#/#/#] use control connection TCP keepalive - KEEPIDLE/KEEPINTV/KEEPCNT
@@ -122,7 +172,7 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes):
         TCP_KEEPINTV = Interval of Retry
         TCP_KEEPCNT = Drop connection after that amount of lost keepalive
         '''
-        args.append('--cntl-ka=10/1/5')
+        args.extend(keepalive_args(config['GLOBAL']['IPERF3_BINARY_PATH']))
 
         if config['GLOBAL']['IPERF3_AUTH']:
             args.append("--username")
@@ -193,7 +243,7 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes):
         TCP_KEEPINTV = Interval of Retry
         TCP_KEEPCNT = Drop connection after that amount of lost keepalive
         '''
-        args.append('--cntl-ka=10/1/5')
+        args.extend(keepalive_args(config['GLOBAL']['IPERF3_BINARY_PATH']))
 
         if config['GLOBAL']['IPERF3_AUTH']:
             args.append("--rsa-private-key-path")

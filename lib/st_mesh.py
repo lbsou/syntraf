@@ -16,14 +16,9 @@ from lib.st_iperf3_credentials import load_or_create
 from lib import st_enrollment, st_log_forward, st_log_store, st_nat, st_release, st_syslog, st_updater
 import base64
 
-from tabulate import tabulate
+import socket
 # SYNTRAF SERVER IMPORT
 if not CompilationOptions.client_only:
-    # from gevent import monkey
-    # monkey.patch_all()
-    # from gevent import socket
-    import socket
-    # from gevent.server import StreamServer
     from gevent.pool import Pool
     from lib.st_influxdb import *  # import ssl after monkey patch because of urllib3
 
@@ -54,8 +49,6 @@ from ctypes import *
 # PACKAGE IMPORT
 import ssl  # import ssl after monkey patch
 import json
-import pytz
-from cpuinfo import get_cpu_info
 import psutil
 
 server_log = logging.getLogger("syntraf." + "lib.st_server")
@@ -98,12 +91,38 @@ def sock_send(sckt, payload, command):
         raise exc
 
 
+def cpu_model_and_frequency():
+    """Modèle et fréquence maximale du processeur, sans dépendance (remplace py-cpuinfo)."""
+    model = ""
+    try:
+        with open("/proc/cpuinfo", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                key, _, value = line.partition(":")
+                if key.strip() in ("model name", "Model", "Hardware", "cpu model") and value.strip():
+                    model = value.strip()
+                    break
+    except OSError:
+        pass
+    if not model and platform.system() == "Darwin":
+        try:
+            import subprocess
+            model = subprocess.run(["sysctl", "-n", "machdep.cpu.brand_string"], capture_output=True, text=True,
+                                   timeout=5).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            model = ""
+    model = model or platform.processor() or platform.machine()
+    try:
+        freq = psutil.cpu_freq()
+        frequency = f"{(freq.max or freq.current) / 1000:.4f} GHz" if freq and (freq.max or freq.current) else ""
+    except Exception:  # noqa: BLE001 - absent sur certains systèmes et conteneurs
+        frequency = ""
+    return model, frequency
+
+
 def get_system_infos():
     uname = platform.uname()
     python_version = platform.python_version()
-    cpu_infos = get_cpu_info()
-    cpu_brand = cpu_infos['brand_raw']
-    cpu_frequency = cpu_infos['hz_advertised_friendly']
+    cpu_brand, cpu_frequency = cpu_model_and_frequency()
     cpu_count_logical = psutil.cpu_count(logical=True)
     cpu_count_physical = psutil.cpu_count(logical=False)
     memory_mb_physical = round(psutil.virtual_memory().total / 1024 / 1024)
@@ -181,11 +200,7 @@ def client_sck_init(_config):
 
 def client_connect_utime(_config):
     try:
-        dt = datetime.now()
-        timezone = pytz.timezone(DefaultValues.TIMEZONE)
-        dt_tz = timezone.localize(dt)
-        client_utime = dt_tz.astimezone(pytz.timezone("UTC")).timestamp()
-        return client_utime
+        return datetime.now().timestamp()
     except Exception as exc:
         raise exc
 
@@ -830,10 +845,7 @@ def validate_clock_skew(_config, received_data, obj_client):
     :param received_data: The payload we just received from the client containing the systems stats metric
     :param obj_client: The object representing the current client
     """
-    dt = datetime.now()
-    timezone = pytz.timezone(DefaultValues.TIMEZONE)
-    dt_tz = timezone.localize(dt)
-    server_utime = dt_tz.astimezone(pytz.timezone("UTC")).timestamp()
+    server_utime = datetime.now().timestamp()
     client_utime = received_data['PAYLOAD']['TIMESTAMP']
     clock_skew = server_utime - client_utime
     obj_client.clock_skew_in_seconds = clock_skew
@@ -947,6 +959,10 @@ def send_config(dict_by_node_generated_config, client_uid, sckt, _config):
                             "IPERF3_PASSWORD_HASH": _config['SERVER']['IPERF3_PASSWORD_HASH']}
                         dict_by_node_generated_config[server_client['UID']]['GLOBAL'] = {
                             "IPERF3_TIME_SKEW_THRESHOLD": _config['GLOBAL']['IPERF3_TIME_SKEW_THRESHOLD'],
+                            "IPERF3_CONNECT_TIMEOUT": _config['GLOBAL'].get(
+                                'IPERF3_CONNECT_TIMEOUT', DefaultValues.DEFAULT_IPERF3_CONNECT_TIMEOUT),
+                            "LATENCY": _config['GLOBAL'].get('LATENCY', DefaultValues.DEFAULT_LATENCY),
+                            "LATENCY_PORT": _config['GLOBAL'].get('LATENCY_PORT', DefaultValues.DEFAULT_LATENCY_PORT),
                             "LOG_FORWARD_LEVEL": _config['GLOBAL'].get('LOG_FORWARD_LEVEL', st_log_forward.DEFAULT_LEVEL)}
                         sock_send(sckt, dict_by_node_generated_config[server_client['UID']], "NEWCONFIG")
                         bool_we_have_config_for_this_client = True
@@ -960,6 +976,12 @@ def server_save_metric(obj_client, conn_db, received_data, address, sckt):
     server_log.debug(f"CONTEXT: {obj_client.client_uid} - RECEIVED A COMMAND TO SAVE METRICS")
     try:
         results_of_write_operation_on_multiple_db = []
+        # Qualité perçue : MOS de la voix (modèle E) selon le codec du profil de chaque mesh group
+        try:
+            from lib import st_quality
+            st_quality.enrich(received_data['PAYLOAD'], _SERVER_CONFIG.get('config'))
+        except Exception as exc:  # noqa: BLE001 - un plus : n'empêche jamais l'écriture des mesures
+            server_log.debug(f"MOS NOT COMPUTED: {type(exc).__name__}:{exc}")
         for conn in conn_db:
             # TODO, print what is the database we are actually writing to and the result
             server_log.debug(
@@ -1701,6 +1723,11 @@ def update_config(data, _config):
     _config['CLIENT']['IPERF3_PASSWORD'] = data['PAYLOAD']['CLIENT']['IPERF3_PASSWORD']
     _config['CLIENT']['IPERF3_HASH'] = data['PAYLOAD']['CLIENT']['IPERF3_PASSWORD_HASH']
     _config['GLOBAL']['IPERF3_TIME_SKEW_THRESHOLD'] = data['PAYLOAD']['GLOBAL']['IPERF3_TIME_SKEW_THRESHOLD']
+    if data['PAYLOAD']['GLOBAL'].get('IPERF3_CONNECT_TIMEOUT'):  # absent : serveur d'une version antérieure
+        _config['GLOBAL']['IPERF3_CONNECT_TIMEOUT'] = data['PAYLOAD']['GLOBAL']['IPERF3_CONNECT_TIMEOUT']
+    for key in ('LATENCY', 'LATENCY_PORT'):  # mesure de la latence (TWAMP-Light), réglée par le serveur
+        if key in data['PAYLOAD']['GLOBAL']:
+            _config['GLOBAL'][key] = data['PAYLOAD']['GLOBAL'][key]
     # Journaux transmis au serveur, à partir du niveau qu'il demande (absent : serveur d'une version antérieure)
     if data['PAYLOAD']['GLOBAL'].get('LOG_FORWARD_LEVEL'):
         st_log_forward.install(data['PAYLOAD']['GLOBAL']['LOG_FORWARD_LEVEL'])

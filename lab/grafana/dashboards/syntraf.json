@@ -322,7 +322,11 @@
             "showPoints": "never"
           },
           "min": 0,
-          "max": 100
+          "max": 100,
+          "color": {
+            "mode": "shades",
+            "fixedColor": "red"
+          }
         },
         "overrides": []
       },
@@ -520,6 +524,10 @@
             "fillOpacity": 10,
             "spanNulls": false,
             "showPoints": "never"
+          },
+          "color": {
+            "mode": "shades",
+            "fixedColor": "red"
           }
         },
         "overrides": []

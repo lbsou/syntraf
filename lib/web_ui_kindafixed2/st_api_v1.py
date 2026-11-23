@@ -167,13 +167,15 @@ def updates():
 @st_api_v1.post("/updates")
 def request_updates():
     body = _body()
-    clients = body.get("CLIENTS") or []
-    if isinstance(clients, str):
-        clients = [c for c in clients.split(",") if c]
-    if not clients:
-        return _error(400, "Choose at least one client", {"CLIENTS": "Choose at least one client"})
+    def names(key):  # liste JSON, ou texte séparé par des virgules
+        value = body.get(key) or []
+        return [c for c in value.split(",") if c] if isinstance(value, str) else [str(c) for c in value]
+    clients, groups = names("CLIENTS"), names("GROUPS")
+    if not clients and not groups:
+        return _error(400, "Choose at least one client or deployment group",
+                      {"CLIENTS": "Choose at least one client or deployment group"})
     return jsonify(ops.request_updates(_state(), clients, _actor(), force=str(body.get("FORCE", "")).lower() in
-                                       ("1", "true", "yes")))
+                                       ("1", "true", "yes"), groups=groups))
 
 
 @st_api_v1.get("/clients/pending")
@@ -209,6 +211,32 @@ def rotate_client_token(uid):
 @st_api_v1.post("/config/clients/<uid>/rename")
 def rename_client(uid):
     return jsonify(ops.rename_client(_state(), uid, _body(), _actor(), _dry_run()))
+
+
+@st_api_v1.get("/certificates")
+def certificates():
+    return jsonify(ops.certificates(_state()))
+
+
+@st_api_v1.post("/certificates/<service>/request")
+def certificate_request(service):
+    if service not in ("webui", "control"):
+        return _error(404, f"Unknown service '{service}'")
+    return jsonify(ops.certificate_request(_state(), service, _body(), _actor()))
+
+
+@st_api_v1.delete("/certificates/<service>/request")
+def cancel_certificate_request(service):
+    if service not in ("webui", "control"):
+        return _error(404, f"Unknown service '{service}'")
+    return jsonify(ops.cancel_certificate_request(_state(), service, _actor()))
+
+
+@st_api_v1.post("/certificates/<service>/install")
+def install_certificate(service):
+    if service not in ("webui", "control"):
+        return _error(404, f"Unknown service '{service}'")
+    return jsonify(ops.install_certificate(_state(), service, _body(), _actor(), _dry_run()))
 
 
 @st_api_v1.post("/server/restart")
@@ -391,6 +419,16 @@ def status():
 @st_api_v1.get("/clients")
 def clients():
     return jsonify(st_status.clients(_state()))
+
+
+@st_api_v1.delete("/clients/<uid>")
+def forget_client(uid):
+    return jsonify(ops.forget_client(_state(), uid, _actor()))
+
+
+@st_api_v1.get("/topology/live")
+def live_topology():
+    return jsonify(ops.live_topology(_state(), request.args.get("mesh_group") or None))
 
 
 @st_api_v1.get("/databases")
@@ -609,8 +647,10 @@ OPENAPI = {
         "/api/v1/config/clients/{uid}": {"get": _op("Get a client declaration", params=("uid",)),
                                          "put": _op("Update a client declaration", False, True, ("uid",)),
                                          "delete": _op("Remove a client", False, True, ("uid",))},
+        "/api/v1/clients/{uid}": {"delete": _op("Forget a client no longer declared (supervision, admission requests)", params=("uid",))},
+        "/api/v1/topology/live": {"get": _op("Live map: probes and expected links with the quality of the last minute (?mesh_group=)")},
         "/api/v1/updates": {"get": _op("This server's release and where each client stands"),
-                            "post": _op("Send this server's release to clients ({CLIENTS: [...], FORCE})")},
+                            "post": _op("Send this server's release to clients ({CLIENTS: [...], GROUPS: [deployment groups], FORCE})")},
         "/api/v1/clients/pending": {"get": _op("Clients waiting for approval, and rejected clients")},
         "/api/v1/clients/pending/{uid}/approve": {"post": _op("Approve a pending client ({MESH_GROUP_UID_LIST, "
                                                               "IP_MODE: static|dynamic}): its key is pinned, a token "
@@ -624,6 +664,10 @@ OPENAPI = {
                                                                   "connected)", False, True, ("uid",))},
         "/api/v1/config/global": {"get": _op("Global settings (logging excluded: see /api/v1/config/logging)"),
                                   "put": _op("Update global settings", False, True)},
+        "/api/v1/certificates": {"get": _op("Certificates in service (web interface, control channel) and pending requests")},
+        "/api/v1/certificates/{service}/request": {"post": _op("Create a certificate signing request (CSR): {COMMON_NAME, NAMES, ORGANIZATION, COUNTRY, KEY}"),
+                                                   "delete": _op("Cancel the pending request")},
+        "/api/v1/certificates/{service}/install": {"post": _op("Install the signed certificate ({PEM}, chain included)", False, True)},
         "/api/v1/server/restart": {"post": _op("Restart SYNTRAF through its supervisor (answer 202, back in seconds)")},
         "/api/v1/config/server": {"get": _op("Server settings (tokens excluded) and the values in service"),
                                   "put": _op("Update server settings; the response lists those that need a restart",

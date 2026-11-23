@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% from "_macros.html" import page_header %}
+{% block title %}Live map{% endblock %}
+{% block content %}
+{{ page_header("Live map", "Probes and the links they measure, colored by the quality of the last minute (worst direction). Refreshed every 10 seconds.") }}
+
+<section class="st-card">
+  <div class="d-flex flex-wrap align-items-end gap-3 mb-2">
+    <div>
+      <label for="lm_group" class="form-label small mb-0">Mesh group</label>
+      <select class="form-select form-select-sm" id="lm_group"><option value="">All mesh groups</option></select>
+    </div>
+    <div>
+      <label for="lm_metric" class="form-label small mb-0">Color by</label>
+      <select class="form-select form-select-sm" id="lm_metric">
+        <option value="loss">Loss</option><option value="mos">Voice quality (MOS)</option>
+        <option value="rtt">Latency (round trip)</option><option value="jitter">Jitter</option>
+      </select>
+    </div>
+    <button type="button" class="btn btn-sm btn-outline-light" id="lm_relayout" title="Forget the positions moved by hand">Rearrange</button>
+    <div class="small ms-auto" id="lm_legend" aria-live="polite"></div>
+  </div>
+  <div id="lm_note" class="small text-warning mb-2" hidden></div>
+  <div class="row g-3">
+    <div class="col-lg-9"><div id="lm_cy" style="height: 68vh; border: 1px solid #3a3a3a; border-radius: .5rem; background: #1e1e1e" role="img" aria-label="Map of the probes and their links"></div></div>
+    <div class="col-lg-3"><div id="lm_detail" class="small"><p class="text-white-50">Point at a link or a probe for its details. Each value is shown next to the probe that receives that direction.</p></div></div>
+  </div>
+</section>
+
+<script src="/static/cytoscape-js/cytoscape.min.js"></script>
+<script>
+const el = id => document.getElementById(id);
+const COLORS = {green: "#00bc8c", yellow: "#f1c40f", orange: "#e67e22", red: "#e74c3c", nodata: "#777777"};
+const STATUS = {CONNECTED: "#00bc8c", DISCONNECTED: "#e74c3c", NEVER_SEEN: "#777777"};
+const LABELS = {loss: v => `${v.toFixed(1)} %`, mos: v => v.toFixed(2), rtt: v => `${v.toFixed(1)} ms`, jitter: v => `${v.toFixed(1)} ms`};
+const FIELD = {loss: "loss_pct", mos: "mos", rtt: "rtt_ms", jitter: "jitter_ms"};
+let cy = null, last = null;
+const SAVED = () => `st-live-map-positions:${el("lm_group").value || "*"}`;
+
+// Hub & spoke (un mesh group à hubs choisi) : hubs au centre (1 : au centre ; 2 : côte à côte ; plus : petit cercle),
+// spokes en cercle autour, décalés d'un demi-pas pour ne jamais s'aligner sur l'axe des hubs.
+function hubPositions(data) {
+    const hubs = data.nodes.filter(n => data.hubs.includes(n.id)).map(n => n.id).sort();
+    const spokes = data.nodes.filter(n => !data.hubs.includes(n.id)).map(n => n.id).sort();
+    const pos = {};
+    const R = Math.max(220, spokes.length * 40), r = hubs.length > 2 ? Math.max(90, hubs.length * 35) : 110;
+    hubs.forEach((h, i) => {
+        if (hubs.length === 1) pos[h] = {x: 0, y: 0};
+        else if (hubs.length === 2) pos[h] = {x: i ? r : -r, y: 0};
+        else { const a = 2 * Math.PI * i / hubs.length - Math.PI / 2; pos[h] = {x: r * Math.cos(a), y: r * Math.sin(a)}; }
+    });
+    spokes.forEach((s, i) => {
+        const a = 2 * Math.PI * (i + 0.5) / spokes.length - Math.PI / 2;
+        pos[s] = {x: R * Math.cos(a), y: R * Math.sin(a)};
+    });
+    return pos;
+}
+
+// Placement lisible : les étiquettes comptent dans l'encombrement (pas de chevauchement de sondes ni de noms).
+// Maillage ou plusieurs mesh groups : cercle ; un mesh group à hubs : hubPositions ; grand réseau : forces, espacé.
+function layoutFor(data) {
+    const common = {animate: false, padding: 40, fit: true, nodeDimensionsIncludeLabels: true};
+    const saved = JSON.parse(localStorage.getItem(SAVED()) || "null");
+    if (saved && data.nodes.every(n => saved[n.id])) {
+        return Object.assign({}, common, {name: "preset", positions: n => saved[n.id()]});
+    }
+    if (data.nodes.length > 30) {
+        return Object.assign({}, common, {name: "cose", nodeOverlap: 40, idealEdgeLength: 180, nodeRepulsion: 40000,
+                                          componentSpacing: 150, numIter: 2500});
+    }
+    if (el("lm_group").value && data.hubs && data.hubs.length) {
+        const pos = hubPositions(data);
+        return Object.assign({}, common, {name: "preset", positions: n => pos[n.id()]});
+    }
+    return Object.assign({}, common, {name: "circle", avoidOverlap: true, spacingFactor: 1.5});
+}
+
+// Peu de sondes : le cadrage zoomerait jusqu'à grossir démesurément sondes et textes
+function capZoom() {
+    if (cy && cy.zoom() > 1.2) { cy.zoom(1.2); cy.center(); }
+}
+
+function savePositions() {
+    const pos = {};
+    cy.nodes().forEach(n => { pos[n.id()] = n.position(); });
+    localStorage.setItem(SAVED(), JSON.stringify(pos));
+}
+
+function edgeId(l) { return `${l.a}|${l.b}|${l.mesh_group}`; }
+
+// Valeur de chaque sens près de la sonde qui la reçoit (au lieu du milieu du lien, où les diagonales se croisent) ;
+// le RTT, propre à la paire, près d'une seule extrémité.
+function endLabels(l, metric) {
+    const f = {loss: "loss_pct", mos: "mos", jitter: "jitter_ms"}[metric];
+    const show = v => v === null || v === undefined ? "" : LABELS[metric](v);
+    if (metric === "rtt") return {atA: show(l.rtt_ms), atB: ""};
+    const to = id => (l.directions.find(d => d.to === id) || {})[f];
+    return {atA: show(to(l.a)), atB: show(to(l.b))};
+}
+
+function legend(grades, metric) {
+    const [a, b, c] = grades[metric];
+    const better = metric === "mos" ? "≥" : "<", worse = metric === "mos" ? "<" : "≥";
+    const unit = {loss: " %", mos: "", rtt: " ms", jitter: " ms"}[metric];
+    el("lm_legend").innerHTML = [["green", `${better} ${a}${unit}`], ["yellow", `${better} ${b}${unit}`],
+        ["orange", `${better} ${c}${unit}`], ["red", `${worse} ${c}${unit}`], ["nodata", "no data"]]
+        .map(([g, t]) => `<span class="me-2"><span class="d-inline-block align-middle me-1" style="width:1.4rem;height:.3rem;background:${COLORS[g]}"></span>${st.esc(t)}</span>`).join("");
+}
+
+function render(data) {
+    const metric = el("lm_metric").value;
+    const elements = [
+        ...data.nodes.map(n => ({group: "nodes", data: {id: n.id, label: n.behind_nat ? `${n.id} (NAT)` : n.id,
+            color: STATUS[n.status] || "#777777", nat: n.behind_nat ? 1 : 0, raw: n}})),
+        ...data.links.map(l => ({group: "edges", data: Object.assign({id: edgeId(l), source: l.a, target: l.b,
+            color: COLORS[l.grade[metric]], dashed: l.grade[metric] === "nodata" ? 1 : 0, raw: l},
+            endLabels(l, metric))})),
+    ];
+    if (!cy) {
+        cy = cytoscape({
+            container: el("lm_cy"), elements, wheelSensitivity: 0.2, minZoom: 0.2, maxZoom: 3,
+            style: [
+                {selector: "node", style: {"background-color": "data(color)", label: "data(label)", color: "#eee",
+                    "font-size": 12, "text-valign": "bottom", "text-halign": "center", "text-margin-y": 6,
+                    width: 30, height: 30, "border-width": 3, "border-color": "#2b2b2b",
+                    "text-wrap": "wrap", "text-max-width": 110, "text-background-color": "#1e1e1e",
+                    "text-background-opacity": 0.9, "text-background-padding": 3, "text-background-shape": "roundrectangle",
+                    "min-zoomed-font-size": 7, "z-index": 10}},
+                {selector: "node[nat = 1]", style: {"border-style": "dashed", "border-color": "#3498db"}},
+                // Valeurs aux extrémités, horizontales, sur fond opaque ; liens parallèles écartés
+                {selector: "edge", style: {"line-color": "data(color)", width: 4, "curve-style": "bezier",
+                    "control-point-step-size": 90, "source-label": "data(atA)", "target-label": "data(atB)",
+                    "source-text-offset": 62, "target-text-offset": 62, "font-size": 11, color: "#eee",
+                    "text-background-color": "#1e1e1e", "text-background-opacity": 0.9,
+                    "text-background-padding": 2, "text-background-shape": "roundrectangle",
+                    "min-zoomed-font-size": 8, "z-index": 1}},
+                {selector: "edge[dashed = 1]", style: {"line-style": "dashed", width: 2}},
+                {selector: "edge.lm-quiet", style: {"source-label": "", "target-label": ""}},
+                {selector: "edge.lm-hover", style: {"source-label": "data(atA)", "target-label": "data(atB)",
+                    "z-index": 20, width: 6}},
+                {selector: ":selected", style: {"overlay-opacity": 0.15, "overlay-color": "#fff"}},
+            ],
+            layout: layoutFor(data),
+        });
+        cy.on("dragfree", "node", savePositions);
+        cy.on("layoutstop", capZoom);
+        capZoom();
+        cy.on("mouseover", "edge", e => e.target.addClass("lm-hover"));
+        cy.on("mouseout", "edge", e => e.target.removeClass("lm-hover"));
+        window.addEventListener("resize", () => { cy.resize(); cy.fit(undefined, 40); capZoom(); });
+        cy.on("mouseover tap", "edge", e => showLink(e.target.data("raw")));
+        cy.on("mouseover tap", "node", e => showNode(e.target.data("raw")));
+        window.stLiveMap = cy;
+    } else {
+        const wanted = new Set(elements.map(x => x.data.id));
+        cy.elements().filter(x => !wanted.has(x.id())).remove();
+        let added = false;
+        for (const x of elements) {
+            const existing = cy.getElementById(x.data.id);
+            if (existing.nonempty()) existing.data(x.data);
+            else { cy.add(x); added = true; }
+        }
+        if (added) cy.layout(layoutFor(data)).run();
+    }
+    // Beaucoup de liens : leurs valeurs n'apparaissent qu'au survol (sinon elles se chevauchent au centre)
+    cy.edges().toggleClass("lm-quiet", cy.edges().length > 24);
+    legend(data.grades, metric);
+}
+
+function fmt(v, f) { return v === null || v === undefined ? "–" : f(v); }
+
+function showLink(l) {
+    el("lm_detail").innerHTML = `<h3 class="h6">${st.esc(l.a)} ↔ ${st.esc(l.b)}</h3>
+        <p class="text-white-50 mb-2">Mesh group ${st.esc(l.mesh_group || "")} · round trip ${fmt(l.rtt_ms, v => v.toFixed(1) + " ms")}</p>
+        <table class="table table-sm small"><thead><tr><th scope="col">Direction</th><th scope="col">Loss</th><th scope="col">Jitter</th><th scope="col">MOS</th></tr></thead><tbody>
+        ${l.directions.map(d => `<tr><td>${st.esc(d.from)} → ${st.esc(d.to)}</td><td>${fmt(d.loss_pct, v => v.toFixed(1) + " %")}</td>
+            <td>${fmt(d.jitter_ms, v => v.toFixed(1) + " ms")}</td><td>${fmt(d.mos, v => v.toFixed(2))}</td></tr>`).join("")}
+        </tbody></table>`;
+}
+
+function showNode(n) {
+    el("lm_detail").innerHTML = `<h3 class="h6">${st.esc(n.id)}</h3><p class="mb-1">${st.badge(n.status)}${n.behind_nat ? ' <span class="badge bg-info text-dark">behind NAT</span>' : ""}</p>
+        <p class="text-white-50">Mesh groups: ${n.mesh_groups.length ? n.mesh_groups.map(st.esc).join(", ") : "–"}</p>`;
+}
+
+async function load() {
+    const group = el("lm_group").value;
+    const r = await st.api("GET", "/api/v1/topology/live" + (group ? `?mesh_group=${encodeURIComponent(group)}` : ""));
+    if (!r.ok) { el("lm_note").hidden = false; el("lm_note").textContent = r.error.message; return; }
+    last = r.data;
+    const sel = el("lm_group"), current = sel.value;
+    sel.innerHTML = '<option value="">All mesh groups</option>' + r.data.mesh_groups.map(g => `<option value="${st.esc(g)}">${st.esc(g)}</option>`).join("");
+    sel.value = current;
+    el("lm_note").hidden = r.data.metrics_available;
+    el("lm_note").textContent = "No VictoriaMetrics database: the map shows the probes and the expected links, without quality.";
+    render(r.data);
+}
+
+el("lm_group").addEventListener("change", () => { if (cy) { cy.destroy(); cy = null; } load(); });
+el("lm_metric").addEventListener("change", () => { if (last) render(last); });
+el("lm_relayout").addEventListener("click", () => {
+    localStorage.removeItem(SAVED());
+    if (cy && last) cy.layout(layoutFor(last)).run();
+});
+load();
+setInterval(load, 10000);
+</script>
+{% endblock %}

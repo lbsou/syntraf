@@ -6,14 +6,32 @@ from lib.st_influxdb import *
 from lib.st_obj_mesh import *
 from lib.st_map import *
 
-from fqdn import FQDN
 from lib import st_topology
 
 # SYNTRAF SERVER IMPORT
-if not CompilationOptions.client_only:
-    from collections import defaultdict
+from collections import defaultdict
 
 # BUILTIN IMPORT
+import re as _re
+
+
+class FQDN:
+    """Nom de domaine complet valide, mêmes règles que l'ancien paquet fqdn (RFC 1035, forme préférée) : au moins
+    deux étiquettes de lettres, chiffres et traits d'union (pas en tête ni en fin), 63 caractères par étiquette,
+    253 au total (point final non compté)."""
+    _SYNTAX = _re.compile(r"^((?![-])[-A-Z\d]{1,63}(?<!-)[.])*(?!-)[-A-Z\d]{1,63}(?<!-)[.]?$", _re.IGNORECASE)
+
+    def __init__(self, name):
+        self.name = str(name or "")
+
+    @property
+    def is_valid(self):
+        name = self.name
+        if not name or len(name[:-1] if name.endswith(".") else name) > 253 or not self._SYNTAX.match(name):
+            return False
+        return name.count(".") + (0 if name.endswith(".") else 1) >= 2
+
+
 import pathlib
 import subprocess
 import socket
@@ -594,6 +612,32 @@ def validate_time_skew_threshold(g):
         g['IPERF3_TIME_SKEW_THRESHOLD'] = value
 
 
+def validate_connect_timeout(g):
+    """IPERF3_CONNECT_TIMEOUT : secondes accordées à iperf3 pour se connecter à son pair (1 à 60)."""
+    default = DefaultValues.DEFAULT_IPERF3_CONNECT_TIMEOUT
+    value = str(g.get('IPERF3_CONNECT_TIMEOUT', '')).strip()
+    if 'IPERF3_CONNECT_TIMEOUT' not in g:
+        g['IPERF3_CONNECT_TIMEOUT'] = default
+    elif not (value.isdigit() and 1 <= int(value) <= 60):
+        log.warning(f"IPERF3_CONNECT_TIMEOUT '{value}' INVALID (1 TO 60 SECONDS): APPLYING DEFAULT '{default}'")
+        g['IPERF3_CONNECT_TIMEOUT'] = default
+    else:
+        g['IPERF3_CONNECT_TIMEOUT'] = value
+
+
+def validate_latency(g):
+    """LATENCY (booléen) et LATENCY_PORT (1 à 65535) : mesure de la latence entre sondes (TWAMP-Light)."""
+    if not isinstance(g.get('LATENCY'), bool):
+        if 'LATENCY' in g:
+            log.warning(f"LATENCY '{g['LATENCY']}' IS NOT true OR false: APPLYING DEFAULT")
+        g['LATENCY'] = DefaultValues.DEFAULT_LATENCY
+    value = str(g.get('LATENCY_PORT', '')).strip()
+    if 'LATENCY_PORT' in g and not (value.isdigit() and 1 <= int(value) <= 65535):
+        log.warning(f"LATENCY_PORT '{value}' INVALID (1 TO 65535): APPLYING DEFAULT '{DefaultValues.DEFAULT_LATENCY_PORT}'")
+        value = ""
+    g['LATENCY_PORT'] = value or DefaultValues.DEFAULT_LATENCY_PORT
+
+
 def config_validation_global(_config):
     try:
 
@@ -622,12 +666,18 @@ def config_validation_global(_config):
             _config['GLOBAL']['WATCHDOG_CHECK_RATE'] = "10"
 
 
+        # Authentification iperf3 : décidée avant de contrôler le binaire (un iperf3 compilé sans OpenSSL convient
+        # quand elle est désactivée)
+        if not isinstance(_config['GLOBAL'].get('IPERF3_AUTH'), bool):
+            _config['GLOBAL']['IPERF3_AUTH'] = DefaultValues.DEFAULT_IPERF3_AUTH
+        auth = _config['GLOBAL']['IPERF3_AUTH']
+
         # to validate : https://github.com/esnet/iperf/issues/812 (--cntl-ka)
         # https://github.com/dotnet/runtime/issues/24041
-        # validation du binaire iperf3
+        # validation du binaire iperf3 (DISABLE : serveur sans iperf3 ; le reste de GLOBAL est validé quand même)
         if 'IPERF3_BINARY_PATH' in _config['GLOBAL']:
             if _config['GLOBAL']['IPERF3_BINARY_PATH'] == "DISABLE":
-                return True
+                pass
             elif not _config['GLOBAL']['IPERF3_BINARY_PATH'] == "":
                 iperf3_file = pathlib.Path(_config['GLOBAL']['IPERF3_BINARY_PATH'])
                 if not iperf3_file.is_file():
@@ -638,9 +688,11 @@ def config_validation_global(_config):
                     log.debug(f"DOES IPERF BINARY {_config['GLOBAL']['IPERF3_BINARY_PATH']} EXIST : YES")
                     if not is_iperf3_support_timestamp(_config, _config['GLOBAL']['IPERF3_BINARY_PATH']):
                         return False
-                    if not is_iperf3_support_ssl(_config, _config['GLOBAL']['IPERF3_BINARY_PATH']):
+                    if auth and not is_iperf3_support_ssl(_config, _config['GLOBAL']['IPERF3_BINARY_PATH']):
+                        log.error("IPERF3 AUTHENTICATION IS ENABLED (IPERF3_AUTH): USE AN IPERF3 BUILT WITH OPENSSL, "
+                                  "OR DISABLE IPERF3_AUTH")
                         return False
-                    if not is_iperf3_support_skew_threshold(_config, _config['GLOBAL']['IPERF3_BINARY_PATH']):
+                    if auth and not is_iperf3_support_skew_threshold(_config, _config['GLOBAL']['IPERF3_BINARY_PATH']):
                         return False
 
             # Variable exist but is empty
@@ -659,12 +711,8 @@ def config_validation_global(_config):
 
         # When authenticating (credentials + rsa), iperf3 will refuse a connection between two host with a time skew bigger than 10 seconds. iperf3 have a parameter to change this threshold
         validate_time_skew_threshold(_config['GLOBAL'])
-
-        if 'IPERF3_AUTH' in _config['GLOBAL']:
-            if not isinstance(_config['GLOBAL']['IPERF3_AUTH'], bool):
-                _config['GLOBAL']['IPERF3_AUTH'] = DefaultValues.DEFAULT_IPERF3_AUTH
-        else:
-            _config['GLOBAL']['IPERF3_AUTH'] = DefaultValues.DEFAULT_IPERF3_AUTH
+        validate_connect_timeout(_config['GLOBAL'])
+        validate_latency(_config['GLOBAL'])
 
     except Exception as exc:
         log.error(f"config_validation_global:{type(exc).__name__}:{exc}", exc_info=True)

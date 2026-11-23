@@ -18,6 +18,9 @@ class st_obj_process_n_thread:
                 self.bidir_src_port_cpt = 0
                 self.line_read = None
                 self.packet_sent = None
+                # Session iperf3 : le pair a-t-il répondu, et quand est arrivée la dernière mesure (monotone) ?
+                self.peer_reached = False
+                self.measured_at = None
             elif kwargs['syntraf_instance_type'] == "SERVER" or kwargs['syntraf_instance_type'] == "CLIENT" or \
                     kwargs['syntraf_instance_type'] == "SERVER_SOCKET" or kwargs['syntraf_instance_type'] == "READ_LOG" or kwargs['syntraf_instance_type'] == "WEBUI" or kwargs['syntraf_instance_type'] == "COVARIANCE" or kwargs['syntraf_instance_type'] == "STATS" or kwargs['syntraf_instance_type'] == "UDP_HOLE":
                 self.syntraf_instance_type = kwargs['syntraf_instance_type']

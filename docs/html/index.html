@@ -134,6 +134,10 @@ cd iperf && ./configure && make && sudo make install && sudo ldconfig</code></pr
 <p>Prerequisites: <code>build-essential libssl-dev libtool</code> (Debian/Ubuntu) or
 <code>"Development Tools" openssl-devel</code> (RHEL family). On Windows, iperf3 can be built with Cygwin (see the
 README); ESnet does not support iperf3 on Windows.</p>
+<p>A probe reads which options its iperf3 knows. An official iperf3 (distribution packages, Windows builds) has no
+<code>--cntl-ka</code>: the probe then runs without the control-connection keepalive and logs a warning once. An
+iperf3 built without OpenSSL has no RSA authentication: it cannot take part in flows while iperf3 authentication is
+enabled (Server page, <em>Global</em>). Probes run on Linux, Windows and macOS.</p>
 
 <h3 id="install-server">Server</h3>
 <pre><code>git clone https://github.com/lbsou/syntraf.git /opt/syntraf
@@ -169,8 +173,12 @@ INTERVAL = "1"</code></pre>
 added from it.</p>
 
 <h3 id="install-client">Clients</h3>
-<pre><code>pip install -r requirements_client.txt
+<pre><code>pip install -r requirements_client.txt     # cryptography, psutil, toml
 python syntraf.py -c /etc/syntraf/config.toml -l /var/log/syntraf</code></pre>
+<p>A probe needs three Python packages (<code>cryptography</code>, <code>psutil</code>, <code>toml</code>) and iperf3.
+The release the server sends to probes (see <a href="#updates">Remote updates</a>) holds the probe code only, about
+100 KB: a probe installed from the repository and updated once runs without the web interface. A probe package
+refuses a server configuration.</p>
 <pre><code>[CLIENT]
 CLIENT_UID = "PARIS_01"
 SERVER = "syntraf.example.org"
@@ -236,6 +244,13 @@ immediately; <span class="badge r">restart</span> ones after a server restart, w
 waiting clients, queued points; recent configuration changes.</figcaption></figure>
 <p>Links: <code>/healthz</code> (200 or 503) for monitoring, <code>/metrics</code> in Prometheus format.</p>
 
+<h3 id="ui-livemap">Live map</h3>
+<p>The probes and the links they measure, colored by the quality of the last minute: loss, voice quality (MOS),
+round-trip latency or jitter, the worst of the two directions (green, yellow, orange, red; dashed grey: an expected
+flow without measurement). A probe behind a NAT has a dashed blue border. Pointing at a link shows each direction
+(loss, jitter, MOS) and the round trip; the map can be limited to one mesh group and refreshes every 10 seconds
+(<code>GET /api/v1/topology/live?mesh_group=</code>). It needs a VictoriaMetrics database for the colors.</p>
+
 <h3 id="ui-meshgroups">Mesh groups</h3>
 <p>A mesh group is a set of clients that measure each other with the same traffic settings. Actions: New, Edit,
 Duplicate, Enable/Disable, Delete (only when no client uses it).</p>
@@ -261,6 +276,10 @@ NAT), mesh groups.</figcaption></figure>
     their key fingerprint. <em>Approve…</em> declares them; <em>Reject</em> refuses them (they may be allowed to ask
     again).</li>
   <li><strong>Address</strong>: fixed IP or host name, or dynamic (learned at each connection).</li>
+  <li><strong>Delete</strong> removes a client from the configuration (a connected client is disconnected and refused).
+    A client that is no longer declared but still known to the server shows <em>not declared</em> on the dashboard,
+    with <strong>Forget</strong>: it leaves the supervision and its admission requests are cleared
+    (<code>DELETE /api/v1/clients/{uid}</code>). Its measurements can be purged on the Data page.</li>
   <li><strong>Behind a NAT or a firewall</strong>: see <a href="#nat">Clients behind a NAT</a>. A <em>NAT detected</em>
     badge appears when the server sees another address than the client's own.</li>
   <li><strong>Secure</strong> pins the key of a connected client and gives it a token of its own;
@@ -274,10 +293,17 @@ and token. Tokens are never sent back to the browser (leave the field empty to k
 <em>Test connection</em> checks parameters without saving. A changed database connection is re-created live.</p>
 
 <h3 id="ui-server">Server</h3>
+<p>The Server page is split into sections, listed under <em>Server</em> in the side menu (one shown at a time; each
+has its own address, e.g. <code>/server.html#certificates</code>).</p>
 <ul>
-  <li><strong>Server</strong> section: listening address and port, listener port range <span class="badge">live</span>,
-    TLS certificate and key (empty: a self-signed certificate).</li>
-  <li><strong>Capacity limits</strong> <span class="badge">live</span>: see <a href="#topologies">Capacity</a>.</li>
+  <li><strong>Control channel</strong>: listening address and port, listener port range <span class="badge">live</span>,
+    TLS certificate and key (empty: a self-signed certificate), the key clients pin and
+    <em>Require clients to prove they hold their key</em> <span class="badge">live</span>.</li>
+  <li><strong>Capacity</strong> <span class="badge">live</span>: see <a href="#topologies">Capacity</a>.</li>
+  <li><strong>Web interface</strong>: listening address, port, HTTPS and its certificate.</li>
+  <li><strong>Certificates</strong>: certificates signed by your certificate authority, for the web interface and the
+    control channel (see <a href="#certificates">below</a>).</li>
+  <li><strong>Access</strong>: administrator accounts and API tokens.</li>
   <li><strong>Global</strong>: watchdog interval <span class="badge">live</span>, clock skew tolerated by iperf3
     authentication <span class="badge">live</span>, log output, iperf3 authentication, iperf3 program, RSA key
     directory, purge of the logs at startup.</li>
@@ -353,7 +379,7 @@ are never shown in listings, logs or API responses.</p>
   <li><strong>Clients verify the server.</strong> They pin the SHA-256 of the server key on their first connection
     (<code>syntraf_server_pin</code> next to their configuration), or take it from
     <code>SERVER_CERT_SHA256</code> in <code>[CLIENT]</code>, which protects even the first connection. The value is
-    shown on the Server page (<em>Client identity</em>). Another server is refused before any token is sent.</li>
+    shown on the Server page (<em>Control channel</em>). Another server is refused before any token is sent.</li>
   <li><strong>Clients prove they hold their key.</strong> AUTH carries a signature bound to this server, valid for a
     few minutes and once. Older clients without it are accepted with a warning; enable
     <em>Require clients to prove they hold their key</em> once every client is up to date.</li>
@@ -363,6 +389,24 @@ are never shown in listings, logs or API responses.</p>
     bounded (64 MiB) and connections limited (1000, 50 per address). A client only writes the measurements it
     receives.</li>
 </ul>
+
+<h3 id="certificates">Certificates signed by your certificate authority</h3>
+<ol>
+  <li>On the Server page, <em>Certificates</em>, fill in the common name (the server's DNS name), the other names
+    (DNS names and IP addresses the server is reached by), optionally the organization and country, and the key:
+    a new RSA or ECDSA key, or the current one. <strong>Generate the request</strong>.</li>
+  <li>Copy or download the request (<code>.csr</code>) and have it signed by your certificate authority. The private
+    key is created on the server and never leaves it.</li>
+  <li>Paste the signed certificate, followed by its intermediate certificates (PEM), or choose its file, then
+    <strong>Install</strong>. SYNTRAF checks that it is for the key of the request, that it is valid now and that each
+    certificate of the chain is issued by the next one, shows it, and installs it on confirmation
+    (<code>&lt;data&gt;/crypto/WEBUI_X509_CA</code> or <code>CONTROL_X509_CA</code>, the previous one kept as
+    <code>.previous</code>). Installing the web interface certificate turns HTTPS on. A server restart applies it.</li>
+</ol>
+<p>For the control channel, keep the current key (the default): clients pinned that key, so they accept the signed
+certificate without any change. A certificate with a new key must be confirmed explicitly, since clients refuse the
+server until their <code>SERVER_CERT_SHA256</code> (or <code>syntraf_server_pin</code>) is updated. A pending request can
+be cancelled (its key is deleted).</p>
 
 <h3>Web interface and API (port 5000)</h3>
 <ul>
@@ -437,12 +481,18 @@ dropped messages and the last error; <em>Send a test message</em> checks the pat
 <h2 id="updates">11. Remote updates</h2>
 <ul>
   <li>The server ships its own code as a <strong>built-in release</strong> (id <code>version+digest</code>), optionally
-    with a wheelhouse of Python packages.</li>
+    with a wheelhouse of Python packages. It is the <strong>probe package</strong>: the code probes run, without the
+    web interface and the server-only modules (about 100 KB instead of 10 MB).</li>
   <li><em>Updates</em> → select clients → <em>Update selected</em>: each client downloads the release over the control
     channel, installs it beside its current version (<code>releases/&lt;id&gt;/</code>), switches and restarts.</li>
   <li>The new version must reconnect and receive its configuration; otherwise the supervisor rolls back to the
     previous one (after 3 attempts or 10 minutes). A rolled-back release is not retried unless forced.</li>
   <li>Recommended: update one client first, then the others.</li>
+  <li><strong>Deployment groups</strong> (staged updates): give clients a deployment group on the Clients page
+    (e.g. <code>pilot</code>, <code>wave-1</code>; key <code>DEPLOYMENT_GROUP</code>, no effect on the measurements).
+    The Updates page then shows how far each group is and updates a whole group at once
+    (<code>POST /api/v1/updates</code> with <code>{"GROUPS": ["pilot"]}</code>); the client list can be filtered by
+    group.</li>
 </ul>
 
 <h2 id="databases">12. Databases &amp; metrics</h2>
@@ -471,10 +521,40 @@ bitrate (with the expected bitrate dashed), jitter, lost packets.</figcaption></
   <li><strong>Mesh measurements</strong>: time series per flow;</li>
   <li><strong>Source × destination matrix</strong>: current loss, silence, jitter, bitrate, lost packets;</li>
   <li><strong>Hub topologies</strong>: spokes × hubs, the link between the hubs, average per hub.</li>
+  <li><strong>Correlations</strong>: two flow × flow matrices (loss, jitter). Every minute the server computes the
+    Pearson correlation of each pair of flows over the last 15 minutes (one point every 10 s) from VictoriaMetrics and
+    writes it as <code>SYNTRAF_CORRELATION_LOSS</code> / <code>SYNTRAF_CORRELATION_JITTER</code>
+    (<code>FLOW_A</code>, <code>FLOW_B</code>, −1 to 1). Red: flows that degrade together, probably through a common
+    link, device or bottleneck. Flows without any variation are left out; beyond 60 flows, the 60 most variable are
+    kept. Loss curves are drawn in shades of red on every dashboard.</li>
+  <li><strong>Voice quality &amp; bursts</strong>: the voice quality score of each flow (MOS 1–4.5, ITU-T G.107
+    E-model, simplified: R = 93.2 − Id − Ie,eff) for the codec of the mesh group's profile (<em>Voice codec for the
+    MOS</em>: G.711 by default, G.729, Opus), computed by the server for every measurement
+    (<code>SYNTRAF_RX_MOS</code>, <code>SYNTRAF_RX_R_FACTOR</code>); it counts loss, jitter (jitter buffer) and the
+    codec delay and the one-way latency (round trip / 2, see below). Green from 4.0, yellow from 3.6, orange from 3.1, red below. Loss
+    bursts over the last 15 minutes, per second (iperf3 gives no per-packet detail): a burst is a run of seconds
+    with at least 10 % loss; burst ratio 1 = such seconds fall at random, above 1 = they cluster (as G.113's BurstR);
+    longest burst and share of the loss in heavy seconds (≥ 20 %) (<code>SYNTRAF_LOSS_BURST_*</code>).</li>
+  <li><strong>Latency</strong>: round-trip time between probes, measured with TWAMP-Light (RFC 5357, unauthenticated
+    test packets): every probe runs a reflector on UDP <code>LATENCY_PORT</code> (8620 by default, Server page,
+    <em>Global</em>), and the probe that holds the connector to a peer sends 5 echoes per interval with the mesh
+    group's DSCP. RTT = round trip minus the time spent in the reflector: no clock synchronization needed. A probe
+    behind a NAT only has connectors, so it always initiates and its outgoing echo opens the way for the answer (and
+    keeps the NAT mapping open); two probes both behind a NAT are not measured. Stored as
+    <code>SYNTRAF_LATENCY_RTT_MS</code> (min, max, echo loss). The reflector answers only its peers (the addresses of
+    its connectors and the sources of the iperf3 sessions its listeners accepted, a NAT's public address included),
+    never with a larger packet than the request, and at most 20 packets per second per source and 200 in total. Open
+    the port on the probes that are not behind a NAT.</li>
 </ul>
 <p>Only the flows the configuration currently makes measure are shown: a flow removed by a topology change
 disappears instead of looking like an outage, and an expected flow without any measurement shows <em>no data</em>
 in red. Configuration changes are annotations.</p>
+<p><strong>Silence, outage or restart.</strong> When iperf3 reports nothing, the probe records 100 % loss for each
+silent interval: a cut shows in red. While a measurement is being re-established with a peer that answers (iperf3
+restarting after an interruption), the silence is left as a gap instead: the network works, only the measurement
+restarts. A session that produces no measurement within the connection timeout plus two intervals is restarted at
+once (a lost UDP setup datagram would otherwise block it about 30 s). A measurement that does not re-establish
+within a minute (or after 10 failed attempts), or a peer that does not answer, counts as an outage again.</p>
 
 <h2 id="config">14. Configuration reference</h2>
 <p>TOML file, read at startup and edited by the web interface (which keeps versions in
@@ -486,6 +566,8 @@ in red. Configuration changes are annotations.</p>
   <tr><td><code>IPERF3_BINARY_PATH</code></td><td>Path of iperf3, or <code>DISABLE</code> (a server running no iperf3)</td><td>found in PATH</td></tr>
   <tr><td><code>IPERF3_RSA_KEY_DIRECTORY</code></td><td>RSA key pair and credentials for iperf3 authentication</td><td><code>crypto/rsa_key_iperf3</code></td></tr>
   <tr><td><code>IPERF3_TIME_SKEW_THRESHOLD</code></td><td>Clock difference (s) tolerated by iperf3 authentication; the server passes it to the clients</td><td>10</td></tr>
+  <tr><td><code>LATENCY</code>, <code>LATENCY_PORT</code></td><td>Measure the round-trip latency between probes (TWAMP-Light), and the UDP port of their reflector; the server passes them to the clients</td><td>true, 8620</td></tr>
+  <tr><td><code>IPERF3_CONNECT_TIMEOUT</code></td><td>Seconds given to iperf3 to reach its peer (1–60); raise it for lossy or distant links; the server passes it to the clients</td><td>5</td></tr>
   <tr><td><code>IPERF3_AUTH</code></td><td>iperf3 authentication (true/false)</td><td>true</td></tr>
   <tr><td><code>WATCHDOG_CHECK_RATE</code></td><td>Seconds between two checks of the threads</td><td>—</td></tr>
   <tr><td><code>LOG_TO</code></td><td><code>stdout</code>, <code>file</code> or <code>all</code></td><td>file</td></tr>
@@ -526,7 +608,9 @@ in red. Configuration changes are annotations.</p>
 
 <h3>[[IPERF3_PROFILE]]</h3>
 <p><code>UID</code>, <code>DESCRIPTION</code>, and any of <code>BANDWIDTH</code>, <code>DSCP</code>,
-<code>PACKET_SIZE</code>, <code>INTERVAL</code> (at least one).</p>
+<code>PACKET_SIZE</code>, <code>INTERVAL</code> (at least one). <code>CODEC</code> (optional: <code>G711</code>,
+<code>G729</code>, <code>OPUS</code>): codec of the voice quality score (MOS) of the flows of the mesh groups using the
+profile; no effect on the measurements.</p>
 
 <h3>[[SERVER_CLIENT]]</h3>
 <table>
@@ -558,7 +642,7 @@ in red. Configuration changes are annotations.</p>
   <tr><td><code>CLIENT_UID</code></td><td>Name (replaced by the one the server gives when it renames the client)</td><td>—</td></tr>
   <tr><td><code>SERVER</code>, <code>SERVER_PORT</code></td><td>Server address and control port</td><td>—, 6531</td></tr>
   <tr><td><code>TOKEN</code></td><td>Shared enrollment token (5–255 characters)</td><td>—</td></tr>
-  <tr><td><code>SERVER_CERT_SHA256</code></td><td>Expected server key (Server page, <em>Client identity</em>); empty: pinned on first connection</td><td>—</td></tr>
+  <tr><td><code>SERVER_CERT_SHA256</code></td><td>Expected server key (Server page, <em>Control channel</em>); empty: pinned on first connection</td><td>—</td></tr>
 </table>
 
 <h2 id="api">15. REST API</h2>
@@ -576,6 +660,7 @@ impact, settings needing a restart). A change that triggers a capacity alert ans
   <tr><td>Enrollment</td><td><code>GET /clients/pending</code>, <code>POST /clients/pending/{uid}/approve|reject</code>, <code>DELETE /clients/rejected/{uid}</code></td></tr>
   <tr><td>Databases</td><td><code>GET|POST /config/databases</code>, <code>POST /config/databases/test</code>, <code>GET|PUT|DELETE /config/databases/{uid}</code></td></tr>
   <tr><td>Server</td><td><code>GET|PUT /config/server</code>, <code>GET|PUT /config/global</code>, <code>POST /server/restart</code></td></tr>
+  <tr><td>Certificates</td><td><code>GET /certificates</code>, <code>POST|DELETE /certificates/{webui|control}/request</code>, <code>POST /certificates/{webui|control}/install</code></td></tr>
   <tr><td>Logs</td><td><code>GET|PUT /config/logging</code>, <code>GET|PUT /config/syslog</code>, <code>POST /logging/syslog/test</code>, <code>GET /logs/search</code>, <code>GET /logs/nodes</code>, <code>GET /logs</code>, <code>GET /logs/{name}</code></td></tr>
   <tr><td>Tokens</td><td><code>GET|POST /config/tokens</code>, <code>DELETE /config/tokens/{name}</code>, <code>POST /config/tokens/{name}/reveal</code></td></tr>
   <tr><td>Audit &amp; versions</td><td><code>GET /audit</code>, <code>GET /config/versions</code>, <code>GET /config/versions/{v}</code>, <code>GET /config/versions/{v}/diff</code>, <code>POST /config/versions/{v}/restore</code></td></tr>

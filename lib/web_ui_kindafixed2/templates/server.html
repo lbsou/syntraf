@@ -2,12 +2,15 @@
 {% from "_macros.html" import page_header, kv_table %}
 {% block title %}Server{% endblock %}
 {% block content %}
-{% call page_header("Server", "Settings of this SYNTRAF server (SERVER). The listener port range and the capacity limits apply live; the listening address, port and certificate take effect after a server restart.") %}
+{% call page_header("Server", "Settings of this SYNTRAF server, by section (side menu). Each setting shows whether it applies live or after a server restart.") %}
 <div class="st-actions"><button type="button" class="btn btn-outline-danger btn-sm" id="btn_restart"><i class="fas fa-redo me-1"></i>Restart the server</button></div>
 {% endcall %}
 
-<section class="st-card">
-  <form id="server_form" novalidate>
+
+<form id="server_form" novalidate>
+<section class="st-card" data-sub="control" aria-labelledby="control_title">
+    <h2 id="control_title">Control channel</h2>
+    <p class="small text-white-50">The TLS channel the clients connect to (SERVER). Its certificate can be signed by your certificate authority: see <a href="#certificates">Certificates</a>.</p>
     <div class="row">
         <div class="col-md-4 mb-3">
             <label for="s_bind" class="form-label">Listening address <span class="badge bg-secondary">restart</span></label>
@@ -43,14 +46,17 @@
             <div class="invalid-feedback" data-feedback="SERVER_X509_PRIVATE_KEY"></div>
         </div>
     </div>
-    <h2 class="h6 mt-2">Client identity <span class="badge bg-success">live</span></h2>
+    <h3 class="h6 mt-2">Client identity <span class="badge bg-success">live</span></h3>
     <p class="small mb-1">Key of the control channel: <code id="s_fp" data-no-i18n>–</code></p>
     <p class="small text-white-50">Clients pin this key on their first connection; to protect even that one, set it in each client's configuration: <code data-no-i18n>SERVER_CERT_SHA256 = "…"</code> in [CLIENT].</p>
     <div class="form-check form-switch mb-3">
         <input class="form-check-input" type="checkbox" role="switch" id="s_proof">
         <label class="form-check-label" for="s_proof">Require clients to prove they hold their key (enable once every client is up to date)</label>
     </div>
-    <h2 class="h6 mt-2">Web interface <span class="badge bg-secondary">restart</span></h2>
+</section>
+<section class="st-card" data-sub="webui" aria-labelledby="webui_title">
+    <h2 id="webui_title">Web interface <span class="badge bg-secondary">restart</span></h2>
+    <p class="small text-white-50">Where this interface and the API listen. To use a certificate signed by your certificate authority, see <a href="#certificates">Certificates</a>.</p>
     <div class="row">
         <div class="col-md-3 mb-3">
             <label for="w_bind" class="form-label">Listening address</label>
@@ -81,7 +87,9 @@
             <div class="invalid-feedback" data-feedback="WEBUI_X509_PRIVATE_KEY"></div>
         </div>
     </div>
-    <h2 class="h6 mt-2">Capacity limits <span class="badge bg-success">live</span></h2>
+</section>
+<section class="st-card" data-sub="capacity" aria-labelledby="capacity_title">
+    <h2 id="capacity_title">Capacity limits <span class="badge bg-success">live</span></h2>
     <p class="small text-white-50">Protect clients and the database from a change that multiplies the measurement flows (for example switching a large group to a full mesh). Above a hard limit a change is refused; above the alert threshold it must be confirmed by typing its name.</p>
     <div class="row">
         <div class="col-md-3 mb-3">
@@ -107,18 +115,20 @@
             <div class="invalid-feedback" data-feedback="FLOW_ALERT_RATIO"></div>
         </div>
     </div>
+</section>
+<section class="st-card" data-sub="control webui capacity">
     <div id="server_review" class="mb-3" hidden></div>
     <div class="d-flex gap-2">
         <button type="submit" class="btn btn-primary" id="btn_review">Review changes…</button>
         <button type="button" class="btn btn-outline-light" id="btn_back" hidden>Back</button>
         <button type="button" class="btn btn-success" id="btn_apply" hidden>Apply</button>
     </div>
-  </form>
 </section>
+</form>
 
-<section class="st-card">
+<section class="st-card" data-sub="global">
     <h2>Global</h2>
-    <p class="small text-white-50">Global settings (GLOBAL). Logging levels, file sizes, retention and syslog forwarding are in the <a href="#logging">Logs</a> section below.</p>
+    <p class="small text-white-50">Global settings (GLOBAL). Logging levels, file sizes, retention and syslog forwarding are in the <a href="#logs">Logs</a> section.</p>
   <form id="global_form" novalidate>
     <div class="row">
         <div class="col-md-4 mb-3">
@@ -132,6 +142,22 @@
             <input class="form-control" id="g_skew" data-field="IPERF3_TIME_SKEW_THRESHOLD" inputmode="numeric">
             <div class="form-text">By iperf3 authentication; clients reconnect to receive it.</div>
             <div class="invalid-feedback" data-feedback="IPERF3_TIME_SKEW_THRESHOLD"></div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <label for="g_connect" class="form-label">iperf3 connection timeout (s) <span class="badge bg-success">live</span></label>
+            <input class="form-control" id="g_connect" data-field="IPERF3_CONNECT_TIMEOUT" inputmode="numeric" placeholder="5">
+            <div class="form-text">Time for a flow to reach its peer; raise it for lossy or distant links. Clients reconnect to receive it.</div>
+            <div class="invalid-feedback" data-feedback="IPERF3_CONNECT_TIMEOUT"></div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <label for="g_latency_port" class="form-label">Latency: UDP port of the probes <span class="badge bg-success">live</span></label>
+            <input class="form-control" id="g_latency_port" data-field="LATENCY_PORT" inputmode="numeric" placeholder="8620">
+            <div class="form-text">Each probe answers round-trip measurements (TWAMP-Light) on this port: open it on the probes that are not behind a NAT.</div>
+            <div class="invalid-feedback" data-feedback="LATENCY_PORT"></div>
+            <div class="form-check form-switch mt-2">
+                <input class="form-check-input" type="checkbox" role="switch" id="g_latency">
+                <label class="form-check-label" for="g_latency">Measure the latency between probes</label>
+            </div>
         </div>
         <div class="col-md-4 mb-3">
             <label for="g_logto" class="form-label">Log to <span class="badge bg-secondary">restart</span></label>
@@ -168,7 +194,39 @@
   </form>
 </section>
 
-<section class="st-card" id="access" aria-labelledby="access_title">
+<section class="st-card" data-sub="certificates" aria-labelledby="certs_title">
+  <h2 id="certs_title">Certificates</h2>
+  <p class="small text-white-50">Use certificates signed by your certificate authority: generate a signing request (CSR), have it signed, then upload the signed certificate with its chain. The private key is created on this server and never leaves it. Installing a certificate takes effect after a server restart.</p>
+  <div class="row g-4" id="certs"></div>
+</section>
+<template id="cert_card">
+  <div class="col-xl-6"><div class="border border-secondary rounded p-3 h-100" data-service="">
+    <h3 class="h6 mb-2" data-role="title"></h3>
+    <div class="small mb-3" data-role="current"></div>
+    <div data-role="pending"></div>
+    <form class="row g-2 mb-3" data-role="request" novalidate>
+      <div class="col-12"><span class="fw-bold small">New signing request</span></div>
+      <div class="col-md-6"><label class="form-label small mb-0">Common name</label>
+        <input class="form-control form-control-sm" name="COMMON_NAME" data-field="COMMON_NAME" placeholder="syntraf.example.org">
+        <div class="invalid-feedback" data-feedback="COMMON_NAME"></div></div>
+      <div class="col-md-6"><label class="form-label small mb-0">Other names (DNS, IP)</label>
+        <input class="form-control form-control-sm" name="NAMES" placeholder="syntraf, 10.0.0.5"></div>
+      <div class="col-md-5"><label class="form-label small mb-0">Organization (optional)</label>
+        <input class="form-control form-control-sm" name="ORGANIZATION"></div>
+      <div class="col-md-2"><label class="form-label small mb-0">Country</label>
+        <input class="form-control form-control-sm" name="COUNTRY" maxlength="2" placeholder="CA"></div>
+      <div class="col-md-5"><label class="form-label small mb-0">Key</label>
+        <select class="form-select form-select-sm" name="KEY" data-field="KEY">
+          <option value="reuse">Keep the current key</option><option value="rsa3072">New RSA 3072</option>
+          <option value="rsa2048">New RSA 2048</option><option value="rsa4096">New RSA 4096</option>
+          <option value="ec256">New ECDSA P-256</option><option value="ec384">New ECDSA P-384</option></select>
+        <div class="invalid-feedback" data-feedback="KEY"></div></div>
+      <div class="col-12"><button type="submit" class="btn btn-sm btn-outline-light">Generate the request</button></div>
+    </form>
+  </div></div>
+</template>
+
+<section class="st-card" id="access" data-sub="access" aria-labelledby="access_title">
   <h2 id="access_title">Access</h2>
   <p class="small text-white-50">Who may use this interface and the API. Every page and every API call needs a session or an API token (Authorization: Bearer). Changes are recorded in the audit log.</p>
   <div class="row g-4">
@@ -195,7 +253,7 @@
   </div>
 </section>
 
-<section class="st-card" id="logging" aria-labelledby="logging_title">
+<section class="st-card" id="logging" data-sub="logs" aria-labelledby="logging_title">
   <h2 id="logging_title">Logs</h2>
   <p class="small text-white-50">Levels, size and retention of the server and client logs. Search them on the <a href="/log_viewer.html">Logs</a> page.</p>
   <form id="settings_form" novalidate>
@@ -231,7 +289,7 @@
   </form>
 </section>
 
-<section class="st-card" id="syslog" aria-labelledby="syslog_title">
+<section class="st-card" id="syslog" data-sub="logs" aria-labelledby="syslog_title">
   <h2 id="syslog_title" class="d-flex justify-content-between align-items-center">
     <span>Syslog forwarding (SIEM) <span class="badge bg-success">live</span></span>
     <span id="sy_state" class="small fw-normal" aria-live="polite"></span>
@@ -346,7 +404,12 @@ form.addEventListener("submit", async e => {
     st.setBusy(el("btn_review"), true);
     const r = await st.api("PUT", "/api/v1/config/server?dry_run=1", body());
     st.setBusy(el("btn_review"), false);
-    if (!r.ok) { st.showFieldErrors(form, r.error.fields); if (!Object.keys(r.error.fields || {}).length) st.toast(r.error.message, "danger"); return; }
+    if (!r.ok) {
+        st.showFieldErrors(form, r.error.fields);
+        revealInvalid(form);
+        if (!Object.keys(r.error.fields || {}).length) st.toast(r.error.message, "danger");
+        return;
+    }
     st.showFieldErrors(form, {});
     pending = {body: body(), url: st.applyUrl("/api/v1/config/server", r.data)};
     el("server_review").replaceChildren(st.previewNode(r.data, "Changes to the server settings:"));
@@ -367,8 +430,9 @@ el("btn_restart").addEventListener("click", st.restartServer);
 
 // ---- Section GLOBAL
 const GLOBAL_TEXT = {WATCHDOG_CHECK_RATE: "g_watchdog", IPERF3_TIME_SKEW_THRESHOLD: "g_skew", LOG_TO: "g_logto",
+                     IPERF3_CONNECT_TIMEOUT: "g_connect", LATENCY_PORT: "g_latency_port",
                      };
-const GLOBAL_BOOL = {IPERF3_AUTH: "g_auth", LOG_PURGE_ON_START: "g_purge"};
+const GLOBAL_BOOL = {IPERF3_AUTH: "g_auth", LOG_PURGE_ON_START: "g_purge", LATENCY: "g_latency"};
 
 async function loadGlobal() {
     const r = await st.api("GET", "/api/v1/config/global");
@@ -547,5 +611,150 @@ el("ac_tokens").addEventListener("click", async e => {
     loadAccess();
 });
 loadAccess();
+
+// ---- Sous-sections (onglets et menu latéral) : une section à la fois, d'après l'ancre de l'URL
+// Un formulaire couvre plusieurs sections (canal de contrôle, interface web, capacité) : une erreur dans une section
+// masquée l'affiche, sinon elle resterait invisible.
+function revealInvalid(container) {
+    const first = container.querySelector(".is-invalid");
+    const section = first && first.closest("[data-sub]");
+    if (!section || !section.hidden) return;
+    location.hash = "#" + section.dataset.sub.split(" ")[0];
+    setTimeout(() => first.focus(), 0);
+}
+const SUB_ALIASES = {logging: "logs", syslog: "logs", "": "control"};
+function showSub() {
+    let sub = location.hash.replace("#", "");
+    sub = SUB_ALIASES[sub] !== undefined ? SUB_ALIASES[sub] : sub;
+    if (!document.querySelector(`[data-sub~="${sub}"]`)) sub = "control";
+    document.querySelectorAll("[data-sub]").forEach(n => { n.hidden = !n.dataset.sub.split(" ").includes(sub); });
+    document.querySelectorAll("[data-sub-link]").forEach(a => {
+        const on = a.dataset.subLink === sub;
+        a.classList.toggle("active", on);
+        if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+    });
+    window.scrollTo(0, 0);
+    const side = bootstrap.Offcanvas.getInstance(el("st-sidebar"));
+    if (side) side.hide();
+}
+window.addEventListener("hashchange", showSub);
+showSub();
+
+// ---- Certificats : requête de signature (CSR) et certificat signé
+const CERT_TITLES = {webui: "Web interface (HTTPS)", control: "Control channel (clients)"};
+
+function certSummary(c) {
+    if (!c) return '<span class="text-white-50">No certificate in service.</span>';
+    const days = c.DAYS_LEFT;
+    const state = days < 0 ? '<span class="badge bg-danger">expired</span>' : days < 30 ? `<span class="badge bg-warning text-dark">${days} days left</span>`
+        : `<span class="badge bg-success">${days} days left</span>`;
+    return `<div>${state} ${c.SELF_SIGNED ? '<span class="badge bg-secondary">self-signed</span>' : `<span class="badge bg-info text-dark">issued by ${st.esc(c.ISSUER)}</span>`}</div>
+        <div class="mt-1">Subject: <code data-no-i18n>${st.esc(c.SUBJECT)}</code></div>
+        ${c.NAMES.length ? `<div>Names: <code data-no-i18n>${c.NAMES.map(st.esc).join(", ")}</code></div>` : ""}
+        <div>Valid until ${st.esc(st.time(c.NOT_AFTER))} · chain of ${c.CHAIN}</div>
+        <div>Key: <code data-no-i18n>${st.esc(c.KEY_SHA256)}</code></div>`;
+}
+
+function pendingBlock(service, p) {
+    if (!p) return "";
+    return `<div class="alert alert-info py-2 small">
+        <div class="fw-bold mb-1">Request in progress for ${st.esc(p.COMMON_NAME)} (${st.esc(st.time(p.CREATED))})${p.REUSED_KEY ? " · current key" : " · new key"}</div>
+        <ol class="mb-2 ps-3"><li>Copy or download the request below and have it signed by your certificate authority.</li>
+          <li>Paste the signed certificate (PEM, with its intermediate certificates) and install it.</li></ol>
+        <textarea class="form-control form-control-sm font-monospace mb-2" rows="5" readonly data-role="csr" data-no-i18n>${st.esc(p.CSR)}</textarea>
+        <div class="d-flex gap-2 mb-3">
+          <button type="button" class="btn btn-sm btn-outline-light" data-act="copy">Copy</button>
+          <button type="button" class="btn btn-sm btn-outline-light" data-act="download">Download (.csr)</button>
+          <button type="button" class="btn btn-sm btn-outline-danger ms-auto" data-act="cancel">Cancel the request</button>
+        </div>
+        <label class="form-label small mb-0">Signed certificate (PEM)</label>
+        <textarea class="form-control form-control-sm font-monospace" rows="5" data-role="signed" data-field="PEM" placeholder="-----BEGIN CERTIFICATE-----" data-no-i18n></textarea>
+        <div class="invalid-feedback" data-feedback="PEM"></div>
+        <div class="d-flex gap-2 mt-2 align-items-center">
+          <input type="file" class="form-control form-control-sm" accept=".pem,.crt,.cer,.txt" data-role="file" style="max-width: 18rem">
+          <button type="button" class="btn btn-sm btn-primary" data-act="install">Install…</button>
+        </div></div>`;
+}
+
+async function loadCerts() {
+    const r = await st.api("GET", "/api/v1/certificates");
+    if (!r.ok) return;
+    const box = el("certs");
+    box.replaceChildren();
+    for (const service of ["webui", "control"]) {
+        const node = el("cert_card").content.cloneNode(true);
+        const card = node.querySelector("[data-service]");
+        card.dataset.service = service;
+        card.querySelector('[data-role="title"]').textContent = CERT_TITLES[service];
+        card.querySelector('[data-role="current"]').innerHTML = certSummary(r.data[service].CURRENT)
+            + (service === "webui" && !r.data.webui.HTTPS ? '<div class="text-warning mt-1">HTTPS is off: installing a certificate turns it on.</div>' : "");
+        card.querySelector('[data-role="pending"]').innerHTML = pendingBlock(service, r.data[service].PENDING);
+        const key = card.querySelector('select[name="KEY"]');
+        key.value = service === "control" ? "reuse" : "rsa3072";
+        if (service === "control") card.querySelector('[data-role="request"]').insertAdjacentHTML("beforeend",
+            '<div class="col-12 form-text">Keep the current key: clients that pinned it accept the signed certificate without any change.</div>');
+        box.appendChild(node);
+    }
+}
+
+el("certs").addEventListener("submit", async e => {
+    e.preventDefault();
+    const form = e.target, service = form.closest("[data-service]").dataset.service;
+    const body = Object.fromEntries(new FormData(form).entries());
+    const r = await st.api("POST", `/api/v1/certificates/${service}/request`, body);
+    st.showFieldErrors(form, r.ok ? {} : r.error.fields);
+    if (!r.ok) { if (!Object.keys(r.error.fields || {}).length) st.toast(r.error.message, "danger"); return; }
+    st.toast("Request generated: have it signed by your certificate authority.", "success");
+    loadCerts();
+});
+
+el("certs").addEventListener("change", e => {
+    const file = e.target.closest('[data-role="file"]');
+    if (!file || !file.files.length) return;
+    const reader = new FileReader();
+    reader.onload = () => { file.closest("[data-service]").querySelector('[data-role="signed"]').value = reader.result; };
+    reader.readAsText(file.files[0]);
+});
+
+el("certs").addEventListener("click", async e => {
+    const b = e.target.closest("[data-act]");
+    if (!b) return;
+    const card = b.closest("[data-service]"), service = card.dataset.service;
+    if (b.dataset.act === "copy") {
+        try { await navigator.clipboard.writeText(card.querySelector('[data-role="csr"]').value); st.toast("Request copied.", "success"); }
+        catch (err) { card.querySelector('[data-role="csr"]').select(); }
+    } else if (b.dataset.act === "download") {
+        const blob = new Blob([card.querySelector('[data-role="csr"]').value], {type: "application/pkcs10"});
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `syntraf-${service}.csr`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+    } else if (b.dataset.act === "cancel") {
+        if (!await st.confirm({title: "Cancel the request?", body: "Its private key is deleted: a certificate signed for it can no longer be installed.", confirmText: "Cancel the request", danger: true})) return;
+        await st.api("DELETE", `/api/v1/certificates/${service}/request`);
+        loadCerts();
+    } else if (b.dataset.act === "install") {
+        const pem = card.querySelector('[data-role="signed"]').value;
+        let preview = await st.api("POST", `/api/v1/certificates/${service}/install?dry_run=1`, {PEM: pem});
+        let confirmNewKey = false;
+        if (!preview.ok && preview.status === 409) {
+            if (!await st.confirm({title: "Install a certificate with a new key?", body: preview.error.message, confirmText: "Install anyway", danger: true})) return;
+            confirmNewKey = true;
+            preview = await st.api("POST", `/api/v1/certificates/${service}/install?dry_run=1`, {PEM: pem, CONFIRM_NEW_KEY: true});
+        }
+        st.showFieldErrors(card, preview.ok ? {} : preview.error.fields);
+        if (!preview.ok) { if (!Object.keys(preview.error.fields || {}).length) st.toast(preview.error.message, "danger"); return; }
+        const body = document.createElement("div");
+        body.innerHTML = certSummary(preview.data.certificate) + '<p class="small text-white-50 mt-2 mb-0">It takes effect after a server restart.</p>';
+        if (!await st.confirm({title: `Install this certificate for the ${CERT_TITLES[service].toLowerCase()}?`, body, confirmText: "Install"})) return;
+        const r = await st.api("POST", `/api/v1/certificates/${service}/install`, {PEM: pem, CONFIRM_NEW_KEY: confirmNewKey});
+        if (!r.ok) { st.toast(r.error.message, "danger"); return; }
+        st.restartNotice(r.data.restart_required || [], "Certificate installed.");
+        loadCerts();
+        load();
+    }
+});
+loadCerts();
 </script>
 {% endblock %}

@@ -33,6 +33,14 @@ CODE_SUFFIXES = (".py", ".html", ".js", ".css", ".json", ".svg", ".png", ".jpg",
                  ".ttf", ".eot", ".otf", ".map", ".txt", ".md")
 SECRET_NAMES = ("syntraf_client_token", "syntraf_client_uid", "credentials")
 
+# Release des sondes (profil « client ») : ni l'interface web ni les modules propres au serveur. Ce que le serveur
+# distribue : une sonde n'en exécute rien, et l'interface pèse 98 % de la release complète.
+PROFILES = ("full", "client")
+CLIENT_EXCLUDED_DIRS = ("lib/web_ui_kindafixed2/", "lib/web_ui/", "lib/webui_kindafixed/", "lib/webui/")
+CLIENT_EXCLUDED_FILES = {"requirements_server.txt", "lib/st_mesh_group_ops.py", "lib/st_vm_admin.py",
+                         "lib/st_db_factory.py", "lib/st_victoriametrics.py", "lib/st_capacity.py",
+                         "lib/st_config_store.py", "lib/st_certs.py", "lib/st_flow_catalog.py"}
+
 
 def _shippable(name):
     low = name.lower()
@@ -40,8 +48,14 @@ def _shippable(name):
             and not low.startswith(SECRET_NAMES))
 
 
-def _included(root):
+def _for_clients(rel):
+    return rel not in CLIENT_EXCLUDED_FILES and not rel.startswith(CLIENT_EXCLUDED_DIRS)
+
+
+def _included(root, profile="full"):
     """Fichiers de la release (chemins relatifs, triés), hors wheelhouse."""
+    if profile not in PROFILES:
+        raise ReleaseError(f"unknown release profile '{profile}'")
     out = [name for name in INCLUDED_TOP_FILES if os.path.isfile(os.path.join(root, name))]
     for top in INCLUDED_TOP_DIRS:
         for dirpath, dirnames, filenames in os.walk(os.path.join(root, top)):
@@ -50,6 +64,8 @@ def _included(root):
             for name in filenames:
                 if _shippable(name) and not name.endswith(EXCLUDED_SUFFIXES):
                     out.append(os.path.normpath(os.path.join(rel_dir, name)).replace(os.sep, "/"))
+    if profile == "client":
+        out = [rel for rel in out if _for_clients(rel)]
     return sorted(out)
 
 
@@ -68,18 +84,19 @@ def file_sha256(path):
     return h.hexdigest()
 
 
-def source_digest(root):
-    """Empreinte du code : chemins et contenus des fichiers de la release (hors wheelhouse)."""
+def source_digest(root, profile="full"):
+    """Empreinte du code : chemins et contenus des fichiers de la release (hors wheelhouse). Une sonde installée
+    depuis la release client retrouve le même identifiant en calculant celui de ses propres fichiers."""
     h = hashlib.sha256()
-    for rel in _included(root):
+    for rel in _included(root, profile):
         h.update(rel.encode() + b"\0")
         with open(os.path.join(root, rel), "rb") as f:
             h.update(hashlib.sha256(f.read()).digest())
     return h.hexdigest()
 
 
-def release_id(root, version):
-    return f"{version}+{source_digest(root)[:10]}"
+def release_id(root, version, profile="full"):
+    return f"{version}+{source_digest(root, profile)[:10]}"
 
 
 def requirements_sha256(root):
@@ -87,13 +104,13 @@ def requirements_sha256(root):
     return file_sha256(path) if os.path.isfile(path) else None
 
 
-def build(root, out_dir, version):
+def build(root, out_dir, version, profile="full"):
     """Fabrique (ou retrouve) l'archive de la release du code de root. Reproductible : mêmes sources, même archive."""
-    rid = release_id(root, version)
+    rid = release_id(root, version, profile)
     os.makedirs(out_dir, exist_ok=True)
     path = os.path.join(out_dir, f"syntraf-{rid}.tar.gz")
     wheels = _wheels(root)
-    manifest = {"id": rid, "version": version, "has_wheelhouse": bool(wheels),
+    manifest = {"id": rid, "version": version, "profile": profile, "has_wheelhouse": bool(wheels),
                 "requirements_sha256": requirements_sha256(root)}
     if not os.path.isfile(path):
         tmp = path + ".tmp"
@@ -101,7 +118,7 @@ def build(root, out_dir, version):
             # gzip sans date ni nom de fichier, entrées triées et horodatées à 0 : archive reproductible
             with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as gz:
                 with tarfile.open(fileobj=gz, mode="w") as tar:
-                    for rel in _included(root) + wheels:
+                    for rel in _included(root, profile) + wheels:
                         _add(tar, rel, open(os.path.join(root, rel), "rb").read())
                     _add(tar, "manifest.json", json.dumps(manifest, indent=1, sort_keys=True).encode())
         os.replace(tmp, path)
@@ -141,12 +158,12 @@ _BUILTIN_LOCK = __import__("threading").Lock()
 
 
 def builtin(root, data_dir, version):
-    """Release intégrée du serveur : l'archive de son propre code, fabriquée une fois puis gardée en cache
-    (sous <données>/releases/dist)."""
+    """Release que le serveur distribue à ses sondes : son propre code, profil client (sans interface web),
+    fabriquée une fois puis gardée en cache (sous <données>/releases/dist)."""
     with _BUILTIN_LOCK:
         info = _BUILTIN.get((str(root), version))
         if info is None or not os.path.isfile(info["path"]):
-            info = build(str(root), os.path.join(str(data_dir), "releases", "dist"), version)
+            info = build(str(root), os.path.join(str(data_dir), "releases", "dist"), version, profile="client")
             _BUILTIN[(str(root), version)] = info
         return info
 

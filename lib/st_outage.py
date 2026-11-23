@@ -48,6 +48,12 @@ def enqueue(queue: dict, point: dict, max_size: int) -> None:
 
 
 CLOCK_JUMP_SUMMARY_S = 600  # au plus un message visible (INFO) par période sur les sauts d'horloge
+# Mesure qui s'établit avec un pair qui a répondu : son silence est un trou (l'outil redémarre, le réseau marche),
+# sauf après MAX_FAILED_STARTS échecs de suite (UDP bloqué, panne réelle) ou au-delà de HOLD_MAX_S.
+# La vraie limite est HOLD_MAX_S (une mesure qui ne s'établit pas en une minute est une panne) ; le nombre d'échecs
+# n'est qu'un garde-fou : juste après une coupure, les échecs rapides s'enchaînent bien plus que le hasard ne le dit.
+MAX_FAILED_STARTS = 10
+HOLD_MAX_S = 60
 
 
 class SilenceTracker:
@@ -67,6 +73,43 @@ class SilenceTracker:
         # Sauts d'horloge : un message au premier, puis un résumé par période (un saut touche tous les flux à la
         # fois ; une VM WSL en fait plusieurs par minute) ; le détail de chacun en DEBUG
         self._jumps = {"count": 0, "largest": 0.0, "since": None, "reported": None}
+        self._holds = {}     # uid -> instant (monotone) où la mesure a commencé à s'établir
+        self._failures = {}  # uid -> sessions de suite terminées sans aucune mesure
+
+    def _mono(self):
+        import time
+        return self._clock() if self._clock else time.monotonic()
+
+    def establishing(self, uid: str) -> None:
+        """Une session iperf3 de ce flux a joint son pair et attend sa première mesure : pas de pertes inventées
+        pendant ce temps (sauf après MAX_FAILED_STARTS échecs de suite)."""
+        with self._lock:
+            if self._failures.get(uid, 0) < MAX_FAILED_STARTS:
+                self._holds.setdefault(uid, self._mono())
+
+    def failed_start(self, uid: str) -> None:
+        """La session s'est terminée sans aucune mesure alors que le pair avait répondu."""
+        with self._lock:
+            self._failures[uid] = self._failures.get(uid, 0) + 1
+            if self._failures[uid] < MAX_FAILED_STARTS:
+                self._holds.setdefault(uid, self._mono())  # morte avant d'annoncer le pair : trou quand même
+            elif self._holds.pop(uid, None) is not None:
+                log.warning(f"{uid} - {MAX_FAILED_STARTS} IPERF3 SESSIONS IN A ROW REACHED THE PEER WITHOUT ANY "
+                            f"MEASUREMENT (UDP BLOCKED?): COUNTED AS AN OUTAGE")
+
+    def unreachable(self, uid: str) -> None:
+        """Le pair n'a pas répondu : le silence est une panne."""
+        with self._lock:
+            self._holds.pop(uid, None)
+
+    def _held(self, uid, mono):
+        since = self._holds.get(uid)
+        if since is None:
+            return False
+        if mono - since > HOLD_MAX_S:
+            del self._holds[uid]
+            return False
+        return True
 
     def record(self, uid: str, utime: float, interval: int, ctx: dict) -> list:
         """Une vraie mesure horodatée utime vient d'être lue pour le flux uid.
@@ -86,7 +129,9 @@ class SilenceTracker:
             points = []
             step = flow["interval"]
             threshold = (self.lag_intervals + 1) * step
-            if flow["silent"]:
+            if self._held(uid, mono):
+                pass  # première mesure d'une session qui s'établissait : le trou reste un trou
+            elif flow["silent"]:
                 points = self._generate(uid, flow, utime - step)
             elif utime - flow["last"] >= threshold:
                 if mono - flow["anchor_m"] >= threshold:
@@ -100,6 +145,8 @@ class SilenceTracker:
                 flow["silent"] = False
             flow["last"] = max(flow["last"], utime)
             flow["anchor_t"], flow["anchor_m"] = utime, mono
+            self._holds.pop(uid, None)  # la mesure est établie
+            self._failures.pop(uid, None)
             flow["interval"] = interval
             flow["ctx"] = dict(ctx)
             return points
@@ -155,5 +202,9 @@ class SilenceTracker:
                     continue
                 flow = self._flows[uid]
                 flow_now = flow["anchor_t"] + (mono_now - flow["anchor_m"])
-                points.extend(self._generate(uid, flow, flow_now - self.lag_intervals * flow["interval"]))
+                limit = flow_now - self.lag_intervals * flow["interval"]
+                if self._held(uid, mono_now):
+                    flow["last"] = max(flow["last"], limit)  # trou : la mesure s'établit
+                    continue
+                points.extend(self._generate(uid, flow, limit))
         return points

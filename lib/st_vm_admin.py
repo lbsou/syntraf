@@ -66,6 +66,15 @@ class VmAdmin:
         values = [v for r in data.get("result", []) for v in r.get("values", [])]
         return min((int(float(t)) for t, _ in values), default=None)
 
+    def query(self, query):
+        """Requête instantanée : liste de séries {metric, value}."""
+        return (self._get_json("/api/v1/query", {"query": query}) or {}).get("result", [])
+
+    def query_range(self, query, start, end, step):
+        """Requête PromQL/MetricsQL sur une plage : liste de séries {metric, values}."""
+        data = self._get_json("/api/v1/query_range", {"query": query, "start": start, "end": end, "step": step})
+        return (data or {}).get("result", [])
+
     # -------------------------------------------------------------------------------------------- orphelins
 
     def orphans(self, clients, mesh_groups):

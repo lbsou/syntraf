@@ -44,6 +44,8 @@ def steps(*pairs):
 
 
 LOSS_STEPS = steps(("green", None), ("yellow", 1), ("orange", 5), ("red", 20))
+# Courbes de pertes : en rouge (nuances distinctes par flux, pour les reconnaître dans la légende)
+LOSS_COLOR = {"color": {"mode": "shades", "fixedColor": "red"}}
 SILENCE_STEPS = steps(("green", None), ("orange", 5), ("red", 15))
 JITTER_STEPS = steps(("green", None), ("yellow", 1), ("orange", 5), ("red", 30))
 BITRATE_STEPS = steps(("red", None), ("orange", 50), ("green", 90))
@@ -124,10 +126,11 @@ def expected_bitrate():
             "expr": 'max by (MESH_GROUP) (last_over_time(SYNTRAF_GROUP_BANDWIDTH_KBPS{MESH_GROUP=~"$mesh_group"}[40s]))'}
 
 
-def dashboard(uid, title, panels, refresh="5s", time_from="now-15m", variables=None):
-    for p in panels:  # le bandeau des paramètres occupe le haut
-        p["gridPos"] = dict(p["gridPos"], y=p["gridPos"]["y"] + BANNER_H)
-    panels = [group_banner()] + panels
+def dashboard(uid, title, panels, refresh="5s", time_from="now-15m", variables=None, banner=True):
+    if banner:
+        for p in panels:  # le bandeau des paramètres occupe le haut
+            p["gridPos"] = dict(p["gridPos"], y=p["gridPos"]["y"] + BANNER_H)
+        panels = [group_banner()] + panels
     return {"uid": uid, "title": title, "tags": ["syntraf", "lab"], "timezone": "browser",
             "schemaVersion": 39, "version": 1, "editable": False, "refresh": refresh,
             "time": {"from": time_from, "to": "now"}, "links": LINKS,
@@ -178,10 +181,11 @@ def series_dashboard():
                        {"id": "custom.fillOpacity", "value": 0}, {"id": "color", "value": {"mode": "fixed", "fixedColor": "#aaaaaa"}}]})
     return dashboard("syntraf-lab", "SYNTRAF — mesures du maillage", [
         silence,
-        timeseries(2, "Pertes (%) par flux", f"SYNTRAF_RX_PCT_LOSS{{{SEL}}}", "percent", 0, 5, {"min": 0, "max": 100}),
+        timeseries(2, "Pertes (%) par flux", f"SYNTRAF_RX_PCT_LOSS{{{SEL}}}", "percent", 0, 5,
+                   {"min": 0, "max": 100, **LOSS_COLOR}),
         bitrate,
         timeseries(4, "Gigue par flux", f"SYNTRAF_RX_JITTER{{{SEL}}}", "ms", 0, 14),
-        timeseries(5, "Paquets perdus par intervalle", f"SYNTRAF_RX_PACKET_LOSS{{{SEL}}}", "none", 12, 14),
+        timeseries(5, "Paquets perdus par intervalle", f"SYNTRAF_RX_PACKET_LOSS{{{SEL}}}", "none", 12, 14, LOSS_COLOR),
     ])
 
 
@@ -269,14 +273,86 @@ def hubs_dashboard():
              LOSS_STEPS, 0, 16, w=24, h=4, description="Deux hubs seulement : les deux sens de leur liaison."),
         timeseries(6, "Pertes moyennes des spokes vers chaque hub (%)",
                    f"avg by (MESH_GROUP, SERVER) ({only_expected(f'SYNTRAF_RX_PCT_LOSS{{{SEL}}}', spoke_to_hub)})",
-                   "percent", 0, 20, {"min": 0, "max": 100}, legend="{{MESH_GROUP}} · hub {{SERVER}}", w=24),
+                   "percent", 0, 20, {"min": 0, "max": 100, **LOSS_COLOR}, legend="{{MESH_GROUP}} · hub {{SERVER}}",
+                   w=24),
     ], time_from="now-1h", variables=variables)
+
+
+# ---------------------------------------------------------------------------
+# Corrélations (calculées par le serveur, lib/st_correlation.py)
+# ---------------------------------------------------------------------------
+# -1 bleu (opposés), autour de 0 gris (indépendants), vers 1 orange puis rouge (ils se dégradent ensemble)
+CORRELATION_STEPS = steps(("#3274d9", None), ("#555555", -0.3), ("#555555", 0.3), ("orange", 0.5), ("red", 0.8))
+
+
+def correlation_dashboard():
+    help_text = ("Corrélation de Pearson entre flux sur les 15 dernières minutes (un point toutes les 10 s), "
+                 "recalculée chaque minute par le serveur. Rouge : ces flux se dégradent ensemble (lien, équipement "
+                 "ou goulot commun probable). Les flux sans variation (aucune perte) n'apparaissent pas.")
+    panels = [
+        matrix(1, "Corrélation des pertes entre flux", "last_over_time(SYNTRAF_CORRELATION_LOSS[5m])", "none", 2,
+               CORRELATION_STEPS, 0, 0, help_text, row="FLOW_A", column="FLOW_B", corner="Flux ↓ / Flux →", w=24),
+        matrix(2, "Corrélation de la gigue entre flux", "last_over_time(SYNTRAF_CORRELATION_JITTER[5m])", "none", 2,
+               CORRELATION_STEPS, 0, 8, help_text, row="FLOW_A", column="FLOW_B", corner="Flux ↓ / Flux →", w=24),
+    ]
+    for p in panels:
+        p["gridPos"]["h"] = 12
+    panels[1]["gridPos"]["y"] = 12
+    return dashboard("syntraf-correlation", "SYNTRAF — corrélations entre flux", panels, refresh="1m",
+                     time_from="now-15m", variables=[], banner=False)
+
+
+# ---------------------------------------------------------------------------
+# Qualité perçue : MOS de la voix (modèle E) et rafales de pertes (lib/st_quality.py)
+# ---------------------------------------------------------------------------
+# Satisfaction des utilisateurs selon G.107 : R 60/70/80 ↔ MOS 3.1/3.6/4.0
+MOS_STEPS = steps(("red", None), ("orange", 3.1), ("yellow", 3.6), ("green", 4.0))
+BURST_RATIO_STEPS = steps(("green", None), ("yellow", 1.5), ("orange", 3), ("red", 6))
+LONGEST_STEPS = steps(("green", None), ("yellow", 2), ("orange", 5), ("red", 10))
+HEAVY_STEPS = steps(("green", None), ("yellow", 25), ("orange", 50), ("red", 75))
+# RTT : la voix supporte 150 ms dans un sens (UIT-T G.114), soit 300 ms aller-retour
+RTT_STEPS = steps(("green", None), ("yellow", 100), ("orange", 200), ("red", 300))
+
+
+def quality_dashboard():
+    mos = f"avg_over_time(SYNTRAF_RX_MOS{{{SEL}}}[1m])"
+    rtt = f"avg_over_time(SYNTRAF_LATENCY_RTT_MS{{{SEL}}}[1m])"
+    rtt_help = ("Aller-retour mesuré par la sonde en colonne (TWAMP-Light, 5 échos par intervalle, avec le DSCP du "
+                "mesh group) vers la sonde en ligne. Une sonde derrière un NAT mesure toujours elle-même. "
+                "Sert au MOS (latence d'un sens = RTT / 2). Rouge : au-delà de 300 ms (150 ms dans un sens, G.114).")
+    burst = lambda m: f"last_over_time(SYNTRAF_LOSS_BURST_{m}{{{SEL}}}[5m])"  # noqa: E731
+    mos_help = ("Note de qualité d'une voix sur chaque flux (1 à 4.5), modèle E de l'UIT-T G.107, pour le codec du "
+                "profil du mesh group (G.711 par défaut) : pertes, gigue (tampon), délai du codec et latence, "
+                "mesurée par écho (RTT / 2), quand elle est disponible. "
+                "Vert : très satisfaisant ; jaune : satisfaisant ; orange : certains insatisfaits ; rouge : mauvais.")
+    burst_help = ("Sur les 15 dernières minutes, à la seconde (iperf3 ne donne pas le détail par paquet). Une rafale "
+                  "est une suite de secondes à au moins 10 % de pertes. Ratio de rafale : 1 = ces mauvaises secondes "
+                  "tombent au hasard, plus de 1 = elles se regroupent (bien plus gênant pour la voix). 0 : aucune "
+                  "rafale.")
+    panels = [
+        matrix(1, "MOS voix — moyenne 1 min", current(mos, "1m"), "none", 2, MOS_STEPS, 0, 0, mos_help),
+        timeseries(2, "MOS voix par flux", mos, "none", 12, 0, {"min": 1, "max": 4.5}),
+        matrix(3, "Ratio de rafale des pertes (15 min)", burst("BURST_RATIO"), "none", 1, BURST_RATIO_STEPS, 0, 8,
+               burst_help),
+        matrix(4, "Plus longue rafale de pertes (s, 15 min)", burst("LONGEST_S"), "s", 0, LONGEST_STEPS, 12, 8,
+               burst_help),
+        matrix(5, "Part des pertes en secondes lourdes (≥ 20 %, 15 min)", burst("HEAVY_SHARE"), "percent", 0,
+               HEAVY_STEPS, 0, 16, burst_help),
+        matrix(6, "Latence aller-retour (RTT, ms) — moyenne 1 min", current(rtt, "1m"), "ms", 1, RTT_STEPS, 12, 16,
+               rtt_help),
+        timeseries(7, "Latence aller-retour par paire (ms)", rtt, "ms", 0, 24, {"min": 0}),
+        timeseries(8, "Échos de latence perdus (%)", f"avg_over_time(SYNTRAF_LATENCY_LOSS_PCT{{{SEL}}}[1m])",
+                   "percent", 12, 24, {"min": 0, "max": 100, **LOSS_COLOR}),
+    ]
+    return dashboard("syntraf-quality", "SYNTRAF — qualité voix et rafales", panels, refresh="30s", time_from="now-1h")
 
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     for name, dash in (("syntraf.json", series_dashboard()), ("syntraf-matrix.json", matrix_dashboard()),
-                       ("syntraf-hubs.json", hubs_dashboard())):
+                       ("syntraf-hubs.json", hubs_dashboard()),
+                       ("syntraf-correlation.json", correlation_dashboard()),
+                       ("syntraf-quality.json", quality_dashboard())):
         (OUT / name).write_text(json.dumps(dash, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         print(f"écrit : {OUT / name}")
 

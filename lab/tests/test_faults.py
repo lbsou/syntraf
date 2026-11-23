@@ -6,10 +6,21 @@ def test_netem_uses_replace_and_values():
     assert cmds == [["tc", "qdisc", "replace", "dev", "eth0", "root", "netem", "delay", "200ms", "loss", "10%"]]
 
 
-def test_netem_jitter_and_rate():
-    cmds = faults.netem_cmds("eth1", delay_ms=100, jitter_ms=20, rate="1mbit")
-    assert cmds == [["tc", "qdisc", "replace", "dev", "eth1", "root", "netem",
-                     "delay", "100ms", "20ms", "rate", "1mbit"]]
+def test_netem_jitter_keeps_packet_order_with_a_rate():
+    """Gigue sans réordonnancement (comme un vrai lien) : avec un débit, netem garde l'ordre des paquets."""
+    assert faults.netem_cmds("eth1", delay_ms=100, jitter_ms=20) == [
+        ["tc", "qdisc", "replace", "dev", "eth1", "root", "netem", "delay", "100ms", "20ms", "rate", "1gbit"]]
+    assert faults.netem_cmds("eth1", delay_ms=100, jitter_ms=20, rate="1mbit")[0][-2:] == ["rate", "1mbit"]
+
+
+def test_netem_jitter_may_reorder_on_request():
+    cmds = faults.netem_cmds("eth1", delay_ms=100, jitter_ms=20, reorder=True)
+    assert cmds == [["tc", "qdisc", "replace", "dev", "eth1", "root", "netem", "delay", "100ms", "20ms"]]
+
+
+def test_netem_to_ip_with_jitter_keeps_order_too():
+    cmds = faults.netem_cmds("eth0", delay_ms=50, jitter_ms=10, to_ip="172.30.0.33")
+    assert cmds[1][-2:] == ["rate", "1gbit"]
 
 
 def test_netem_to_ip_adds_prio_and_filter():

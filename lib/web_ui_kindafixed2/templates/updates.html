@@ -9,9 +9,22 @@
     <div id="release" class="small"><span class="spinner-border spinner-border-sm"></span> Building the release…</div>
 </section>
 
+<section class="st-card" aria-labelledby="groups-title" id="groups-card" hidden>
+    <h2 id="groups-title"><i class="fas fa-layer-group me-2"></i>Deployment groups</h2>
+    <p class="small text-white-50">Update group by group (pilot first, then the next waves). A client's deployment group is set on the Clients page.</p>
+    <div class="table-responsive">
+        <table class="table table-sm mb-0">
+            <thead><tr><th scope="col">Group</th><th scope="col">Up to date</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+            <tbody id="groups"></tbody>
+        </table>
+    </div>
+</section>
+
 <section class="st-card" aria-labelledby="clients-title">
     <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
         <h2 id="clients-title" class="mb-0 me-auto"><i class="fas fa-network-wired me-2"></i>Clients</h2>
+        <label class="visually-hidden" for="group_filter">Deployment group</label>
+        <select class="form-select form-select-sm w-auto" id="group_filter"><option value="*">All groups</option></select>
         <div class="form-check form-switch me-2">
             <input class="form-check-input" type="checkbox" role="switch" id="force">
             <label class="form-check-label small" for="force" title="Try again a release this client already rolled back from">Retry rolled back</label>
@@ -22,7 +35,7 @@
     <p class="small text-white-50">Recommended: update one client first; once it shows “up to date”, update the others.</p>
     <div class="table-responsive">
         <table class="table table-sm table-hover mb-0">
-            <thead><tr><th scope="col" style="width:2rem"><span class="visually-hidden">Select</span></th><th scope="col">Client</th>
+            <thead><tr><th scope="col" style="width:2rem"><span class="visually-hidden">Select</span></th><th scope="col">Client</th><th scope="col">Group</th>
                 <th scope="col">Running release</th><th scope="col">State</th><th scope="col">Detail</th></tr></thead>
             <tbody id="rows"></tbody>
         </table>
@@ -51,15 +64,32 @@ async function load() {
         <p class="mb-0">${rel.has_wheelhouse
             ? '<i class="fas fa-check text-success me-1"></i>Ships its Python packages (wheelhouse): each client gets its own virtual environment, installed offline.'
             : '<i class="fas fa-info-circle me-1"></i>No wheelhouse: clients reuse their current Python packages, so a release that needs other packages is refused.'}</p>`;
-    el("rows").innerHTML = r.data.clients.map(c => {
+    // groupes de déploiement : avancement et mise à jour d'un groupe entier
+    const groups = r.data.groups || [];
+    el("groups-card").hidden = !groups.some(g => g.group);
+    el("groups").innerHTML = groups.map(g => {
+        const done = g.up_to_date === g.clients;
+        const name = g.group ? `<span class="badge bg-secondary">${st.esc(g.group)}</span>` : '<span class="text-white-50">no group</span>';
+        return `<tr><th scope="row">${name}</th>
+            <td><span class="badge ${done ? "bg-success" : "bg-warning text-dark"}">${g.up_to_date} / ${g.clients}</span></td>
+            <td class="text-end">${g.group && !done ? `<button class="btn btn-sm btn-primary" data-group="${st.esc(g.group)}"><i class="fas fa-cloud-download-alt me-1"></i>Update this group…</button>` : ""}</td></tr>`;
+    }).join("");
+    const filter = el("group_filter"), current = filter.value;
+    filter.innerHTML = '<option value="*">All groups</option>' + groups.map(g =>
+        `<option value="${st.esc(g.group)}">${g.group ? st.esc(g.group) : "No group"}</option>`).join("");
+    filter.value = [...filter.options].some(o => o.value === current) ? current : "*";
+    const shown = r.data.clients.filter(c => filter.value === "*" || c.group === filter.value);
+    r.data.clients.filter(c => !shown.includes(c)).forEach(c => selected.delete(c.uid));
+    el("rows").innerHTML = shown.map(c => {
         const [cls, label] = BADGES[c.stage] || ["bg-secondary", c.stage];
         const can = UPDATABLE.includes(c.stage);
         if (!can) selected.delete(c.uid);
         return `<tr><td><input class="form-check-input" type="checkbox" data-uid="${st.esc(c.uid)}" aria-label="Select ${st.esc(c.uid)}"
                 ${can ? "" : "disabled"} ${selected.has(c.uid) ? "checked" : ""}></td>
-            <th scope="row">${st.esc(c.uid)}</th><td><code>${st.esc(c.release || "–")}</code></td>
+            <th scope="row">${st.esc(c.uid)}</th><td>${c.group ? `<span class="badge bg-secondary">${st.esc(c.group)}</span>` : ""}</td>
+            <td><code>${st.esc(c.release || "–")}</code></td>
             <td><span class="badge ${cls}">${label}</span></td><td class="small text-white-50">${st.esc(c.detail)}</td></tr>`;
-    }).join("") || '<tr><td colspan="5" class="st-empty"><i class="fas fa-network-wired"></i>No client declared.</td></tr>';
+    }).join("") || '<tr><td colspan="6" class="st-empty"><i class="fas fa-network-wired"></i>No client declared.</td></tr>';
     el("update").disabled = !selected.size;
 }
 
@@ -72,6 +102,19 @@ el("rows").addEventListener("change", e => {
 el("select_outdated").addEventListener("click", () => {
     el("rows").querySelectorAll("input[data-uid]:not(:disabled)").forEach(b => { b.checked = true; selected.add(b.dataset.uid); });
     el("update").disabled = !selected.size;
+});
+el("group_filter").addEventListener("change", load);
+el("groups").addEventListener("click", async e => {
+    const b = e.target.closest("[data-group]");
+    if (!b) return;
+    const group = b.dataset.group;
+    if (!await st.confirm({title: `Update deployment group “${group}”?`, body: `Its connected clients that are not up to date download this server's release, install it and restart. Their measurements stop for a few seconds.`, confirmText: "Update"})) return;
+    const r = await st.api("POST", "/api/v1/updates", {GROUPS: [group], FORCE: el("force").checked});
+    if (!r.ok) { st.toast(r.error.message, "danger"); return; }
+    const skipped = Object.entries(r.data.skipped).map(([u, why]) => `${u}: ${why}`);
+    st.toast(`Update sent to ${r.data.queued.length} client(s).` + (skipped.length ? ` Skipped: ${skipped.join("; ")}.` : ""),
+             skipped.length ? "warning" : "success");
+    load();
 });
 el("update").addEventListener("click", async () => {
     const clients = [...selected];

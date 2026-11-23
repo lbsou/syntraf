@@ -26,9 +26,13 @@
 
     <body>
         <a class="visually-hidden-focusable st-skip" href="#st-main">Skip to content</a>
-        {% set nav = [
+        {% set server_subs = [("control", "fa-network-wired", "Control channel"), ("capacity", "fa-tachometer-alt", "Capacity"),
+                                ("webui", "fa-globe", "Web interface"), ("certificates", "fa-certificate", "Certificates"), ("access", "fa-user-shield", "Access"),
+                                ("global", "fa-cogs", "Global"), ("logs", "fa-file-alt", "Logs")] %}
+{% set nav = [
             ("Overview", [("/home.html", "fa-tachometer-alt", "Dashboard")]),
-            ("Monitoring", [("/stats.html", "fa-desktop", "Clients"),
+            ("Monitoring", [("/live_map.html", "fa-map-marked-alt", "Live map"),
+                            ("/stats.html", "fa-desktop", "Clients"),
                             ("/log_viewer.html", "fa-file-alt", "Logs")]),
             ("Configuration", [("/mesh_group_config.html", "fa-project-diagram", "Mesh groups"),
                                ("/profile_config.html", "fa-sliders-h", "Profiles"),
@@ -48,6 +52,7 @@
             <a class="navbar-brand fw-bold" href="/home.html">SYNTRAF</a>
             <div class="ms-auto d-flex align-items-center gap-3 small">
                 <span id="st-live" class="st-live" title="Live status updates"><span class="st-dot"></span><span class="st-live-text">connecting…</span></span>
+                <a class="link-light" href="/docs/" target="_blank" rel="noopener" title="Documentation"><i class="fas fa-book"></i> Documentation</a>
                 <a class="link-light" href="/api/v1/openapi.json" target="_blank" rel="noopener" title="REST API description (OpenAPI)"><i class="fas fa-code"></i> API</a>
                 <span class="text-white-50">v{{ syntraf_version }}</span>
                 {% if current_user %}<span class="text-white-50"><i class="fas fa-user me-1"></i>{{ current_user }}</span>
@@ -74,6 +79,13 @@
                                {% if request.path == href %}aria-current="page"{% endif %}>
                                 <i class="fas {{ icon }} fa-fw me-2"></i>{{ label }}
                             </a>
+                            {% if href == "/server.html" %}
+                            <ul class="nav flex-column st-subnav" aria-label="Server sections">
+                            {% for key, sicon, slabel in server_subs %}
+                                <li class="nav-item"><a class="nav-link" href="/server.html#{{ key }}" data-sub-link="{{ key }}"><i class="fas {{ sicon }} fa-fw me-2"></i>{{ slabel }}</a></li>
+                            {% endfor %}
+                            </ul>
+                            {% endif %}
                         </li>
                     {% endfor %}
                     </ul>

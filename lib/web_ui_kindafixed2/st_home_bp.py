@@ -210,6 +210,23 @@ def client_config():
     return render_template('client_config.html', title='SYNTRAF WEBUI', config=app.config['config'])
 
 
+# Documentation HTML du dépôt (docs/html), servie aux utilisateurs connectés
+DOCS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "docs", "html")
+
+
+@st_home_bp.route('/docs/')
+@st_home_bp.route('/docs/<path:name>')
+def documentation(name="index.html"):
+    if not os.path.isfile(os.path.join(DOCS_DIR, "index.html")):
+        return "Documentation not installed (docs/html is missing from this installation).", 404
+    return send_from_directory(DOCS_DIR, name)  # refuse tout chemin hors du dossier (404)
+
+
+@st_home_bp.route('/live_map.html')
+def live_map():
+    return render_template('live_map.html', title='SYNTRAF WEBUI')
+
+
 @st_home_bp.route('/server.html')
 def server():
     return render_template('server.html', title='SYNTRAF WEBUI', config=app.config['config'],

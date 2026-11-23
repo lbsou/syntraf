@@ -99,7 +99,7 @@ async function selectRow(page, uid) {
 }
 
 (async () => {
-    const browser = await puppeteer.launch({executablePath: CHROME, headless: "new", args: ["--no-sandbox"]});
+    const browser = await puppeteer.launch({executablePath: CHROME, headless: "new", args: ["--no-sandbox", "--ignore-certificate-errors"], acceptInsecureCerts: true, ignoreHTTPSErrors: true});
     const page = await browser.newPage();
     // Les vérifications portent sur les textes anglais : la langue ne suit pas celle du système de la machine de test
     await page.evaluateOnNewDocument(() => localStorage.setItem("st_lang", "en"));
@@ -120,7 +120,7 @@ async function selectRow(page, uid) {
 
     // 1. Toutes les pages du menu
     await page.goto(BASE + "/", {waitUntil: "domcontentloaded"});
-    const links = await page.$$eval("#st-sidebar a.nav-link", as => as.map(a => a.getAttribute("href")));
+    const links = await page.$$eval("#st-sidebar a.nav-link:not([data-sub-link])", as => as.map(a => a.getAttribute("href")));
     check(links.length >= 10, `menu has ${links.length} entries`);
     for (const href of links) {
         errors = [];
@@ -128,6 +128,58 @@ async function selectRow(page, uid) {
         await new Promise(res => setTimeout(res, 1500));
         check(r.status() === 200 && errors.length === 0, `page ${href} (HTTP ${r.status()}) ${errors.join(" ; ")}`);
     }
+
+    // 1b. Page Server : sous-sections du menu latéral, une à la fois ; certificats
+    errors = [];
+    await page.goto(BASE + "/server.html", {waitUntil: "domcontentloaded"});
+    const subs = await page.$$eval("#st-sidebar [data-sub-link]", as => as.map(a => a.dataset.subLink));
+    check(subs.length === 7, `server submenu: ${subs.join(", ")}`);
+    for (const sub of subs) {
+        await page.click(`#st-sidebar [data-sub-link="${sub}"]`);
+        await new Promise(res => setTimeout(res, 300));
+        const state = await page.evaluate(k => ({
+            active: document.querySelector(`#st-sidebar [data-sub-link="${k}"]`).classList.contains("active"),
+            shown: [...document.querySelectorAll("[data-sub]")].filter(n => !n.hidden).map(n => n.dataset.sub),
+        }), sub);
+        check(state.active && state.shown.length > 0 && state.shown.every(d => d.split(" ").includes(sub)),
+              `server section ${sub}: shows ${state.shown.join(" | ")}`);
+    }
+    // une erreur dans une section masquée (même formulaire) affiche sa section
+    await page.click('#st-sidebar [data-sub-link="capacity"]');
+    await page.evaluate(() => { document.getElementById("w_port").value = "99999"; });
+    await page.click("#btn_review");
+    await page.waitForFunction(() => location.hash === "#webui", {timeout: 10000}).catch(() => {});
+    const shown = await page.evaluate(() => ({hash: location.hash, invalid: document.getElementById("w_port").classList.contains("is-invalid"),
+                                              visible: !document.getElementById("w_port").closest("[data-sub]").hidden}));
+    check(shown.hash === "#webui" && shown.invalid && shown.visible, `error in a hidden section is revealed: ${JSON.stringify(shown)}`);
+    await page.goto(BASE + "/server.html#certificates", {waitUntil: "domcontentloaded"});
+    errors = [];  // le refus 400 ci-dessus était voulu
+    await page.waitForSelector('#certs [data-service="control"]');
+    const certCards = await page.$$eval("#certs [data-service]", ns => ns.map(n => n.dataset.service + ":" + (n.textContent.includes("sha256:") ? "key" : "none")));
+    check(certCards.join() === "webui:key,control:key" && errors.length === 0, `certificate cards ${certCards.join(", ")} ${errors.join(" ; ")}`);
+
+    // 1c. Carte en direct : sondes et liens dessinés, couleurs de qualité
+    errors = [];
+    await page.goto(BASE + "/live_map.html", {waitUntil: "domcontentloaded"});
+    await page.waitForFunction(() => window.stLiveMap && window.stLiveMap.nodes().length > 0, {timeout: 15000}).catch(() => {});
+    const map = await page.evaluate(() => window.stLiveMap ? {nodes: window.stLiveMap.nodes().length, edges: window.stLiveMap.edges().length,
+        colored: window.stLiveMap.edges().filter(e => e.data("color") !== "#777777").length} : null);
+    check(map && map.nodes >= 4 && map.edges >= 3 && map.colored > 0 && errors.length === 0,
+          `live map: ${JSON.stringify(map)} ${errors.join(" ; ")}`);
+    // lisibilité : aucune sonde (étiquette comprise) n'en chevauche une autre
+    const overlaps = await page.evaluate(() => {
+        const boxes = window.stLiveMap.nodes().map(n => ({id: n.id(), b: n.boundingBox({includeLabels: true})}));
+        const out = [];
+        for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+            const a = boxes[i].b, b = boxes[j].b;
+            if (a.x1 < b.x2 && b.x1 < a.x2 && a.y1 < b.y2 && b.y1 < a.y2) out.push(`${boxes[i].id}/${boxes[j].id}`);
+        }
+        return out;
+    });
+    check(overlaps.length === 0, `live map: no overlapping probes or names ${overlaps.join(", ")}`);
+    // placement non dégénéré : pas toutes les sondes sur une ligne
+    const spread = await page.evaluate(() => { const b = window.stLiveMap.nodes().boundingBox(); return [b.w, b.h]; });
+    check(spread[0] > 100 && spread[1] > 100, `live map: probes spread in both directions ${spread.map(Math.round)}`);
 
     // 2. Cycle de vie d'un mesh group temporaire
     errors = [];

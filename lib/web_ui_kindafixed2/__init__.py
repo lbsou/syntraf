@@ -1,3 +1,8 @@
+from lib.st_global import CompilationOptions, missing_server_parts
+
+if CompilationOptions.client_only:  # sonde : l'interface web n'a pas ses paquets (requirements_server.txt)
+    raise ImportError("the web interface needs the server packages, missing: " + ", ".join(missing_server_parts()))
+
 from flask import Flask
 #from flask_sqlalchemy import SQLAlchemy
 #from flask_login import LoginManager

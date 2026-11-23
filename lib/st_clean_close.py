@@ -56,10 +56,9 @@ def handler(signum, frame):
     if sys.platform == 'win32':
         if signum == signal.SIGBREAK:
             print_sys("SIGBREAK RECEIVED: ")
+    # (pas de SIGKILL : il ne peut pas être intercepté, et il n'existe pas sous Windows)
     if signum == signal.SIGINT:
         print_sys("SIGINT RECEIVED: ")
-    elif signum == signal.SIGKILL:
-        print_sys("SIGKILL RECEIVED: ")
     elif signum == signal.SIGTERM:
         print_sys("SIGTERM RECEIVED: ")
     sys.exit()

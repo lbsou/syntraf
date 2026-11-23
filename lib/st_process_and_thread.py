@@ -78,6 +78,15 @@ def launch_and_respawn_workers(config, cli_parameters, threads_n_processes, obj_
             from lib.st_iperf3_readlog import fill_silences
             fill_silences(config, dict_data_to_send_to_server)
 
+        # LATENCY: réflecteur TWAMP-Light et mesure du RTT vers les pairs des connecteurs (lib/st_twamp.py)
+        if "CLIENT" in config:
+            try:
+                from lib import st_twamp, st_outage
+                st_twamp.MANAGER.sync(config, dict_data_to_send_to_server, lambda q, p: st_outage.enqueue(
+                    q, p, DefaultValues.DEFAULT_CLIENT_METRICS_QUEUE_SIZE))
+            except Exception as exc:  # noqa: BLE001 - la latence est un plus : jamais bloquante
+                log.warning(f"LATENCY NOT MEASURED: {type(exc).__name__}:{exc}")
+
         # SERVER
         if "SERVER" in config:
             manage_mesh(config, threads_n_processes, "SERVER", obj_stats, config_file_path, cli_parameters,
@@ -439,6 +448,25 @@ def iperf3_print_last_breath(edge_key, edge_type, threads_n_processes, thr_temp)
     except Exception as exc:
         pass
     threads_n_processes.remove(thr_temp)
+    # Dernières paroles d'iperf3 (sortie et erreurs) : disent si le pair avait répondu (détection des silences)
+    return f"{locals().get('last_breath') or ''} {stderr_last_breath}"
+
+
+def start_grace_s(config, edge_value):
+    """Délai pour qu'une session iperf3 produise sa première mesure : connexion + deux intervalles + 2 s."""
+    from lib.st_iperf import connect_timeout_ms
+    try:
+        interval = float(edge_value.get('INTERVAL', 1) or 1)
+    except (TypeError, ValueError):
+        interval = 1
+    return int(connect_timeout_ms(config)) // 1000 + 2 * interval + 2
+
+
+def stalled(iperf3_obj, grace_s, now=None):
+    """Session sans aucune mesure au-delà du délai de grâce (établissement UDP perdu, par exemple)."""
+    if getattr(iperf3_obj, "measured_at", None) is not None:
+        return False
+    return ((now or datetime.now()) - iperf3_obj.starttime).total_seconds() > grace_s
 
 
 def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_server, conn_db):
@@ -457,6 +485,18 @@ def manage_connectors_process(config, threads_n_processes, dict_data_to_send_to_
                                         dict_data_to_send_to_server)
                 # Iperf3 client was launch, but is it still running?
                 else:
+                    # Session bloquée sans aucune mesure : relancée tout de suite (iperf3 n'abandonnerait qu'après
+                    # ~30 s ; un datagramme d'établissement UDP perdu suffit à la bloquer)
+                    grace = start_grace_s(config, connector_value)
+                    if thr_temp.getstatus() and stalled(thr_temp, grace):
+                        log.warning(f"IPERF3 CONNECTOR '{connector_key}' PRODUCED NO MEASUREMENT IN {grace:.0f} S: "
+                                    f"RESTARTING IT")
+                        thr_temp.stall_killed = True
+                        try:
+                            thr_temp.subproc.kill()
+                            thr_temp.subproc.wait(timeout=5)
+                        except Exception:  # noqa: BLE001 - déjà terminé
+                            pass
                     # The subproc is not running
                     if not thr_temp.getstatus():
                         # Print the last breath and remove from threads_n_processes dict
@@ -481,6 +521,14 @@ def kill_processes(subprocess_iperf_dict):
 #################################################################################
 ### RETURN THE st_obj_process_n_thread FROM THE threads_n_processes dict
 #################################################################################
+def _end_of_session(config, edge_type, edge_key, thr_temp, breath=""):
+    try:
+        from lib.st_iperf3_readlog import end_of_session
+        end_of_session(config, edge_type, edge_key, thr_temp, breath or "")
+    except Exception as exc:  # noqa: BLE001 - la détection des silences ne doit pas empêcher la relance
+        log.debug(f"end_of_session:{type(exc).__name__}:{exc}")
+
+
 def get_obj_process_n_thread(threads_n_processes, edge_type, edge_key=None):
     # Find current thread to update packet sent in the st_obj_process_n_thread object
     if edge_key:
@@ -517,7 +565,8 @@ def terminate_connector_and_childs(threads_n_processes, connector_key, thr_temp,
             threads_n_processes.remove(thread_to_kill)
 
     # Print the last breath and remove from threads_n_processes dict
-    iperf3_print_last_breath(connector_key, "CONNECTOR", threads_n_processes, thr_temp)
+    breath = iperf3_print_last_breath(connector_key, "CONNECTOR", threads_n_processes, thr_temp)
+    _end_of_session(config, "CONNECTOR", connector_key, thr_temp, breath)
 
 
 def terminate_listener_and_childs(threads_n_processes, listener_key, thr_temp, config):
@@ -537,7 +586,8 @@ def terminate_listener_and_childs(threads_n_processes, listener_key, thr_temp, c
             threads_n_processes.remove(thread_to_kill)
 
     # Print the last breath and remove from threads_n_processes dict
-    iperf3_print_last_breath(listener_key, "LISTENER", threads_n_processes, thr_temp)
+    breath = iperf3_print_last_breath(listener_key, "LISTENER", threads_n_processes, thr_temp)
+    _end_of_session(config, "LISTENER", listener_key, thr_temp, breath)
 
 
 def close_listeners_and_connectors(threads_n_processes, _config):

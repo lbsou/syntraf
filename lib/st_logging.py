@@ -120,7 +120,7 @@ def log_init(results, config={}):
             log.info(f"UNABLE TO REMOVE ALL LOG FILES: {exc}")
 
     syntraf = conf_logging("syntraf", log_file, level, level_int, logto, logmaxsizeperfile, logfiletokeep)
-    log.debug(f"LOG LEVEL IS SET TO '{level.upper()}', with a maximum size per file of {config['GLOBAL']['LOG_MAX_SIZE_PER_FILE_MB']}MB and maximum of {logfiletokeep} file on rotation")
+    log.debug(f"LOG LEVEL IS SET TO '{level.upper()}', with a maximum size per file of {logmaxsizeperfile} bytes and maximum of {logfiletokeep} file on rotation")
 
 # def set_log_level(config):
 #     try:

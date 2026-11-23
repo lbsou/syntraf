@@ -4,8 +4,7 @@ from lib.st_iperf import *
 from lib.st_influxdb import *
 import time
 import re
-from datetime import datetime
-import pytz
+from datetime import datetime, timezone as _tz
 import logging
 from lib import st_outage
 log = logging.getLogger("syntraf." + __name__)
@@ -28,6 +27,63 @@ def _active_flow_uids(_config):
         if edge.get('BIDIR'):
             uids.add(st_outage.flow_uid(_flow_ctx(_config, 'CONNECTORS', key, edge['UID_SERVER'], edge['UID_CLIENT'])))
     return uids
+
+
+def edge_flow_uid(_config, edge_type, edge_key):
+    """Flux que cet edge mesure sur ce nœud (listener, ou retour d'un connecteur bidirectionnel) ; sinon None."""
+    try:
+        if edge_type in ("LISTENER", "LISTENERS"):
+            e = _config['LISTENERS'][edge_key]
+            return st_outage.flow_uid(_flow_ctx(_config, 'LISTENERS', edge_key, e['UID_CLIENT'], e['UID_SERVER']))
+        e = _config['CONNECTORS'][edge_key]
+        if e.get('BIDIR'):
+            return st_outage.flow_uid(_flow_ctx(_config, 'CONNECTORS', edge_key, e['UID_SERVER'], e['UID_CLIENT']))
+    except KeyError:
+        pass
+    return None
+
+
+def session_progress(line, iperf3_obj, uid):
+    """Suit une session iperf3 d'après sa sortie : pair joint (contrôle établi), puis mesures."""
+    if "Accepted connection from" in line:  # pair légitime : le réflecteur de latence lui répondra
+        try:
+            from lib import st_twamp
+            st_twamp.learn_from_iperf3(line)
+        except Exception:  # noqa: BLE001
+            pass
+    if iperf3_obj is None:
+        return
+    if ("connected to" in line and "local" in line) or "Accepted connection from" in line:
+        if not iperf3_obj.peer_reached:
+            iperf3_obj.peer_reached = True
+            if uid and iperf3_obj.measured_at is None:
+                SILENCE.establishing(uid)
+    elif " sec " in line and "Bytes" in line and "receiver" not in line and "sender" not in line:
+        iperf3_obj.measured_at = time.monotonic()
+
+
+UNREACHABLE_ERRORS = ("unable to connect", "connection refused", "no route to host", "network is unreachable",
+                      "name or service not known")
+
+
+def peer_answered(iperf3_obj, last_breath=""):
+    """Le pair a-t-il répondu ? Ligne « connected to » vue, session tuée pour blocage (iperf3 aurait sinon abandonné
+    sur « unable to connect » avant), ou toute autre erreur d'iperf3 que celles d'un pair injoignable."""
+    if getattr(iperf3_obj, "peer_reached", False) or getattr(iperf3_obj, "stall_killed", False):
+        return True
+    text = (last_breath or "").lower()
+    return "error" in text and not any(e in text for e in UNREACHABLE_ERRORS)
+
+
+def end_of_session(_config, edge_type, edge_key, iperf3_obj, last_breath=""):
+    """Une session iperf3 se termine (morte ou relancée) : renseigne la détection des silences."""
+    uid = edge_flow_uid(_config, edge_type, edge_key)
+    if uid is None or iperf3_obj is None or iperf3_obj.measured_at is not None:
+        return
+    if peer_answered(iperf3_obj, last_breath):
+        SILENCE.failed_start(uid)
+    else:
+        SILENCE.unreachable(uid)
 
 
 def fill_silences(_config, dict_data_to_send_to_server, now=None):
@@ -120,6 +176,9 @@ def tail(config: {}, edge_type: string, edge_key: string, exit_boolean: [], thre
 #################################################################################
 def parse_line(line: string, _config: {}, edge_key: string, edge_type: string, dict_data_to_send_to_server: {}, current_obj_process_n_thread: st_obj_process_n_thread):
     values = line.split(" ")
+
+    session_progress(line, getattr(current_obj_process_n_thread, "iperf3_obj_process_n_thread", None),
+                     edge_flow_uid(_config, edge_type, edge_key))
 
     #The edge_type is used not only as reference to the type but also as a key in the config. In config there is an "S", so replacing for the current function and the save_config
     if edge_type == "CONNECTOR":
@@ -227,10 +286,9 @@ def extract_values_from_iperf3_result_line(line: string):
     # timestamp
     x = re.findall(r"(\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d)", line)
     dt = datetime.strptime(str(x[0]), "%Y-%m-%d %H:%M:%S")
-    timezone = pytz.timezone(DefaultValues.TIMEZONE)
-    dt_tz = timezone.localize(dt)
-    timestamp = dt_tz.astimezone(pytz.timezone("UTC"))
-    utime = dt_tz.astimezone(pytz.timezone("UTC")).timestamp()
+    dt_tz = dt.astimezone()  # iperf3 écrit l'heure locale de la sonde
+    timestamp = dt_tz.astimezone(_tz.utc)
+    utime = dt_tz.timestamp()
 
     # bitrate
     x = re.findall(r"Bytes[ ]+(\d.*\d*) Kbits\/sec", line)

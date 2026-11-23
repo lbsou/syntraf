@@ -22,18 +22,25 @@ Looking for collaborators! Email me at shadow131 @ hotmail [dot] com
   the flows.
 - **Enrollment & security.** New probes ask to join with a shared token and are approved in the interface; their key
   is pinned and each gets a token of its own and proves it holds its key. Probes pin the server key, and releases are
-  signed. Sign-in, API tokens, CSRF protection, HTTPS and security headers on the web interface; audited changes.
+  signed. Sign-in, API tokens, CSRF protection, HTTPS and security headers on the web interface; certificate
+  signing requests (CSR) and installation of certificates signed by your certificate authority; audited changes.
 - **Clients behind a NAT.** A probe that cannot receive connections measures both directions itself
   (`iperf3 --bidir`) and keeps its NAT mappings open; a NAT is detected automatically.
 - **Rename a probe without losing its history** (its VictoriaMetrics series are rewritten under the new name).
 - **Remote updates.** The server ships its own release; probes install it beside the current one and roll back
-  automatically if it does not reconnect.
+  automatically if it does not reconnect. Deployment groups (pilot, waves) for staged updates.
+- **Light probes.** The release sent to probes is the probe code only (about 100 KB, no web interface) and needs
+  three Python packages: `cryptography`, `psutil` and `toml`.
 - **Logs.** Probe logs are forwarded to the server, searchable in one view (node, type, level, keywords), kept by
   size and age, and can be forwarded to a SIEM over syslog (RFC 5424 or **CEF**, UDP/TCP/TLS).
 - **Governance.** Audit log of every change, versions of the configuration file that can be compared and restored,
   data retention status, VictoriaMetrics snapshots and purge of orphan data.
 - **Dashboards.** Grafana dashboards showing the parameters of each group, only the flows the configuration expects
-  (a missing flow shows *no data*), and configuration changes as annotations.
+  (a missing flow shows *no data*), and configuration changes as annotations. A correlation matrix of loss and jitter
+  between flows points to flows that degrade together (common link or bottleneck). A voice quality score (MOS,
+  ITU-T E-model) per flow for the codec of its profile, loss bursts (episodes, burst ratio, longest burst), and the
+  round-trip latency between probes (TWAMP-Light), measured from behind a NAT too. A live map of the probes and
+  their links, colored by loss, MOS, latency or jitter.
 
 | Topology choice | Grafana |
 | --- | --- |
@@ -57,7 +64,9 @@ configuration, run iperf3, and send back their measurements (buffered while the 
 
 Requirements: Python 3, iperf3 ≥ 3.9 with timestamps (the
 [keepalive branch](https://github.com/davidBar-On/iperf/tree/issue-812-835-control-connection-keepalive) is
-recommended), VictoriaMetrics (recommended) or InfluxDB 2, Grafana, and synchronized clocks (NTP).
+recommended), VictoriaMetrics (recommended) or InfluxDB 2, Grafana, and synchronized clocks (NTP). An official
+iperf3 also works (Linux packages, Windows builds): the probe then runs without the control-connection keepalive.
+iperf3 authentication needs an iperf3 built with OpenSSL. Probes run on Linux, Windows and macOS.
 
 **Server**
 
@@ -90,9 +99,12 @@ Open `http://server:5000`, create a mesh group (topology, bandwidth, DSCP, packe
 **Clients**
 
 ```
-pip install -r requirements_client.txt
+pip install -r requirements_client.txt     # cryptography, psutil, toml
 python syntraf.py -c /etc/syntraf/config.toml -l /var/log/syntraf
 ```
+
+After the first installation, a probe can be brought to the light package by a remote update (**Updates** page): it
+then runs the probe code only, without the web interface.
 
 ```toml
 [CLIENT]
@@ -108,7 +120,7 @@ IPERF3_BINARY_PATH = "/usr/local/bin/iperf3"
 Sign in as `admin` with the password the server wrote to `<config>.initial_admin_password` (or set
 `SYNTRAF_ADMIN_PASSWORD` before the first start), change it on the **Server** page (*Access*) and enable HTTPS there.
 Clients pin the server key on their first connection; to protect that one too, copy the fingerprint shown on the
-Server page (*Client identity*) into `SERVER_CERT_SHA256` in their `[CLIENT]` section.
+Server page (*Control channel*) into `SERVER_CERT_SHA256` in their `[CLIENT]` section.
 
 Approve each new client on the **Clients** page and choose its mesh groups. Run `syntraf.py` from the installation
 directory under systemd (or a Windows service wrapper): it supervises the running release, restarts it on request
@@ -138,6 +150,12 @@ replace `iprintf` by `newprintf` in the sources
 `iperf3.exe` with `cygwin1.dll`, `cygcrypto-1.1.dll`, `cyggcc_s-1.dll`, `cygstdc++-6.dll` and `cygz.dll`. ESnet does
 not support iperf3 on Windows.
 
+Check the build with `iperf3 --help`: SYNTRAF uses `--rsa-public-key-path` (iperf3 authentication: configure must
+find OpenSSL, Cygwin package `libssl-devel`) and `--cntl-ka`. Cygwin's `<netinet/tcp.h>` uses `u_int16_t` without
+including `<sys/types.h>`, so configure's `TCP_KEEPIDLE` check fails and `--cntl-ka` silently disappears: add
+`#include <sys/types.h>` to that check in `configure.ac` and `configure`. A build with both (iperf 3.22.1, Cygwin,
+shipped with `cygwin1.dll`, `cygcrypto-3.dll` and `cygz.dll`) runs SYNTRAF probes on Windows with authentication.
+
 ## Test lab
 
 `lab/` runs a complete SYNTRAF in Docker (server, four probes including a satellite site behind a NAT,
@@ -147,6 +165,6 @@ scenarios and a browser end-to-end test. See [`lab/README.md`](lab/README.md).
 ## Known issues
 
 - `IPERF3: ERROR - TEST AUTHORIZATION FAILED`: clock skew between nodes above the threshold (10 s by default):
-  synchronize the clocks or raise *Clock skew tolerated* on the Server page.
+  synchronize the clocks or raise *Clock skew tolerated* on the Server page (*Global*).
 - `UserWarning: libuv only supports millisecond timer resolution`: harmless.
 - SYNTRAF measures loss, jitter and throughput; it does not measure latency.

@@ -76,7 +76,8 @@ function render(snap) {
         body.innerHTML = `<tr><td colspan="8" class="st-empty"><i class="fas fa-plug"></i>No client is declared yet. Add one in the server configuration file (SERVER_CLIENT).</td></tr>`;
     } else {
         body.innerHTML = snap.clients.map(c => `<tr>
-            <th scope="row">${st.esc(c.uid)}</th>
+            <th scope="row">${st.esc(c.uid)}${c.declared ? "" : ` <span class="badge bg-secondary" title="Removed from the configuration">not declared</span>
+                <button type="button" class="btn btn-sm btn-link p-0 ms-1" data-forget="${st.esc(c.uid)}">Forget</button>`}</th>
             <td>${st.badge(c.status)}</td>
             <td class="small text-white-50">${st.esc(c.status_since ? st.time(c.status_since) : "")}</td>
             <td>${st.esc(c.ip_address || "")}${c.dynamic_ip ? ' <span class="badge bg-secondary" title="Dynamic IP address">dynamic</span>' : ""}</td>
@@ -93,6 +94,15 @@ function render(snap) {
             <div class="text-end">${st.badge(d.status)}<div class="small text-white-50">backlog ${d.backlog}</div></div>
         </div>`).join("") : `<div class="st-empty"><i class="fas fa-database"></i>No database configured.</div>`;
 }
+
+document.getElementById("clients-body").addEventListener("click", async e => {
+    const b = e.target.closest("[data-forget]");
+    if (!b) return;
+    const uid = b.dataset.forget;
+    if (!await st.confirm({title: `Forget client “${uid}”?`, body: "It is no longer declared: it leaves the supervision and its admission requests are cleared (it may ask again). Its measurements stay until the retention removes them, or can be purged on the Data page.", confirmText: "Forget", danger: true})) return;
+    const r = await st.api("DELETE", `/api/v1/clients/${encodeURIComponent(uid)}`);
+    st.toast(r.ok ? `Client “${uid}” forgotten.` : r.error.message, r.ok ? "success" : "danger");
+});
 
 async function loadAudit() {
     const r = await st.api("GET", "/api/v1/audit?limit=5");

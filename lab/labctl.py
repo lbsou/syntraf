@@ -152,7 +152,7 @@ def cmd_bootstrap(args) -> int:
 def cmd_degrade(args) -> int:
     from lablib import faults
     faults.degrade(args.service, delay_ms=args.delay, jitter_ms=args.jitter, loss_pct=args.loss,
-                   rate=args.rate, to=args.to)
+                   rate=args.rate, to=args.to, reorder=args.reorder)
     print(f"{args.service} : {'; '.join(faults.active(args.service))}")
     return 0
 
@@ -326,6 +326,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--loss", type=float, default=0.0, help="%%")
     s.add_argument("--rate", help="ex. 1mbit")
     s.add_argument("--to", choices=nodes, help="seulement vers ce nœud")
+    s.add_argument("--reorder", action="store_true",
+                   help="laisser la gigue réordonner les paquets (par défaut un débit de 1 Gbit/s garde l'ordre)")
     s.set_defaults(func=cmd_degrade)
     s = sub.add_parser("cut", help="coupure : drop (silencieuse), disconnect (interface), pause (hôte figé)")
     s.add_argument("service", choices=nodes)

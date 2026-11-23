@@ -8,7 +8,7 @@ tar -C /src \
     --exclude='./venv*' --exclude='./.git' --exclude='./.idea' --exclude='./.superpowers' \
     --exclude='./crypto' --exclude='./proc' --exclude='./log' --exclude='./lab' \
     --exclude='./test' --exclude='./fake_data' --exclude='./iperf3_temp' \
-    --exclude='./lib/web_ui' --exclude='./lib/webui_kindafixed' --exclude='./doc' --exclude='./docs' \
+    --exclude='./lib/web_ui' --exclude='./lib/webui_kindafixed' --exclude='./doc' \
     --exclude='*.pid' --exclude='__pycache__' --exclude='users.db' \
     -cf - . | tar -C /app -xf -
 

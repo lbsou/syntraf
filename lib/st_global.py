@@ -1,20 +1,55 @@
 # BUILTIN IMPORT
+import datetime as _dt
 import os
 import pathlib
 import logging
 
 log = logging.getLogger("syntraf." + __name__)
 
-try:
-    from tzlocal import get_localzone
-except Exception as ex:
-    print("MISSING MODULE: no module named 'tzlocal'")
-    exit()
+
+def local_timezone_name():
+    """Nom du fuseau horaire local (affichage) : TZ, sinon /etc/localtime (Linux), sinon le nom court du système."""
+    tz = os.environ.get("TZ", "").lstrip(":")
+    if tz:
+        return tz
+    try:
+        target = os.path.realpath("/etc/localtime")
+        if "zoneinfo/" in target:
+            return target.split("zoneinfo/", 1)[1]
+    except OSError:
+        pass
+    try:
+        with open("/etc/timezone", encoding="utf-8") as f:
+            name = f.read().strip()
+            if name:
+                return name
+    except OSError:
+        pass
+    return _dt.datetime.now().astimezone().tzname() or "UTC"
 
 
-# Will impact the requirement of modules
+SERVER_PACKAGES = ("flask", "gevent", "influxdb_client")
+
+
+def _available(name):
+    try:
+        import importlib.util
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ValueError):
+        return False
+
+
+def missing_server_parts():
+    """Ce qui manque pour faire tourner un serveur : l'interface web (absente de la release des sondes) ou les
+    paquets du serveur (une sonde installée depuis le dépôt n'a que requirements_client.txt)."""
+    missing = [] if (pathlib.Path(__file__).parent / "web_ui_kindafixed2").is_dir() else ["web interface"]
+    return missing + [name for name in SERVER_PACKAGES if not _available(name)]
+
+
 class CompilationOptions:
-    client_only = False
+    # Sonde légère : sans l'interface web ou sans les paquets du serveur (Flask, gevent, client InfluxDB), ce qui
+    # n'est utile qu'au serveur n'est pas importé.
+    client_only = bool(missing_server_parts())
 
 
 class DefaultValues:
@@ -27,11 +62,7 @@ class DefaultValues:
     SYNTRAF_PID_FILE = os.path.join(SYNTRAF_DATA_DIR, 'syntraf.pid')
     SYNTRAF_PROC_DIR = os.path.join(SYNTRAF_DATA_DIR, "proc")
 
-    #tzlocal.utils.ZoneInfoNotFoundError: 'Multiple conflicting time zone configurations found:\n/etc/sysconfig/clock: Etc/UTC\n/etc/localtime is a symlink to: America/New_York\nFix the configuration, or set the time zone in a TZ environment variable.\n'
-    try:
-        TIMEZONE = str(get_localzone())
-    except Exception as exc:
-        log.error(f"st_global:{type(exc).__name__}:{exc}", exc_info=True)
+    TIMEZONE = local_timezone_name()
 
     # DATABASE
     DEFAULT_INFLUXDB_USE_SSL = True
@@ -74,7 +105,11 @@ class DefaultValues:
     DEFAULT_IPERF3_TIME_SKEW_THRESHOLD = "10"
 
     # Timeout for control connection setup (ms)
-    DEFAULT_IPERF3_CONNECT_TIMEOUT = "1000"
+    # Secondes (GLOBAL.IPERF3_CONNECT_TIMEOUT, 1 à 60) ; 1 s faisait échouer les liens à pertes (SYN retransmis après 1 s)
+    DEFAULT_IPERF3_CONNECT_TIMEOUT = "5"
+    # Latence aller-retour entre sondes (TWAMP-Light, lib/st_twamp.py) : réflecteur UDP sur ce port
+    DEFAULT_LATENCY = True
+    DEFAULT_LATENCY_PORT = "8620"
     DEFAULT_IPERF3_AUTH = True
 
     # Restart idle server after # seconds in case it got stuck
@@ -87,7 +122,7 @@ class DefaultValues:
     DEFAULT_IPERF3_RCV_TIMEOUT = "5000"
 
     # LOGGING
-    DEFAULT_LOG_MAX_SIZE_PER_FILE_MB = 20_485_760
+    DEFAULT_LOG_MAX_SIZE_PER_FILE_MB = 20  # Mo (était 20 485 760 : des fichiers de ~20 To avant rotation)
     DEFAULT_LOG_LEVEL_INT = 20  # logging.INFO
     DEFAULT_LOG_LEVEL = "INFO"
     DEFAULT_LOG_TO = "file"

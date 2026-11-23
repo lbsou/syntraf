@@ -846,7 +846,11 @@
             "showPoints": "never"
           },
           "min": 0,
-          "max": 100
+          "max": 100,
+          "color": {
+            "mode": "shades",
+            "fixedColor": "red"
+          }
         },
         "overrides": []
       },

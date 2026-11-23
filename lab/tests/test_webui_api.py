@@ -375,3 +375,12 @@ def test_syslog_api(env):
     assert "STATUS" in c.get("/api/v1/config/syslog").json
     assert c.put("/api/v1/config/syslog", json={"SYSLOG_HOST": "bad host!"}).status_code == 400
     assert c.post("/api/v1/logging/syslog/test").status_code == 409
+
+
+def test_documentation_is_served_to_signed_in_users_only(env):
+    r = env["client"].get("/docs/")
+    assert r.status_code == 200 and b"SYNTRAF" in r.data and r.mimetype == "text/html"
+    assert env["client"].get("/docs/img/home.png").mimetype == "image/png"
+    assert env["client"].get("/docs/../syntraf.py").status_code == 404
+    anonymous = env["app"].test_client()
+    assert anonymous.get("/docs/").status_code in (302, 401)

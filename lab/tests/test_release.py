@@ -108,3 +108,30 @@ def test_only_the_code_is_shipped_never_a_secret_or_a_config(tmp_path):
         names = set(t.getnames())
     assert names == {"syntraf.py", "requirements_client.txt", "lib/st_x.py", "lib/web_ui_kindafixed2/static/js/a.js",
                      "lib/web_ui_kindafixed2/templates/a.html", "manifest.json"}
+
+
+# ---------------------------------------------------------------------------------- release des sondes (légère)
+
+def test_the_client_release_leaves_the_server_out(src, tmp_path):
+    tree(src, {"lib/web_ui_kindafixed2/__init__.py": "app\n", "lib/web_ui_kindafixed2/static/big.js": "x" * 5000,
+               "lib/st_mesh_group_ops.py": "ops\n", "lib/st_victoriametrics.py": "vm\n",
+               "requirements_server.txt": "Flask\n"})
+    info = rel.build(str(src), str(tmp_path / "out"), "0.45", profile="client")
+    with tarfile.open(info["path"]) as t:
+        names = set(t.getnames())
+        manifest = json.load(t.extractfile("manifest.json"))
+    assert {"syntraf.py", "lib/st_x.py", "requirements_client.txt"} <= names
+    assert not any(n.startswith("lib/web_ui") for n in names)
+    assert not {"lib/st_mesh_group_ops.py", "lib/st_victoriametrics.py", "requirements_server.txt"} & names
+    assert manifest["profile"] == "client"
+    # une sonde qui tourne depuis cette release s'y reconnaît (même identifiant, calculé sur ses propres fichiers)
+    rel.safe_extract(info["path"], str(tmp_path / "installed"))
+    assert rel.release_id(str(tmp_path / "installed"), "0.45") == info["id"]
+    assert info["id"] != rel.build(str(src), str(tmp_path / "out"), "0.45")["id"]
+
+
+def test_the_server_distributes_the_client_release(src, tmp_path):
+    tree(src, {"lib/web_ui_kindafixed2/__init__.py": "app\n"})
+    info = rel.builtin(str(src), str(tmp_path / "data"), "0.45")
+    with tarfile.open(info["path"]) as t:
+        assert not any(n.startswith("lib/web_ui") for n in t.getnames())

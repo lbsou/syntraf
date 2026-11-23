@@ -6,6 +6,7 @@ from typing import Literal
 from . import docker, topology
 
 TAG = "syntraf-lab"
+KEEP_ORDER_RATE = "1gbit"
 CutMode = Literal["drop", "disconnect", "pause"]
 
 
@@ -24,7 +25,14 @@ def _netem_params(delay_ms: int, jitter_ms: int, loss_pct: float, rate: str | No
 
 
 def netem_cmds(iface: str, delay_ms: int = 0, jitter_ms: int = 0, loss_pct: float = 0.0,
-               rate: str | None = None, to_ip: str | None = None) -> list[list[str]]:
+               rate: str | None = None, to_ip: str | None = None, reorder: bool = False) -> list[list[str]]:
+    """Avec de la gigue, netem retarde chaque paquet indépendamment et les réordonne : un vrai lien (files FIFO) ne
+    le fait presque jamais, et iperf3 --bidir échoue alors à s'établir (paquet de données lu avant la réponse de
+    connexion UDP). Avec un débit (rate), netem n'envoie un paquet qu'après le précédent : l'ordre est gardé. Une
+    file pfifo enfant ne suffit plus (netem trie ses paquets par heure d'envoi avant elle). Sans débit demandé,
+    1 Gbit/s (sans effet sur le trafic du lab) ; reorder=True garde l'ancien comportement."""
+    if jitter_ms and not reorder and not rate:
+        rate = KEEP_ORDER_RATE
     params = _netem_params(delay_ms, jitter_ms, loss_pct, rate)
     if to_ip is None:
         return [["tc", "qdisc", "replace", "dev", iface, "root", "netem", *params]]
@@ -82,11 +90,11 @@ def _ip_of(service_or_none: str | None) -> str | None:
 
 
 def degrade(service: str, delay_ms: int = 0, jitter_ms: int = 0, loss_pct: float = 0.0,
-            rate: str | None = None, to: str | None = None) -> None:
+            rate: str | None = None, to: str | None = None, reorder: bool = False) -> None:
     iface = lab_iface(service)
     # Repartir d'une racine vide : deux degrade successifs remplacent, n'empilent jamais.
     docker.exec_(service, ["tc", "qdisc", "del", "dev", iface, "root"], check=False)
-    for cmd in netem_cmds(iface, delay_ms, jitter_ms, loss_pct, rate, _ip_of(to)):
+    for cmd in netem_cmds(iface, delay_ms, jitter_ms, loss_pct, rate, _ip_of(to), reorder):
         docker.exec_(service, cmd)
 
 

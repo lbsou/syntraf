@@ -28,7 +28,17 @@ import sys
 import argparse
 import atexit
 from lib.st_latency import udp_server, udp_client
-from tabulate import tabulate
+
+
+def tabulate(rows, tablefmt=None):
+    """Tableau texte aligné (fichiers d'état sous proc/), comme le format « simple » de l'ancien paquet tabulate."""
+    rows = [["" if c is None else str(c) for c in row] for row in rows]
+    if not rows:
+        return ""
+    widths = [max((len(r[i]) for r in rows if i < len(r)), default=0) for i in range(max(map(len, rows)))]
+    rule = "  ".join("-" * w for w in widths)
+    body = ["  ".join(c.ljust(widths[i]) for i, c in enumerate(r)).rstrip() for r in rows]
+    return "\n".join([rule] + body + [rule]) + "\n"
 import threading
 import logging
 import os
@@ -113,6 +123,14 @@ def run():
     if not bool_config_valid:
         log.error(f"CONFIGURATION VALIDATION FAILED")
         sys.exit()
+    if CompilationOptions.client_only and "SERVER" in config:
+        from lib.st_global import missing_server_parts
+        message = (f"THIS IS A SYNTRAF CLIENT PACKAGE (MISSING: {', '.join(missing_server_parts())}): IT CANNOT RUN A "
+                   f"SERVER CONFIGURATION. FOR THE SERVER, INSTALL THE FULL SYNTRAF FROM ITS REPOSITORY AND "
+                   f"requirements_server.txt.")
+        print("ERROR: " + message, file=sys.stderr)
+        log.error(message)
+        sys.exit(1)
     validate_purge_logs(config)
     log_init(cli_parameters, config)
 
@@ -233,6 +251,12 @@ def run():
                 PUBLISHER.maybe(config, _dict_by_node_generated_config, conn_db)
             except Exception as exc:
                 log.error(f"EXPECTED FLOWS NOT PUBLISHED: {type(exc).__name__}:{exc}")
+            # Matrice de corrélation des pertes et de la gigue (au plus chaque minute, dans un fil à part)
+            from lib.st_correlation import PUBLISHER as CORRELATION
+            CORRELATION.maybe(config, conn_db)
+            # Rafales de pertes de chaque flux (au plus chaque minute, dans un fil à part)
+            from lib.st_quality import PUBLISHER as BURSTS
+            BURSTS.maybe(config, conn_db)
         time.sleep(float(config['GLOBAL']['WATCHDOG_CHECK_RATE']))
 
 
