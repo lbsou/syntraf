@@ -356,7 +356,7 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("set-version", help="change une version dans lab.env puis reconstruit/redémarre")
     s.add_argument("component", choices=list(VERSION_KEYS))
     s.add_argument("value")
-    s.add_argument("--source", choices=["esnet", "fork"], help="iperf3 seulement")
+    s.add_argument("--source", choices=["iperf3v", "esnet", "fork"], help="iperf3 seulement")
     s.add_argument("--no-restart", action="store_true")
     s.set_defaults(func=cmd_set_version)
     s = sub.add_parser("versions", help="versions en service")
