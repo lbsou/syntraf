@@ -323,3 +323,38 @@ def test_a_flow_keeps_its_listener_port_when_another_probe_is_paused_or_resumed(
     for node in {k[1] for k in after}:
         mine = [p for k, p in after.items() if k[1] == node]
         assert len(mine) == len(set(mine))  # jamais deux flux sur le même port d'une sonde
+
+
+# ------------------------------------------------------------------------- serveur neuf (aucun groupe, aucun client)
+
+@pytest.fixture
+def fresh(tmp_path):
+    """Serveur tout juste installé par le package : ni [[MESH_GROUP]] ni [[SERVER_CLIENT]] dans le fichier."""
+    cfg = {"SERVER": {"BIND_ADDRESS": "0.0.0.0", "SERVER_PORT": "6531", "MESH_LISTENERS_PORT_RANGE": "15000-15100",
+                      "TOKEN": {"t": "secret-token"}}, "GLOBAL": {}}
+    path = tmp_path / "config.toml"
+    path.write_text(toml.dumps(cfg))
+    return {"config": toml.loads(path.read_text()), "config_file_path": str(path), "_dict_by_node_generated_config": {},
+            "_dict_by_group_of_generated_tuple_for_map": {}, "dict_of_clients": {},
+            "dict_of_commands_for_network_clients": {}, "dynamic_uids": set()}
+
+
+def test_a_fresh_server_approves_its_first_probe_and_knows_it_at_once(fresh):
+    """L'approbation écrivait le fichier puis plantait (KeyError 'MESH_GROUP') : le serveur en marche ne connaissait
+    pas le client et la sonde restait « PENDING APPROVAL »."""
+    from lib.st_enrollment import Enrollment, authorize
+    key = "-----BEGIN PUBLIC KEY-----probe-----END PUBLIC KEY-----"
+    Enrollment(fresh["config_file_path"] + ".pending.json").record("tcn00qubc03351", "10.120.130.27", key, "0.45.9")
+    r = ops.approve_client(fresh, "tcn00qubc03351", {"IP_MODE": "static", "MESH_GROUP_UID_LIST": []}, "tester")
+    assert r["uid"] == "tcn00qubc03351"
+    assert [c["UID"] for c in fresh["config"]["SERVER_CLIENT"]] == ["tcn00qubc03351"]  # en mémoire, tout de suite
+    assert Enrollment(fresh["config_file_path"] + ".pending.json").pending() == []
+    d = authorize(fresh["config"], {"CLIENT_UID": "tcn00qubc03351", "TOKEN": "secret-token", "PUBLIC_KEY": key},
+                  "10.120.130.27", None)
+    assert d.accepted and d.deliver_token  # accepté, avec son jeton propre
+
+
+def test_a_fresh_server_creates_its_first_mesh_group(fresh):
+    r = ops.create(fresh, {"UID": "FIRST_GROUP", "BANDWIDTH": "100K", "DSCP": "0", "PACKET_SIZE": "218",
+                           "INTERVAL": "1"}, "tester")
+    assert [g["UID"] for g in fresh["config"]["MESH_GROUP"]] == ["FIRST_GROUP"] and r["uid"] == "FIRST_GROUP"

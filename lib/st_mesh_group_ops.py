@@ -159,7 +159,7 @@ def create(state, values, actor, dry_run=False):
     new = {"UID": uid}
     _apply_form(new, values)
     _apply_topology(cfg, new, values)
-    cfg["MESH_GROUP"].append(new)
+    cfg.setdefault("MESH_GROUP", []).append(new)  # premier groupe d'un serveur neuf
     return dict(_commit(state, cfg, actor, "CREATE_MESH_GROUP", f"Mesh group '{uid}' created", dry_run), uid=uid)
 
 
@@ -209,7 +209,7 @@ def duplicate(state, uid, actor, dry_run=False):
         client = _find_by(cfg.get("SERVER_CLIENT", []), "UID", hub)
         if client is not None and new_uid not in client.setdefault("MESH_GROUP_UID_LIST", []):
             client["MESH_GROUP_UID_LIST"].append(new_uid)
-    cfg["MESH_GROUP"].append(clone)
+    cfg.setdefault("MESH_GROUP", []).append(clone)
     result = _commit(state, cfg, actor, "DUPLICATE_MESH_GROUP", f"Mesh group '{uid}' duplicated as '{new_uid}'",
                      dry_run)
     return dict(result, uid=new_uid)
@@ -1547,7 +1547,7 @@ def _commit(state, disk_cfg, actor, action, summary, dry_run):
     # Sur place : les autres threads gardent une référence à ces listes.
     _apply_live_server(live, old_disk, disk_cfg)
     _apply_live_global(live, old_disk, disk_cfg)
-    live["MESH_GROUP"][:] = groups
+    live.setdefault("MESH_GROUP", [])[:] = groups  # absente d'un serveur neuf (avant : KeyError après l'écriture)
     live.setdefault("IPERF3_PROFILE", [])[:] = profiles
     if changed_clients:
         live.setdefault("SERVER_CLIENT", [])[:] = live_clients

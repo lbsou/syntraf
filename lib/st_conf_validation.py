@@ -1397,11 +1397,11 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
     #MESH_LISTENERS_PORT_RANGE per client
     # Affect port range per node, affect global, then overwrite with specific if config exist.
     listeners_ports = list(map(int, _config['SERVER']['MESH_LISTENERS_PORT_RANGE'].split('-')))
-    for client in _config['SERVER_CLIENT']:
+    for client in _config.get('SERVER_CLIENT', []):
         _dict_port_ref[client['UID']] = listeners_ports
 
     # Populating the port_ref for each client when there is a specific config that override the default
-    for client in _config['SERVER_CLIENT']:
+    for client in _config.get('SERVER_CLIENT', []):
         if 'MESH_LISTENERS_PORT_RANGE' in client:
             listeners_ports = list(map(int, client['MESH_LISTENERS_PORT_RANGE'].split('-')))
             _dict_port_ref[client['UID']] = listeners_ports
@@ -1426,7 +1426,7 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
         _list_tuple_for_map_gen = []
 
         # Loop over all client (une sonde en pause ne mesure rien et n'est mesurée par personne)
-        for client in _config['SERVER_CLIENT']:
+        for client in _config.get('SERVER_CLIENT', []):
             if client.get('PAUSED') is True:
                 continue
             #Maybe client
@@ -1435,7 +1435,7 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
                 if mesh_group['UID'] in client['MESH_GROUP_UID_LIST']:
 
                     # Loop over all mesh client
-                    for client2 in _config['SERVER_CLIENT']:
+                    for client2 in _config.get('SERVER_CLIENT', []):
                         if client2.get('PAUSED') is True:
                             continue
                         # if the current client is member of the current mesh_group
@@ -1606,7 +1606,7 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
         _dict_by_group_of_generated_tuple_for_map[mesh_group['UID']] = _list_tuple_for_map_gen
 
     # We must validate if the MAX_BANDWIDTH clause is respected for each client
-    for m_client in _config['SERVER_CLIENT']:
+    for m_client in _config.get('SERVER_CLIENT', []):
         if 'MAX_BANDWIDTH' in m_client:
             sum_bandwidth = 0
             if m_client['UID'] in dict_obj_connectors:
@@ -1622,7 +1622,7 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
 
     # Every declared client starts empty: a client left without any listener or connector (e.g. its only mesh group
     # was disabled from the webui) must not keep its previous edges.
-    for client in _config['SERVER_CLIENT']:
+    for client in _config.get('SERVER_CLIENT', []):
         _dict_by_node_generated_config[client['UID']] = {'LISTENERS': {}, 'CONNECTORS': {}}
 
     for k, v in dict_obj_listeners.items():
