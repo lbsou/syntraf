@@ -162,8 +162,12 @@ def launch_webui(threads_n_processes, subprocess_iperf_dict, _dict_by_node_gener
             # Accès HTTP de l'interface en DEBUG : au niveau INFO, ils faisaient 86 % du journal du serveur
             # (actualisation en direct, tableaux) et noyaient le reste ; les erreurs restent dans error_log
             from gevent.pywsgi import LoggingLogAdapter
-            http_server = WSGIServer((bind, port), app, error_log=log, log=LoggingLogAdapter(log, logging.DEBUG),
-                                     spawn=pool, **tls)
+            # HTTPS : une requête http:// sur ce port est redirigée vers https:// au lieu d'une traceback (st_webui_server)
+            server_class = WSGIServer
+            if tls:
+                from lib.st_webui_server import HttpsOnlyServer as server_class
+            http_server = server_class((bind, port), app, error_log=log, log=LoggingLogAdapter(log, logging.DEBUG),
+                                       spawn=pool, **tls)
 
             # try:
             #    http_server = WSGIServer(('0.0.0.0', DefaultValues.DEFAULT_WEBUI_PORT), app,
