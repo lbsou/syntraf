@@ -242,6 +242,7 @@ async function fillProfiles(selected) {
 // ---- Topologie : cartes cliquables (boutons radio) et choix des hubs
 const topoValue = () => document.querySelector('input[name="mg_topology"]:checked').value;
 let declaredClients = [];
+let outboundOnly = new Set();  // sondes derrière un NAT ou un pare-feu (BEHIND_NAT)
 
 function syncTopology() {
     const t = topoValue();
@@ -307,7 +308,27 @@ function renderTopologySummary() {
         <caption class="small text-white-50 pt-1">${n} members · ${f.flows} flows in total${bw ? ` · ${formatBps(bw)} per flow` : " · set a bandwidth to see the throughput"}</caption>
         <thead><tr><th scope="col">Node</th><th scope="col" class="text-end">Connections out</th><th scope="col" class="text-end">In</th>
             <th scope="col" class="text-end">iperf3 processes</th><th scope="col" class="text-end">Bandwidth out</th></tr></thead>
-        <tbody>${rows}</tbody></table>`;
+        <tbody>${rows}</tbody></table>` + unmeasuredWarning(t, hubs);
+}
+
+// Deux sondes « sortant seulement » (derrière un NAT ou un pare-feu) ne peuvent pas se mesurer : paires sans flux
+function unmeasuredPairs(t, hubs) {
+    const members = [...new Set(groupMembers.concat(hubs))];
+    const linked = (a, b) => t === "MESH" || hubs.includes(a) || hubs.includes(b);
+    const out = [];
+    for (let i = 0; i < members.length; i++)
+        for (let j = i + 1; j < members.length; j++)
+            if (outboundOnly.has(members[i]) && outboundOnly.has(members[j]) && linked(members[i], members[j]))
+                out.push(`${members[i]} ↔ ${members[j]}`);
+    return out;
+}
+
+function unmeasuredWarning(t, hubs) {
+    const pairs = unmeasuredPairs(t, hubs);
+    if (!pairs.length) return "";
+    return `<p class="small text-warning mb-0 mt-1"><i class="fas fa-exclamation-triangle me-1"></i>${pairs.length} pair(s) not measured: both probes are behind a NAT or a firewall (outbound only).</p>
+        <p class="small text-white-50 mb-0">${pairs.map(st.esc).join(", ")}</p>
+        <p class="small text-white-50 mb-0">Choose a reachable probe as the hub, or open the inbound ports of one probe of each pair.</p>`;
 }
 ["mg_hub1", "mg_hub2", "mg_bandwidth_unit", "mg_profile"].forEach(id => document.getElementById(id).addEventListener("change", renderTopologySummary));
 document.getElementById("mg_bandwidth").addEventListener("input", renderTopologySummary);
@@ -315,6 +336,7 @@ document.getElementById("mg_bandwidth").addEventListener("input", renderTopology
 async function fillTopology(group) {
     const r = await st.api("GET", "/api/v1/config/clients");
     declaredClients = r.ok ? r.data.map(c => c.UID) : [];
+    outboundOnly = new Set(r.ok ? r.data.filter(c => c.BEHIND_NAT).map(c => c.UID) : []);
     const options = '<option value="">— choose —</option>' + declaredClients.map(u => `<option value="${st.esc(u)}">${st.esc(u)}</option>`).join("");
     document.getElementById("mg_hub1").innerHTML = options;
     document.getElementById("mg_hub2").innerHTML = options;

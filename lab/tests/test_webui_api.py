@@ -530,6 +530,34 @@ def test_paths_api(env, tmp_path, monkeypatch):
     assert "/api/v1/paths" in c.get("/api/v1/openapi.json").json["paths"]
 
 
+def test_reachability_api(env, tmp_path, monkeypatch):
+    from lib import st_reach
+    store = st_reach.ReachStore(tmp_path / "reach.json")
+    monkeypatch.setattr(st_reach, "_STORE", [store])
+    c = env["client"]
+    r = c.post("/api/v1/reachability", json={"CLIENT": "NOPE"})
+    assert r.status_code == 400 and "CLIENT" in r.json["error"]["fields"]
+    assert c.post("/api/v1/reachability", json={"CLIENT": "NODE_B"}).status_code == 409  # pas connecté
+    r = c.post("/api/v1/reachability", json={"CLIENT": "NODE_A"})
+    assert r.status_code == 201 and r.json["status"] == "pending" and r.json["reason"] == "manual"
+    rid = r.json["id"]
+    assert [t["id"] for t in c.get("/api/v1/reachability?client=NODE_A").json] == [rid]
+    assert c.get(f"/api/v1/reachability/{rid}").json["target"] == "NODE_A"
+    assert c.get("/api/v1/reachability/nope").status_code == 404
+    store.update(rid, status="done", verdict="blocked", finished_at=1000.0, services={})
+    rows = {row["UID"]: row for row in c.get("/api/v1/config/clients").json}
+    assert rows["NODE_A"]["REACHABILITY"]["verdict"] == "blocked" and rows["NODE_B"]["REACHABILITY"] is None
+    assert "/api/v1/reachability" in c.get("/api/v1/openapi.json").json["paths"]
+    r = c.put("/api/v1/config/global", json={"REACHABILITY_CHECK": False})
+    assert r.status_code == 200 and r.json["restart_required"] == []
+    assert c.get("/api/v1/config/global").json["REACHABILITY_CHECK"].lower() == "false"
+
+
+def test_true_by_default_settings_show_as_on_when_absent(env):
+    running = env["client"].get("/api/v1/config/global").json["RUNNING"]
+    assert running["PATH_TRACE_ON_ALERT"] == "True" and running["REACHABILITY_CHECK"] == "True"
+
+
 def test_tracing_the_path_on_alert_is_a_live_global_setting(env):
     c = env["client"]
     r = c.put("/api/v1/config/global", json={"PATH_TRACE_ON_ALERT": False})

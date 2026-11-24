@@ -352,6 +352,19 @@ def client_command_path_trace(_config, received_data, dict_data_to_send_to_serve
                          lambda q, p: st_outage.enqueue(q, p, DefaultValues.DEFAULT_CLIENT_METRICS_QUEUE_SIZE))
 
 
+def client_command_reach(_config, received_data, dict_data_to_send_to_server, role):
+    """Test d'accessibilité entrante demandé par le serveur (lib/st_reach.py) : ouvrir ses ports un instant (listen)
+    ou essayer de joindre ceux d'une autre sonde (check). Vérifié, puis lancé dans un fil à part."""
+    from lib import st_reach, st_outage
+    command = received_data.get('PAYLOAD') or {}
+    problem = st_reach.listen_problem(command) if role == "listen" else st_reach.check_problem(command)
+    if problem:
+        client_log.warning(f"REACHABILITY TEST REFUSED: {guard.clean(problem)}")
+        return
+    st_reach.run_command(_config['CLIENT'].get('CLIENT_UID', ''), role, command, dict_data_to_send_to_server,
+                         lambda q, p: st_outage.enqueue(q, p, DefaultValues.DEFAULT_CLIENT_METRICS_QUEUE_SIZE))
+
+
 def client_command_set_token(_config, received_data):
     """Le serveur remet au client son jeton propre : il est gardé dans un fichier lisible par le seul propriétaire."""
     path = _config['CLIENT'].get('_TOKEN_FILE')
@@ -824,6 +837,10 @@ def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processe
                 elif received_data['COMMAND'] == "PATH_TRACE":
                     client_command_path_trace(_config, received_data, dict_data_to_send_to_server)
 
+                elif received_data['COMMAND'] in ("REACH_LISTEN", "REACH_CHECK"):
+                    client_command_reach(_config, received_data, dict_data_to_send_to_server,
+                                         "listen" if received_data['COMMAND'] == "REACH_LISTEN" else "check")
+
                 # Flux changés (pause d'une sonde, groupe modifié…) : nouvelle configuration, sans reconnexion
                 elif received_data['COMMAND'] == "NEWCONFIG":
                     client_apply_configuration(_config, received_data, threads_n_processes, config_file_path,
@@ -1042,6 +1059,11 @@ def server_save_metric(obj_client, conn_db, received_data, address, sckt):
             received_data['PAYLOAD'] = st_paths.receive(received_data['PAYLOAD'], reporter=obj_client.client_uid)
         except Exception as exc:  # noqa: BLE001
             server_log.warning(f"PATH RESULTS NOT FILED: {type(exc).__name__}:{exc}")
+        try:  # tests d'accessibilité : rangés à part, rien dans la base
+            from lib import st_reach
+            received_data['PAYLOAD'] = st_reach.receive(received_data['PAYLOAD'], reporter=obj_client.client_uid)
+        except Exception as exc:  # noqa: BLE001
+            server_log.warning(f"REACHABILITY RESULTS NOT FILED: {type(exc).__name__}:{exc}")
         for conn in conn_db:
             # TODO, print what is the database we are actually writing to and the result
             server_log.debug(
@@ -1278,6 +1300,9 @@ def server_awaiting_commands(client_uid, dict_of_commands_for_network_clients, s
             sent_an_action = generated is not None and _config is not None and                 send_config(generated, client_uid, sckt, _config)
         elif action['ACTION'] == "PATH_TRACE":  # trace du chemin vers une autre sonde (lib/st_paths.py)
             sock_send(sckt, {k: v for k, v in action.items() if k != "ACTION"}, "PATH_TRACE")
+            sent_an_action = True
+        elif action['ACTION'] in ("REACH_LISTEN", "REACH_CHECK"):  # test d'accessibilité (lib/st_reach.py)
+            sock_send(sckt, {k: v for k, v in action.items() if k != "ACTION"}, action['ACTION'])
             sent_an_action = True
         elif action['ACTION'] == "UPDATED_CONFIG" and action.get('ELEMENT') == "CLIENT_IP":
             sock_send(sckt, action, "DIFFCONFIG")

@@ -158,7 +158,7 @@
         <div class="col-md-4 mb-3">
             <label for="g_latency_port" class="form-label">Latency: UDP port of the probes <span class="badge bg-success">live</span></label>
             <input class="form-control" id="g_latency_port" data-field="LATENCY_PORT" inputmode="numeric" placeholder="8620">
-            <div class="form-text">Each probe answers round-trip measurements (TWAMP-Light) on this port: open it on the probes that are not behind a NAT.</div>
+            <div class="form-text">Each probe answers round-trip measurements (TWAMP-Light) on this port: open it on the probes that are not behind a NAT or a firewall.</div>
             <div class="invalid-feedback" data-feedback="LATENCY_PORT"></div>
             <div class="form-check form-switch mt-2">
                 <input class="form-check-input" type="checkbox" role="switch" id="g_latency">
@@ -178,6 +178,11 @@
                 <input class="form-check-input" type="checkbox" role="switch" id="g_pathtrace" aria-describedby="g_pathtrace_help">
                 <label class="form-check-label" for="g_pathtrace">Trace the path when an alert opens</label>
                 <div id="g_pathtrace_help" class="form-text">Both probes of the flow trace the route to each other, so the path of that moment is kept (Paths page).</div>
+            </div>
+            <div class="form-check form-switch mt-2">
+                <input class="form-check-input" type="checkbox" role="switch" id="g_reach" aria-describedby="g_reach_help">
+                <label class="form-check-label" for="g_reach">Test the inbound reachability of the probes</label>
+                <div id="g_reach_help" class="form-text">A minute after a probe connects, then every 6 hours and when its address changes, its peers try to reach its ports: a NAT or a firewall that blocks them shows on the Clients page. Probes declared behind a NAT or a firewall are not tested automatically.</div>
             </div>
         </div>
         <div class="col-md-4 mb-3">
@@ -539,7 +544,7 @@ const GLOBAL_TEXT = {WATCHDOG_CHECK_RATE: "g_watchdog", IPERF3_TIME_SKEW_THRESHO
                      BASELINE_CLOSE_AFTER: "g_bl_close", CLOCK_OFFSET_MAX_MS: "g_clock_off",
                      CLOCK_DRIFT_MAX_PPM: "g_clock_drift",
                      };
-const GLOBAL_BOOL = {IPERF3_AUTH: "g_auth", LOG_PURGE_ON_START: "g_purge", LATENCY: "g_latency", BASELINE: "g_baseline", PATH_TRACE_ON_ALERT: "g_pathtrace"};
+const GLOBAL_BOOL = {IPERF3_AUTH: "g_auth", LOG_PURGE_ON_START: "g_purge", LATENCY: "g_latency", BASELINE: "g_baseline", PATH_TRACE_ON_ALERT: "g_pathtrace", REACHABILITY_CHECK: "g_reach"};
 
 async function loadGlobal() {
     const r = await st.api("GET", "/api/v1/config/global");

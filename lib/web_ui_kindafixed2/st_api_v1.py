@@ -368,6 +368,22 @@ def request_path():
     return jsonify(ops.request_path(_state(), _body(), _actor())), 201
 
 
+@st_api_v1.get("/reachability")
+def list_reachability():
+    a = request.args
+    return jsonify(ops.list_reachability(_state(), a.get("client"), a.get("limit", 50)))
+
+
+@st_api_v1.get("/reachability/<rid>")
+def get_reachability(rid):
+    return jsonify(ops.get_reachability(_state(), rid))
+
+
+@st_api_v1.post("/reachability")
+def request_reachability():
+    return jsonify(ops.request_reachability(_state(), _body(), _actor())), 201
+
+
 @st_api_v1.get("/config/databases")
 def list_database_configs():
     return jsonify(ops.list_databases(_state()))
@@ -821,6 +837,11 @@ OPENAPI = {
                           "post": _op("Trace the path from probe SOURCE to probe DESTINATION now (the source probe "
                                       "runs it)")},
         "/api/v1/paths/{id}": {"get": _op("One path trace with its hops")},
+        "/api/v1/reachability": {"get": _op("Inbound reachability tests of the probes (NAT, firewall), newest first; "
+                                            "?client=, ?limit="),
+                                 "post": _op("Test now whether the peers of probe CLIENT can reach its ports (iperf3 "
+                                             "TCP and UDP, latency reflector, TCP tests)")},
+        "/api/v1/reachability/{id}": {"get": _op("One reachability test: ports, testers, state of each service, verdict")},
         "/api/v1/clients/{uid}/pause": {"post": _op("Pause a probe: it measures nothing and nobody measures it, it "
                                                     "stays connected (status CONNECTED - PAUSED); kept across restarts")},
         "/api/v1/clients/{uid}/resume": {"post": _op("Resume a paused probe: its flows come back")},

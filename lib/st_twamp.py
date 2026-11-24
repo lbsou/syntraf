@@ -39,6 +39,27 @@ _REPLY = struct.Struct("!IQHHQIQHHB")          # §4.2.1 : 41 octets
 # (une sonde plus ancienne) : sans lui, rien n'est annoncé ni rapporté.
 _DSCP_FIELD = struct.Struct("!BB")             # (repère, DSCP voulu) dans l'envoi ; (TOS reçu, repère) dans la réponse
 DSCP_MARK = 0xD5
+# Test d'accessibilité (lib/st_reach.py) : un paquet portant, à cet endroit du bourrage, le jeton d'un test en cours
+# est admis quelle que soit sa source, jusqu'à la fin du test
+NONCE_OFFSET, NONCE_LEN = 16, 16
+_TEST_NONCES = {}
+_TEST_LOCK = threading.Lock()
+
+
+def admit_test(nonce, until):
+    with _TEST_LOCK:
+        now = time.time()
+        for n in [n for n, u in _TEST_NONCES.items() if u < now]:
+            del _TEST_NONCES[n]
+        _TEST_NONCES[bytes(nonce)] = until
+
+
+def test_admitted(data, now=None):
+    if len(data) < NONCE_OFFSET + NONCE_LEN:
+        return False
+    with _TEST_LOCK:
+        until = _TEST_NONCES.get(bytes(data[NONCE_OFFSET:NONCE_OFFSET + NONCE_LEN]))
+    return until is not None and (now if now is not None else time.time()) <= until
 
 
 def to_ntp(t):
@@ -50,10 +71,12 @@ def from_ntp(v):
     return (v >> 32) - NTP_OFFSET + (v & 0xFFFFFFFF) / (1 << 32)
 
 
-def sender_packet(seq, t, dscp=None):
+def sender_packet(seq, t, dscp=None, nonce=None):
     head = _SENDER.pack(seq & 0xFFFFFFFF, to_ntp(t), ERROR_ESTIMATE)
     if dscp is not None:
         head += _DSCP_FIELD.pack(DSCP_MARK, int(dscp) & 0x3F)
+    if nonce is not None:  # test d'accessibilité (lib/st_reach.py) : jeton dans le bourrage
+        head = head.ljust(NONCE_OFFSET, b"\0") + bytes(nonce)
     return head.ljust(PACKET_SIZE, b"\0")
 
 
@@ -378,7 +401,7 @@ class Reflector:
                 continue
             received = time.time()
             allowed = self._allowed
-            if not acceptable(data) or (allowed is not None and addr[0] not in allowed)                     or not self._limiter.allow(addr[0]):
+            if not acceptable(data) or (allowed is not None and addr[0] not in allowed and not test_admitted(data))                     or not self._limiter.allow(addr[0]):
                 continue
             out_tos = reply_tos(parse_sender(data), tos)
             if out_tos is not None and out_tos != tos_now:

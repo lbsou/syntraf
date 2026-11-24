@@ -277,6 +277,8 @@ def run():
                            _dict_by_node_generated_config)
             # Traces du chemin demandées (interface, API, ouverture d'alerte) : envoyées aux sondes sources
             paths_tick(config, dict_of_clients, dict_of_commands_for_network_clients)
+            # Accessibilité entrante des sondes (NAT, pare-feu) : tests demandés ou automatiques
+            reach_tick(config, dict_of_clients, _dict_by_node_generated_config, dict_of_commands_for_network_clients)
         time.sleep(float(config['GLOBAL']['WATCHDOG_CHECK_RATE']))
 
 
@@ -291,6 +293,14 @@ def paths_tick(config, dict_of_clients, commands):
         st_paths.tick(dict_of_clients, declared, commands)
     except Exception as exc:  # noqa: BLE001 - jamais bloquant pour la surveillance
         log.warning(f"PATH TRACES NOT SENT: {type(exc).__name__}:{exc}")
+
+
+def reach_tick(config, dict_of_clients, generated, commands):
+    try:
+        from lib import st_reach
+        st_reach.tick(config, dict_of_clients, generated, commands)
+    except Exception as exc:  # noqa: BLE001 - jamais bloquant pour la surveillance
+        log.warning(f"REACHABILITY TESTS NOT SENT: {type(exc).__name__}:{exc}")
 
 
 _TCP_TICK = {"last": 0.0}

@@ -474,7 +474,7 @@ GLOBAL_LIVE_KEYS = ("LOG_LEVEL", "LOG_FORWARD_LEVEL", "LOG_RETENTION_DAYS", "WAT
                     "IPERF3_TIME_SKEW_THRESHOLD", "IPERF3_CONNECT_TIMEOUT", "LATENCY", "LATENCY_PORT", "BASELINE",
                     "BASELINE_SENSITIVITY", "BASELINE_MARGIN_LOSS", "BASELINE_MARGIN_JITTER", "BASELINE_MARGIN_RTT",
                     "BASELINE_MARGIN_MOS", "BASELINE_MARGIN_TCP", "BASELINE_OPEN_AFTER",
-                    "BASELINE_CLOSE_AFTER", "PATH_TRACE_ON_ALERT", "CLOCK_OFFSET_MAX_MS",
+                    "BASELINE_CLOSE_AFTER", "PATH_TRACE_ON_ALERT", "REACHABILITY_CHECK", "CLOCK_OFFSET_MAX_MS",
                     "CLOCK_DRIFT_MAX_PPM") + st_syslog.KEYS
 # Réglages transmis aux clients à leur connexion : un changement les fait se reconnecter pour les recevoir
 GLOBAL_SENT_TO_CLIENTS = (("LOG_FORWARD_LEVEL", "INFO"), ("IPERF3_TIME_SKEW_THRESHOLD", None),
@@ -608,6 +608,7 @@ GLOBAL_FIELDS = {
     "LATENCY_PORT": (lambda v: v.isdigit() and 1 <= int(v) <= 65535, "A UDP port, 1 to 65535", False),
     "BASELINE": (lambda v: True, "", True),
     "PATH_TRACE_ON_ALERT": (lambda v: True, "", True),
+    "REACHABILITY_CHECK": (lambda v: True, "", True),
     "CLOCK_OFFSET_MAX_MS": (_check_float_range(1, 3600000), "Milliseconds, 1 to 3600000", False),
     "CLOCK_DRIFT_MAX_PPM": (_check_float_range(0.1, 10000), "Parts per million, 0.1 to 10000", False),
     "BASELINE_SENSITIVITY": (_check_float_range(1, 10),
@@ -627,6 +628,7 @@ GLOBAL_READ_ONLY = ("LOGDIR",)  # imposé par l'option -l au démarrage
 # Un programme exécuté par le serveur et le dossier où il écrit ses clés : jamais modifiables à distance (un
 # appelant de l'API ferait exécuter n'importe quel fichier) ; seulement dans le fichier de configuration
 GLOBAL_FILE_ONLY = ("IPERF3_BINARY_PATH", "IPERF3_RSA_KEY_DIRECTORY")
+GLOBAL_TRUE_BY_DEFAULT = ("LATENCY", "BASELINE", "PATH_TRACE_ON_ALERT", "REACHABILITY_CHECK")
 FILE_ONLY_MESSAGE = "Set in the configuration file on the server only"
 
 
@@ -636,6 +638,8 @@ def get_global(state):
     live = state["config"].get("GLOBAL", {})
     row = {k: ("" if g.get(k) is None else str(g.get(k))) for k in GLOBAL_FIELDS}
     row["RUNNING"] = {k: str(live.get(k)) for k in GLOBAL_FIELDS if live.get(k) is not None}
+    for k in GLOBAL_TRUE_BY_DEFAULT:  # absents du fichier : actifs (la page ne doit pas les montrer éteints)
+        row["RUNNING"].setdefault(k, "True")
     row["READ_ONLY"] = {k: live.get(k) for k in GLOBAL_READ_ONLY if live.get(k)}
     row["FILE_ONLY"] = {k: str(g.get(k) or live.get(k) or "") for k in GLOBAL_FILE_ONLY}
     row["LIVE_KEYS"] = [k for k in GLOBAL_FIELDS if k in GLOBAL_LIVE_KEYS]
@@ -851,6 +855,13 @@ def list_clients(state):
         c["PAUSED"] = c.get("PAUSED") is True
         # NAT constaté à la dernière connexion : adresse vue par le serveur ≠ adresses du client
         c["NAT_DETECTED"] = getattr(state["dict_of_clients"].get(c["UID"]), "nat_detected", None)
+    try:  # accessibilité entrante mesurée par les pairs (lib/st_reach.py) : le dernier test terminé
+        from lib import st_reach
+        reach = st_reach.store()
+        for c in rows:
+            c["REACHABILITY"] = st_reach.summary(reach.latest(c["UID"], finished=True))
+    except Exception as exc:  # noqa: BLE001 - une indication : la liste s'affiche sans elle
+        log.info(f"REACHABILITY NOT LISTED: {type(exc).__name__}:{exc}")
     return rows
 
 
@@ -1944,6 +1955,35 @@ def request_path(state, body, actor):
         raise OpError(400, "Invalid path trace", errors)
     rec = st_paths.store().request(source, destination, "manual")
     store.log_event(state["config_file_path"], actor, "TRACE_PATH", f"Path trace {source} -> {destination} requested")
+    return rec
+
+
+def list_reachability(state, client=None, limit=50):
+    """Tests d'accessibilité entrante, les plus récents d'abord (lib/st_reach.py)."""
+    from lib import st_reach
+    return st_reach.store().list(target=client or None, limit=max(1, min(int(limit or 50), st_reach.KEEP)))
+
+
+def get_reachability(state, rid):
+    from lib import st_reach
+    rec = st_reach.store().get(rid)
+    if rec is None:
+        raise OpError(404, f"Reachability test '{rid}' not found")
+    return rec
+
+
+def request_reachability(state, body, actor):
+    """Test de l'accessibilité entrante de CLIENT : il ouvre ses ports un instant, ses pairs essaient de les joindre."""
+    from lib import st_reach
+    probes = {c.get("UID") for c in state["config"].get("SERVER_CLIENT", [])}
+    client = str(body.get("CLIENT", ""))
+    if client not in probes:
+        raise OpError(400, "Invalid reachability test", {"CLIENT": "Unknown probe"})
+    obj = state["dict_of_clients"].get(client)
+    if obj is None or getattr(obj, "status", "") != "CONNECTED":
+        raise OpError(409, f"Probe '{client}' is not connected")
+    rec = st_reach.store().request(client, "manual")
+    store.log_event(state["config_file_path"], actor, "TEST_REACHABILITY", f"Reachability test of {client} requested")
     return rec
 
 

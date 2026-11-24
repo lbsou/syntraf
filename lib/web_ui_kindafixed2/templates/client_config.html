@@ -32,8 +32,17 @@
             <label class="form-check-label" for="c_nat">Behind a NAT or a firewall (no inbound connection)</label>
         </div>
         <div class="form-text">The client then opens no port: it measures both directions itself (iperf3 --bidir) with each peer.
-            Two clients behind a NAT cannot measure each other: hub &amp; spoke with a reachable hub suits them.</div>
+            Two such clients cannot measure each other: hub &amp; spoke with a reachable hub suits them.</div>
         <div class="small text-warning mt-1" id="c_nat_hint" hidden><i class="fas fa-exclamation-triangle me-1"></i>At its last connection, the server saw an address that is none of this client's own: it is probably behind a NAT.</div>
+        <div id="c_reach" class="mt-2 small" hidden>
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <strong>Inbound reachability</strong>
+                <button type="button" class="btn btn-sm btn-outline-info py-0" id="c_reach_run"><i class="fas fa-plug me-1"></i>Test now</button>
+                <span id="c_reach_status" class="text-white-50" aria-live="polite"></span>
+            </div>
+            <div class="form-text mt-0">The probe opens its ports for a moment and its peers (or the server) try to reach them: a firewall that blocks inbound connections shows here, a NAT too.</div>
+            <div id="c_reach_result"></div>
+        </div>
     </fieldset>
     <fieldset class="mb-3">
         <legend class="form-label fs-6">Mesh groups</legend>
@@ -75,8 +84,9 @@ const crud = st.crud({
             ? '<span class="badge bg-success" title="Key pinned, token of its own">secured</span>'
             : '<span class="badge bg-warning text-dark" title="Shared token, key not pinned: use Secure">shared token</span>'},
         {field: "IP_ADDRESS", title: "Address", formatter: (v, row) => (row.DYNAMIC ? '<span class="badge bg-secondary">dynamic</span>' : st.esc(v))
-            + (row.BEHIND_NAT ? ' <span class="badge bg-info text-dark" title="Opens no port; measures both directions itself">behind NAT</span>'
-               : row.NAT_DETECTED ? ' <span class="badge bg-warning text-dark" title="The server saw another address than the client&#39;s own: declare it behind a NAT">NAT detected</span>' : "")},
+            + (row.BEHIND_NAT ? ' <span class="badge bg-info text-dark" title="Behind a NAT or a firewall: opens no port, measures both directions itself">outbound only</span>'
+               : row.NAT_DETECTED ? ' <span class="badge bg-warning text-dark" title="The server saw another address than the client&#39;s own: declare it behind a NAT">NAT detected</span>' : "")
+            + reachBadge(row)},
         {field: "MESH_GROUP_UID_LIST", title: "Mesh groups", formatter: v => (v || []).map(st.esc).join(", ") || '<span class="text-white-50">none</span>'},
         {field: "MAX_BANDWIDTH", title: "Max bandwidth", formatter: v => st.esc(v || "")},
         {field: "MESH_LISTENERS_PORT_RANGE", title: "Port range", formatter: v => st.esc(v || "")},
@@ -99,6 +109,7 @@ const crud = st.crud({
         syncIpMode();
         el("c_nat").checked = !!(row && row.BEHIND_NAT);
         el("c_nat_hint").hidden = !(row && row.NAT_DETECTED && !row.BEHIND_NAT);
+        showReach(row);
         el("c_max_bw").value = row ? (row.MAX_BANDWIDTH || "") : "";
         el("c_ports").value = row ? (row.MESH_LISTENERS_PORT_RANGE || "") : "";
         el("c_deploy").value = row ? (row.DEPLOYMENT_GROUP || "") : "";
@@ -120,6 +131,82 @@ const crud = st.crud({
         DEPLOYMENT_GROUP: el("c_deploy").value.trim(),
     }),
 });
+// ---- Accessibilité entrante (lib/st_reach.py) : les pairs essaient de joindre les ports de la sonde
+const SERVICE_LABEL = {iperf3_tcp: "iperf3 TCP", iperf3_udp: "iperf3 UDP", latency: "Latency UDP", tcp_test: "TCP tests TCP"};
+const STATE_BADGE = {open: "bg-success", blocked: "bg-danger", not_tested: "bg-secondary", unknown: "bg-secondary"};
+const STATE_TEXT = {open: "reachable", blocked: "blocked", not_tested: "not tested", unknown: "unknown"};
+const DETAIL_TEXT = {refused: "rejected (RST or ICMP)", timeout: "no answer (dropped)", unreachable: "network unreachable",
+                     in_use: "port in use", off: "reflector off"};
+let reachRow = null;
+
+function reachBadge(row) {
+    const r = row.REACHABILITY;
+    if (!r || row.BEHIND_NAT) return "";
+    if (r.verdict === "blocked") return ' <span class="badge bg-danger" title="Its peers could not reach any of its ports: declare it behind a NAT or a firewall">inbound blocked</span>';
+    if (r.verdict === "partial") return ' <span class="badge bg-warning text-dark" title="Some of its ports cannot be reached by its peers: see the client">inbound partly blocked</span>';
+    return "";
+}
+
+function reachAdvice(rec, behind) {
+    if (rec.verdict === "blocked" && !behind)
+        return '<div class="text-danger mt-1"><i class="fas fa-exclamation-triangle me-1"></i>Its peers could not reach any of its ports: turn on “Behind a NAT or a firewall”, so that it opens none and measures both directions itself.</div>';
+    if (rec.verdict === "partial" && !behind)
+        return '<div class="text-warning mt-1"><i class="fas fa-exclamation-triangle me-1"></i>Some of its ports are blocked on the way: open them in the firewall (the whole port range for iperf3), or turn on “Behind a NAT or a firewall”.</div>';
+    if (rec.verdict === "open" && behind)
+        return '<div class="text-info mt-1"><i class="fas fa-info-circle me-1"></i>Its peers reach all its ports: it could receive connections (“Behind a NAT or a firewall” can be turned off).</div>';
+    return "";
+}
+
+function renderReach(rec, behind) {
+    if (!rec) return '<span class="text-white-50">Never tested.</span>';
+    if (rec.status === "failed") return `<span class="text-warning">Test failed: ${st.esc(rec.error || "")}</span>`;
+    const testers = (rec.testers || []).map(t => t === "@server" ? (st.t ? st.t("the server") : "the server") : t).map(st.esc).join(", ");
+    const when = rec.at ? st.time(new Date(rec.at * 1000).toISOString()) : "";
+    const head = `<div class="text-white-50">Tested ${st.esc(when)} from ${testers || "–"}</div>`;
+    const rows = Object.entries(rec.services || {}).map(([k, v]) => {
+        const range = k.startsWith("iperf3") && rec.iperf3_range ? ` <span class="text-white-50">(${st.esc(rec.iperf3_range)})</span>` : "";
+        const detail = v.detail ? st.esc(DETAIL_TEXT[v.detail] || v.detail) : "";
+        return `<tr><td>${st.esc(SERVICE_LABEL[k] || k)}</td><td>${st.esc(String(v.port))}${range}</td>
+            <td><span class="badge ${STATE_BADGE[v.state] || "bg-secondary"}">${st.esc(STATE_TEXT[v.state] || v.state)}</span> <span class="text-white-50">${detail}</span></td></tr>`;
+    }).join("");
+    const table = rows ? `<table class="table table-sm small mb-0 mt-1"><thead><tr><th scope="col">Service</th><th scope="col">Port</th>
+        <th scope="col">Result</th></tr></thead><tbody>${rows}</tbody></table>` : "";
+    return head + table + reachAdvice(rec, behind);
+}
+
+function fullToSummary(rec) {
+    return {id: rec.id, status: rec.status, verdict: rec.verdict, at: rec.finished_at || rec.requested_at, services: rec.services,
+            iperf3_range: (rec.ports || {}).iperf3_range, error: rec.error, testers: Object.keys(rec.testers || {})};
+}
+
+function showReach(row) {
+    reachRow = row;
+    el("c_reach").hidden = !row;
+    el("c_reach_status").textContent = "";
+    if (row) el("c_reach_result").innerHTML = renderReach(row.REACHABILITY, row.BEHIND_NAT);
+}
+
+el("c_reach_run").addEventListener("click", async () => {
+    if (!reachRow) return;
+    const uid = reachRow.UID, button = el("c_reach_run");
+    button.disabled = true;
+    el("c_reach_status").textContent = "Test running: the probe opens its ports, its peers try to reach them (about 30 s)…";
+    const r = await st.api("POST", "/api/v1/reachability", {CLIENT: uid});
+    if (!r.ok) { el("c_reach_status").textContent = r.error.message; button.disabled = false; return; }
+    const deadline = Date.now() + 150000;
+    while (Date.now() < deadline) {
+        await new Promise(ok => setTimeout(ok, 2000));
+        if (!reachRow || reachRow.UID !== uid) break;
+        const g = await st.api("GET", `/api/v1/reachability/${encodeURIComponent(r.data.id)}`);
+        if (g.ok && (g.data.status === "done" || g.data.status === "failed")) {
+            el("c_reach_status").textContent = "";
+            el("c_reach_result").innerHTML = renderReach(fullToSummary(g.data), el("c_nat").checked);
+            break;
+        }
+    }
+    button.disabled = false;
+});
+
 // ---- Admission : demandes en attente, refus, sécurisation et rotation des jetons
 const fmtTime = iso => iso ? st.time(iso) : "";
 

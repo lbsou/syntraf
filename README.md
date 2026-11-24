@@ -24,8 +24,9 @@ Looking for collaborators! Email me at shadow131 @ hotmail [dot] com
   is pinned and each gets a token of its own and proves it holds its key. Probes pin the server key, and releases are
   signed. Sign-in, API tokens, CSRF protection, HTTPS and security headers on the web interface; certificate
   signing requests (CSR) and installation of certificates signed by your certificate authority; audited changes.
-- **Clients behind a NAT.** A probe that cannot receive connections measures both directions itself
-  (`iperf3 --bidir`) and keeps its NAT mappings open; a NAT is detected automatically.
+- **Clients behind a NAT or a firewall.** A probe that cannot receive connections measures both directions itself
+  (`iperf3 --bidir`) and keeps its NAT mappings open. A NAT is detected automatically, and an **inbound reachability
+  test** (its peers try to reach its ports) shows a firewall that blocks all or part of them.
 - **Rename a probe without losing its history** (its VictoriaMetrics series are rewritten under the new name).
 - **Remote updates.** The server ships its own release; probes install it beside the current one and roll back
   automatically if it does not reconnect. Deployment groups (pilot, waves) for staged updates.

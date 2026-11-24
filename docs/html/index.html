@@ -64,7 +64,7 @@
         <li><a href="#ui-data">Data retention</a></li><li><a href="#ui-language">Language</a></li></ol></li>
     <li><a href="#topologies">6. Topologies &amp; capacity</a></li>
     <li><a href="#security">7. Enrollment &amp; security</a></li>
-    <li><a href="#nat">8. Clients behind a NAT</a></li>
+    <li><a href="#nat">8. Clients behind a NAT or a firewall</a></li>
     <li><a href="#rename">9. Renaming a client</a></li>
     <li><a href="#logging">10. Logs, retention, syslog &amp; CEF</a></li>
     <li><a href="#updates">11. Remote updates</a></li>
@@ -256,9 +256,9 @@ journalctl -u syntraf -f</code></pre>
   <tr><th>Node</th><th>Inbound</th><th>Purpose</th></tr>
   <tr><td>Server</td><td>TCP 6531</td><td>Control channel (clients)</td></tr>
   <tr><td>Server</td><td>TCP 5000</td><td>Web interface and API (restrict to administrators)</td></tr>
-  <tr><td>Client</td><td>TCP and UDP 15000-16000</td><td>iperf3 listeners (not needed for a client behind a NAT)</td></tr>
-  <tr><td>Client</td><td>UDP 8620</td><td>Latency reflector (not needed for a client behind a NAT)</td></tr>
-  <tr><td>Client</td><td>TCP 5201</td><td>Scheduled TCP tests, only while a test runs (not needed behind a NAT)</td></tr>
+  <tr><td>Client</td><td>TCP and UDP 15000-16000</td><td>iperf3 listeners (not needed for an outbound-only client)</td></tr>
+  <tr><td>Client</td><td>UDP 8620</td><td>Latency reflector (not needed for an outbound-only client)</td></tr>
+  <tr><td>Client</td><td>TCP 5201</td><td>Scheduled TCP tests, only while a test runs (not needed for an outbound-only client)</td></tr>
 </table>
 
 <h2 id="quickstart">4. Quick start</h2>
@@ -559,19 +559,42 @@ be cancelled (its key is deleted).</p>
   <li>Secret files (configuration and its versions, keys, access file) are readable by their owner only (0600).</li>
 </ul>
 
-<h2 id="nat">8. Clients behind a NAT</h2>
-<p>A client that cannot receive connections (NAT, CGNAT, firewall) is declared <strong>Behind a NAT</strong>
-(<code>BEHIND_NAT = true</code>). It then opens no port: it starts iperf3 in <code>--bidir</code> mode towards each
-peer, and the same session measures both directions. Every flow stays measured.</p>
+<h2 id="nat">8. Clients behind a NAT or a firewall</h2>
+<p>A client that cannot receive connections (NAT, CGNAT, a firewall that blocks inbound connections) is declared
+<strong>Behind a NAT or a firewall</strong> (<code>BEHIND_NAT = true</code>; the Clients page shows it as
+<em>outbound only</em>). It then opens no port: it starts iperf3 in <code>--bidir</code> mode towards each peer, and
+the same session measures both directions; it also initiates the latency echoes and the TCP tests. Every flow stays
+measured. A stateful firewall forgets idle UDP sessions like a NAT does: the keepalive below serves both.</p>
 <ul>
-  <li>Two clients behind a NAT cannot measure each other (no flow between them). A hub &amp; spoke with a reachable
-    hub suits sites behind NATs.</li>
+  <li>Two outbound-only clients cannot measure each other (no flow between them). A hub &amp; spoke with a reachable
+    hub suits them. The topology summary of the Mesh groups page lists the pairs left unmeasured.</li>
   <li>To keep the NAT mapping of the return stream open, the client sends an empty UDP datagram from the return
     stream's port to the peer every 15 seconds (raw socket: Linux with root or <code>CAP_NET_RAW</code>; elsewhere a
     single warning is logged and the mapping relies on the traffic itself).</li>
-  <li>Detection: clients send their local addresses when they connect. If the server sees another address, the
+  <li>NAT detection: clients send their local addresses when they connect. If the server sees another address, the
     client is flagged <em>NAT detected</em> on the Clients page.</li>
 </ul>
+<h3 id="reachability">Inbound reachability test</h3>
+<p>A firewall does not change the address, so the NAT detection cannot see it. The reachability test does: the probe
+opens its ports for about 30 seconds, and up to three connected peers (those of its mesh groups first; the server
+itself when no peer is connected) try to reach them, from where they are in the network:</p>
+<ul>
+  <li><strong>iperf3</strong>: a free port of the probe's listener range, in TCP (iperf3 control) and UDP (measurement);</li>
+  <li><strong>latency</strong>: the TWAMP-Light reflector (UDP <code>LATENCY_PORT</code>);</li>
+  <li><strong>TCP tests</strong>: TCP <code>TCP_TEST_PORT</code> (5201), when TCP tests are configured.</li>
+</ul>
+<p>A service is <em>reachable</em> when one tester at least reached it, <em>blocked</em> when all failed, with the
+reason: <em>rejected</em> (TCP reset or ICMP port unreachable) or <em>no answer</em> (packets dropped). The verdict
+is <em>open</em>, <em>partial</em> (open the blocked ports, the whole range for iperf3) or <em>blocked</em> (declare
+the probe behind a NAT or a firewall). The Clients page shows <em>inbound blocked</em> or <em>inbound partly
+blocked</em> next to the address, and the details with a <em>Test now</em> button in the client form.</p>
+<p>The test runs by itself a minute after a probe connects, then every 6 hours and when its address changes, for the
+probes not declared behind a NAT or a firewall (setting <em>Test the inbound reachability of the probes</em>,
+<code>GLOBAL.REACHABILITY_CHECK</code>, on by default). The UDP ports answer only the datagrams carrying the
+128-bit token of the test, with a datagram of the same size, and close at the end of the test. On Windows, the
+firewall of the probe itself may filter Python differently from iperf3. API: <code>POST /api/v1/reachability</code>
+(<code>CLIENT</code>), <code>GET /api/v1/reachability?client=</code>, <code>GET /api/v1/reachability/{id}</code>.
+Results are kept by the server (<code>reachability.json</code>, 300 tests), not in the database.</p>
 
 <h2 id="rename">9. Renaming a client</h2>
 <p><em>Clients → Rename…</em> (or <code>POST /api/v1/config/clients/{uid}/rename</code>):</p>
@@ -730,6 +753,7 @@ within a minute (or after 10 failed attempts), or a peer that does not answer, c
   <tr><td><code>IPERF3_RSA_KEY_DIRECTORY</code></td><td>RSA key pair and credentials for iperf3 authentication</td><td><code>crypto/rsa_key_iperf3</code></td></tr>
   <tr><td><code>IPERF3_TIME_SKEW_THRESHOLD</code></td><td>Clock difference (s) tolerated by iperf3 authentication; the server passes it to the clients</td><td>10</td></tr>
   <tr><td><code>LATENCY</code>, <code>LATENCY_PORT</code></td><td>Measure the round-trip latency between probes (TWAMP-Light), and the UDP port of their reflector; the server passes them to the clients</td><td>true, 8620</td></tr>
+  <tr><td><code>REACHABILITY_CHECK</code></td><td>Test the inbound reachability of the probes by themselves (a minute after they connect, every 6 hours, when their address changes); see <a href="#reachability">Inbound reachability test</a></td><td>true</td></tr>
   <tr><td><code>IPERF3_CONNECT_TIMEOUT</code></td><td>Seconds given to iperf3 to reach its peer (1–60); raise it for lossy or distant links; the server passes it to the clients</td><td>5</td></tr>
   <tr><td><code>IPERF3_AUTH</code></td><td>iperf3 authentication (true/false)</td><td>true</td></tr>
   <tr><td><code>WATCHDOG_CHECK_RATE</code></td><td>Seconds between two checks of the threads</td><td>—</td></tr>
@@ -789,7 +813,8 @@ profile; no effect on the measurements.</p>
   <tr><td><code>UID</code></td><td>Name the client announces</td></tr>
   <tr><td><code>IP_ADDRESS</code></td><td>IP or host name; <code>0.0.0.0</code> for a dynamic address</td></tr>
   <tr><td><code>MESH_GROUP_UID_LIST</code></td><td>Mesh groups, e.g. <code>["WAN", "VOICE"]</code></td></tr>
-  <tr><td><code>BEHIND_NAT</code></td><td>true: opens no port, measures both directions itself</td></tr>
+  <tr><td><code>BEHIND_NAT</code></td><td>true: behind a NAT or a firewall (outbound only): opens no port, measures
+    both directions itself</td></tr>
   <tr><td><code>MAX_BANDWIDTH</code></td><td>Maximum outgoing bandwidth; changes exceeding it are refused</td></tr>
   <tr><td><code>MESH_LISTENERS_PORT_RANGE</code></td><td>Overrides the server range for this client</td></tr>
   <tr><td><code>EXCLUDED_CLIENT_UID</code>, <code>INCLUDE_ONLY_CLIENT_UID</code></td><td>Per group, exclude or restrict pairs: <code>{ WAN = ["OTHER_UID"] }</code></td></tr>
@@ -892,8 +917,9 @@ end-to-end test <code>lab/e2e/webui_e2e.js</code>. Details in <code>lab/README.m
     <em>Clock skew tolerated</em>); rarely an RSA key problem.</td></tr>
   <tr><td>A client stays <em>waiting for approval</em></td><td>Approve it on the Clients page, or declare its name.</td></tr>
   <tr><td><em>KEY MISMATCH</em> in the logs</td><td>The client was reinstalled: approve its new key (Clients → waiting).</td></tr>
-  <tr><td>Expected flow shows <em>no data</em></td><td>The receiver reports nothing: check the client state, its firewall (listener ports),
-    or declare it behind a NAT.</td></tr>
+  <tr><td>Expected flow shows <em>no data</em></td><td>The receiver reports nothing: check the client state, run its
+    <a href="#reachability">inbound reachability test</a> (Clients page) to see which ports a firewall blocks, or
+    declare it behind a NAT or a firewall.</td></tr>
   <tr><td>A change is refused with 409/428</td><td>Capacity guardrails: reduce the group, choose a hub topology, or confirm.</td></tr>
   <tr><td>Losses appear on every flow at once</td><td>Usually the measuring host (CPU, clock jumps) rather than the network: check the
     host's load and time synchronization.</td></tr>
