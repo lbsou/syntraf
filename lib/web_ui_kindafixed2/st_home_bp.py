@@ -248,7 +248,7 @@ def api():
         elif requested_action == "GET_NUMBER_OF_OFFLINE_CLIENT":
             ''' =============================================================================================== '''
             online_client = 0
-            offline_client = len(app.config['config']['SERVER_CLIENT'])
+            offline_client = len(app.config['config'].get('SERVER_CLIENT', []))
 
             for client in app.config['dict_of_clients'].values():
                 if client.status == "CONNECTED":

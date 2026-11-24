@@ -163,8 +163,9 @@
         {% for key, data in dict_of_clients.items() %}
             <tr>
                 <td class="text-center align-middle">
-                    <div class="btn-group dropright">
-                      <button type="button" id="button_menu_client" class="btn btn-primary-outline dropdown-toggle" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    {# Menu positionné sur la fenêtre (stratégie fixed) : la zone de défilement du tableau ne le coupe plus #}
+                    <div class="btn-group dropend">
+                      <button type="button" id="{{ key }}_menu" class="btn btn-primary-outline dropdown-toggle" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-haspopup="true" aria-expanded="false">
                         {{ key }}
                       </button>
                       <div class="dropdown-menu">

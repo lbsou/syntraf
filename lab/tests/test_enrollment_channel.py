@@ -134,3 +134,61 @@ def test_an_older_client_without_proof_is_accepted_unless_required(tmp_path, ide
     ok, reason = st_mesh.authenticate_server_client(cfg, payload("shared"), cc_client("UNKNOWN", None, "", False, "NODE_A"),
                                                     FakeSocket(), st_enrollment.Enrollment(str(tmp_path / "p.json")), {})
     assert not ok and "KEY PROOF REQUIRED" in reason
+
+
+def test_a_server_without_declared_clients_records_the_first_one_as_pending(tmp_path):
+    """Installation neuve : aucun [[SERVER_CLIENT]] dans le fichier."""
+    enrollment = st_enrollment.Enrollment(str(tmp_path / "p.json"))
+    ok, reason = st_mesh.authenticate_server_client({"SERVER": {"TOKEN": {"site": "shared"}}},
+                                                    payload("shared", uid="FIRST"),
+                                                    cc_client("UNKNOWN", None, "", False, "FIRST"), FakeSocket(),
+                                                    enrollment, {})
+    assert (ok, reason) == (False, "PENDING APPROVAL")
+    assert [p["UID"] for p in enrollment.pending()] == ["FIRST"]
+
+
+def _self_signed(tmp_path):
+    import datetime as dt
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.x509.oid import NameOID
+    key = ec.generate_private_key(ec.SECP256R1())
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "test")])
+    now = dt.datetime.now(dt.timezone.utc)
+    cert = (x509.CertificateBuilder().subject_name(name).issuer_name(name).public_key(key.public_key())
+            .serial_number(1).not_valid_before(now - dt.timedelta(days=1)).not_valid_after(now + dt.timedelta(days=1))
+            .sign(key, hashes.SHA256()))
+    certfile, keyfile = tmp_path / "c.pem", tmp_path / "k.pem"
+    certfile.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
+    keyfile.write_bytes(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+                                          serialization.NoEncryption()))
+    return str(certfile), str(keyfile)
+
+
+def test_the_control_channel_answers_the_first_probe_of_a_new_server(tmp_path):
+    """Sans client déclaré, le serveur lisait-il l'AUTH ? Non : le fil dormait sans fin, la sonde attendait 15 s,
+    se reconnectait, et aucune demande d'inscription n'apparaissait (fils et connexions CLOSE_WAIT accumulés)."""
+    import socket
+    import ssl
+    import threading
+    certfile, keyfile = _self_signed(tmp_path)
+    srv = st_mesh.SSLnThreadingTCPServer(("127.0.0.1", 0), st_mesh.Handler, certfile=certfile, keyfile=keyfile)
+    enrollment = st_enrollment.Enrollment(str(tmp_path / "p.json"))
+    srv._config = {"SERVER": {"TOKEN": {"site": "shared"}}}
+    srv.dict_of_clients, srv.dict_of_commands_for_network_clients = {}, {}
+    srv.dict_by_node_generated_config, srv.conn_db, srv.threads_n_processes = {}, [], []
+    srv.dict_of_client_pending_acceptance = enrollment
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname, ctx.verify_mode = False, ssl.CERT_NONE
+        with ctx.wrap_socket(socket.create_connection(srv.server_address, timeout=5)) as s:
+            s.settimeout(5)
+            st_mesh.sock_send(s, payload("shared", uid="FIRST")["PAYLOAD"], "AUTH")
+            answer = st_mesh.sock_rcv(s)
+        assert answer["COMMAND"] == "AUTH_FAILED" and answer["PAYLOAD"] == "PENDING APPROVAL"
+        assert [p["UID"] for p in enrollment.pending()] == ["FIRST"]
+    finally:
+        srv.shutdown()
+        srv.server_close()

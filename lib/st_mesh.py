@@ -1018,7 +1018,7 @@ def send_config(dict_by_node_generated_config, client_uid, sckt, _config):
         # First, do we have something to send?
         # Then, IF THE IP ADDRESS AND THE UID ARE EQUAL, WE CAN SEND THIS CONFIGURATION!
         if dict_by_node_generated_config:
-            for server_client in _config['SERVER_CLIENT']:
+            for server_client in _config.get('SERVER_CLIENT', []):
                 if server_client['UID'] == client_uid:
                     if server_client['UID'] in dict_by_node_generated_config:
                         dict_by_node_generated_config[server_client['UID']]['CLIENT'] = {
@@ -1125,7 +1125,7 @@ def server_auth(received_data, obj_client, _config, address, dict_of_commands_fo
 
         return False
 
-    for server_client in _config['SERVER_CLIENT']:
+    for server_client in _config.get('SERVER_CLIENT', []):
         if server_client['UID'] == obj_client.client_uid:
 
             # If this is a dynamic IP client (declared without IP; its IP may still be known from a recent connection)
@@ -1353,7 +1353,7 @@ def server_forget_dynamic_client_ip(obj_client, _config, dict_of_commands_for_ne
     """
     # Rollback ip_address to the default
     if obj_client.bool_dynamic_client:
-        for server_client in _config['SERVER_CLIENT']:
+        for server_client in _config.get('SERVER_CLIENT', []):
             if server_client['UID'] == obj_client.client_uid:
                 server_client['IP_ADDRESS'] = "0.0.0.0"
 
@@ -1399,107 +1399,104 @@ class Handler(StreamRequestHandler):
             sckt.do_handshake()
             set_tcp_ka(sckt, server_log)  # rétablit le délai de lecture normal
             while True:
-                # no need to loop if no server_client
-                if "SERVER_CLIENT" in _config:
-                    limit = guard.max_message_bytes(authenticated)
-                    deadline = None if authenticated else auth_deadline
+                # Même sans client déclaré (installation neuve) : la première sonde doit pouvoir s'inscrire
+                limit = guard.max_message_bytes(authenticated)
+                deadline = None if authenticated else auth_deadline
+                received_data = sock_rcv(sckt, limit, deadline)
+
+                if received_data is None:
                     received_data = sock_rcv(sckt, limit, deadline)
 
-                    if received_data is None:
-                        received_data = sock_rcv(sckt, limit, deadline)
-
-                    if received_data is None:
-                        server_log.debug(f"CONTEXT: {dict_of_clients[uid].client_uid} - INVALID DATA RECEIVED")
-                        dict_of_clients[uid].status_explanation = "CONNECTION RESET BY PEER"
-                        server_log.warning(f"CONNECTION RESET BY PEER: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
-                        break
-                    else:
-                        # Log the command that was received
-                        command = received_data.get('COMMAND') if isinstance(received_data, dict) else None
-                        server_log.debug(
-                            f"CONTEXT: {dict_of_clients[uid].client_uid} - RECEIVED {guard.clean(command)}")
-                        if not guard.allowed(command, authenticated):
-                            server_log.warning(f"{dict_of_clients[uid].ip_address}: COMMAND {guard.clean(command)} "
-                                               f"BEFORE AUTHENTICATION: CLOSING CONNECTION")
-                            dict_of_clients[uid].status_explanation = "COMMAND BEFORE AUTHENTICATION"
-                            break
-
-                        if received_data['COMMAND'] == "AUTH":
-
-                            if not server_auth(received_data, dict_of_clients[uid], _config,
-                                               dict_of_clients[uid].ip_address, dict_of_commands_for_network_clients, sckt,
-                                               _dict_by_node_generated_config, dict_of_client_pending_acceptance, threads_n_processes):
-                                return
-
-                            # Now that we know the identity of the client connecting, we can update the dictionary of client objects
-                            new_uid = dict_of_clients[uid].client_uid
-                            if new_uid not in dict_of_clients:
-                                # Déclaré depuis le démarrage (page Clients, approbation, renommage)
-                                dict_of_clients[new_uid] = cc_client(status="UNKNOWN", status_since=datetime.now(),
-                                                                     status_explanation="NEVER CONNECTED",
-                                                                     client_uid=new_uid, bool_dynamic_client=False)
-                            dict_of_clients[new_uid].client_uid = new_uid
-                            dict_of_clients[new_uid].status = dict_of_clients[uid].status
-                            dict_of_clients[new_uid].bool_dynamic_client = dict_of_clients[uid].bool_dynamic_client
-                            dict_of_clients[new_uid].status_since = dict_of_clients[uid].status_since
-                            dict_of_clients[new_uid].status_explanation = dict_of_clients[uid].status_explanation
-                            dict_of_clients[new_uid].clock_skew_in_seconds = dict_of_clients[uid].clock_skew_in_seconds
-                            dict_of_clients[new_uid].syntraf_version = dict_of_clients[uid].syntraf_version
-                            # clé présentée à l'authentification : nécessaire pour l'épingler (Secure)
-                            dict_of_clients[new_uid].public_key = dict_of_clients[uid].public_key
-                            dict_of_clients[new_uid].public_key_sha256 = dict_of_clients[uid].public_key_sha256
-                            dict_of_clients[new_uid].release_id = dict_of_clients[uid].release_id
-                            dict_of_clients[new_uid].update_failed = dict_of_clients[uid].update_failed
-                            dict_of_clients[new_uid].nat_detected = getattr(dict_of_clients[uid], "nat_detected", None)
-                            dict_of_clients[new_uid].capabilities = getattr(dict_of_clients[uid], "capabilities", set())
-                            dict_of_clients[new_uid].ip_address = address[0]
-                            dict_of_clients[new_uid].tcp_port = address[1]
-                            dict_of_clients.pop(uid)
-                            uid = new_uid
-                            authenticated = True
-
-                        elif received_data['COMMAND'] == "SAVE_METRIC":
-                            # Un client n'écrit que ce qu'il mesure (étiquette SERVER = son nom)
-                            kept, dropped = guard.authorized_points(received_data.get('PAYLOAD'),
-                                                                    dict_of_clients[uid].client_uid)
-                            if dropped:
-                                server_log.warning(f"CONTEXT: {dict_of_clients[uid].client_uid} - {dropped} POINT(S) "
-                                                   f"REJECTED: NOT MEASURED BY THIS CLIENT")
-                            received_data['PAYLOAD'] = kept
-                            server_save_metric(dict_of_clients[uid], conn_db, received_data,
-                                               dict_of_clients[uid].ip_address, sckt)
-
-                        elif received_data['COMMAND'] == "SAVE_STATS_METRIC":
-                            server_save_stats_metric(dict_of_clients[uid], received_data)
-
-                        elif received_data['COMMAND'] == "SAVE_THREAD_STATUS":
-                            server_save_thread_status(dict_of_clients[uid], received_data)
-
-                        elif received_data['COMMAND'] == "SYSTEM_INFOS":
-                            server_save_system_infos(dict_of_clients[uid], received_data)
-
-                        elif received_data['COMMAND'] == "AWAITING_COMMAND":
-                            t2 = time.time()
-                            server_awaiting_commands(dict_of_clients[uid].client_uid, dict_of_commands_for_network_clients,
-                                                     sckt, _dict_by_node_generated_config, _config)
-                            server_track_clock(dict_of_clients[uid], received_data.get('PAYLOAD'), t2)
-
-                        elif received_data['COMMAND'] == "GET_RELEASE_CHUNK":
-                            server_send_release_chunk(sckt, received_data.get('PAYLOAD') or {})
-
-                        elif received_data['COMMAND'] == "UPDATE_STATUS":
-                            server_save_update_status(dict_of_clients[uid], received_data.get('PAYLOAD') or {})
-
-                        elif received_data['COMMAND'] == "SAVE_LOGS":
-                            server_save_logs(_config, dict_of_clients[uid].client_uid, received_data)
-
-                        elif received_data['COMMAND'] == "HEARTBEAT":
-                            pass
-
-                        else:
-                            print("UNKNOWN COMMAND:", received_data['COMMAND'])
+                if received_data is None:
+                    server_log.debug(f"CONTEXT: {dict_of_clients[uid].client_uid} - INVALID DATA RECEIVED")
+                    dict_of_clients[uid].status_explanation = "CONNECTION RESET BY PEER"
+                    server_log.warning(f"CONNECTION RESET BY PEER: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+                    break
                 else:
-                    time.sleep(2)
+                    # Log the command that was received
+                    command = received_data.get('COMMAND') if isinstance(received_data, dict) else None
+                    server_log.debug(
+                        f"CONTEXT: {dict_of_clients[uid].client_uid} - RECEIVED {guard.clean(command)}")
+                    if not guard.allowed(command, authenticated):
+                        server_log.warning(f"{dict_of_clients[uid].ip_address}: COMMAND {guard.clean(command)} "
+                                           f"BEFORE AUTHENTICATION: CLOSING CONNECTION")
+                        dict_of_clients[uid].status_explanation = "COMMAND BEFORE AUTHENTICATION"
+                        break
+
+                    if received_data['COMMAND'] == "AUTH":
+
+                        if not server_auth(received_data, dict_of_clients[uid], _config,
+                                           dict_of_clients[uid].ip_address, dict_of_commands_for_network_clients, sckt,
+                                           _dict_by_node_generated_config, dict_of_client_pending_acceptance, threads_n_processes):
+                            return
+
+                        # Now that we know the identity of the client connecting, we can update the dictionary of client objects
+                        new_uid = dict_of_clients[uid].client_uid
+                        if new_uid not in dict_of_clients:
+                            # Déclaré depuis le démarrage (page Clients, approbation, renommage)
+                            dict_of_clients[new_uid] = cc_client(status="UNKNOWN", status_since=datetime.now(),
+                                                                 status_explanation="NEVER CONNECTED",
+                                                                 client_uid=new_uid, bool_dynamic_client=False)
+                        dict_of_clients[new_uid].client_uid = new_uid
+                        dict_of_clients[new_uid].status = dict_of_clients[uid].status
+                        dict_of_clients[new_uid].bool_dynamic_client = dict_of_clients[uid].bool_dynamic_client
+                        dict_of_clients[new_uid].status_since = dict_of_clients[uid].status_since
+                        dict_of_clients[new_uid].status_explanation = dict_of_clients[uid].status_explanation
+                        dict_of_clients[new_uid].clock_skew_in_seconds = dict_of_clients[uid].clock_skew_in_seconds
+                        dict_of_clients[new_uid].syntraf_version = dict_of_clients[uid].syntraf_version
+                        # clé présentée à l'authentification : nécessaire pour l'épingler (Secure)
+                        dict_of_clients[new_uid].public_key = dict_of_clients[uid].public_key
+                        dict_of_clients[new_uid].public_key_sha256 = dict_of_clients[uid].public_key_sha256
+                        dict_of_clients[new_uid].release_id = dict_of_clients[uid].release_id
+                        dict_of_clients[new_uid].update_failed = dict_of_clients[uid].update_failed
+                        dict_of_clients[new_uid].nat_detected = getattr(dict_of_clients[uid], "nat_detected", None)
+                        dict_of_clients[new_uid].capabilities = getattr(dict_of_clients[uid], "capabilities", set())
+                        dict_of_clients[new_uid].ip_address = address[0]
+                        dict_of_clients[new_uid].tcp_port = address[1]
+                        dict_of_clients.pop(uid)
+                        uid = new_uid
+                        authenticated = True
+
+                    elif received_data['COMMAND'] == "SAVE_METRIC":
+                        # Un client n'écrit que ce qu'il mesure (étiquette SERVER = son nom)
+                        kept, dropped = guard.authorized_points(received_data.get('PAYLOAD'),
+                                                                dict_of_clients[uid].client_uid)
+                        if dropped:
+                            server_log.warning(f"CONTEXT: {dict_of_clients[uid].client_uid} - {dropped} POINT(S) "
+                                               f"REJECTED: NOT MEASURED BY THIS CLIENT")
+                        received_data['PAYLOAD'] = kept
+                        server_save_metric(dict_of_clients[uid], conn_db, received_data,
+                                           dict_of_clients[uid].ip_address, sckt)
+
+                    elif received_data['COMMAND'] == "SAVE_STATS_METRIC":
+                        server_save_stats_metric(dict_of_clients[uid], received_data)
+
+                    elif received_data['COMMAND'] == "SAVE_THREAD_STATUS":
+                        server_save_thread_status(dict_of_clients[uid], received_data)
+
+                    elif received_data['COMMAND'] == "SYSTEM_INFOS":
+                        server_save_system_infos(dict_of_clients[uid], received_data)
+
+                    elif received_data['COMMAND'] == "AWAITING_COMMAND":
+                        t2 = time.time()
+                        server_awaiting_commands(dict_of_clients[uid].client_uid, dict_of_commands_for_network_clients,
+                                                 sckt, _dict_by_node_generated_config, _config)
+                        server_track_clock(dict_of_clients[uid], received_data.get('PAYLOAD'), t2)
+
+                    elif received_data['COMMAND'] == "GET_RELEASE_CHUNK":
+                        server_send_release_chunk(sckt, received_data.get('PAYLOAD') or {})
+
+                    elif received_data['COMMAND'] == "UPDATE_STATUS":
+                        server_save_update_status(dict_of_clients[uid], received_data.get('PAYLOAD') or {})
+
+                    elif received_data['COMMAND'] == "SAVE_LOGS":
+                        server_save_logs(_config, dict_of_clients[uid].client_uid, received_data)
+
+                    elif received_data['COMMAND'] == "HEARTBEAT":
+                        pass
+
+                    else:
+                        print("UNKNOWN COMMAND:", received_data['COMMAND'])
 
         except ProtocolViolation as exc:
             dict_of_clients[uid].status_explanation = "PROTOCOL VIOLATION"
@@ -1861,7 +1858,7 @@ def save_credentials(data, _config):
 
 
 def is_valid_server_client(_config, uid, socket):
-    for server_client in _config['SERVER_CLIENT']:
+    for server_client in _config.get('SERVER_CLIENT', []):
         if server_client['UID'] == uid:
             return True
     return False
