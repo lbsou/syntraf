@@ -480,7 +480,8 @@ GLOBAL_LIVE_KEYS = ("LOG_LEVEL", "LOG_FORWARD_LEVEL", "LOG_RETENTION_DAYS", "WAT
                     "IPERF3_TIME_SKEW_THRESHOLD", "IPERF3_CONNECT_TIMEOUT", "LATENCY", "LATENCY_PORT", "BASELINE",
                     "BASELINE_SENSITIVITY", "BASELINE_MARGIN_LOSS", "BASELINE_MARGIN_JITTER", "BASELINE_MARGIN_RTT",
                     "BASELINE_MARGIN_MOS", "BASELINE_MARGIN_TCP", "BASELINE_OPEN_AFTER",
-                    "BASELINE_CLOSE_AFTER") + st_syslog.KEYS
+                    "BASELINE_CLOSE_AFTER", "PATH_TRACE_ON_ALERT", "CLOCK_OFFSET_MAX_MS",
+                    "CLOCK_DRIFT_MAX_PPM") + st_syslog.KEYS
 # Réglages transmis aux clients à leur connexion : un changement les fait se reconnecter pour les recevoir
 GLOBAL_SENT_TO_CLIENTS = (("LOG_FORWARD_LEVEL", "INFO"), ("IPERF3_TIME_SKEW_THRESHOLD", None),
                           ("IPERF3_CONNECT_TIMEOUT", None), ("LATENCY", True), ("LATENCY_PORT", "8620"))
@@ -612,6 +613,9 @@ GLOBAL_FIELDS = {
     "LATENCY": (lambda v: True, "", True),
     "LATENCY_PORT": (lambda v: v.isdigit() and 1 <= int(v) <= 65535, "A UDP port, 1 to 65535", False),
     "BASELINE": (lambda v: True, "", True),
+    "PATH_TRACE_ON_ALERT": (lambda v: True, "", True),
+    "CLOCK_OFFSET_MAX_MS": (_check_float_range(1, 3600000), "Milliseconds, 1 to 3600000", False),
+    "CLOCK_DRIFT_MAX_PPM": (_check_float_range(0.1, 10000), "Parts per million, 0.1 to 10000", False),
     "BASELINE_SENSITIVITY": (_check_float_range(1, 10),
                              "Width of the baseline band, in robust deviations: 1 (strict) to 10 (lenient)", False),
     "BASELINE_MARGIN_LOSS": (_check_float_range(0, 100), "Loss percentage points, 0 to 100", False),
@@ -1743,8 +1747,20 @@ def install_certificate(state, service, values, actor, dry_run=False):
 
 # ---------------------------------------------------------------------------------- carte en direct
 
-def live_topology(state, mesh_group=None):
-    """Sondes (état, NAT) et liens attendus, colorés selon la qualité de la dernière minute (lib/st_live_map.py)."""
+def _replay_instant(at):
+    import time as _time
+    try:
+        at = int(float(at))
+    except (TypeError, ValueError):
+        raise OpError(400, "Invalid instant", {"at": "Seconds since 1970 (Unix time)"})
+    if at > _time.time() + 60:
+        raise OpError(400, "Invalid instant", {"at": "This instant is in the future"})
+    return at
+
+
+def live_topology(state, mesh_group=None, at=None):
+    """Sondes (état, NAT) et liens attendus, colorés selon la qualité de la dernière minute (lib/st_live_map.py) ;
+    at (secondes Unix) : l'état du réseau à cet instant passé, pour rejouer un incident."""
     from lib import st_flow_catalog, st_live_map
     cfg = state["config"]
     flows = st_flow_catalog.expected_flows(cfg, state.get("_dict_by_node_generated_config") or {})
@@ -1756,10 +1772,26 @@ def live_topology(state, mesh_group=None):
                         "mesh_groups": c.get("MESH_GROUP_UID_LIST", [])})
     vm = next((d for d in cfg.get("DATABASE", []) if str(d.get("DB_ENGINE", "")).lower() == "victoriametrics"), None)
     metrics = {"loss": {}, "jitter": {}, "mos": {}, "rtt": {}}
-    if vm is not None:
+    alerts = []
+    if at is not None:
+        at = _replay_instant(at)
+        if vm is None:
+            raise OpError(409, "Replaying needs a VictoriaMetrics database")
         from lib.st_vm_admin import VmAdmin
-        metrics = st_live_map.read_metrics(VmAdmin(vm))
-    result = st_live_map.build(flows, clients, metrics, mesh_group=mesh_group or None)
+        admin = VmAdmin(vm)
+        metrics = st_live_map.read_metrics(admin, at=at)
+        past = st_live_map.read_status(admin, at)  # sans collecte de /metrics : état inconnu
+        for c in clients:
+            c["status"] = past.get(c["uid"], "UNKNOWN")
+        alerts = st_live_map.read_alerts(admin, at)
+    else:
+        if vm is not None:
+            from lib.st_vm_admin import VmAdmin
+            metrics = st_live_map.read_metrics(VmAdmin(vm))
+        from lib import st_baseline
+        alerts = [a for a in st_baseline.BOOK.open() if a.get("CLIENT")]
+    result = st_live_map.build(flows, clients, metrics, mesh_group=mesh_group or None, alerts=alerts)
+    result["at"] = at
     result["mesh_groups"] = sorted(g["UID"] for g in cfg.get("MESH_GROUP", []) if not g.get("DISABLED"))
     # Hubs des mesh groups affichés (placement : au centre)
     from lib import st_topology
@@ -1767,6 +1799,23 @@ def live_topology(state, mesh_group=None):
     result["hubs"] = sorted({h for g in shown for h in st_topology.hubs(g)})
     result["metrics_available"] = vm is not None
     return result
+
+
+def topology_timeline(state, start, end, mesh_group=None):
+    """Frise de la carte : pire état de chaque pas (environ 360 sur la fenêtre) et alertes ouvertes, de start à end."""
+    import time as _time
+    from lib import st_live_map
+    start, end = _replay_instant(start), _replay_instant(end if end not in (None, "") else _time.time())
+    if end <= start or end - start > 31 * 86400:
+        raise OpError(400, "Invalid window", {"from": "Before 'to', and at most 31 days earlier"})
+    vm = next((d for d in state["config"].get("DATABASE", [])
+               if str(d.get("DB_ENGINE", "")).lower() == "victoriametrics"), None)
+    if vm is None:
+        raise OpError(409, "Replaying needs a VictoriaMetrics database")
+    from lib.st_vm_admin import VmAdmin
+    step = max(60, ((end - start) // 360) // 60 * 60)
+    start = start // step * step
+    return dict(st_live_map.timeline(VmAdmin(vm), start, end, step, mesh_group or None), step=step)
 
 
 # ---------------------------------------------------------------------------------- tests TCP planifiés
@@ -1837,6 +1886,40 @@ def run_tcp_test_now(state, uid, actor):
     tt.SCHEDULER.run_now(uid)
     store.log_event(state["config_file_path"], actor, "RUN_TCP_TEST", f"TCP test '{uid}' started by hand")
     return {"uid": uid, "queued": True}
+
+
+def list_paths(state, source=None, destination=None, both=False, limit=100):
+    """Traces du chemin, les plus récentes d'abord (lib/st_paths.py)."""
+    from lib import st_paths
+    return st_paths.store().list(source=source or None, destination=destination or None, both=both,
+                                 limit=max(1, min(int(limit or 100), st_paths.KEEP)))
+
+
+def get_path(state, rid):
+    from lib import st_paths
+    rec = st_paths.store().get(rid)
+    if rec is None:
+        raise OpError(404, f"Path trace '{rid}' not found")
+    return rec
+
+
+def request_path(state, body, actor):
+    """Trace du chemin de SOURCE vers DESTINATION, faite par la sonde SOURCE au prochain passage de la surveillance."""
+    from lib import st_paths
+    probes = {c.get("UID") for c in state["config"].get("SERVER_CLIENT", [])}
+    source, destination = str(body.get("SOURCE", "")), str(body.get("DESTINATION", ""))
+    errors = {}
+    if source not in probes:
+        errors["SOURCE"] = "Unknown probe"
+    if destination not in probes:
+        errors["DESTINATION"] = "Unknown probe"
+    elif destination == source:
+        errors["DESTINATION"] = "Choose another probe than the source"
+    if errors:
+        raise OpError(400, "Invalid path trace", errors)
+    rec = st_paths.store().request(source, destination, "manual")
+    store.log_event(state["config_file_path"], actor, "TRACE_PATH", f"Path trace {source} -> {destination} requested")
+    return rec
 
 
 def tcp_tests_status(state):

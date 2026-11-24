@@ -252,3 +252,18 @@ def test_a_probe_in_maintenance_raises_no_health_alert_and_the_window_is_publish
     assert ("probe_disconnected", "B") not in {(a["METRIC"], a["SUBJECT"]) for a in book.open()}
     active = [p for p in written if p["measurement"] == "SYNTRAF_MAINTENANCE"]
     assert active and active[0]["tags"]["UID"] == "B_REBOOT" and active[0]["fields"] == {"ACTIVE": 1}
+
+
+def test_listeners_hear_each_opened_alert_once_and_a_failing_listener_changes_nothing():
+    book, heard = bl.AlertBook(), []
+    vm = FakeVm(now_loss=4.0)
+
+    def boom(info, now):
+        raise RuntimeError("listener down")
+    bl.OPEN_LISTENERS[:] = [boom, lambda info, now: heard.append((info["CLIENT"], info["SERVER"], info["METRIC"], now))]
+    try:
+        for i in range(5):
+            bl.evaluate(vm, now=NOW + 60 * i, book=book, specs=[bl.METRICS["loss"]])
+    finally:
+        bl.OPEN_LISTENERS.clear()
+    assert heard == [("A", "B", "loss", NOW + 120)] and len(book.open()) == 1

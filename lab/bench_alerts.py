@@ -108,6 +108,8 @@ def report(results, false_alarms, detector):
 
 
 def main():
+    if hasattr(sys.stdout, "reconfigure"):  # console Windows (cp1252) : les flèches ne la font plus planter
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--hold", type=int, default=420, help="durée de chaque panne (s)")
     ap.add_argument("--rest", type=int, default=600, help="calme après chaque panne (s) : une alerte se ferme après ~8 min")

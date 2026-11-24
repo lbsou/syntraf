@@ -48,6 +48,9 @@ class cc_client:
         j_dump['client_uid'] = self._client_uid
         j_dump['ip_address'] = self._ip_address
         j_dump['clock_skew_in_seconds'] = self._clock_skew_in_seconds
+        from lib import st_clock
+        est = st_clock.estimate_of(self) or {}
+        j_dump['clock_offset_ms'], j_dump['clock_drift_ppm'] = est.get("offset_ms"), est.get("drift_ppm")
         j_dump['syntraf_version'] = self._syntraf_version
 
         # Not connected client

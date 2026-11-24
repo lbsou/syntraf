@@ -20,7 +20,8 @@ const minutes = (a, b) => Math.max(1, Math.round(((b || Date.now() / 1000) - a) 
 const METRICS = {loss: "Loss", jitter: "Jitter", rtt: "Round trip", mos: "Voice score (MOS)", tcp: "TCP bitrate",
                  probe_disconnected: "Probe disconnected", probe_backlog: "Measurements waiting on a probe",
                  database_down: "Database unreachable", database_backlog: "Database behind",
-                 thread_dead: "Server thread stopped", server_queue: "Server queue"};
+                 thread_dead: "Server thread stopped", server_queue: "Server queue",
+                 probe_clock_offset: "Probe clock off", probe_clock_drift: "Probe clock drifting"};
 
 function flow(row) {
     if (row.KIND === "health") return `SYNTRAF · ${row.SUBJECT}`;
@@ -39,6 +40,9 @@ function draw(id, rows, closed) {
             {field: "METRIC", title: "Metric", formatter: v => st.esc(METRICS[v] || v)},
             {field: "explanation", title: "What"},
             {field: "closed_at", title: closed ? "Duration" : "For", formatter: (v, row) => st.esc(minutes(row.opened_at, v) + " min")},
+            {field: "KIND", title: "Investigate", formatter: (v, row) => v === "health" || !row.CLIENT ? "" :
+                `<a href="/paths.html?${new URLSearchParams({source: row.CLIENT, destination: row.SERVER, at: Math.round(row.opened_at)})}">Path</a>` +
+                ` · <a href="/live_map.html?${new URLSearchParams({at: Math.round(row.opened_at), mesh_group: row.MESH_GROUP || ""})}">Replay on the map</a>`},
         ]),
     });
 }

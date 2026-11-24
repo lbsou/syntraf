@@ -231,10 +231,14 @@ def _number(value, default, low=None, high=None):
 
 
 class Settings:
-    def __init__(self, k=DEFAULT_K, margins=None, open_after=OPEN_AFTER, close_after=CLOSE_AFTER, k_by_group=None):
+    def __init__(self, k=DEFAULT_K, margins=None, open_after=OPEN_AFTER, close_after=CLOSE_AFTER, k_by_group=None,
+                 clock_offset_max_ms=None, clock_drift_max_ppm=None):
+        from lib import st_clock
         self.k, self.margins = k, dict(margins or {})
         self.open_after, self.close_after = int(open_after), int(close_after)
         self.k_by_group = dict(k_by_group or {})
+        self.clock_offset_max_ms = float(clock_offset_max_ms if clock_offset_max_ms is not None else st_clock.OFFSET_MAX_MS)
+        self.clock_drift_max_ppm = float(clock_drift_max_ppm if clock_drift_max_ppm is not None else st_clock.DRIFT_MAX_PPM)
 
     @classmethod
     def from_config(cls, config):
@@ -252,8 +256,11 @@ class Settings:
             own = profiles.get(group.get("IPERF3_PROFILE"), {}).get("BASELINE_SENSITIVITY")
             if str(own or "").strip():
                 k_by_group[group.get("UID")] = _number(own, k, 1, 10)
+        from lib import st_clock
         return cls(k, margins, _number(g.get("BASELINE_OPEN_AFTER"), OPEN_AFTER, 1, 60),
-                   _number(g.get("BASELINE_CLOSE_AFTER"), CLOSE_AFTER, 1, 60), k_by_group)
+                   _number(g.get("BASELINE_CLOSE_AFTER"), CLOSE_AFTER, 1, 60), k_by_group,
+                   _number(g.get("CLOCK_OFFSET_MAX_MS"), st_clock.OFFSET_MAX_MS, 1, 3600000),
+                   _number(g.get("CLOCK_DRIFT_MAX_PPM"), st_clock.DRIFT_MAX_PPM, 0.1, 10000))
 
     def k_for(self, group):
         return self.k_by_group.get(group, self.k)
@@ -265,6 +272,9 @@ class Settings:
 
 STATUS = {"watched": 0, "learning": 0, "in_maintenance": 0, "maintenance_windows": [], "evaluated_at": None, "detector": "robust", "sensitivity": DEFAULT_K}
 BOOK = AlertBook()
+
+
+OPEN_LISTENERS = []  # fn(info, now) appelée à l'ouverture d'une alerte de flux (ex. : trace du chemin, lib/st_paths.py)
 
 
 def evaluate(vm, now=None, det=None, book=BOOK, k=None, specs=None, write=None, settings=None, maintenance=None):
@@ -303,6 +313,12 @@ def evaluate(vm, now=None, det=None, book=BOOK, k=None, specs=None, write=None, 
                                "tags": {"ACTION": action, "MESH_GROUP": info.get("MESH_GROUP", ""),
                                         "METRIC": spec.name, "FLOW": flow, "SUMMARY": verdict.explanation[:200]},
                                "fields": {"EVENT": 1}})
+                if event == "open":
+                    for listener in list(OPEN_LISTENERS):
+                        try:
+                            listener(dict(info), now)
+                        except Exception as exc:  # noqa: BLE001 - un auditeur en panne ne gêne pas l'évaluation
+                            log.warning(f"ALERT LISTENER FAILED: {type(exc).__name__}:{exc}")
             points.append({"measurement": "SYNTRAF_BASELINE", "time": dt.datetime.fromtimestamp(now, dt.timezone.utc),
                            "tags": {k2: v for k2, v in info.items() if k2 not in ("LABEL", "KIND")},
                            "fields": {"MEDIAN": base.median, "LIMIT": verdict.median + verdict.limit *
@@ -326,7 +342,7 @@ SERVER_QUEUE = 10000      # mesures reçues que le serveur n'a pas encore transm
 HEALTH_BOOK = AlertBook()
 
 
-def health_checks(snap):
+def health_checks(snap, settings=None):
     """Contrôles absolus de l'outil lui-même (pas de baseline) : sondes déclarées déconnectées ou qui n'arrivent plus
     à envoyer leurs mesures, bases injoignables ou en retard, fils du serveur arrêtés, file du serveur qui gonfle."""
     out = []
@@ -342,6 +358,24 @@ def health_checks(snap):
         backlog = c.get("metrics_buffer") or 0
         check("probe_backlog", uid, backlog > PROBE_BACKLOG,
               f"{backlog} measurements waiting on probe {uid} (they do not reach the server)")
+        # Horloge (lib/st_clock.py) : mesurée tant que la sonde est connectée
+        offset, drift = c.get("clock_offset_ms"), c.get("clock_drift_ppm")
+        if c.get("status") == "CONNECTED" and offset is not None:
+            from lib import st_clock
+            limits = settings or Settings()
+            gap = st_clock.human(offset / 1000)
+            if offset > 0:
+                text = f"Clock of probe {uid} is {gap} behind the server's"
+            else:
+                text = f"Clock of probe {uid} is {gap} ahead of the server's"
+            check("probe_clock_offset", uid, abs(offset) > limits.clock_offset_max_ms, text)
+            if drift is not None:
+                per_day = st_clock.human(abs(drift) * 1e-6 * 86400)
+                if drift > 0:
+                    text = f"Clock of probe {uid} gains {per_day} per day ({drift} ppm): is time synchronization (NTP) running on it?"
+                else:
+                    text = f"Clock of probe {uid} loses {per_day} per day ({drift} ppm): is time synchronization (NTP) running on it?"
+                check("probe_clock_drift", uid, abs(drift) > limits.clock_drift_max_ppm, text)
     for d in snap.get("databases", []):
         uid = d["uid"]
         check("database_down", uid, d.get("status") != "ONLINE", f"Database {uid} unreachable")
@@ -366,7 +400,7 @@ def evaluate_health(snap, now=None, book=HEALTH_BOOK, write=None, settings=None,
         points.append({"measurement": "SYNTRAF_MAINTENANCE", "time": when, "fields": {"ACTIVE": 1},
                        "tags": {"UID": w.get("UID", ""), "TARGET_TYPE": w.get("TARGET_TYPE", ""),
                                 "TARGET": w.get("TARGET", ""), "DESCRIPTION": str(w.get("DESCRIPTION", ""))[:100]}})
-    for c in health_checks(snap):
+    for c in health_checks(snap, settings):
         key = ("SYNTRAF", c["subject"], "", c["metric"])
         alive.add(key)
         if maintenance is not None and c["metric"].startswith("probe_") and maintenance.covers_node(c["subject"]):

@@ -249,6 +249,11 @@ def server():
 
 
 
+@st_home_bp.route('/paths.html')
+def paths():
+    return render_template('paths.html')
+
+
 @st_home_bp.route('/tcp_tests.html')
 def tcp_tests():
     return render_template('tcp_tests.html')

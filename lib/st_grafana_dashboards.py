@@ -611,6 +611,10 @@ def health_dashboard():
         p = timeseries(pid, title, expr, "none", 0, 0, {"min": 0}, legend=legend, w=w)
         p["description"] = help_
         return p
+    def clock(pid, title, expr, unit, description, w=12):
+        p = timeseries(pid, title, expr, unit, 0, 0, {}, legend="{{client}}", w=w)
+        p["description"] = description
+        return p
     return dashboard("syntraf-health", [
         ("Collecte", [
             state(1, "Collecte de /metrics", 'up{job="syntraf"}', "serveur", "collecté", "injoignable", w=24),
@@ -619,6 +623,13 @@ def health_dashboard():
             state(2, "Sondes", "syntraf_client_connected", "{{client}}", "connectée", "déconnectée", w=24),
             series(3, "Mesures en attente sur les sondes", "syntraf_client_buffered_points", "{{client}}"),
             series(4, "Flux iperf3 par sonde", "syntraf_client_flows", "{{client}} · {{role}}"),
+            clock(9, "Horloge des sondes : écart au serveur",
+                  "syntraf_client_clock_offset_seconds * 1000", "ms",
+                  "Horloge du serveur moins celle de la sonde, mesurée en continu sur le canal de contrôle (comme NTP) : "
+                  "positif, la sonde retarde. Alerte au-delà du seuil réglé dans Server › Global (1 s par défaut)."),
+            clock(10, "Horloge des sondes : dérive", "syntraf_client_clock_drift_ppm", "ppm",
+                  "Pente de l'écart sur la dernière heure, en millionièmes : positive, l'horloge de la sonde avance. "
+                  "15 ppm ≈ 1,3 s par jour, une horloge sans synchronisation (NTP). Calculée après une heure de mesures."),
         ]),
         ("Serveur et bases", [
             state(5, "Bases de données", "syntraf_database_up", "{{database}}", "en ligne", "injoignable"),

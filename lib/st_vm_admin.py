@@ -66,9 +66,10 @@ class VmAdmin:
         values = [v for r in data.get("result", []) for v in r.get("values", [])]
         return min((int(float(t)) for t, _ in values), default=None)
 
-    def query(self, query):
-        """Requête instantanée : liste de séries {metric, value}."""
-        return (self._get_json("/api/v1/query", {"query": query}) or {}).get("result", [])
+    def query(self, query, time=None):
+        """Requête instantanée : liste de séries {metric, value} ; time (secondes Unix) : à cet instant passé."""
+        params = {"query": query} if time is None else {"query": query, "time": time}
+        return (self._get_json("/api/v1/query", params) or {}).get("result", [])
 
     def query_range(self, query, start, end, step):
         """Requête PromQL/MetricsQL sur une plage : liste de séries {metric, values}."""

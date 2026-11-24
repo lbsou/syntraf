@@ -2,7 +2,7 @@
 {% from "_macros.html" import page_header %}
 {% block title %}Live map{% endblock %}
 {% block content %}
-{{ page_header("Live map", "Probes and the links they measure, colored by the quality of the last minute (worst direction). Refreshed every 10 seconds.") }}
+{{ page_header("Live map", "Probes and the links they measure, colored by the quality of the last minute (worst direction). Refreshed every 10 seconds. Move the time cursor to replay the network as it was during an incident.") }}
 
 <section class="st-card">
   <div class="d-flex flex-wrap align-items-end gap-3 mb-2">
@@ -20,6 +20,23 @@
     <button type="button" class="btn btn-sm btn-outline-light" id="lm_relayout" title="Forget the positions moved by hand">Rearrange</button>
     <div class="small ms-auto" id="lm_legend" aria-live="polite"></div>
   </div>
+  <div id="lm_replay" class="mb-3">
+    <div class="d-flex flex-wrap align-items-center gap-2">
+      <button type="button" class="btn btn-sm btn-success" id="lm_live" aria-pressed="true">Live</button>
+      <label for="lm_window" class="small mb-0">Replay the last</label>
+      <select class="form-select form-select-sm w-auto" id="lm_window">
+        <option value="3600">hour</option><option value="21600" selected>6 hours</option>
+        <option value="86400">24 hours</option><option value="604800">7 days</option>
+      </select>
+      <button type="button" class="btn btn-sm btn-outline-light" id="lm_back" title="One step back" aria-label="One step back"><i class="fas fa-step-backward" aria-hidden="true"></i></button>
+      <button type="button" class="btn btn-sm btn-outline-light" id="lm_play" aria-pressed="false"><i class="fas fa-play me-1" aria-hidden="true"></i><span>Play</span></button>
+      <button type="button" class="btn btn-sm btn-outline-light" id="lm_fwd" title="One step forward" aria-label="One step forward"><i class="fas fa-step-forward" aria-hidden="true"></i></button>
+      <span class="small fw-bold" id="lm_when" aria-live="polite"></span>
+    </div>
+    <div id="lm_strip" class="d-flex mt-2" style="height: 16px; cursor: pointer; border-radius: 3px; overflow: hidden" aria-hidden="true"></div>
+    <input type="range" class="form-range" id="lm_time" min="0" max="0" step="1" value="0" aria-label="Instant replayed" aria-describedby="lm_when">
+    <div class="small text-white-50" id="lm_strip_help">Each band is the worst link at that moment for the indicator chosen above; a red mark on top: alerts were open.</div>
+  </div>
   <div id="lm_note" class="small text-warning mb-2" hidden></div>
   <div class="row g-3">
     <div class="col-lg-9"><div id="lm_cy" style="height: 68vh; border: 1px solid #3a3a3a; border-radius: .5rem; background: #1e1e1e" role="img" aria-label="Map of the probes and their links"></div></div>
@@ -31,7 +48,9 @@
 <script>
 const el = id => document.getElementById(id);
 const COLORS = {green: "#00bc8c", yellow: "#f1c40f", orange: "#e67e22", red: "#e74c3c", nodata: "#777777"};
-const STATUS = {CONNECTED: "#00bc8c", DISCONNECTED: "#e74c3c", NEVER_SEEN: "#777777"};
+const STATUS = {CONNECTED: "#00bc8c", DISCONNECTED: "#e74c3c", NEVER_SEEN: "#777777", UNKNOWN: "#777777"};
+// Relecture : null = en direct ; sinon l'instant affiché (secondes Unix), pris dans la frise
+const replay = {at: null, timeline: null, index: 0, playing: null, debounce: null};
 const LABELS = {loss: v => `${v.toFixed(1)} %`, mos: v => v.toFixed(2), rtt: v => `${v.toFixed(1)} ms`, jitter: v => `${v.toFixed(1)} ms`};
 const FIELD = {loss: "loss_pct", mos: "mos", rtt: "rtt_ms", jitter: "jitter_ms"};
 let cy = null, last = null;
@@ -113,7 +132,8 @@ function render(data) {
         ...data.nodes.map(n => ({group: "nodes", data: {id: n.id, label: n.behind_nat ? `${n.id} (NAT)` : n.id,
             color: STATUS[n.status] || "#777777", nat: n.behind_nat ? 1 : 0, raw: n}})),
         ...data.links.map(l => ({group: "edges", data: Object.assign({id: edgeId(l), source: l.a, target: l.b,
-            color: COLORS[l.grade[metric]], dashed: l.grade[metric] === "nodata" ? 1 : 0, raw: l},
+            color: COLORS[l.grade[metric]], dashed: l.grade[metric] === "nodata" ? 1 : 0,
+            alert: l.alerts && l.alerts.length ? 1 : 0, raw: l},
             endLabels(l, metric))})),
     ];
     if (!cy) {
@@ -135,6 +155,7 @@ function render(data) {
                     "text-background-padding": 2, "text-background-shape": "roundrectangle",
                     "min-zoomed-font-size": 8, "z-index": 1}},
                 {selector: "edge[dashed = 1]", style: {"line-style": "dashed", width: 2}},
+                {selector: "edge[alert = 1]", style: {"overlay-color": "#e74c3c", "overlay-opacity": 0.3, "overlay-padding": 6}},
                 {selector: "edge.lm-quiet", style: {"source-label": "", "target-label": ""}},
                 {selector: "edge.lm-hover", style: {"source-label": "data(atA)", "target-label": "data(atB)",
                     "z-index": 20, width: 6}},
@@ -172,6 +193,7 @@ function fmt(v, f) { return v === null || v === undefined ? "–" : f(v); }
 function showLink(l) {
     el("lm_detail").innerHTML = `<h3 class="h6">${st.esc(l.a)} ↔ ${st.esc(l.b)}</h3>
         <p class="text-white-50 mb-2">Mesh group ${st.esc(l.mesh_group || "")} · round trip ${fmt(l.rtt_ms, v => v.toFixed(1) + " ms")}</p>
+        ${l.alerts && l.alerts.length ? `<p class="text-danger mb-2"><i class="fas fa-bell me-1" aria-hidden="true"></i>Alerts open: ${l.alerts.map(st.esc).join(", ")}</p>` : ""}
         <table class="table table-sm small"><thead><tr><th scope="col">Direction</th><th scope="col">Loss</th><th scope="col">Jitter</th><th scope="col">MOS</th></tr></thead><tbody>
         ${l.directions.map(d => `<tr><td>${st.esc(d.from)} → ${st.esc(d.to)}</td><td>${fmt(d.loss_pct, v => v.toFixed(1) + " %")}</td>
             <td>${fmt(d.jitter_ms, v => v.toFixed(1) + " ms")}</td><td>${fmt(d.mos, v => v.toFixed(2))}</td></tr>`).join("")}
@@ -185,7 +207,10 @@ function showNode(n) {
 
 async function load() {
     const group = el("lm_group").value;
-    const r = await st.api("GET", "/api/v1/topology/live" + (group ? `?mesh_group=${encodeURIComponent(group)}` : ""));
+    const q = new URLSearchParams();
+    if (group) q.set("mesh_group", group);
+    if (replay.at !== null) q.set("at", replay.at);
+    const r = await st.api("GET", "/api/v1/topology/live" + (q.toString() ? "?" + q : ""));
     if (!r.ok) { el("lm_note").hidden = false; el("lm_note").textContent = r.error.message; return; }
     last = r.data;
     const sel = el("lm_group"), current = sel.value;
@@ -196,13 +221,136 @@ async function load() {
     render(r.data);
 }
 
-el("lm_group").addEventListener("change", () => { if (cy) { cy.destroy(); cy = null; } load(); });
-el("lm_metric").addEventListener("change", () => { if (last) render(last); });
+// ---- Relecture d'un incident
+const when = t => new Date(t * 1000).toLocaleString();
+
+function showWhen() {
+    el("lm_when").textContent = replay.at === null ? "Live: the last minute" : `Replaying ${when(replay.at)}`;
+    el("lm_live").className = "btn btn-sm " + (replay.at === null ? "btn-success" : "btn-outline-success");
+    el("lm_live").setAttribute("aria-pressed", String(replay.at === null));
+    const u = new URL(location.href);
+    if (replay.at === null) u.searchParams.delete("at"); else u.searchParams.set("at", replay.at);
+    history.replaceState(null, "", u);
+}
+
+function drawStrip() {
+    const t = replay.timeline, metric = el("lm_metric").value, strip = el("lm_strip");
+    if (!t) { strip.innerHTML = ""; return; }
+    strip.innerHTML = t.t.map((x, i) => {
+        const g = (t.grade[metric] || [])[i] || "nodata";
+        const mark = t.alerts[i] ? "box-shadow: inset 0 3px 0 #e74c3c;" : "";
+        const cur = replay.at !== null && i === replay.index ? "outline: 2px solid #fff; outline-offset: -2px; z-index: 1;" : "";
+        return `<div data-i="${i}" style="flex: 1; background: ${COLORS[g]}; ${mark}${cur}"></div>`;
+    }).join("");
+}
+
+async function loadTimeline() {
+    const span = Number(el("lm_window").value), now = Math.floor(Date.now() / 1000);
+    const q = new URLSearchParams({from: now - span, to: now});
+    if (el("lm_group").value) q.set("mesh_group", el("lm_group").value);
+    const r = await st.api("GET", "/api/v1/topology/timeline?" + q);
+    if (!r.ok) { el("lm_note").hidden = false; el("lm_note").textContent = r.error.message; return false; }
+    replay.timeline = r.data;
+    el("lm_time").max = r.data.t.length - 1;
+    drawStrip();
+    return true;
+}
+
+function goTo(i, now) {
+    const t = replay.timeline;
+    if (!t || !t.t.length) return;
+    replay.index = Math.max(0, Math.min(t.t.length - 1, i));
+    replay.at = t.t[replay.index];
+    el("lm_time").value = replay.index;
+    showWhen();
+    drawStrip();
+    clearTimeout(replay.debounce);
+    replay.debounce = setTimeout(load, now ? 0 : 200);
+}
+
+async function startReplay(i) {
+    if (!replay.timeline && !(await loadTimeline())) return;
+    goTo(i === undefined ? replay.timeline.t.length - 1 : i, true);
+}
+
+function stopPlaying() {
+    clearInterval(replay.playing);
+    replay.playing = null;
+    el("lm_play").setAttribute("aria-pressed", "false");
+    el("lm_play").querySelector("span").textContent = "Play";
+    el("lm_play").querySelector("i").className = "fas fa-play me-1";
+}
+
+function backToLive() {
+    stopPlaying();
+    replay.at = null;
+    showWhen();
+    drawStrip();
+    load();
+}
+
+el("lm_live").addEventListener("click", backToLive);
+el("lm_window").addEventListener("change", async () => {
+    replay.timeline = null;
+    if (await loadTimeline() && replay.at !== null) {
+        const t = replay.timeline.t, i = t.findIndex(x => x >= replay.at);
+        goTo(i < 0 ? t.length - 1 : i, true);
+    }
+});
+el("lm_time").addEventListener("input", () => startReplay(Number(el("lm_time").value)));
+el("lm_strip").addEventListener("click", e => {
+    const d = e.target.closest("[data-i]");
+    if (d) startReplay(Number(d.dataset.i));
+});
+el("lm_back").addEventListener("click", () => startReplay(replay.at === null ? undefined : replay.index - 1));
+el("lm_fwd").addEventListener("click", () => {
+    if (replay.at !== null && replay.index >= replay.timeline.t.length - 1) backToLive();
+    else if (replay.at !== null) goTo(replay.index + 1, true);
+});
+el("lm_play").addEventListener("click", async () => {
+    if (replay.playing) { stopPlaying(); return; }
+    if (replay.at === null) await startReplay(0);
+    el("lm_play").setAttribute("aria-pressed", "true");
+    el("lm_play").querySelector("span").textContent = "Pause";
+    el("lm_play").querySelector("i").className = "fas fa-pause me-1";
+    replay.playing = setInterval(() => {
+        if (replay.index >= replay.timeline.t.length - 1) { stopPlaying(); return; }
+        goTo(replay.index + 1, true);
+    }, 1500);
+});
+
+el("lm_group").addEventListener("change", () => {
+    if (cy) { cy.destroy(); cy = null; }
+    if (replay.timeline) { replay.timeline = null; loadTimeline(); }
+    load();
+});
+el("lm_metric").addEventListener("change", () => { if (last) render(last); drawStrip(); });
 el("lm_relayout").addEventListener("click", () => {
     localStorage.removeItem(SAVED());
     if (cy && last) cy.layout(layoutFor(last)).run();
 });
-load();
-setInterval(load, 10000);
+// Lien partagé (ex. depuis une alerte) : ?at=… ouvre la relecture sur cet instant, dans la plus petite fenêtre qui le contient
+(async () => {
+    const params = new URLSearchParams(location.search);
+    const at = Number(params.get("at") || 0), g0 = params.get("mesh_group");
+    if (g0) {  // gardé tel quel par load(), qui reconstruit la liste
+        el("lm_group").insertAdjacentHTML("beforeend", `<option value="${st.esc(g0)}">${st.esc(g0)}</option>`);
+        el("lm_group").value = g0;
+    }
+    if (at) {
+        const age = Date.now() / 1000 - at, sel = el("lm_window");
+        const fit = [...sel.options].find(o => Number(o.value) > age + 600);
+        sel.value = fit ? fit.value : sel.options[sel.options.length - 1].value;
+        if (await loadTimeline()) {
+            const t = replay.timeline.t;
+            let i = t.findIndex(x => x >= at);
+            goTo(i < 0 ? t.length - 1 : i, true);
+            return;
+        }
+    }
+    showWhen();
+    load();
+})();
+setInterval(() => { if (replay.at === null) load(); }, 10000);
 </script>
 {% endblock %}

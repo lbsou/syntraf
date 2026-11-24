@@ -134,7 +134,7 @@ def cut(service: str, mode: CutMode, to: str | None = None) -> None:
 
 
 def heal(service: str) -> None:
-    """Retire toute panne du lab sur ce service ; sans effet si le service est sain."""
+    """Retire toute panne du lab sur ce service (le profil permanent d'un lien satellite ou mobile reste)."""
     state = docker.inspect_state(service)
     if not state["running"]:
         return
@@ -148,6 +148,8 @@ def heal(service: str) -> None:
             docker.exec_(service, ["ip", "route", "replace", "default", "via", gateway], check=False)
     for cmd in heal_cmds(lab_iface(service)):
         docker.exec_(service, cmd, check=False)
+    if service in topology.LINK_PROFILES:  # site satellite ou mobile : son lien garde son profil permanent
+        degrade(service, **topology.LINK_PROFILES[service])
 
 
 def heal_all() -> None:

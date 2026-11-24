@@ -275,7 +275,22 @@ def run():
             # Tests TCP courts planifiés : tâches échues → un test à la fois, confié aux deux sondes
             tcp_tests_tick(config, cli_parameters.config_file, dict_of_clients, dict_of_commands_for_network_clients,
                            _dict_by_node_generated_config)
+            # Traces du chemin demandées (interface, API, ouverture d'alerte) : envoyées aux sondes sources
+            paths_tick(config, dict_of_clients, dict_of_commands_for_network_clients)
         time.sleep(float(config['GLOBAL']['WATCHDOG_CHECK_RATE']))
+
+
+def paths_tick(config, dict_of_clients, commands):
+    try:
+        from lib import st_paths, st_baseline
+        st_paths.AUTO["enabled"] = str(config.get("GLOBAL", {}).get("PATH_TRACE_ON_ALERT", True)).lower() \
+            not in ("false", "0", "no", "off")
+        if st_paths.on_alert_open not in st_baseline.OPEN_LISTENERS:
+            st_baseline.OPEN_LISTENERS.append(st_paths.on_alert_open)
+        declared = {c.get("UID"): c for c in config.get("SERVER_CLIENT", [])}
+        st_paths.tick(dict_of_clients, declared, commands)
+    except Exception as exc:  # noqa: BLE001 - jamais bloquant pour la surveillance
+        log.warning(f"PATH TRACES NOT SENT: {type(exc).__name__}:{exc}")
 
 
 _TCP_TICK = {"last": 0.0}

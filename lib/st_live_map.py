@@ -6,6 +6,10 @@ MOS) et le RTT de la paire ; sa couleur est celle du pire sens, pour l'indicateu
 
 Valeurs lues dans VictoriaMetrics (moyenne sur 1 min) ; sans VictoriaMetrics, la carte montre les sondes et les
 liens attendus, sans couleur de qualité.
+
+Relecture d'un incident : les mêmes requêtes à un instant passé (paramètre time de VictoriaMetrics), avec l'état des
+sondes (syntraf_client_connected, collecté sur /metrics) et les alertes ouvertes à ce moment (SYNTRAF_BASELINE_ALERT) ;
+la frise (timeline) donne le pire état de chaque pas pour trouver l'incident.
 """
 
 WINDOW = "1m"
@@ -33,11 +37,15 @@ def grade(kind, value):
     return "green" if value < a else "yellow" if value < b else "orange" if value < c else "red"
 
 
-def read_metrics(vm):
+def _query(vm, expr, at):
+    return vm.query(expr) if at is None else vm.query(expr, time=at)
+
+
+def read_metrics(vm, at=None):
     out = {k: {} for k in QUERIES}
     for kind, expr in QUERIES.items():
         try:
-            result = vm.query(expr)
+            result = _query(vm, expr, at)
         except Exception:  # noqa: BLE001 - une base indisponible : la carte reste sans couleurs
             result = []
         for r in result or []:
@@ -53,6 +61,72 @@ def read_metrics(vm):
     return out
 
 
+def read_status(vm, at):
+    """{sonde: CONNECTED | DISCONNECTED} à cet instant ; {} sans collecte de /metrics."""
+    try:
+        result = _query(vm, "max by (client) (max_over_time(syntraf_client_connected[2m]))", at)
+    except Exception:  # noqa: BLE001
+        return {}
+    out = {}
+    for r in result or []:
+        uid = (r.get("metric") or {}).get("client")
+        try:
+            out[uid] = "CONNECTED" if float(r["value"][1]) >= 1 else "DISCONNECTED"
+        except (KeyError, IndexError, TypeError, ValueError):
+            continue
+    return out
+
+
+def read_alerts(vm, at):
+    """Alertes hors baseline ouvertes à cet instant : [{CLIENT, SERVER, MESH_GROUP, METRIC}]."""
+    try:
+        result = _query(vm, "max by (MESH_GROUP, CLIENT, SERVER, METRIC) "
+                            "(max_over_time(SYNTRAF_BASELINE_ALERT[2m])) > 0", at)
+    except Exception:  # noqa: BLE001
+        return []
+    keys = ("CLIENT", "SERVER", "MESH_GROUP", "METRIC")
+    return [{k: (r.get("metric") or {}).get(k) for k in keys} for r in result or []]
+
+
+def _label(value):
+    return str(value).replace("\\", "\\\\").replace('"', '\\"')
+
+
+TIMELINE = {  # pire valeur de tous les flux, par pas
+    "loss": "max(avg_over_time(SYNTRAF_RX_PCT_LOSS{sel}[{w}s]))",
+    "jitter": "max(avg_over_time(SYNTRAF_RX_JITTER{sel}[{w}s]))",
+    "mos": "min(avg_over_time(SYNTRAF_RX_MOS{sel}[{w}s]))",
+    "rtt": "max(avg_over_time(SYNTRAF_LATENCY_RTT_MS[{w}s]))",  # sans mesh group dans ses étiquettes
+    "alerts": "count(max_over_time(SYNTRAF_BASELINE_ALERT{sel}[{w}s]) > 0)",
+}
+
+
+def timeline(vm, start, end, step, mesh_group=None):
+    """Frise de start à end : pour chaque pas, le pire état (perte, gigue, MOS, RTT) et le nombre d'alertes ouvertes."""
+    start, end, step = int(start), int(end), max(int(step), 1)
+    ts = list(range(start, end + 1, step))
+    sel = f'{{MESH_GROUP="{_label(mesh_group)}"}}' if mesh_group else ""
+    out = {"t": ts, "grade": {}}
+    for kind, tmpl in TIMELINE.items():
+        values = {}
+        try:
+            result = vm.query_range(tmpl.replace("{sel}", sel).replace("{w}", str(max(step, 60))), start, end, step)
+        except Exception:  # noqa: BLE001
+            result = []
+        for serie in result or []:
+            for t, v in serie.get("values", []):
+                try:
+                    values[int(float(t))] = float(v)
+                except (TypeError, ValueError):
+                    continue
+        if kind == "alerts":
+            out[kind] = [int(values.get(t, 0)) for t in ts]
+        else:
+            out[kind] = [values.get(t) for t in ts]
+            out["grade"][kind] = [grade(kind, v) for v in out[kind]]
+    return out
+
+
 def _worst(values, kind):
     values = [v for v in values if v is not None]
     if not values:
@@ -60,7 +134,7 @@ def _worst(values, kind):
     return min(values) if kind == "mos" else max(values)
 
 
-def build(flows, clients, metrics, mesh_group=None):
+def build(flows, clients, metrics, mesh_group=None, alerts=None):
     """flows : flux attendus ({MESH_GROUP, CLIENT (émetteur), SERVER (récepteur)}) ; clients : état des sondes."""
     flows = [f for f in flows if mesh_group in (None, "", f.get("MESH_GROUP"))]
     pairs = {}
@@ -84,6 +158,8 @@ def build(flows, clients, metrics, mesh_group=None):
                     mos=_worst([x["mos"] for x in d], "mos"), rtt_ms=rtt)
         link["grade"] = {"loss": grade("loss", link["loss_pct"]), "jitter": grade("jitter", link["jitter_ms"]),
                          "mos": grade("mos", link["mos"]), "rtt": grade("rtt", rtt)}
+        link["alerts"] = [f"{x.get('CLIENT')} → {x.get('SERVER')} {x.get('METRIC')}" for x in (alerts or [])
+                          if x.get("MESH_GROUP") == link["mesh_group"] and {x.get("CLIENT"), x.get("SERVER")} == {link["a"], link["b"]}]
         links.append(link)
     used = {x for l in links for x in (l["a"], l["b"])}
     nodes = [{"id": c["uid"], "status": c.get("status", "UNKNOWN"), "behind_nat": bool(c.get("behind_nat")),

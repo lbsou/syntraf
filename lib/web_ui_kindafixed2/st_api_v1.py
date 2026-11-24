@@ -341,6 +341,23 @@ def tcp_tests_status():
     return jsonify(ops.tcp_tests_status(_state()))
 
 
+@st_api_v1.get("/paths")
+def list_paths():
+    a = request.args
+    return jsonify(ops.list_paths(_state(), a.get("source"), a.get("destination"), a.get("both") in ("1", "true"),
+                                  a.get("limit", 100)))
+
+
+@st_api_v1.get("/paths/<rid>")
+def get_path(rid):
+    return jsonify(ops.get_path(_state(), rid))
+
+
+@st_api_v1.post("/paths")
+def request_path():
+    return jsonify(ops.request_path(_state(), _body(), _actor())), 201
+
+
 @st_api_v1.get("/config/databases")
 def list_database_configs():
     return jsonify(ops.list_databases(_state()))
@@ -504,7 +521,13 @@ def alerts():
 
 @st_api_v1.get("/topology/live")
 def live_topology():
-    return jsonify(ops.live_topology(_state(), request.args.get("mesh_group") or None))
+    return jsonify(ops.live_topology(_state(), request.args.get("mesh_group") or None, request.args.get("at") or None))
+
+
+@st_api_v1.get("/topology/timeline")
+def topology_timeline():
+    a = request.args
+    return jsonify(ops.topology_timeline(_state(), a.get("from"), a.get("to"), a.get("mesh_group") or None))
 
 
 @st_api_v1.get("/databases")
@@ -738,7 +761,10 @@ OPENAPI = {
                                                False, True)},
         "/api/v1/alerts": {"get": _op("Out-of-baseline alerts: open ones, recently closed ones, flows watched or "
                                       "still learning their baseline")},
-        "/api/v1/topology/live": {"get": _op("Live map: probes and expected links with the quality of the last minute (?mesh_group=)")},
+        "/api/v1/topology/live": {"get": _op("Live map: probes and expected links with the quality of the last minute "
+                                             "(?mesh_group=) ; ?at= (Unix time): the network as it was then")},
+        "/api/v1/topology/timeline": {"get": _op("Worst state of the links and open alerts per step, to find an incident "
+                                                 "to replay (?from=, ?to= Unix time, ?mesh_group=)")},
         "/api/v1/updates": {"get": _op("This server's release and where each client stands"),
                             "post": _op("Send this server's release to clients ({CLIENTS: [...], GROUPS: [deployment groups], FORCE})")},
         "/api/v1/clients/pending": {"get": _op("Clients waiting for approval, and rejected clients")},
@@ -780,6 +806,11 @@ OPENAPI = {
                                            "delete": _op("Delete a TCP test", False, True, ("uid",))},
         "/api/v1/config/tcp_tests/{uid}/run": {"post": _op("Run a TCP test now (queued)", params=("uid",))},
         "/api/v1/tcp_tests/status": {"get": _op("Queued TCP tests and the latest results")},
+        "/api/v1/paths": {"get": _op("Path traces (traceroute, like MTR), newest first; ?source=, ?destination=, "
+                                     "?both=1 for both directions, ?limit="),
+                          "post": _op("Trace the path from probe SOURCE to probe DESTINATION now (the source probe "
+                                      "runs it)")},
+        "/api/v1/paths/{id}": {"get": _op("One path trace with its hops")},
         "/api/v1/config/databases": {"get": _op("Declared databases (tokens are never returned)"),
                                      "post": _op("Declare a database", False, True)},
         "/api/v1/config/databases/test": {"post": _op("Test database parameters without saving them")},

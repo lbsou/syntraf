@@ -64,3 +64,39 @@ def test_remark_rewrites_the_dscp_like_a_router_would_and_heals_with_the_rest():
                      "-j", "DSCP", "--set-dscp", "8"]]
     to = faults.remark_cmds(0, to_ip="10.0.0.2")[0]
     assert to[to.index("-d") + 1] == "10.0.0.2" and to[-1] == "0"
+
+
+def _fake_docker(monkeypatch):
+    """Docker simulé : chaque conteneur tourne, sur son réseau, avec eth0 ; les commandes passées sont notées."""
+    from types import SimpleNamespace
+    from lablib import topology
+    calls = []
+
+    def exec_(service, cmd, check=True):
+        calls.append((service, cmd))
+        prefix = topology.subnet_prefix(service)
+        return SimpleNamespace(stdout=f"2: eth0    inet {prefix}9/24 brd {prefix}255 scope global eth0\n")
+    monkeypatch.setattr(faults.docker, "exec_", exec_)
+    monkeypatch.setattr(faults.docker, "inspect_state", lambda s: {"running": True, "paused": False,
+                                                                   "networks": [topology.network_of(s)]})
+    return calls
+
+
+def test_heal_puts_back_the_permanent_link_profile_of_a_satellite_or_mobile_site(monkeypatch):
+    """Starlink et 5G/LTE ont un profil de lien permanent : retirer une panne ne doit pas l'effacer."""
+    calls = _fake_docker(monkeypatch)
+    faults.heal("starlink-gw")
+    netem = [c for s, c in calls if "netem" in c]
+    assert netem and all(v in netem[-1] for v in ("30ms", "12ms", "0.5%"))
+
+
+def test_heal_leaves_an_ordinary_node_clean(monkeypatch):
+    calls = _fake_docker(monkeypatch)
+    faults.heal("c1")
+    assert not [c for s, c in calls if "netem" in c]
+
+
+def test_every_permanent_profile_targets_a_known_lab_service():
+    from lablib import topology
+    assert set(topology.LINK_PROFILES) == {"c4", "starlink-gw", "c5", "mobile-gw"}
+    assert topology.LINK_PROFILES["c5"] == {"delay_ms": 22, "jitter_ms": 8, "loss_pct": 0.8, "rate": "20mbit"}

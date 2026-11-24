@@ -83,8 +83,8 @@ def sock_send(sckt, payload, command):
             "utf-8")
         data_size = struct.pack(">l", len(encoded_payload))
 
-        sckt.sendall(data_size)
-        sckt.sendall(encoded_payload)
+        # Une seule écriture : en deux, Nagle retient la seconde jusqu'à l'accusé différé du pair (~40 ms par échange)
+        sckt.sendall(data_size + encoded_payload)
         return True
 
     except Exception as exc:
@@ -338,6 +338,18 @@ def client_command_tcp_test(_config, received_data, dict_data_to_send_to_server)
         return
     st_tcp_tests.run_command(_config, command, dict_data_to_send_to_server, lambda q, p: st_outage.enqueue(
         q, p, DefaultValues.DEFAULT_CLIENT_METRICS_QUEUE_SIZE))
+
+
+def client_command_path_trace(_config, received_data, dict_data_to_send_to_server):
+    """Trace du chemin vers une autre sonde, demandée par le serveur : vérifiée, puis lancée dans un fil à part."""
+    from lib import st_paths, st_outage
+    command = received_data.get('PAYLOAD') or {}
+    problem = st_paths.command_problem(command)
+    if problem:
+        client_log.warning(f"PATH TRACE REFUSED: {guard.clean(problem)}")
+        return
+    st_paths.run_command(_config['CLIENT'].get('CLIENT_UID', ''), command, dict_data_to_send_to_server,
+                         lambda q, p: st_outage.enqueue(q, p, DefaultValues.DEFAULT_CLIENT_METRICS_QUEUE_SIZE))
 
 
 def client_command_set_token(_config, received_data):
@@ -618,12 +630,16 @@ def client_awaiting_command(ssl_conn):
     try:
         # We give the chance to the server to send us an action
         #client_log.debug(f"BEFORE ASKING FOR COMMAND TO THE SERVER")
-        sock_send(ssl_conn, "", "AWAITING_COMMAND")
+        # Horodaté : le serveur en tire l'écart de notre horloge (lib/st_clock.py)
+        from lib import st_clock
+        t1 = time.time()
+        sock_send(ssl_conn, st_clock.CLIENT.request(t1), "AWAITING_COMMAND")
         #client_log.debug(f"AFTER ASKING FOR COMMAND TO THE SERVER")
 
         # Receiving the answer
         #client_log.debug(f"BEFORE RECEIVING COMMAND OR NOP FROM THE SERVER")
         received_data = sock_rcv(ssl_conn)
+        st_clock.CLIENT.replied(t1, time.time())
         #client_log.debug(f"AFTER RECEIVING COMMAND OR NOP FROM THE SERVER")
     except Exception as exc:
         raise exc
@@ -799,6 +815,9 @@ def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processe
 
                 elif received_data['COMMAND'] == "TCP_TEST":
                     client_command_tcp_test(_config, received_data, dict_data_to_send_to_server)
+
+                elif received_data['COMMAND'] == "PATH_TRACE":
+                    client_command_path_trace(_config, received_data, dict_data_to_send_to_server)
 
                 # We just received a specific part of the configuration that we should change locally.
                 elif received_data['COMMAND'] == "DIFFCONFIG":
@@ -1008,6 +1027,11 @@ def server_save_metric(obj_client, conn_db, received_data, address, sckt):
             st_tcp_tests.record(received_data['PAYLOAD'])  # derniers résultats des tests TCP, pour l'interface
         except Exception as exc:  # noqa: BLE001 - un plus : n'empêche jamais l'écriture des mesures
             server_log.debug(f"MOS NOT COMPUTED: {type(exc).__name__}:{exc}")
+        try:  # traces du chemin : rangées à part, seul un résumé numérique va dans la base
+            from lib import st_paths
+            received_data['PAYLOAD'] = st_paths.receive(received_data['PAYLOAD'], reporter=obj_client.client_uid)
+        except Exception as exc:  # noqa: BLE001
+            server_log.warning(f"PATH RESULTS NOT FILED: {type(exc).__name__}:{exc}")
         for conn in conn_db:
             # TODO, print what is the database we are actually writing to and the result
             server_log.debug(
@@ -1237,6 +1261,8 @@ def server_awaiting_commands(client_uid, dict_of_commands_for_network_clients, s
             sent_an_action = True
         elif action['ACTION'] == "TCP_TEST":  # test TCP planifié (lib/st_tcp_tests.py)
             sock_send(sckt, {k: v for k, v in action.items() if k != "ACTION"}, "TCP_TEST")
+        elif action['ACTION'] == "PATH_TRACE":  # trace du chemin vers une autre sonde (lib/st_paths.py)
+            sock_send(sckt, {k: v for k, v in action.items() if k != "ACTION"}, "PATH_TRACE")
             sent_an_action = True
         elif action['ACTION'] == "UPDATED_CONFIG" and action.get('ELEMENT') == "CLIENT_IP":
             sock_send(sckt, action, "DIFFCONFIG")
@@ -1249,6 +1275,18 @@ def server_awaiting_commands(client_uid, dict_of_commands_for_network_clients, s
         server_log.debug(f"CONTEXT: {client_uid} - SENDING A NOP")
         sock_send(sckt, "", "NOP")
         server_log.debug(f"CONTEXT: {client_uid} - NOP SENT")
+
+
+def server_track_clock(obj_client, payload, t2):
+    """Écart et dérive de l'horloge de la sonde, à chaque demande de commande (lib/st_clock.py)."""
+    try:
+        from lib import st_clock
+        st_clock.tracker(obj_client).exchange(payload, t2, time.time())
+        est = st_clock.estimate_of(obj_client)
+        if est is not None:
+            obj_client.clock_skew_in_seconds = est["offset_ms"] / 1000.0
+    except Exception as exc:  # noqa: BLE001 - une mesure en moins, jamais une sonde déconnectée
+        server_log.debug(f"CLOCK NOT TRACKED: {type(exc).__name__}:{exc}")
 
 
 def server_save_system_infos(obj_client, received_data):
@@ -1400,8 +1438,10 @@ class Handler(StreamRequestHandler):
                             server_save_system_infos(dict_of_clients[uid], received_data)
 
                         elif received_data['COMMAND'] == "AWAITING_COMMAND":
+                            t2 = time.time()
                             server_awaiting_commands(dict_of_clients[uid].client_uid, dict_of_commands_for_network_clients,
                                                      sckt)
+                            server_track_clock(dict_of_clients[uid], received_data.get('PAYLOAD'), t2)
 
                         elif received_data['COMMAND'] == "GET_RELEASE_CHUNK":
                             server_send_release_chunk(sckt, received_data.get('PAYLOAD') or {})

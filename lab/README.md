@@ -81,11 +81,12 @@ c4 porte l'UID `STARLINK` et simule un site satellite derrière un routeur NAT (
   (`iperf3 --bidir`) ; un datagramme vide toutes les 15 s garde ouvertes les correspondances NAT des flux de retour ;
 - lien satellite : 30 ms ± 12 ms et 0,5 % de pertes dans chaque sens (environ 60 ms d'aller-retour).
 
-La dégradation (tc netem) ne survit pas au redémarrage d'un conteneur ; pour la réappliquer :
+Ce profil de lien est permanent (`LINK_PROFILES` dans `lablib/topology.py`) : `labctl heal` retire les pannes et le
+remet. Il ne survit pas au redémarrage d'un conteneur (tc netem) ; pour le réappliquer (sans autre effet que de
+retirer les pannes en cours) :
 
 ```
-python lab/labctl.py degrade c4 --delay 30 --jitter 12 --loss 0.5            # STARLINK → les autres
-python lab/labctl.py degrade starlink-gw --delay 30 --jitter 12 --loss 0.5   # les autres → STARLINK
+python lab/labctl.py heal
 ```
 
 ### Nœud mobile 5G/LTE (c5), derrière un CGNAT
@@ -98,6 +99,8 @@ chargé normalement, asymétrique comme un vrai lien radio (la montée est la pl
 python lab/labctl.py degrade c5 --delay 22 --jitter 8 --loss 0.8 --rate 20mbit           # montée : LTE_5G → les autres
 python lab/labctl.py degrade mobile-gw --delay 18 --jitter 5 --loss 0.3 --rate 100mbit  # descente : les autres → LTE_5G
 ```
+
+Profil permanent lui aussi : `labctl heal` le remet après une panne ou un redémarrage de conteneur.
 
 Mesuré : RTT ≈ 43 ms, gigue 4,5 ms en montée et 3 ms en descente, pertes 1 % et 0,3 %, MOS G.711 ≈ 4,3.
 

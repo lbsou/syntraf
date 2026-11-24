@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% from "_macros.html" import page_header %}
+{% block title %}Paths{% endblock %}
+{% block content %}
+{{ page_header("Paths", "The route between two probes, hop by hop, as it was at a given moment: for each router, the share of probes it did not answer and its round trip (average, best, worst), like MTR. Traced on demand here, and automatically in both directions when an alert opens on a flow (setting in Server › Global), so the path of the incident is kept even if the route changes afterwards.") }}
+
+<form id="trace_form" class="row g-2 align-items-end mb-4" novalidate>
+    <div class="col-sm-4">
+        <label for="p_source" class="form-label">From probe</label>
+        <select class="form-select" id="p_source" required></select>
+    </div>
+    <div class="col-sm-4">
+        <label for="p_destination" class="form-label">To probe</label>
+        <select class="form-select" id="p_destination" required></select>
+    </div>
+    <div class="col-sm-4">
+        <button type="submit" class="btn btn-primary" id="p_trace"><i class="fas fa-route me-1"></i>Trace now</button>
+    </div>
+    <div class="col-12"><div id="p_feedback" class="small" role="status"></div></div>
+</form>
+
+<div class="d-flex align-items-baseline gap-3">
+    <h2 class="h5 mb-0">Traces</h2>
+    <span id="p_filter" class="small text-white-50"></span>
+</div>
+<table id="paths_table" class="table table-sm table-hover"></table>
+
+<section id="path_detail" class="mt-4" hidden aria-labelledby="path_title">
+    <h2 class="h5" id="path_title"></h2>
+    <p id="path_meta" class="small text-white-50"></p>
+    <table id="hops_table" class="table table-sm"></table>
+</section>
+
+<script>
+const el = id => document.getElementById(id);
+const when = t => t ? new Date(t * 1000).toLocaleString() : "";
+const ms = v => v === null || v === undefined ? "" : `${v} ms`;
+const params = new URLSearchParams(location.search);
+const filter = {source: params.get("source") || "", destination: params.get("destination") || "", at: Number(params.get("at") || 0)};
+const STATUS = {pending: "Waiting to be sent", running: "Tracing…", done: "Done", failed: "Failed"};
+const METRICS = {loss: "Loss", jitter: "Jitter", rtt: "Round trip", mos: "Voice score (MOS)", tcp: "TCP bitrate"};
+let selected = params.get("id") || "";
+
+function why(row) {
+    if (row.reason !== "alert") return "By hand";
+    const a = row.alert || {};
+    return `Alert: ${METRICS[a.METRIC] || a.METRIC || "?"} on ${a.CLIENT || "?"} → ${a.SERVER || "?"}`;
+}
+
+function draw(rows) {
+    $("#paths_table").bootstrapTable("destroy").bootstrapTable({
+        data: rows, pagination: rows.length > 20, pageSize: 20,
+        rowStyle: row => ({classes: row.id === selected ? "table-active" : ""}),
+        onClickRow: row => { selected = row.id; show(row); draw(rows); },
+        formatNoMatches: () => "No trace yet. Choose two probes and trace the path, or wait for an alert.",
+        columns: st.escapedColumns([
+            {field: "requested_at", title: "When", formatter: v => st.esc(when(v))},
+            {field: "source", title: "Path", formatter: (v, row) => st.esc(`${row.source} → ${row.destination}`)},
+            {field: "reason", title: "Why", formatter: (v, row) => st.esc(why(row))},
+            {field: "status", title: "Status", formatter: (v, row) => st.esc(STATUS[v] || v) +
+                (row.error ? `<div class="small text-warning">${st.esc(row.error)}</div>` : "")},
+            {field: "hops", title: "Hops", formatter: (v, row) => row.status === "done"
+                ? st.esc(`${v.length}${row.reached ? "" : ", destination not reached"}`) : ""},
+        ]),
+    });
+}
+
+function show(row) {
+    el("path_detail").hidden = false;
+    el("path_title").textContent = `${row.source} → ${row.destination} (${row.address || "?"})`;
+    el("path_meta").textContent = [why(row), `Requested ${when(row.requested_at)}`,
+        row.finished_at ? `Finished ${when(row.finished_at)}` : "", row.tool ? `Tool: ${row.tool}` : ""]
+        .filter(Boolean).join(" · ");
+    $("#hops_table").bootstrapTable("destroy").bootstrapTable({
+        data: row.hops || [],
+        formatNoMatches: () => STATUS[row.status] || "No hop.",
+        columns: st.escapedColumns([
+            {field: "hop", title: "Hop"},
+            {field: "address", title: "Router", formatter: (v, row) => st.esc(v || "no answer") +
+                (row.others && row.others.length ? `<div class="small text-white-50">also ${st.esc(row.others.join(", "))}</div>` : "")},
+            {field: "loss_pct", title: "No answer", formatter: v => st.esc(v === null ? "" : `${v} %`)},
+            {field: "rtt_avg", title: "Average", formatter: v => st.esc(ms(v))},
+            {field: "rtt_min", title: "Best", formatter: v => st.esc(ms(v))},
+            {field: "rtt_max", title: "Worst", formatter: v => st.esc(ms(v))},
+        ]),
+    });
+}
+
+let timer = null;
+async function refresh() {
+    const q = new URLSearchParams({limit: 200});
+    if (filter.source) { q.set("source", filter.source); }
+    if (filter.destination) { q.set("destination", filter.destination); q.set("both", "1"); }
+    const r = await st.api("GET", "/api/v1/paths?" + q);
+    if (!r.ok) { el("p_feedback").textContent = r.error.message; return; }
+    let rows = r.data;
+    if (!selected && filter.at) {  // depuis une alerte : la trace la plus proche de son ouverture
+        const near = rows.filter(x => Math.abs(x.requested_at - filter.at) < 900)
+                         .sort((a, b) => Math.abs(a.requested_at - filter.at) - Math.abs(b.requested_at - filter.at));
+        if (near.length) selected = near[0].id;
+    }
+    draw(rows);
+    const cur = rows.find(x => x.id === selected);
+    if (cur) show(cur);
+    clearTimeout(timer);
+    if (rows.some(x => x.status === "pending" || x.status === "running")) timer = setTimeout(refresh, 4000);
+    document.body.dataset.pathsLoaded = "1";
+}
+
+async function loadProbes() {
+    const r = await st.api("GET", "/api/v1/config/clients");
+    const uids = r.ok ? r.data.map(c => c.UID).sort() : [];
+    for (const id of ["p_source", "p_destination"]) {
+        el(id).innerHTML = uids.map(u => `<option value="${st.esc(u)}">${st.esc(u)}</option>`).join("");
+    }
+    if (filter.source) el("p_source").value = filter.source;
+    if (filter.destination) el("p_destination").value = filter.destination;
+    else if (uids.length > 1) el("p_destination").value = uids[1];
+    if (filter.source || filter.destination) {
+        el("p_filter").innerHTML = `${st.esc(filter.source || "any")} ↔ ${st.esc(filter.destination || "any")} · <a href="/paths.html">all traces</a>`;
+    }
+}
+
+el("trace_form").addEventListener("submit", async e => {
+    e.preventDefault();
+    el("p_trace").disabled = true;
+    const r = await st.api("POST", "/api/v1/paths", {SOURCE: el("p_source").value, DESTINATION: el("p_destination").value});
+    el("p_trace").disabled = false;
+    if (!r.ok) {
+        const f = r.error.fields || {};
+        el("p_feedback").textContent = f.DESTINATION || f.SOURCE || r.error.message;
+        el("p_feedback").className = "small text-warning";
+        return;
+    }
+    selected = r.data.id;
+    el("p_feedback").textContent = "Trace requested: the probe runs it within a few seconds.";
+    el("p_feedback").className = "small text-success";
+    refresh();
+});
+
+loadProbes().then(refresh);
+</script>
+{% endblock %}

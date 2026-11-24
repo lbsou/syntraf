@@ -249,13 +249,19 @@ async function update_system_stats() {
                 document.getElementById(client_uid + '_clock_skew').className = "";
                 document.getElementById(client_uid + '_ip_address').className = "";
 
-                // Displaying the clock skew
-                document.getElementById(client_uid + '_clock_skew').title = Math.round(data['clock_skew_in_seconds']) + " seconds";
-                document.getElementById(client_uid + '_clock_skew').innerHTML= '<i class="fa fa-clock" aria-hidden="true"></i>';
-                if (data['clock_skew_in_seconds'] >= 10){
-                    document.getElementById(client_uid + '_clock_skew').className = "text-danger";
+                // Horloge : écart au serveur mesuré en continu (lib/st_clock.py) ; sinon, l'écart vu à la connexion
+                const clock = document.getElementById(client_uid + '_clock_skew');
+                const off = data['clock_offset_ms'], drift = data['clock_drift_ppm'];
+                const offMs = off !== null && off !== undefined ? off : data['clock_skew_in_seconds'] * 1000;
+                const gap = Math.abs(offMs) < 1000 ? Math.round(Math.abs(offMs)) + " ms" : (Math.abs(offMs) / 1000).toFixed(1) + " s";
+                clock.title = (off === null || off === undefined ? `${Math.round(data['clock_skew_in_seconds'])} seconds`
+                    : offMs > 0 ? `Behind the server by ${gap}` : `Ahead of the server by ${gap}`) +
+                    (drift !== null && drift !== undefined ? `, drift ${drift} ppm` : "");
+                clock.innerHTML = '<i class="fa fa-clock" aria-hidden="true"></i>';
+                if (Math.abs(offMs) >= 1000 || (drift !== null && drift !== undefined && Math.abs(drift) > 15)){
+                    clock.className = "text-danger";
                 }
-                else if (data['clock_skew_in_seconds'] == -1){
+                else if (data['clock_skew_in_seconds'] == -1 && (off === null || off === undefined)){
                     document.getElementById(client_uid + '_clock_skew').className = "text-muted";
                 }
                 else{

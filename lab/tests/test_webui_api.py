@@ -511,3 +511,45 @@ def test_maintenance_windows_api(env):
     assert r.status_code == 400 and "FROM" in r.json["error"]["fields"]
     assert c.delete("/api/v1/config/maintenance/SUNDAY_WORK").status_code == 200
     assert c.get("/api/v1/config/maintenance").json == []
+
+
+def test_paths_api(env, tmp_path, monkeypatch):
+    from lib import st_paths
+    monkeypatch.setattr(st_paths, "_STORE", [st_paths.PathStore(tmp_path / "paths.json")])
+    c = env["client"]
+    probes = [p["UID"] for p in c.get("/api/v1/config/clients").json]
+    r = c.post("/api/v1/paths", json={"SOURCE": probes[0], "DESTINATION": probes[0]})
+    assert r.status_code == 400 and "DESTINATION" in r.json["error"]["fields"]
+    assert c.post("/api/v1/paths", json={"SOURCE": "NOPE", "DESTINATION": probes[1]}).status_code == 400
+    r = c.post("/api/v1/paths", json={"SOURCE": probes[0], "DESTINATION": probes[1]})
+    assert r.status_code == 201 and r.json["status"] == "pending" and r.json["reason"] == "manual"
+    rid = r.json["id"]
+    assert [p["id"] for p in c.get(f"/api/v1/paths?source={probes[1]}&destination={probes[0]}&both=1").json] == [rid]
+    assert c.get(f"/api/v1/paths/{rid}").json["source"] == probes[0]
+    assert c.get("/api/v1/paths/nope").status_code == 404
+    assert "/api/v1/paths" in c.get("/api/v1/openapi.json").json["paths"]
+
+
+def test_tracing_the_path_on_alert_is_a_live_global_setting(env):
+    c = env["client"]
+    r = c.put("/api/v1/config/global", json={"PATH_TRACE_ON_ALERT": False})
+    assert r.status_code == 200 and r.json["restart_required"] == []
+    assert c.get("/api/v1/config/global").json["PATH_TRACE_ON_ALERT"].lower() == "false"
+
+
+def test_probe_clock_limits_are_live_global_settings(env):
+    c = env["client"]
+    r = c.put("/api/v1/config/global", json={"CLOCK_OFFSET_MAX_MS": "0"})
+    assert r.status_code == 400 and "CLOCK_OFFSET_MAX_MS" in r.json["error"]["fields"]
+    r = c.put("/api/v1/config/global", json={"CLOCK_OFFSET_MAX_MS": "250", "CLOCK_DRIFT_MAX_PPM": "5"})
+    assert r.status_code == 200 and r.json["restart_required"] == []
+
+
+def test_metrics_exposes_the_clock_of_each_connected_probe(env):
+    from lib import st_clock
+    from lib.web_ui_kindafixed2 import st_api_v1
+    with env["app"].app_context():
+        obj = st_api_v1._state()["dict_of_clients"]["NODE_A"]
+    st_clock.tracker(obj).add(1000.0, offset=0.042, delay=0.003)
+    text = env["client"].get("/metrics").get_data(as_text=True)
+    assert 'syntraf_client_clock_offset_seconds{client="NODE_A"} 0.042' in text

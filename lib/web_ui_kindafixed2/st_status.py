@@ -52,6 +52,7 @@ def clients(state):
             "dynamic_ip": decl.get("IP_ADDRESS", "") in ("", "0.0.0.0"),
             "syntraf_version": getattr(obj, "syntraf_version", "") if obj is not None else "",
             "clock_skew_seconds": getattr(obj, "clock_skew_in_seconds", None) if obj is not None else None,
+            **_clock(obj),
             "mesh_groups": decl.get("MESH_GROUP_UID_LIST", []),
             "metrics_buffer": getattr(obj, "metrics_buffer", None) if obj is not None else None,
             "release": getattr(obj, "release_id", None) if obj is not None else None,
@@ -60,6 +61,13 @@ def clients(state):
             "declared": uid in declared,
         })
     return rows
+
+
+def _clock(obj):
+    from lib import st_clock
+    est = st_clock.estimate_of(obj) or {}
+    return {"clock_offset_ms": est.get("offset_ms"), "clock_drift_ppm": est.get("drift_ppm"),
+            "clock_delay_ms": est.get("delay_ms")}
 
 
 def _is_ip(text):
@@ -166,6 +174,12 @@ def metrics(state):
            [({"client": c["uid"], "role": role}, c[role]) for c in snap["clients"] for role in ("listeners", "connectors")])
     metric("syntraf_client_buffered_points", "Measurements waiting on the client to be sent to the server.", "gauge",
            [({"client": c["uid"]}, c["metrics_buffer"]) for c in snap["clients"] if c["metrics_buffer"] is not None])
+    metric("syntraf_client_clock_offset_seconds", "Server clock minus client clock (positive: the client is behind).",
+           "gauge", [({"client": c["uid"]}, c["clock_offset_ms"] / 1000.0) for c in snap["clients"]
+                     if c.get("clock_offset_ms") is not None and c["status"] == "CONNECTED"])
+    metric("syntraf_client_clock_drift_ppm", "Drift of the client clock over the last hour (positive: it gains).",
+           "gauge", [({"client": c["uid"]}, c["clock_drift_ppm"]) for c in snap["clients"]
+                     if c.get("clock_drift_ppm") is not None and c["status"] == "CONNECTED"])
     metric("syntraf_mesh_groups", "Mesh groups by state.", "gauge",
            [({"state": s}, snap["mesh_groups_summary"][s]) for s in ("enabled", "disabled")])
     metric("syntraf_database_up", "1 if the database is reachable.", "gauge",

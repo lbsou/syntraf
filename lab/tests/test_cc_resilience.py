@@ -8,6 +8,8 @@ import sys
 import threading
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from lib.st_config_diff import edges_to_restart  # noqa: E402
@@ -97,3 +99,23 @@ def test_reuse_keys_then_nothing_to_restart():
     old = cfg(connectors={"old_key": C1})
     new = cfg(connectors=reuse_keys(old["CONNECTORS"], {"new_key": dict(C1)}))
     assert edges_to_restart(old, new) == ([], [])
+
+
+def test_a_message_leaves_in_one_write_so_nagle_does_not_hold_it():
+    """Taille puis contenu en deux écritures : Nagle retient la seconde jusqu'à l'accusé différé du pair (~40 ms), ce
+    qui ralentissait chaque échange du canal de contrôle et faussait la mesure de l'horloge des sondes."""
+    pytest.importorskip("toml")
+    import lib.st_process_and_thread  # noqa: F401 - charge st_mesh dans l'ordre du serveur
+    from lib import st_mesh
+
+    class Recorder:
+        def __init__(self):
+            self.writes = []
+
+        def sendall(self, data):
+            self.writes.append(bytes(data))
+    r = Recorder()
+    st_mesh.sock_send(r, {"T1": 1.5}, "AWAITING_COMMAND")
+    assert len(r.writes) == 1
+    size = int.from_bytes(r.writes[0][:4], "big", signed=True)
+    assert size == len(r.writes[0]) - 4 and b'"AWAITING_COMMAND"' in r.writes[0]

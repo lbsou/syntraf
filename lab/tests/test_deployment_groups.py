@@ -215,3 +215,33 @@ def test_auto_mode_uses_the_measured_round_trip_and_declared_capacity(state, mon
     ops.tcp_tests_tick(state, now=1000.0)
     client = [c for u in state["dict_of_commands_for_network_clients"].values() for c in u if c.get("ROLE") == "client"][0]
     assert client["TEST"]["WINDOW"] == "950000" and client["TEST"]["BANDWIDTH"] == "95M"
+
+
+def test_the_live_map_replays_a_past_instant_from_victoriametrics(state, monkeypatch):
+    from lib import st_live_map
+    state["config"]["DATABASE"] = [{"DB_UID": "VM", "DB_ENGINE": "VictoriaMetrics", "DB_SERVER": "h", "DB_PORT": "1"}]
+    seen = {}
+
+    def read_metrics(vm, at=None):
+        seen["at"] = at
+        return {"loss": {}, "jitter": {}, "mos": {}, "rtt": {}}
+    monkeypatch.setattr(st_live_map, "read_metrics", read_metrics)
+    monkeypatch.setattr(st_live_map, "read_status", lambda vm, at: {"PILOT_1": "DISCONNECTED"})
+    monkeypatch.setattr(st_live_map, "read_alerts", lambda vm, at: [])
+    m = ops.live_topology(state, at="1000")
+    assert seen["at"] == 1000 and m["at"] == 1000
+    status = {n["id"]: n["status"] for n in m["nodes"]}
+    assert status["PILOT_1"] == "DISCONNECTED" and status["WAVE_1"] == "UNKNOWN"  # pas collecté : inconnu
+    with pytest.raises(ops.OpError):
+        ops.live_topology(state, at="demain")
+
+
+def test_the_timeline_window_is_checked(state, monkeypatch):
+    from lib import st_live_map
+    state["config"]["DATABASE"] = [{"DB_UID": "VM", "DB_ENGINE": "VictoriaMetrics", "DB_SERVER": "h", "DB_PORT": "1"}]
+    monkeypatch.setattr(st_live_map, "timeline", lambda vm, s, e, step, g: {"t": [s], "step_seen": step})
+    t = ops.topology_timeline(state, "1000000", str(1000000 + 6 * 3600))
+    assert t["step"] == 60 and t["t"][0] % 60 == 0
+    assert ops.topology_timeline(state, "1000000", str(1000000 + 7 * 86400))["step"] == 1680
+    with pytest.raises(ops.OpError):
+        ops.topology_timeline(state, "2000", "1000")

@@ -540,6 +540,114 @@
       "description": "Collecté toutes les 15 s sur /metrics du serveur (Server › Interface web : collecteurs autorisés). Les mêmes contrôles lèvent des alertes dans l'interface (groupe « SYNTRAF »)."
     },
     {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Horloge des sondes : écart au serveur",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "syntraf-vm"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "syntraf-vm"
+          },
+          "expr": "syntraf_client_clock_offset_seconds * 1000",
+          "legendFormat": "{{client}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "Horloge du serveur moins celle de la sonde, mesurée en continu sur le canal de contrôle (comme NTP) : positif, la sonde retarde. Alerte au-delà du seuil réglé dans Server › Global (1 s par défaut)."
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Horloge des sondes : dérive",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "syntraf-vm"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 21,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "syntraf-vm"
+          },
+          "expr": "syntraf_client_clock_drift_ppm",
+          "legendFormat": "{{client}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ppm",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "Pente de l'écart sur la dernière heure, en millionièmes : positive, l'horloge de la sonde avance. 15 ppm ≈ 1,3 s par jour, une horloge sans synchronisation (NTP). Calculée après une heure de mesures."
+    },
+    {
       "id": 202,
       "type": "row",
       "title": "Serveur et bases",
@@ -547,13 +655,13 @@
       "panels": [],
       "gridPos": {
         "x": 0,
-        "y": 21,
+        "y": 30,
         "w": 24,
         "h": 1
       }
     },
     {
-      "id": 5,
+      "id": 7,
       "type": "stat",
       "title": "Bases de données",
       "description": "Collecté toutes les 15 s sur /metrics du serveur (Server › Interface web : collecteurs autorisés). Les mêmes contrôles lèvent des alertes dans l'interface (groupe « SYNTRAF »).",
@@ -563,7 +671,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 22,
+        "y": 31,
         "w": 12,
         "h": 5
       },
@@ -630,7 +738,7 @@
       }
     },
     {
-      "id": 6,
+      "id": 8,
       "type": "stat",
       "title": "Fils du serveur",
       "description": "Collecté toutes les 15 s sur /metrics du serveur (Server › Interface web : collecteurs autorisés). Les mêmes contrôles lèvent des alertes dans l'interface (groupe « SYNTRAF »).",
@@ -640,7 +748,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 22,
+        "y": 31,
         "w": 12,
         "h": 5
       },
@@ -707,7 +815,7 @@
       }
     },
     {
-      "id": 7,
+      "id": 9,
       "type": "timeseries",
       "title": "Points en attente d'écriture",
       "datasource": {
@@ -716,7 +824,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 27,
+        "y": 36,
         "w": 12,
         "h": 9
       },
@@ -762,7 +870,7 @@
       "description": "Collecté toutes les 15 s sur /metrics du serveur (Server › Interface web : collecteurs autorisés). Les mêmes contrôles lèvent des alertes dans l'interface (groupe « SYNTRAF »)."
     },
     {
-      "id": 8,
+      "id": 10,
       "type": "timeseries",
       "title": "File du serveur",
       "datasource": {
@@ -771,7 +879,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 27,
+        "y": 36,
         "w": 12,
         "h": 9
       },

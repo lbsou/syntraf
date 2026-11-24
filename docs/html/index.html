@@ -55,7 +55,7 @@
         <li><a href="#install-service">Running as a service</a></li><li><a href="#install-firewall">Firewall</a></li></ol></li>
     <li><a href="#quickstart">4. Quick start</a></li>
     <li><a href="#webui">5. Web interface</a>
-      <ol><li><a href="#ui-dashboard">Dashboard</a></li><li><a href="#ui-alerts">Alerts</a></li><li><a href="#ui-meshgroups">Mesh groups</a></li>
+      <ol><li><a href="#ui-dashboard">Dashboard</a></li><li><a href="#ui-alerts">Alerts</a></li><li><a href="#ui-livemap">Live map</a></li><li><a href="#ui-paths">Paths</a></li><li><a href="#ui-meshgroups">Mesh groups</a></li>
         <li><a href="#ui-profiles">Profiles</a></li><li><a href="#ui-tcptests">TCP tests</a></li>
         <li><a href="#ui-clients">Clients</a></li>
         <li><a href="#ui-databases">Databases</a></li><li><a href="#ui-server">Server</a></li>
@@ -313,6 +313,17 @@ The server evaluates every minute and writes <code>SYNTRAF_BASELINE{MESH_GROUP, 
 out of baseline). <code>BASELINE = false</code> in <code>[GLOBAL]</code> turns it off; <code>GET /api/v1/alerts</code>.
 The detector is interchangeable; a learned (ML) detector would only be added if it does better on the lab's test bench
 (<code>lab/bench_alerts.py</code>: faults injected at known times, detections, misses, false alarms, delay).</p>
+<p>Each alert has two links to investigate it: <em>Path</em>, the route of the flow traced when the alert opened (see
+<a href="#ui-paths">Paths</a>), and <em>Replay on the map</em>, the live map as it was at that moment.</p>
+<p><strong>Probe clocks.</strong> Every command poll of a probe is a round trip timed at both ends, like NTP: the server
+derives the offset of the probe's clock (corrected for the network delay; the least delayed of the last exchanges) and,
+after an hour, its drift (slope of the offset, in parts per million). An alert opens (group « SYNTRAF ») when a clock is
+off by more than <code>CLOCK_OFFSET_MAX_MS</code> (1000 ms by default) or drifts by more than
+<code>CLOCK_DRIFT_MAX_PPM</code> (15 ppm, about 1.3 s per day: no time synchronization), both in Server › Global. The
+offset and drift are on the Clients page (clock icon), in <code>/metrics</code>
+(<code>syntraf_client_clock_offset_seconds</code>, <code>syntraf_client_clock_drift_ppm</code>) and in the « Santé de
+SYNTRAF » dashboard. The accuracy is bounded by the asymmetry of the path: under a millisecond on a LAN, a few
+milliseconds on a satellite link.</p>
 
 <h3 id="ui-livemap">Live map</h3>
 <p>The probes and the links they measure, colored by the quality of the last minute: loss, voice quality (MOS),
@@ -320,6 +331,28 @@ round-trip latency or jitter, the worst of the two directions (green, yellow, or
 flow without measurement). A probe behind a NAT has a dashed blue border. Pointing at a link shows each direction
 (loss, jitter, MOS) and the round trip; the map can be limited to one mesh group and refreshes every 10 seconds
 (<code>GET /api/v1/topology/live?mesh_group=</code>). It needs a VictoriaMetrics database for the colors.</p>
+<p><strong>Replaying an incident.</strong> The bar above the map replays the last hour, 6 hours, 24 hours or 7 days: a
+band per step shows the worst link at that moment for the chosen indicator, with a red mark when alerts were open, so
+the incident is easy to find. Moving the cursor (or clicking a band, or the step buttons, or <em>Play</em>) redraws
+the map as it was then: the quality of each link, the links with alerts open (red halo, listed in the link's details)
+and the state of each probe (read from the collection of <code>/metrics</code>; grey when it was not collected).
+<em>Live</em> returns to the present. The address carries the instant (<code>?at=</code>, Unix time), so a replay can
+be shared; the Alerts page links to the opening of each alert (<code>GET /api/v1/topology/live?at=</code>,
+<code>GET /api/v1/topology/timeline?from=&amp;to=&amp;mesh_group=</code>).</p>
+
+<h3 id="ui-paths">Paths</h3>
+<p>The route between two probes, hop by hop, as it was at a given moment, like MTR: for each router, the share of
+probes it did not answer and its round trip (average, best, worst). The probe traces it itself, five rounds paced at
+1.2 s (routers limit their ICMP answers to about one per second): on Linux with UDP probes and the ICMP errors read
+from the socket error queue (no privilege, like <code>tracepath</code>), on Windows with <code>tracert</code>, on
+macOS with <code>traceroute</code>; IPv4. Trace one on demand from the Paths page; when an alert opens on a flow, both
+probes trace the route to each other automatically (at most once every 10 minutes per pair; Server › Global, « Trace
+the path when an alert opens »), so the path of the incident is kept even if the route changes afterwards. A
+destination that is down is still traced, at its last known address. The server keeps the last 500 traces
+(<code>paths.json</code> in its data directory) and writes a summary to the database (<code>SYNTRAF_PATH</code>:
+<code>HOP_COUNT</code>, <code>REACHED</code>, <code>RTT_MS</code>). API: <code>GET /api/v1/paths</code>,
+<code>GET /api/v1/paths/{id}</code>, <code>POST /api/v1/paths</code> (<code>SOURCE</code>,
+<code>DESTINATION</code>).</p>
 
 <h3 id="ui-meshgroups">Mesh groups</h3>
 <p>A mesh group is a set of clients that measure each other with the same traffic settings. Actions: New, Edit,
@@ -799,6 +832,8 @@ impact, settings needing a restart). A change that triggers a capacity alert ans
   <tr><td>Updates</td><td><code>GET|POST /updates</code></td></tr>
   <tr><td>Data</td><td><code>GET /data</code>, <code>POST /data/{uid}/purge</code>, <code>POST /data/{uid}/snapshots</code>, <code>DELETE /data/{uid}/snapshots/{name}</code></td></tr>
   <tr><td>Alerts</td><td><code>GET /alerts</code> (open and recently closed, flows watched and learning)</td></tr>
+  <tr><td>Paths</td><td><code>GET|POST /paths</code>, <code>GET /paths/{id}</code></td></tr>
+  <tr><td>Live map</td><td><code>GET /topology/live</code> (<code>?at=</code>: replay), <code>GET /topology/timeline</code></td></tr>
   <tr><td>TCP tests</td><td><code>GET|POST /config/tcp_tests</code>, <code>PUT|DELETE /config/tcp_tests/{uid}</code>, <code>POST /config/tcp_tests/{uid}/run</code>, <code>GET /tcp_tests/status</code></td></tr>
 </table>
 <pre><code># preview, then create a mesh group

@@ -174,6 +174,11 @@
                 <input class="form-check-input" type="checkbox" role="switch" id="g_baseline">
                 <label class="form-check-label" for="g_baseline">Raise out-of-baseline alerts</label>
             </div>
+            <div class="form-check form-switch mt-1">
+                <input class="form-check-input" type="checkbox" role="switch" id="g_pathtrace" aria-describedby="g_pathtrace_help">
+                <label class="form-check-label" for="g_pathtrace">Trace the path when an alert opens</label>
+                <div id="g_pathtrace_help" class="form-text">Both probes of the flow trace the route to each other, so the path of that moment is kept (Paths page).</div>
+            </div>
         </div>
         <div class="col-md-4 mb-3">
             <label for="g_logto" class="form-label">Log to <span class="badge bg-secondary">restart</span></label>
@@ -245,6 +250,25 @@
             </div>
         </div>
         <div class="col-md-6 mb-3"><div class="form-text pt-md-4">Longer on unstable links (radio, satellite) to ignore short events; an alert closes once the flow is clearly back (under half the threshold) for that long.</div></div>
+    </div>
+    <div class="row">
+        <div class="col-md mb-3">
+            <label for="g_clock_off" class="form-label">Probe clock off by more than <span class="badge bg-success">live</span></label>
+            <div class="input-group has-validation">
+                <input class="form-control" id="g_clock_off" data-field="CLOCK_OFFSET_MAX_MS" inputmode="decimal" placeholder="1000">
+                <span class="input-group-text">ms</span>
+                <div class="invalid-feedback" data-feedback="CLOCK_OFFSET_MAX_MS"></div>
+            </div>
+        </div>
+        <div class="col-md mb-3">
+            <label for="g_clock_drift" class="form-label">Probe clock drifting by more than <span class="badge bg-success">live</span></label>
+            <div class="input-group has-validation">
+                <input class="form-control" id="g_clock_drift" data-field="CLOCK_DRIFT_MAX_PPM" inputmode="decimal" placeholder="15">
+                <span class="input-group-text">ppm</span>
+                <div class="invalid-feedback" data-feedback="CLOCK_DRIFT_MAX_PPM"></div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-3"><div class="form-text pt-md-4">Each probe's clock is compared to the server's continuously, over the control channel (like NTP). An alert opens when it is off, or drifts (15 ppm ≈ 1.3 s per day: no time synchronization), beyond these limits.</div></div>
     </div>
     <div class="row">
         <div class="col-md-6 mb-3">
@@ -512,9 +536,10 @@ const GLOBAL_TEXT = {WATCHDOG_CHECK_RATE: "g_watchdog", IPERF3_TIME_SKEW_THRESHO
                      IPERF3_CONNECT_TIMEOUT: "g_connect", LATENCY_PORT: "g_latency_port", BASELINE_SENSITIVITY: "g_bl_k",
                      BASELINE_MARGIN_LOSS: "g_bl_loss", BASELINE_MARGIN_JITTER: "g_bl_jitter", BASELINE_MARGIN_RTT: "g_bl_rtt",
                      BASELINE_MARGIN_MOS: "g_bl_mos", BASELINE_MARGIN_TCP: "g_bl_tcp", BASELINE_OPEN_AFTER: "g_bl_open",
-                     BASELINE_CLOSE_AFTER: "g_bl_close",
+                     BASELINE_CLOSE_AFTER: "g_bl_close", CLOCK_OFFSET_MAX_MS: "g_clock_off",
+                     CLOCK_DRIFT_MAX_PPM: "g_clock_drift",
                      };
-const GLOBAL_BOOL = {IPERF3_AUTH: "g_auth", LOG_PURGE_ON_START: "g_purge", LATENCY: "g_latency", BASELINE: "g_baseline"};
+const GLOBAL_BOOL = {IPERF3_AUTH: "g_auth", LOG_PURGE_ON_START: "g_purge", LATENCY: "g_latency", BASELINE: "g_baseline", PATH_TRACE_ON_ALERT: "g_pathtrace"};
 
 async function loadGlobal() {
     const r = await st.api("GET", "/api/v1/config/global");
