@@ -616,3 +616,17 @@ def test_addresses_that_hang_up_before_identifying_are_listed_with_the_pending_r
         assert [u["IP_ADDRESS"] for u in d["unidentified"]] == ["10.120.130.27"] and d["unidentified"][0]["ATTEMPTS"] == 3
     finally:
         st_preauth.DROPS.forget("10.120.130.27")
+
+
+def test_the_server_update_from_github_api(env, monkeypatch):
+    from lib import st_github_update as gu
+    monkeypatch.setattr(gu, "http_get", lambda url: (_ for _ in ()).throw(OSError("network unreachable")))
+    monkeypatch.delenv("SYNTRAF_SUPERVISED", raising=False)
+    c = env["client"]
+    st = c.get("/api/v1/server/update").json
+    assert st["current"] and st["supervised"] is False and st["enabled"] is True
+    st = c.post("/api/v1/server/update/check").json
+    assert st["available"] is False and "unreachable" in st["error"]
+    r = c.post("/api/v1/server/update")
+    assert r.status_code == 409 and "supervisor" in r.json["error"]["message"]
+    assert "/api/v1/server/update" in c.get("/api/v1/openapi.json").json["paths"]

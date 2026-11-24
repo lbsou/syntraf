@@ -474,7 +474,7 @@ GLOBAL_LIVE_KEYS = ("LOG_LEVEL", "LOG_FORWARD_LEVEL", "LOG_RETENTION_DAYS", "WAT
                     "IPERF3_TIME_SKEW_THRESHOLD", "IPERF3_CONNECT_TIMEOUT", "LATENCY", "LATENCY_PORT", "BASELINE",
                     "BASELINE_SENSITIVITY", "BASELINE_MARGIN_LOSS", "BASELINE_MARGIN_JITTER", "BASELINE_MARGIN_RTT",
                     "BASELINE_MARGIN_MOS", "BASELINE_MARGIN_TCP", "BASELINE_OPEN_AFTER",
-                    "BASELINE_CLOSE_AFTER", "PATH_TRACE_ON_ALERT", "REACHABILITY_CHECK", "CLOCK_OFFSET_MAX_MS",
+                    "BASELINE_CLOSE_AFTER", "PATH_TRACE_ON_ALERT", "REACHABILITY_CHECK", "UPDATE_CHECK", "CLOCK_OFFSET_MAX_MS",
                     "CLOCK_DRIFT_MAX_PPM") + st_syslog.KEYS
 # Réglages transmis aux clients à leur connexion : un changement les fait se reconnecter pour les recevoir
 GLOBAL_SENT_TO_CLIENTS = (("LOG_FORWARD_LEVEL", "INFO"), ("IPERF3_TIME_SKEW_THRESHOLD", None),
@@ -608,6 +608,7 @@ GLOBAL_FIELDS = {
     "LATENCY_PORT": (lambda v: v.isdigit() and 1 <= int(v) <= 65535, "A UDP port, 1 to 65535", False),
     "BASELINE": (lambda v: True, "", True),
     "PATH_TRACE_ON_ALERT": (lambda v: True, "", True),
+    "UPDATE_CHECK": (lambda v: True, "", True),
     "REACHABILITY_CHECK": (lambda v: True, "", True),
     "CLOCK_OFFSET_MAX_MS": (_check_float_range(1, 3600000), "Milliseconds, 1 to 3600000", False),
     "CLOCK_DRIFT_MAX_PPM": (_check_float_range(0.1, 10000), "Parts per million, 0.1 to 10000", False),
@@ -628,7 +629,7 @@ GLOBAL_READ_ONLY = ("LOGDIR",)  # imposé par l'option -l au démarrage
 # Un programme exécuté par le serveur et le dossier où il écrit ses clés : jamais modifiables à distance (un
 # appelant de l'API ferait exécuter n'importe quel fichier) ; seulement dans le fichier de configuration
 GLOBAL_FILE_ONLY = ("IPERF3_BINARY_PATH", "IPERF3_RSA_KEY_DIRECTORY")
-GLOBAL_TRUE_BY_DEFAULT = ("LATENCY", "BASELINE", "PATH_TRACE_ON_ALERT", "REACHABILITY_CHECK")
+GLOBAL_TRUE_BY_DEFAULT = ("LATENCY", "BASELINE", "PATH_TRACE_ON_ALERT", "REACHABILITY_CHECK", "UPDATE_CHECK")
 FILE_ONLY_MESSAGE = "Set in the configuration file on the server only"
 
 
@@ -741,6 +742,55 @@ def reveal_token(state, name, actor):
 
 
 # ------------------------------------------------------------------------------------------ mises à jour
+
+def server_update_status(state):
+    """Mise à jour du serveur depuis GitHub (lib/st_github_update.py) : dernière vérification et état du superviseur."""
+    from lib import st_github_update as gu, st_updater
+    from lib.st_global import DefaultValues
+    st = dict(gu.CHECKER.status or {"latest": None, "available": False, "checked_at": None, "note": None,
+                                     "error": None, "url": None, "published_at": None})
+    st["current"] = DefaultValues.SYNTRAF_VERSION
+    st["supervised"] = bool(os.environ.get(st_updater.ENV_CHILD))
+    sv = st_updater.read_state(str(DefaultValues.SYNTRAF_DATA_DIR))
+    st["release"] = os.environ.get(st_updater.ENV_RELEASE)
+    st["pending"] = (sv.get("pending") or {}).get("id")
+    st["last_failed"] = (sv.get("failed") or [None])[-1]
+    st["enabled"] = str((state["config"].get("GLOBAL", {}) or {}).get("UPDATE_CHECK", True)).lower() \
+        not in ("false", "0", "no", "off")
+    return st
+
+
+def server_update_check(state):
+    from lib import st_github_update as gu
+    from lib.st_global import DefaultValues
+    gu.CHECKER.run_now(state["config"], DefaultValues.SYNTRAF_VERSION)
+    return server_update_status(state)
+
+
+def server_update_apply(state, actor):
+    """Installe la dernière release signée de GitHub ; le superviseur bascule dessus dans les secondes qui suivent,
+    et revient à la version actuelle si la nouvelle ne démarre pas."""
+    import sys as _sys
+    from lib import st_github_update as gu, st_updater
+    from lib.st_global import DefaultValues
+    if not os.environ.get(st_updater.ENV_CHILD):
+        raise OpError(409, "This server is not started through its supervisor (syntraf.py run by the service): "
+                           "update it with its installation package")
+    repo = str((state["config"].get("GLOBAL", {}) or {}).get("UPDATE_REPOSITORY") or gu.REPOSITORY)
+    try:
+        out = gu.apply(gu.http_get, DefaultValues.SYNTRAF_VERSION, str(DefaultValues.SYNTRAF_DATA_DIR),
+                       _sys.executable, repo)
+    except gu.UpdateError as exc:
+        raise OpError(409, f"Not updated: {exc}")
+    except (OSError, ValueError) as exc:
+        raise OpError(502, f"Not updated: GitHub unreachable ({exc})")
+    except st_updater.UpdateError as exc:
+        raise OpError(409, f"Not updated: {exc}")
+    store.log_event(state["config_file_path"], actor, "UPDATE_SERVER",
+                    f"Server updated from GitHub to {out['version']} ({out['release']})")
+    msg = f"Installing {out['version']}: the server restarts on it within seconds, and goes back to {DefaultValues.SYNTRAF_VERSION} by itself if it does not come up."
+    return dict(out, message=msg)
+
 
 def builtin_release():
     from lib import st_release

@@ -42,6 +42,7 @@ def tabulate(rows, tablefmt=None):
 import threading
 import logging
 import os
+import time
 from copy import deepcopy
 import json
 from lib.st_latency import tcp_ping
@@ -277,9 +278,31 @@ def run():
                            _dict_by_node_generated_config)
             # Traces du chemin demandées (interface, API, ouverture d'alerte) : envoyées aux sondes sources
             paths_tick(config, dict_of_clients, dict_of_commands_for_network_clients)
+            # Releases signées sur GitHub (chaque jour) ; une release du serveur démarrée devient définitive
+            server_update_tick(config)
             # Accessibilité entrante des sondes (NAT, pare-feu) : tests demandés ou automatiques
             reach_tick(config, dict_of_clients, _dict_by_node_generated_config, dict_of_commands_for_network_clients)
         time.sleep(float(config['GLOBAL']['WATCHDOG_CHECK_RATE']))
+
+
+_SERVER_STARTED_AT = time.time()
+_RELEASE_CONFIRMED = []
+CONFIRM_AFTER_S = 60
+
+
+def server_update_tick(config):
+    try:
+        from lib import st_github_update, st_updater
+        st_github_update.CHECKER.maybe(config, DefaultValues.SYNTRAF_VERSION)
+        rid = os.environ.get(st_updater.ENV_RELEASE)
+        # Une release installée depuis GitHub est « en attente » : après une minute de fonctionnement normal, elle
+        # devient définitive (sinon le superviseur revient à la précédente : MAX_ATTEMPTS, CONFIRM_GRACE_S)
+        if rid and not _RELEASE_CONFIRMED and time.time() - _SERVER_STARTED_AT >= CONFIRM_AFTER_S:
+            _RELEASE_CONFIRMED.append(rid)
+            if st_updater.confirm(str(DefaultValues.SYNTRAF_DATA_DIR), rid):
+                log.warning(f"SERVER RELEASE {rid} CONFIRMED")
+    except Exception as exc:  # noqa: BLE001 - jamais bloquant pour la surveillance
+        log.warning(f"SERVER UPDATE CHECK NOT DONE: {type(exc).__name__}:{exc}")
 
 
 def paths_tick(config, dict_of_clients, commands):

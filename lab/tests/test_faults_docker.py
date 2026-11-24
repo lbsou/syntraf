@@ -32,7 +32,7 @@ def test_degrade_adds_latency():
 def test_degrade_to_targets_only_that_destination():
     faults.degrade("c1", delay_ms=100, to="c2")
     assert ping_avg_ms("c1", "c2") >= 95
-    assert ping_avg_ms("c1", "c3") < 10
+    assert ping_avg_ms("c1", "c3") < 50  # c3 a son propre lien dégradé (12 ± 4 ms, LINK_PROFILES), loin des 100 ms
 
 
 def test_drop_blocks_and_heal_restores():

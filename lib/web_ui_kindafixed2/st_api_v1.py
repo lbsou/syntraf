@@ -239,6 +239,21 @@ def install_certificate(service):
     return jsonify(ops.install_certificate(_state(), service, _body(), _actor(), _dry_run()))
 
 
+@st_api_v1.get("/server/update")
+def server_update_status():
+    return jsonify(ops.server_update_status(_state()))
+
+
+@st_api_v1.post("/server/update/check")
+def server_update_check():
+    return jsonify(ops.server_update_check(_state()))
+
+
+@st_api_v1.post("/server/update")
+def server_update_apply():
+    return jsonify(ops.server_update_apply(_state(), _actor())), 202
+
+
 @st_api_v1.post("/server/restart")
 def restart_server():
     return jsonify(ops.restart_server(_state(), _actor())), 202
@@ -811,6 +826,10 @@ OPENAPI = {
                                                    "delete": _op("Cancel the pending request")},
         "/api/v1/certificates/{service}/install": {"post": _op("Install the signed certificate ({PEM}, chain included)", False, True)},
         "/api/v1/server/restart": {"post": _op("Restart SYNTRAF through its supervisor (answer 202, back in seconds)")},
+        "/api/v1/server/update": {"get": _op("This server against the latest signed release on GitHub"),
+                                  "post": _op("Update this server from GitHub (signed release only; the supervisor "
+                                              "switches within seconds and goes back if it does not start)")},
+        "/api/v1/server/update/check": {"post": _op("Check GitHub for a newer signed release now")},
         "/api/v1/config/server": {"get": _op("Server settings (tokens excluded) and the values in service"),
                                   "put": _op("Update server settings; the response lists those that need a restart",
                                              False, True)},

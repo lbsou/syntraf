@@ -228,6 +228,28 @@ def build(target, role, version):
     return path
 
 
+def server_release(version):
+    """Release du code du serveur pour la mise à jour depuis GitHub (lib/st_github_update.py) : l'archive, son
+    manifeste et la signature du manifeste par la clé du projet (tools/release_key.py). Sans clé : non signée, et
+    les serveurs installés ne la proposeront pas."""
+    import shutil as _shutil
+    from lib import st_github_update
+    info = st_release.build(str(ROOT), str(CACHE / "server-release"), version, "full")
+    name = f"syntraf-server-code-{version}.tar.gz"  # sans « + » : GitHub renomme ces fichiers joints
+    _shutil.copyfile(info["path"], DIST / name)
+    manifest = st_github_update.manifest_bytes({"version": version, "id": info["id"], "file": name,
+                                                "sha256": info["sha256"], "size": info["size"], "profile": "full"})
+    (DIST / f"syntraf-release-{version}.json").write_bytes(manifest)
+    sys.path.insert(0, str(ROOT / "tools"))
+    import release_key
+    if release_key.key_path().is_file():
+        sig = st_github_update.sign(manifest, release_key.load_private())
+        (DIST / f"syntraf-release-{version}.json.sig").write_text(sig + "\n", encoding="ascii")
+        print(f"{name} : signée")
+    else:
+        print(f"ATTENTION : {name} NON SIGNÉE (pas de clé {release_key.key_path()}) : les serveurs ne la proposeront pas")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--targets", nargs="*", default=list(TARGETS), choices=list(TARGETS))
@@ -240,6 +262,8 @@ def main():
         for role in args.roles:
             p = build(target, role, version)
             print(f"  {p.stat().st_size // (1024 * 1024)} Mio")
+    if "server" in args.roles:
+        server_release(version)
     return 0
 
 

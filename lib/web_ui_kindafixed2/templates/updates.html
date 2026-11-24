@@ -4,6 +4,16 @@
 {% block content %}
 {{ page_header("Updates", "Clients are updated to this server's own version. Each client installs it beside its current version, switches, and goes back automatically if the new version does not reconnect.") }}
 
+<section class="st-card" aria-labelledby="server-update-title">
+    <h2 id="server-update-title"><i class="fab fa-github me-2"></i>This server</h2>
+    <p class="small text-white-50 mb-2">The server checks the SYNTRAF releases on GitHub every day. A newer release is offered only if it is signed by the project's key; installing it keeps this version beside it and comes back to it by itself if the new one does not start. Python, iperf3v, VictoriaMetrics and Grafana are not changed this way: use the installation package for them.</p>
+    <div id="server-update" class="small mb-2"></div>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-sm btn-outline-light" id="su_check"><i class="fas fa-sync me-1"></i>Check now</button>
+        <button type="button" class="btn btn-sm btn-success" id="su_apply" hidden><i class="fas fa-download me-1"></i><span>Update this server</span></button>
+    </div>
+</section>
+
 <section class="st-card" aria-labelledby="release-title">
     <h2 id="release-title"><i class="fas fa-box me-2"></i>Release of this server</h2>
     <div id="release" class="small"><span class="spinner-border spinner-border-sm"></span> Building the release…</div>
@@ -54,6 +64,40 @@ const UPDATABLE = ["OUTDATED", "FAILED", "ROLLED_BACK"];
 let selected = new Set();
 
 function bytes(n) { return n > 1048576 ? `${(n / 1048576).toFixed(1)} MiB` : `${Math.round(n / 1024)} KiB`; }
+
+// ---- Mise à jour du serveur depuis GitHub
+function showServerUpdate(s) {
+    const box = document.getElementById("server-update"), apply = document.getElementById("su_apply");
+    const when = s.checked_at ? new Date(s.checked_at * 1000).toLocaleString() : "";
+    let html = `Version ${st.esc(s.current)}`;
+    if (s.error) html += ` · <span class="text-warning">${st.esc(s.error)}</span>`;
+    else if (s.available) html += ` · <strong class="text-success">${st.esc(s.latest)} is available</strong> (<a href="${st.esc(s.url)}" target="_blank" rel="noopener">release notes</a>)`;
+    else if (s.latest) html += ` · up to date (latest on GitHub: ${st.esc(s.latest)})`;
+    else html += " · " + "not checked yet";
+    if (s.note) html += `<div class="text-info">${st.esc(s.note)}</div>`;
+    if (s.pending) html += `<div class="text-info">Release ${st.esc(s.pending)} started: it becomes final once it runs normally for a minute.</div>`;
+    if (s.last_failed) html += `<div class="text-warning">Last failed release: ${st.esc(s.last_failed.id)} (${st.esc(s.last_failed.reason || "")}), the server went back by itself.</div>`;
+    if (!s.supervised) html += `<div class="text-white-50">Not started through its supervisor: update it with its installation package.</div>`;
+    if (when) html += `<div class="text-white-50">Checked ${st.esc(when)}</div>`;
+    box.innerHTML = html;
+    apply.hidden = !(s.available && s.supervised);
+    apply.querySelector("span").textContent = `Update this server to ${s.latest}`;
+}
+async function loadServerUpdate() {
+    const r = await st.api("GET", "/api/v1/server/update");
+    if (r.ok) showServerUpdate(r.data);
+}
+document.getElementById("su_check").addEventListener("click", async () => {
+    const r = await st.api("POST", "/api/v1/server/update/check");
+    if (r.ok) showServerUpdate(r.data); else document.getElementById("server-update").textContent = r.error.message;
+});
+document.getElementById("su_apply").addEventListener("click", async () => {
+    if (!confirm("Update this server from GitHub now? It restarts on the new version within seconds.")) return;
+    const r = await st.api("POST", "/api/v1/server/update");
+    document.getElementById("server-update").textContent = r.ok ? r.data.message : r.error.message;
+    if (r.ok) setTimeout(() => location.reload(), 30000);
+});
+loadServerUpdate();
 
 async function load() {
     const r = await st.api("GET", "/api/v1/updates");
