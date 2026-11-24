@@ -358,3 +358,20 @@ def test_a_fresh_server_creates_its_first_mesh_group(fresh):
     r = ops.create(fresh, {"UID": "FIRST_GROUP", "BANDWIDTH": "100K", "DSCP": "0", "PACKET_SIZE": "218",
                            "INTERVAL": "1"}, "tester")
     assert [g["UID"] for g in fresh["config"]["MESH_GROUP"]] == ["FIRST_GROUP"] and r["uid"] == "FIRST_GROUP"
+
+
+def test_a_server_with_an_approved_probe_but_no_mesh_group_starts(tmp_path, monkeypatch):
+    """Après l'approbation de la première sonde : [[SERVER_CLIENT]] mais aucun [[MESH_GROUP]]. Le serveur ne
+    redémarrait plus (KeyError 'MESH_GROUP' dans la validation), relancé en boucle par systemd."""
+    from types import SimpleNamespace
+    from lib import st_conf_validation
+    from lib.st_conf_validation import validate_config
+    monkeypatch.setattr(st_conf_validation, "config_validation_global", lambda *a, **k: True)  # iperf3 : hors sujet
+    cfg = {"SERVER": {"BIND_ADDRESS": "0.0.0.0", "SERVER_PORT": "6531", "TOKEN": {"t": "secret-token"}},
+           "SERVER_CLIENT": [{"UID": "tcn00qubc03351", "IP_ADDRESS": "10.120.130.27", "MESH_GROUP_UID_LIST": [],
+                              "PUBLIC_KEY_SHA256": "sha256:" + "a" * 64, "TOKEN": "own-token-xyz"}],
+           "GLOBAL": {}}
+    path = tmp_path / "config.toml"
+    path.write_text(toml.dumps(cfg))
+    ok, config, generated, _ = validate_config(SimpleNamespace(config_file=str(path), log_dir=str(tmp_path)))
+    assert ok is True and config["MESH_GROUP"] == [] and [c["UID"] for c in config["SERVER_CLIENT"]] == ["tcn00qubc03351"]

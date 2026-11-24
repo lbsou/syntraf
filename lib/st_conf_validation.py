@@ -73,6 +73,10 @@ def validate_config(parameters, reload=False):
     _dict_by_node_generated_config = None
 
     if "SERVER" in config:
+        # Serveur neuf : ni groupe ni client, ou une sonde approuvée sans groupe encore. Sections vides plutôt
+        # qu'absentes : le code les parcourt partout (avant : KeyError au démarrage, relancé en boucle)
+        config.setdefault("MESH_GROUP", [])
+        config.setdefault("SERVER_CLIENT", [])
         ok, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map = config_validation_server(config, parameters)
         if not ok:
             log.error(f"VALIDATION OF SERVER CONFIG FAILED")
