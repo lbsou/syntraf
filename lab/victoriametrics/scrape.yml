@@ -1,0 +1,11 @@
+# Santé de SYNTRAF : VictoriaMetrics lit /metrics du serveur toutes les 15 s (tableau de bord « 7 · Santé de SYNTRAF »).
+# L'adresse de VictoriaMetrics (172.30.0.10) est autorisée sans jeton par SERVER.METRICS_ALLOW (config/server.toml).
+# Interface en HTTPS (certificat autosigné du lab) ; mettre « scheme: http » si WEBUI_TLS est désactivé.
+scrape_configs:
+  - job_name: syntraf
+    scrape_interval: 15s
+    scheme: https
+    tls_config:
+      insecure_skip_verify: true
+    static_configs:
+      - targets: ["172.30.0.20:5000"]

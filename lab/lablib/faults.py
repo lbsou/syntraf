@@ -57,6 +57,18 @@ def drop_cmds(to_ip: str | None = None) -> list[list[str]]:
     ]
 
 
+def remark_cmds(dscp: int, to_ip: str | None = None) -> list[list[str]]:
+    """Réécrit le DSCP des paquets qui sortent (ou traversent) le nœud, comme un routeur ou un opérateur qui remet à
+    zéro ou rétrograde le marquage. Règle étiquetée : retirée par heal, ou seule par unremark_cmds."""
+    dst = ["-d", to_ip] if to_ip else []
+    return [["iptables", "-t", "mangle", "-A", "POSTROUTING", *dst, "-m", "comment", "--comment", TAG,
+             "-j", "DSCP", "--set-dscp", str(int(dscp))]]
+
+
+def unremark_cmds() -> list[list[str]]:
+    return [["sh", "-c", f"iptables-save -t mangle | grep -v -- '{TAG}' | iptables-restore -T mangle"]]
+
+
 def heal_cmds(iface: str) -> list[list[str]]:
     return [
         ["tc", "qdisc", "del", "dev", iface, "root"],
@@ -98,6 +110,15 @@ def degrade(service: str, delay_ms: int = 0, jitter_ms: int = 0, loss_pct: float
         docker.exec_(service, cmd)
 
 
+def remark(service: str, dscp: int | None, to: str | None = None) -> None:
+    """dscp=None : retire la réécriture (sans toucher aux autres pannes du nœud)."""
+    for cmd in unremark_cmds():
+        docker.exec_(service, cmd, check=False)
+    if dscp is not None:
+        for cmd in remark_cmds(dscp, _ip_of(to)):
+            docker.exec_(service, cmd)
+
+
 def cut(service: str, mode: CutMode, to: str | None = None) -> None:
     if mode == "drop":
         for cmd in drop_cmds(_ip_of(to)):
@@ -122,9 +143,9 @@ def heal(service: str) -> None:
     if topology.network_of(service) not in state["networks"]:
         docker.run(["network", "connect", "--ip", topology.SERVICES[service],
                     topology.network_of(service), topology.container(service)])
-        if service == "c4":  # route par défaut vers le routeur NAT, perdue avec le réseau
-            docker.exec_(service, ["ip", "route", "replace", "default", "via", topology.SERVICES["starlink-gw"]],
-                         check=False)
+        if service in topology.GATEWAY_OF:  # route par défaut vers le routeur NAT, perdue avec le réseau
+            gateway = topology.SERVICES[topology.GATEWAY_OF[service]]
+            docker.exec_(service, ["ip", "route", "replace", "default", "via", gateway], check=False)
     for cmd in heal_cmds(lab_iface(service)):
         docker.exec_(service, cmd, check=False)
 

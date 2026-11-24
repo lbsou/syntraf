@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% from "_macros.html" import page_header %}
+{% block title %}Alerts{% endblock %}
+{% block content %}
+{{ page_header("Alerts", "A measurement that leaves the baseline of its flow, in the bad direction (more loss or jitter, a longer round trip, a lower voice score or TCP bitrate). The baseline of each flow and metric is learned from its own last 7 days, hour by hour once there are 3 days: no threshold to set, and a flow that is always slow is not an alert.") }}
+<p class="small text-white-50">Also listed: problems of SYNTRAF itself (a declared probe disconnected, measurements piling up on a probe or on the way to a database, a server thread stopped), under the mesh group "SYNTRAF".</p>
+
+<p id="alerts_status" class="small text-white-50"></p>
+
+<h2 class="h5 mt-3">Open</h2>
+<table id="alerts_open" class="table table-sm table-hover"></table>
+
+<h2 class="h5 mt-4">Recently closed</h2>
+<table id="alerts_recent" class="table table-sm table-hover"></table>
+
+<script>
+const el = id => document.getElementById(id);
+const when = t => t ? new Date(t * 1000).toLocaleString() : "";
+const minutes = (a, b) => Math.max(1, Math.round(((b || Date.now() / 1000) - a) / 60));
+const METRICS = {loss: "Loss", jitter: "Jitter", rtt: "Round trip", mos: "Voice score (MOS)", tcp: "TCP bitrate",
+                 probe_disconnected: "Probe disconnected", probe_backlog: "Measurements waiting on a probe",
+                 database_down: "Database unreachable", database_backlog: "Database behind",
+                 thread_dead: "Server thread stopped", server_queue: "Server queue"};
+
+function flow(row) {
+    if (row.KIND === "health") return `SYNTRAF · ${row.SUBJECT}`;
+    const tcp = row.METRIC === "tcp" ? ` (${row.DIRECTION || ""}, ${row.TEST || ""})` : "";
+    return `${row.CLIENT} → ${row.SERVER}${tcp}`;
+}
+
+function draw(id, rows, closed) {
+    $("#" + id).bootstrapTable("destroy").bootstrapTable({
+        data: rows, pagination: rows.length > 15, pageSize: 15,
+        formatNoMatches: () => closed ? "No alert closed recently." : "No open alert: every watched flow is within its baseline.",
+        columns: st.escapedColumns([
+            {field: "opened_at", title: "Since", formatter: v => st.esc(when(v))},
+            {field: "MESH_GROUP", title: "Mesh group"},
+            {field: "CLIENT", title: "Flow", formatter: (v, row) => st.esc(flow(row))},
+            {field: "METRIC", title: "Metric", formatter: v => st.esc(METRICS[v] || v)},
+            {field: "explanation", title: "What"},
+            {field: "closed_at", title: closed ? "Duration" : "For", formatter: (v, row) => st.esc(minutes(row.opened_at, v) + " min")},
+        ]),
+    });
+}
+
+async function refresh() {
+    const r = await st.api("GET", "/api/v1/alerts");
+    if (!r.ok) { el("alerts_status").textContent = r.error.message; return; }
+    const d = r.data;
+    el("alerts_status").textContent = d.evaluated_at
+        ? `${d.watched} flow × metric series watched, ${d.learning} still learning their baseline (24 h of history needed). Last check: ${when(d.evaluated_at)}.`
+        : "The first check runs within a minute after the server starts.";
+    draw("alerts_open", d.open, false);
+    draw("alerts_recent", d.recent, true);
+    document.body.dataset.alertsLoaded = "1";
+}
+refresh();
+setInterval(refresh, 30000);
+</script>
+{% endblock %}

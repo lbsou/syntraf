@@ -176,6 +176,20 @@ def metrics(state):
            [({"thread": t["name"], "type": t["type"]}, int(t["alive"])) for t in snap["threads"]])
     metric("syntraf_queue_length", "Points received from clients and not yet forwarded.", "gauge",
            [({}, snap["queue_length"])])
+    # Alertes (hors baseline, et santé de SYNTRAF) : 1 ouverte, 0 refermée récemment. Un collecteur (Zabbix,
+    # Prometheus) découvre chacune et lève, puis résout, son propre problème.
+    from lib import st_baseline
+    alerts = {}
+    for value, rows in ((0, st_baseline.BOOK.recent() + st_baseline.HEALTH_BOOK.recent()),
+                        (1, st_baseline.BOOK.open() + st_baseline.HEALTH_BOOK.open())):
+        for alert in rows:
+            labels = {"group": alert.get("MESH_GROUP", ""), "source": alert.get("SUBJECT") or alert.get("CLIENT", ""),
+                      "destination": alert.get("SERVER", ""), "metric": alert.get("METRIC", ""),
+                      "kind": alert.get("KIND", "")}
+            alerts[tuple(labels.values())] = (labels, value)
+    metric("syntraf_alert_open", "1 while the alert is open, 0 once closed (recent alerts only).", "gauge",
+           list(alerts.values()))
+    metric("syntraf_alerts_open", "Open alerts.", "gauge", [({}, sum(v for _, v in alerts.values()))])
     return "\n".join(out) + "\n"
 
 

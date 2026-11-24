@@ -132,14 +132,26 @@ def test_dashboards_show_the_group_parameters_and_the_expected_bitrate():
 @pytest.mark.skipif(bd is None, reason="générateur des tableaux de bord introuvable")
 def test_dashboards_use_expected_flows_annotations_and_a_hubs_view():
     matrix = bd.matrix_dashboard()
-    exprs = [t["expr"] for p in matrix["panels"] if "SYNTRAF_GROUP_INFO" not in p["targets"][0]["expr"]
-             for t in p["targets"]]
+    exprs = [t["expr"] for p in matrix["panels"] if p["type"] != "row"
+             and "SYNTRAF_GROUP_INFO" not in p["targets"][0]["expr"] for t in p["targets"]]
     assert all("SYNTRAF_FLOW_EXPECTED" in e for e in exprs)
     assert matrix["annotations"]["list"][0]["expr"].startswith("last_over_time(SYNTRAF_CONFIG_CHANGE")
     hubs = bd.hubs_dashboard()
     assert hubs["uid"] == "syntraf-hubs"
-    joined = " ".join(t["expr"] for p in hubs["panels"] for t in p["targets"])
+    joined = " ".join(t["expr"] for p in hubs["panels"] for t in p.get("targets", []))
     assert 'CLIENT_ROLE="spoke"' in joined and 'SERVER_ROLE="hub"' in joined
     series = bd.series_dashboard()
-    silence = next(p for p in series["panels"] if p["type"] == "stat")
+    silence = next(p for p in series["panels"] if p.get("title", "").startswith("Silence"))
     assert "SYNTRAF_FLOW_EXPECTED" in silence["targets"][0]["expr"]
+
+
+def test_pairs_of_probes_both_behind_a_nat_are_published_so_dashboards_can_say_why_they_are_empty():
+    config = {"MESH_GROUP": [{"UID": "G"}, {"UID": "OFF", "DISABLED": True}],
+              "SERVER_CLIENT": [{"UID": "A", "MESH_GROUP_UID_LIST": ["G"]},
+                                {"UID": "SAT", "BEHIND_NAT": True, "MESH_GROUP_UID_LIST": ["G", "OFF"]},
+                                {"UID": "LTE", "BEHIND_NAT": True, "MESH_GROUP_UID_LIST": ["G", "OFF"]},
+                                {"UID": "OTHER", "BEHIND_NAT": True, "MESH_GROUP_UID_LIST": ["H"]}]}
+    pairs = fc.nat_pairs(config)
+    assert [(p["MESH_GROUP"], p["CLIENT"], p["SERVER"]) for p in pairs] == [("G", "LTE", "SAT"), ("G", "SAT", "LTE")]
+    points = fc.nat_pair_points(pairs)
+    assert points[0]["measurement"] == "SYNTRAF_FLOW" and points[0]["fields"] == {"NAT_PAIR": 1}

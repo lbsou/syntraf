@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% from "_macros.html" import page_header, crud_table, crud_modal, field %}
+{% block title %}Maintenance{% endblock %}
+{% block head %}<script src="{{ url_for('static', filename='js/st_crud.js') }}"></script>{% endblock %}
+{% block content %}
+{{ page_header("Maintenance windows", "During a window, no alert opens for the flows of a probe (as source or destination) or of a mesh group, nor for the health of the probe (disconnected, measurements waiting). Measurements go on; Grafana shows the window as a region. Times are those of the server.") }}
+{{ crud_table("Maintenance window") }}
+
+{% call crud_modal() %}
+    {{ field("m_uid", "UID", "Name", help="4 to 50 characters: letters, digits, '_' or '-'.", attrs='required maxlength="50"') }}
+    <div class="row">
+        <div class="col-md-4 mb-3">
+            <label for="m_type" class="form-label">For</label>
+            <select class="form-select" id="m_type" data-field="TARGET_TYPE">
+                <option value="node">A probe</option><option value="mesh_group">A mesh group</option>
+            </select>
+            <div class="invalid-feedback" data-feedback="TARGET_TYPE"></div>
+        </div>
+        <div class="col-md-8 mb-3">
+            <label for="m_target" class="form-label">Probe or mesh group</label>
+            <select class="form-select" id="m_target" data-field="TARGET"></select>
+            <div class="invalid-feedback" data-feedback="TARGET"></div>
+        </div>
+    </div>
+    <div class="mb-3">
+        <label for="m_mode" class="form-label">When</label>
+        <select class="form-select" id="m_mode" data-field="MODE">
+            <option value="once">Once (a start and an end)</option>
+            <option value="weekly">Every week (days and hours)</option>
+        </select>
+    </div>
+    <div class="row" id="m_once">
+        <div class="col-md-6">{{ field("m_start", "START", "Start", type="datetime-local") }}</div>
+        <div class="col-md-6">{{ field("m_end", "END", "End", type="datetime-local") }}</div>
+    </div>
+    <div id="m_weekly" hidden>
+        <div class="mb-2" role="group" aria-label="Days">
+            {% for d, label in [("mon","Monday"),("tue","Tuesday"),("wed","Wednesday"),("thu","Thursday"),("fri","Friday"),("sat","Saturday"),("sun","Sunday")] %}
+            <div class="form-check form-check-inline">
+                <input class="form-check-input m-day" type="checkbox" id="m_day_{{ d }}" value="{{ d }}">
+                <label class="form-check-label" for="m_day_{{ d }}">{{ label }}</label>
+            </div>
+            {% endfor %}
+            <div class="invalid-feedback d-block" data-feedback="DAYS"></div>
+        </div>
+        <div class="row">
+            <div class="col-md-6">{{ field("m_from", "FROM", "From", type="time", help="A range past midnight goes on the next day.") }}</div>
+            <div class="col-md-6">{{ field("m_to", "TO", "To", type="time") }}</div>
+        </div>
+    </div>
+    <div class="mb-3">
+        <label for="m_desc" class="form-label">Description <span class="text-white-50">(optional)</span></label>
+        <input class="form-control" id="m_desc" data-field="DESCRIPTION" maxlength="100">
+    </div>
+    <div class="form-check form-switch mb-2">
+        <input class="form-check-input" type="checkbox" role="switch" id="m_enabled" checked>
+        <label class="form-check-label" for="m_enabled">Enabled</label>
+    </div>
+{% endcall %}
+
+<script>
+const el = id => document.getElementById(id);
+let targets = {node: [], mesh_group: []};
+
+async function loadTargets() {
+    const [clients, groups] = await Promise.all([st.api("GET", "/api/v1/config/clients"), st.api("GET", "/api/v1/mesh-groups")]);
+    targets = {node: clients.ok ? clients.data.map(c => c.UID) : [], mesh_group: groups.ok ? groups.data.map(g => g.UID) : []};
+}
+function fillTargets(selected) {
+    el("m_target").replaceChildren(...targets[el("m_type").value].map(u => new Option(u, u)));
+    if (selected) el("m_target").value = selected;
+}
+function syncMode() {
+    const weekly = el("m_mode").value === "weekly";
+    el("m_once").hidden = weekly;
+    el("m_weekly").hidden = !weekly;
+}
+el("m_type").addEventListener("change", () => fillTargets());
+el("m_mode").addEventListener("change", syncMode);
+const DAYS = {mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun"};
+
+st.crud({
+    listUrl: "/api/v1/config/maintenance",
+    itemUrl: uid => `/api/v1/config/maintenance/${encodeURIComponent(uid)}`,
+    idField: "UID",
+    emptyText: "No maintenance window. Plan one before working on a probe or a site, so that it raises no alert.",
+    titleNew: "Plan a maintenance window",
+    titleEdit: uid => `Edit maintenance window “${uid}”`,
+    deleteTitle: uid => `Delete maintenance window “${uid}”?`,
+    deleteWarning: "Alerts resume for its probe or mesh group.",
+    columns: [
+        {field: "UID", title: "Name", sortable: true},
+        {field: "TARGET", title: "For", formatter: (v, row) => st.esc((row.TARGET_TYPE === "mesh_group" ? "Mesh group " : "Probe ") + v)},
+        {field: "MODE", title: "When", formatter: (v, row) => st.esc(v === "weekly"
+            ? `${(row.DAYS || []).map(d => DAYS[d] || d).join(", ")} ${row.FROM}–${row.TO}`
+            : `${(row.START || "").replace("T", " ")} → ${(row.END || "").replace("T", " ")}`)},
+        {field: "DESCRIPTION", title: "Description", formatter: v => st.esc(v || "")},
+        {field: "ENABLED", title: "Enabled", formatter: v => st.esc(v === false ? "No" : "Yes")},
+    ],
+    async fill(row) {
+        await loadTargets();
+        el("m_uid").value = row ? row.UID : "";
+        el("m_uid").readOnly = !!row;
+        el("m_type").value = row ? (row.TARGET_TYPE || "node") : "node";
+        fillTargets(row ? row.TARGET : null);
+        el("m_mode").value = row ? (row.MODE || "once") : "once";
+        el("m_start").value = row ? (row.START || "") : "";
+        el("m_end").value = row ? (row.END || "") : "";
+        document.querySelectorAll(".m-day").forEach(c => { c.checked = !!row && (row.DAYS || []).includes(c.value); });
+        el("m_from").value = row ? (row.FROM || "") : "02:00";
+        el("m_to").value = row ? (row.TO || "") : "04:00";
+        el("m_desc").value = row ? (row.DESCRIPTION || "") : "";
+        el("m_enabled").checked = !row || row.ENABLED !== false;
+        syncMode();
+    },
+    read: () => ({
+        UID: el("m_uid").value.trim(), TARGET_TYPE: el("m_type").value, TARGET: el("m_target").value,
+        MODE: el("m_mode").value, START: el("m_start").value, END: el("m_end").value,
+        DAYS: [...document.querySelectorAll(".m-day:checked")].map(c => c.value),
+        FROM: el("m_from").value, TO: el("m_to").value, DESCRIPTION: el("m_desc").value.trim(),
+        ENABLED: el("m_enabled").checked,
+    }),
+});
+</script>
+{% endblock %}

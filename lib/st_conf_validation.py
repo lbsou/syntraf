@@ -1090,8 +1090,10 @@ def config_validation_server(_config, parameters):
             log.error(f"ARE ALL 'MESH_GROUP' VALID : NO")
             return False, None, None
     else:
-        log.error(f"NO 'MESH_GROUP' FOUND!")
-        #return False, None, None
+        # Serveur tout juste installé : aucun groupe encore, il démarre et on les crée dans l'interface (avant : plantage
+        # UnboundLocalError sur les variables ci-dessous, jamais assignées dans ce cas)
+        log.warning("NO 'MESH_GROUP' YET: CREATE ONE IN THE WEB INTERFACE")
+        return True, {}, {}
 
     return True, _dict_by_node_generated_config, _dict_by_group_of_generated_tuple_for_map
 

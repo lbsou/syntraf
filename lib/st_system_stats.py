@@ -4,6 +4,7 @@ from lib.st_conf_validation import *
 
 # BUILTIN IMPORT
 import psutil
+import socket
 import time
 import logging
 import os
@@ -48,7 +49,7 @@ def grab_network_usage(interface_name):
     except Exception as exc:
         return 0, 0
 
-    return round(pct_sent * 100), round(pct_recv * 100)
+    return round(pct_sent * 100, 2), round(pct_recv * 100, 2)  # quelques kbit/s sur 10 Gbit/s : 0,01 %, pas 0
 
 
 def grab_free_memory():
@@ -104,17 +105,45 @@ def aggregate_stats(dataset):
     return aggregated_dataset
 
 
+def local_address_towards(host):
+    """Adresse locale par laquelle partent les paquets vers host (aucun paquet envoyé : connect() UDP), ou None."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect((socket.gethostbyname(host), 9))
+            return s.getsockname()[0]
+    except (OSError, TypeError):
+        return None
+
+
+def interface_for_address(address, addrs):
+    for name, entries in addrs.items():
+        if any(getattr(e, "address", None) == address for e in entries):
+            return name
+    return None
+
+
+def choose_interface(client_config):
+    """NETWORK_INTERFACE_NAME s'il existe ; sinon l'interface qui mène au serveur (détectée)."""
+    addrs = psutil.net_if_addrs()
+    wanted = client_config.get('NETWORK_INTERFACE_NAME')
+    if wanted and wanted in addrs:
+        return wanted
+    if wanted:
+        log.warning(f"THE NIC NAME SPECIFIED '{wanted}' DOES NOT EXIST: USING THE INTERFACE TOWARDS THE SERVER")
+    address = local_address_towards(client_config.get('SERVER'))
+    return interface_for_address(address, addrs) if address else None
+
+
 class system_stats(object):
     def __init__(self, _config):
         self.timestamp = datetime.now()
         if 'CLIENT' in _config:
-            if 'NETWORK_INTERFACE_NAME' in _config['CLIENT']:
-                addrs = psutil.net_if_addrs()
-                if _config['CLIENT']['NETWORK_INTERFACE_NAME'] in addrs.keys():
-                    self.nic = _config['CLIENT']['NETWORK_INTERFACE_NAME']
-                    self.if_pct_usage_tx, self.if_pct_usage_rx = grab_network_usage(self.nic)
-                else:
-                    log.warning(f"THE NIC NAME SPECIFIED '{_config['CLIENT']['NETWORK_INTERFACE_NAME']}' DOES NOT EXIST, UNABLE TO GET NIC STATISTICS")
+            nic = choose_interface(_config['CLIENT'])
+            if nic:
+                self.nic = nic
+                self.if_pct_usage_tx, self.if_pct_usage_rx = grab_network_usage(self.nic)
+            else:
+                log.warning("NETWORK INTERFACE NOT FOUND: NO NETWORK USAGE STATISTICS")
         try:
             self.mem_pct_free = grab_free_memory()
             self.cpu_pct_usage = grab_cpu_usage()
@@ -153,7 +182,7 @@ class system_stats(object):
         if hasattr(self, 'nic'):
             return {"timestamp": self.timestamp, "nic": self.nic, "mem_pct_free": self.mem_pct_free, "if_pct_usage_rx": self.if_pct_usage_rx, "if_pct_usage_tx": self.if_pct_usage_tx, "cpu_pct_usage": self.cpu_pct_usage}
         else:
-            return {"timestamp": self.timestamp, "mem_pct_free": self.mem_pct_free, "if_pct_usage_rx": "NIC name undefined, see NETWORK_INTERFACE_NAME", "if_pct_usage_tx": "NIC name undefined, see NETWORK_INTERFACE_NAME", "cpu_pct_usage": self.cpu_pct_usage}
+            return {"timestamp": self.timestamp, "mem_pct_free": self.mem_pct_free, "if_pct_usage_rx": "Network interface not found, see NETWORK_INTERFACE_NAME", "if_pct_usage_tx": "Network interface not found, see NETWORK_INTERFACE_NAME", "cpu_pct_usage": self.cpu_pct_usage}
 
     hasdata = property(get_hasdata, set_hasdata)
 

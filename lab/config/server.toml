@@ -33,6 +33,13 @@ IP_ADDRESS = "0.0.0.0"
 BEHIND_NAT = true
 MESH_GROUP_UID_LIST = ["LAB_MESH"]
 
+# Sonde mobile 5G/LTE derrière le CGNAT de l'opérateur (c5, routeur mobile-gw)
+[[SERVER_CLIENT]]
+UID = "LTE_5G"
+IP_ADDRESS = "0.0.0.0"
+BEHIND_NAT = true
+MESH_GROUP_UID_LIST = ["LAB_MESH"]
+
 [[DATABASE]]
 DB_UID = "VM_LAB"
 DB_ENGINE = "VictoriaMetrics"
@@ -51,6 +58,8 @@ WATCHDOG_CHECK_RATE = "2"
 [SERVER]
 BIND_ADDRESS = "0.0.0.0"
 SERVER_PORT = "6531"
+# VictoriaMetrics du lab lit /metrics (santé de SYNTRAF) sans jeton
+METRICS_ALLOW = "172.30.0.10"
 
 [SERVER.TOKEN]
 2026-11-20 = "${LAB_TOKEN}"

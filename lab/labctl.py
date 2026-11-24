@@ -37,7 +37,7 @@ def cmd_up(args) -> int:
     if r.returncode != 0:
         print(r.stdout, r.stderr, sep="\n")
         return 1
-    print("Conteneurs démarrés ; attente de l'état sain (12 flux qui écrivent)…")
+    print(f"Conteneurs démarrés ; attente de l'état sain ({len(topology.expected_flows())} flux qui écrivent)…")
     try:
         health.wait_healthy(health.metrics_client(), timeout_s=args.timeout)
     except TimeoutError as exc:
@@ -154,6 +154,13 @@ def cmd_degrade(args) -> int:
     faults.degrade(args.service, delay_ms=args.delay, jitter_ms=args.jitter, loss_pct=args.loss,
                    rate=args.rate, to=args.to, reorder=args.reorder)
     print(f"{args.service} : {'; '.join(faults.active(args.service))}")
+    return 0
+
+
+def cmd_remark(args) -> int:
+    from lablib import faults
+    faults.remark(args.service, None if args.clear else args.dscp, to=args.to)
+    print(f"{args.service} : " + ("réécriture DSCP retirée" if args.clear else f"DSCP réécrit en {args.dscp}"))
     return 0
 
 
@@ -320,7 +327,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     nodes = list(topology.SYNTRAF_NODES)
     s = sub.add_parser("degrade", help="latence/gigue/pertes/débit (tc netem) en sortie d'un nœud")
-    s.add_argument("service", choices=nodes + ["starlink-gw"])  # le routeur NAT : sens vers STARLINK
+    s.add_argument("service", choices=nodes + list(topology.GATEWAY_OF.values()))  # routeur NAT : sens vers la sonde
     s.add_argument("--delay", type=int, default=0, help="ms")
     s.add_argument("--jitter", type=int, default=0, help="ms")
     s.add_argument("--loss", type=float, default=0.0, help="%%")
@@ -329,6 +336,12 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--reorder", action="store_true",
                    help="laisser la gigue réordonner les paquets (par défaut un débit de 1 Gbit/s garde l'ordre)")
     s.set_defaults(func=cmd_degrade)
+    s = sub.add_parser("remark", help="réécrit le DSCP des paquets qui traversent le nœud (routeur, opérateur)")
+    s.add_argument("service", choices=nodes + list(topology.GATEWAY_OF.values()))
+    s.add_argument("--dscp", type=int, default=0, help="DSCP écrit (0 : marquage effacé)")
+    s.add_argument("--to", choices=nodes, help="seulement vers ce nœud")
+    s.add_argument("--clear", action="store_true", help="retire la réécriture")
+    s.set_defaults(func=cmd_remark)
     s = sub.add_parser("cut", help="coupure : drop (silencieuse), disconnect (interface), pause (hôte figé)")
     s.add_argument("service", choices=nodes)
     s.add_argument("--mode", choices=["drop", "disconnect", "pause"], default="drop")

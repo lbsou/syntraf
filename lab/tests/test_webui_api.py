@@ -189,7 +189,7 @@ def test_openapi_lists_the_mesh_group_routes(env):
 
 @pytest.mark.parametrize("page", ["/home.html", "/stats.html", "/mesh_group_config.html", "/token_config.html",
                                   "/log_viewer.html", "/server.html", "/client_config.html",
-                                  "/database_config.html", "/audit.html", "/profile_config.html", "/data.html",
+                                  "/database_config.html", "/audit.html", "/profile_config.html", "/tcp_tests.html", "/alerts.html", "/grafana.html", "/maintenance.html", "/data.html",
                                   "/updates.html"])
 def test_every_page_renders(env, page):
     assert env["client"].get(page).status_code == 200
@@ -384,3 +384,130 @@ def test_documentation_is_served_to_signed_in_users_only(env):
     assert env["client"].get("/docs/../syntraf.py").status_code == 404
     anonymous = env["app"].test_client()
     assert anonymous.get("/docs/").status_code in (302, 401)
+
+
+def test_tcp_tests_api(env):
+    c = env["client"]
+    group = c.get("/api/v1/mesh-groups").json[0]["UID"]
+    body = {"UID": "WAN_TCP", "MESH_GROUP": group, "EVERY": "1h", "DURATION": "5", "MODE": "auto", "AUTO_PACING": True}
+    assert c.post("/api/v1/config/tcp_tests", json=body).status_code == 201
+    assert c.get("/api/v1/config/tcp_tests").json[0]["AUTO_PACING"] is True
+    r = c.put("/api/v1/config/tcp_tests/WAN_TCP", json=dict(body, EVERY="10s"))
+    assert r.status_code == 400 and "EVERY" in r.json["error"]["fields"]
+    assert c.post("/api/v1/config/tcp_tests/WAN_TCP/run").json["queued"] is True
+    assert c.post("/api/v1/config/tcp_tests/NOPE/run").status_code == 404
+    status = c.get("/api/v1/tcp_tests/status").json
+    assert "queue" in status and "results" in status
+    assert c.delete("/api/v1/config/tcp_tests/WAN_TCP").status_code == 200
+    assert "/api/v1/config/tcp_tests" in c.get("/api/v1/openapi.json").json["paths"]
+
+
+def test_alerts_api(env):
+    d = env["client"].get("/api/v1/alerts").json
+    assert d["open"] == [] and "recent" in d and "learning" in d and d["detector"] == "robust"
+    assert "/api/v1/alerts" in env["client"].get("/api/v1/openapi.json").json["paths"]
+
+
+def test_the_baseline_alerts_can_be_tuned_from_the_global_settings(env):
+    c = env["client"]
+    r = c.put("/api/v1/config/global", json={"BASELINE_SENSITIVITY": "50"})
+    assert r.status_code == 400 and "BASELINE_SENSITIVITY" in r.json["error"]["fields"]
+    r = c.put("/api/v1/config/global", json={"BASELINE_SENSITIVITY": "3", "BASELINE": False})
+    assert r.status_code == 200 and r.json["restart_required"] == []  # relus à chaque évaluation
+    g = c.get("/api/v1/config/global").json
+    assert g["BASELINE_SENSITIVITY"] == "3" and g["BASELINE"].lower() == "false"  # valeurs en texte, comme LATENCY
+
+
+def test_alert_margins_and_delays_are_validated(env):
+    c = env["client"]
+    bad = {"BASELINE_MARGIN_LOSS": "-1", "BASELINE_MARGIN_TCP": "150", "BASELINE_OPEN_AFTER": "0",
+           "BASELINE_CLOSE_AFTER": "999"}
+    r = c.put("/api/v1/config/global", json=bad)
+    assert r.status_code == 400 and set(bad) <= set(r.json["error"]["fields"])
+    ok = {"BASELINE_MARGIN_LOSS": "2", "BASELINE_MARGIN_TCP": "40", "BASELINE_OPEN_AFTER": "5", "BASELINE_CLOSE_AFTER": "5"}
+    r = c.put("/api/v1/config/global", json=ok)
+    assert r.status_code == 200 and r.json["restart_required"] == []
+
+
+def test_a_profile_can_set_the_alert_sensitivity_of_its_groups(env):
+    c = env["client"]
+    body = {"UID": "VOICE_STRICT", "DSCP": "46", "BASELINE_SENSITIVITY": "2"}
+    assert c.post("/api/v1/config/profiles", json=body).status_code == 201
+    assert c.get("/api/v1/config/profiles/VOICE_STRICT").json["BASELINE_SENSITIVITY"] == "2"
+    r = c.put("/api/v1/config/profiles/VOICE_STRICT", json=dict(body, BASELINE_SENSITIVITY="99"))
+    assert r.status_code == 400 and "BASELINE_SENSITIVITY" in r.json["error"]["fields"]
+
+
+def test_metrics_can_be_scraped_without_a_token_from_allowed_addresses(env):
+    c = env["client"]
+    anonymous = env["app"].test_client()
+    assert anonymous.get("/metrics").status_code == 401
+    r = c.put("/api/v1/config/server", json=dict(c.get("/api/v1/config/server").json, METRICS_ALLOW="10.0.0.0/8, x"))
+    assert r.status_code == 400 and "METRICS_ALLOW" in r.json["error"]["fields"]
+    body = dict(c.get("/api/v1/config/server").json, METRICS_ALLOW="127.0.0.1, 10.0.0.0/8")
+    body.pop("RUNNING", None)
+    r = c.put("/api/v1/config/server", json=body)
+    assert r.status_code == 200 and "SERVER.METRICS_ALLOW" not in r.json["restart_required"]
+    m = anonymous.get("/metrics")
+    assert m.status_code == 200 and b"syntraf_build_info" in m.data
+    assert anonymous.get("/api/v1/status").status_code == 401  # seulement /metrics
+
+
+def test_metrics_expose_each_alert_for_zabbix_or_prometheus(env, monkeypatch):
+    from lib import st_baseline as bl
+    book, health = bl.AlertBook(open_after=1), bl.AlertBook(open_after=1)
+    monkeypatch.setattr(bl, "BOOK", book)
+    monkeypatch.setattr(bl, "HEALTH_BOOK", health)
+    info = {"KIND": "baseline", "MESH_GROUP": "G", "CLIENT": "A", "SERVER": "B", "METRIC": "loss"}
+    book.update(("G", "A", "B", "loss"), bl.Verdict(True, 3.0, "Loss 4 %"), 100, info)
+    book.update(("G", "B", "A", "jitter"), bl.Verdict(True, 3.0, "x"), 100, dict(info, CLIENT="B", SERVER="A",
+                                                                                 METRIC="jitter"))
+    book.update(("G", "B", "A", "jitter"), bl.Verdict(False, 0.0, "x"), 200)  # refermée (close_after = 3) ? non
+    for t in (260, 320):
+        book.update(("G", "B", "A", "jitter"), bl.Verdict(False, 0.0, "x"), t)
+    text = env["client"].get("/metrics").get_data(as_text=True)
+    assert 'syntraf_alert_open{group="G",source="A",destination="B",metric="loss",kind="baseline"} 1' in text
+    assert 'syntraf_alert_open{group="G",source="B",destination="A",metric="jitter",kind="baseline"} 0' in text
+    assert "syntraf_alerts_open 1" in text
+
+
+def test_grafana_settings_and_deployment_from_the_interface(env, monkeypatch):
+    sys.path.insert(0, str(Path(__file__).parent))
+    from test_grafana_deploy import FakeGrafana
+    from lib import st_grafana_deploy as gd
+    fake = FakeGrafana(token="svc-token")
+    monkeypatch.setattr(gd, "_urllib", lambda verify: fake)
+    c = env["client"]
+    r = c.put("/api/v1/config/grafana", json={"URL": "grafana.example.com"})
+    assert r.status_code == 400 and "URL" in r.json["error"]["fields"]
+    body = {"URL": "https://grafana.example.com", "TOKEN": "svc-token", "FOLDER": "SYNTRAF",
+            "DATASOURCE_URL": "http://vm:8428", "VERIFY_TLS": False}
+    r = c.put("/api/v1/config/grafana", json=body)
+    assert r.status_code == 200 and r.json["restart_required"] == []
+    g = c.get("/api/v1/config/grafana").json
+    assert g["TOKEN_SET"] is True and "TOKEN" not in g and g["URL"] == "https://grafana.example.com"
+    r = c.put("/api/v1/config/grafana", json=dict(body, TOKEN=""))  # vide : jeton inchangé
+    assert r.status_code == 200 and c.get("/api/v1/config/grafana").json["TOKEN_SET"] is True
+    assert c.post("/api/v1/grafana/test", json={}).json["version"] == "13.0.2"
+    preview = c.post("/api/v1/grafana/deploy?dry_run=1").json
+    assert preview["datasource"] == "would be created" and not fake.dashboards
+    done = c.post("/api/v1/grafana/deploy").json
+    assert done["datasource"] == "created" and len(fake.dashboards) == 7
+    assert any(e["action"] == "DEPLOY_GRAFANA" for e in c.get("/api/v1/audit").json)
+    monkeypatch.setattr(gd, "_urllib", lambda verify: FakeGrafana(token="other"))
+    r = c.post("/api/v1/grafana/deploy")
+    assert r.status_code == 502 and "token" in r.json["error"]["message"].lower()
+
+
+def test_maintenance_windows_api(env):
+    c = env["client"]
+    group = c.get("/api/v1/mesh-groups").json[0]["UID"]
+    body = {"UID": "SUNDAY_WORK", "TARGET_TYPE": "mesh_group", "TARGET": group, "MODE": "weekly",
+            "DAYS": ["sun"], "FROM": "02:00", "TO": "04:00", "DESCRIPTION": "Fenêtre opérateur"}
+    r = c.post("/api/v1/config/maintenance", json=body)
+    assert r.status_code == 201 and r.json["restart_required"] == [] and r.json["affected_clients"] == []
+    assert c.get("/api/v1/config/maintenance").json[0]["DAYS"] == ["sun"]
+    r = c.put("/api/v1/config/maintenance/SUNDAY_WORK", json=dict(body, FROM="99:00"))
+    assert r.status_code == 400 and "FROM" in r.json["error"]["fields"]
+    assert c.delete("/api/v1/config/maintenance/SUNDAY_WORK").status_code == 200
+    assert c.get("/api/v1/config/maintenance").json == []

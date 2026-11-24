@@ -280,6 +280,9 @@ def _profile_field_errors(values, with_uid=False):
     codec = str(values.get("CODEC", "") or "").strip().upper()
     if codec and codec not in CODECS:
         errors["CODEC"] = f"Empty, or a voice codec for the MOS: {', '.join(CODECS)}"
+    sensitivity = str(values.get("BASELINE_SENSITIVITY", "") or "").strip()
+    if sensitivity and not _check_float_range(1, 10)(sensitivity):
+        errors["BASELINE_SENSITIVITY"] = "Empty (the server's setting), or 1 (strict) to 10 (lenient)"
     if not present and not errors:
         raise OpError(400, "A profile needs at least one value (bandwidth, DSCP, packet size or interval)",
                       {k: "At least one value is needed" for k in PROFILE_FIELDS})
@@ -287,7 +290,7 @@ def _profile_field_errors(values, with_uid=False):
 
 
 def _apply_profile_form(p, values):
-    for key in PROFILE_FIELDS + ("DESCRIPTION", "CODEC"):
+    for key in PROFILE_FIELDS + ("DESCRIPTION", "CODEC", "BASELINE_SENSITIVITY"):
         value = str(values.get(key, "") or "").strip()
         if key == "CODEC":
             value = value.upper()
@@ -317,13 +320,14 @@ def _check_profile_reference(cfg, values):
 
 SERVER_FIELDS = ("BIND_ADDRESS", "SERVER_PORT", "MESH_LISTENERS_PORT_RANGE", "SERVER_X509_CERTIFICATE",
                  "SERVER_X509_PRIVATE_KEY", "WEBUI_BIND_ADDRESS", "WEBUI_PORT", "WEBUI_X509_CERTIFICATE",
-                 "WEBUI_X509_PRIVATE_KEY")
+                 "WEBUI_X509_PRIVATE_KEY", "METRICS_ALLOW")
 SERVER_BOOL_FIELDS = ("WEBUI_TLS",  # interface web en HTTPS (certificat donné, sinon autosigné)
                       "REQUIRE_KEY_PROOF")  # refuser un client qui ne prouve pas détenir sa clé (versions anciennes)
 SERVER_LIVE_KEYS = ("TOKEN", "MESH_LISTENERS_PORT_RANGE",  # appliquées à chaud ; les autres au redémarrage
                     "MAX_FLOWS_PER_CLIENT", "MAX_TOTAL_FLOWS", "FLOW_ALERT_ADDED", "FLOW_ALERT_RATIO",
-                    "REQUIRE_KEY_PROOF")
+                    "REQUIRE_KEY_PROOF", "METRICS_ALLOW")
 SERVER_MESSAGES = {
+    "METRICS_ALLOW": "Empty, or IP addresses / networks separated by commas, e.g. 10.0.0.5, 192.168.1.0/24",
     "BIND_ADDRESS": "An IP address of this server, or 0.0.0.0 for all interfaces",
     "SERVER_PORT": "A port between 1 and 65534",
     "MESH_LISTENERS_PORT_RANGE": "A port range such as 15000-15100",
@@ -405,6 +409,8 @@ def _server_field_errors(values):
             errors["WEBUI_X509_PRIVATE_KEY"] = SERVER_MESSAGES["WEBUI_X509_PRIVATE_KEY"]
     if v["MESH_LISTENERS_PORT_RANGE"] and not _valid_port_range(v["MESH_LISTENERS_PORT_RANGE"]):
         errors["MESH_LISTENERS_PORT_RANGE"] = SERVER_MESSAGES["MESH_LISTENERS_PORT_RANGE"]
+    if v["METRICS_ALLOW"] and metrics_allow_networks(v["METRICS_ALLOW"]) is None:
+        errors["METRICS_ALLOW"] = SERVER_MESSAGES["METRICS_ALLOW"]
     cert, key = v["SERVER_X509_CERTIFICATE"], v["SERVER_X509_PRIVATE_KEY"]
     if cert or key:  # le certificat et sa clé vont ensemble
         if not (cert and os.path.isfile(cert)):
@@ -412,6 +418,20 @@ def _server_field_errors(values):
         if not (key and os.path.isfile(key)):
             errors["SERVER_X509_PRIVATE_KEY"] = SERVER_MESSAGES["SERVER_X509_PRIVATE_KEY"]
     return errors
+
+
+def metrics_allow_networks(text):
+    """Adresses et réseaux autorisés à lire /metrics sans jeton (collecteurs : VictoriaMetrics, Prometheus, Zabbix…),
+    ou None si le texte n'est pas valide."""
+    import ipaddress
+    nets = []
+    for part in re.split(r"[,\s]+", str(text or "").strip()):
+        if part:
+            try:
+                nets.append(ipaddress.ip_network(part, strict=False))
+            except ValueError:
+                return None
+    return nets
 
 
 def _apply_live_server(live, old_disk, new_disk):
@@ -422,6 +442,8 @@ def _apply_live_server(live, old_disk, new_disk):
         tokens = live_server.setdefault("TOKEN", {})
         tokens.clear()  # sur place : la boucle d'authentification garde une référence à ce dictionnaire
         tokens.update(copy.deepcopy(new_server.get("TOKEN", {})))
+    if old_server.get("METRICS_ALLOW") != new_server.get("METRICS_ALLOW"):
+        live_server["METRICS_ALLOW"] = new_server.get("METRICS_ALLOW", "")
     if bool(old_server.get("REQUIRE_KEY_PROOF")) != bool(new_server.get("REQUIRE_KEY_PROOF")):
         live_server["REQUIRE_KEY_PROOF"] = bool(new_server.get("REQUIRE_KEY_PROOF"))
     if old_server.get("MESH_LISTENERS_PORT_RANGE") != new_server.get("MESH_LISTENERS_PORT_RANGE"):
@@ -455,7 +477,10 @@ LOGGING_FIELDS = ("LOG_LEVEL", "LOG_FORWARD_LEVEL", "LOG_MAX_SIZE_PER_FILE_MB", 
 LOGGING_DEFAULTS = {"LOG_LEVEL": "INFO", "LOG_FORWARD_LEVEL": "INFO", "LOG_MAX_SIZE_PER_FILE_MB": "10",
                     "LOG_FILE_TO_KEEP": "5", "LOG_RETENTION_DAYS": ""}
 GLOBAL_LIVE_KEYS = ("LOG_LEVEL", "LOG_FORWARD_LEVEL", "LOG_RETENTION_DAYS", "WATCHDOG_CHECK_RATE",
-                    "IPERF3_TIME_SKEW_THRESHOLD", "IPERF3_CONNECT_TIMEOUT", "LATENCY", "LATENCY_PORT") + st_syslog.KEYS
+                    "IPERF3_TIME_SKEW_THRESHOLD", "IPERF3_CONNECT_TIMEOUT", "LATENCY", "LATENCY_PORT", "BASELINE",
+                    "BASELINE_SENSITIVITY", "BASELINE_MARGIN_LOSS", "BASELINE_MARGIN_JITTER", "BASELINE_MARGIN_RTT",
+                    "BASELINE_MARGIN_MOS", "BASELINE_MARGIN_TCP", "BASELINE_OPEN_AFTER",
+                    "BASELINE_CLOSE_AFTER") + st_syslog.KEYS
 # Réglages transmis aux clients à leur connexion : un changement les fait se reconnecter pour les recevoir
 GLOBAL_SENT_TO_CLIENTS = (("LOG_FORWARD_LEVEL", "INFO"), ("IPERF3_TIME_SKEW_THRESHOLD", None),
                           ("IPERF3_CONNECT_TIMEOUT", None), ("LATENCY", True), ("LATENCY_PORT", "8620"))
@@ -586,6 +611,16 @@ GLOBAL_FIELDS = {
                                "Seconds given to iperf3 to connect to its peer, 1 to 60", False),
     "LATENCY": (lambda v: True, "", True),
     "LATENCY_PORT": (lambda v: v.isdigit() and 1 <= int(v) <= 65535, "A UDP port, 1 to 65535", False),
+    "BASELINE": (lambda v: True, "", True),
+    "BASELINE_SENSITIVITY": (_check_float_range(1, 10),
+                             "Width of the baseline band, in robust deviations: 1 (strict) to 10 (lenient)", False),
+    "BASELINE_MARGIN_LOSS": (_check_float_range(0, 100), "Loss percentage points, 0 to 100", False),
+    "BASELINE_MARGIN_JITTER": (_check_float_range(0, 10000), "Milliseconds, 0 to 10000", False),
+    "BASELINE_MARGIN_RTT": (_check_float_range(0, 10000), "Milliseconds, 0 to 10000", False),
+    "BASELINE_MARGIN_MOS": (_check_float_range(0, 4), "MOS points, 0 to 4", False),
+    "BASELINE_MARGIN_TCP": (_check_float_range(0, 100), "Percent of the usual bitrate, 0 to 100", False),
+    "BASELINE_OPEN_AFTER": (lambda v: v.isdigit() and 1 <= int(v) <= 60, "Minutes, 1 to 60", False),
+    "BASELINE_CLOSE_AFTER": (lambda v: v.isdigit() and 1 <= int(v) <= 60, "Minutes, 1 to 60", False),
     "LOG_TO": (lambda v: v.lower() in ("stdout", "file", "all"), "stdout, file or all", False),
     "IPERF3_AUTH": (lambda v: True, "", True),
     "LOG_PURGE_ON_START": (lambda v: True, "", True),
@@ -785,7 +820,8 @@ def request_updates(state, uids, actor, force=False, groups=()):
 
 # --------------------------------------------------------------------------------------------------------- clients
 
-LIVE_SECTIONS = ("MESH_GROUP", "IPERF3_PROFILE", "SERVER_CLIENT", "DATABASE")
+LIVE_SECTIONS = ("MESH_GROUP", "IPERF3_PROFILE", "SERVER_CLIENT", "DATABASE", "TCP_TEST", "GRAFANA",
+                 "MAINTENANCE")  # TCP_TEST : relu à chaque passage
 DYNAMIC_IP = "0.0.0.0"
 CLIENT_MESSAGES = {
     "UID": FIELD_MESSAGES["UID"],
@@ -1731,3 +1767,281 @@ def live_topology(state, mesh_group=None):
     result["hubs"] = sorted({h for g in shown for h in st_topology.hubs(g)})
     result["metrics_available"] = vm is not None
     return result
+
+
+# ---------------------------------------------------------------------------------- tests TCP planifiés
+
+TCP_FIELDS = ("MESH_GROUP", "EVERY", "DURATION", "DIRECTION", "PARALLEL", "WINDOW", "BANDWIDTH", "MSS", "CONGESTION",
+              "DSCP", "OMIT", "MODE", "AUTO_FACTOR", "DESCRIPTION")
+
+
+def list_tcp_tests(state):
+    return copy.deepcopy(read_disk(state).get("TCP_TEST", []))
+
+
+def _tcp_apply(t, values):
+    for key in TCP_FIELDS:
+        value = str(values.get(key, "") or "").strip()
+        if value:
+            t[key] = value.lower() if key in ("DIRECTION", "MODE", "CONGESTION") else value
+        else:
+            t.pop(key, None)
+    for key, default in (("ENABLED", True), ("AUTO_PACING", False)):
+        if key in values:
+            t[key] = values[key] is True or _bool_text(values[key])
+        else:
+            t.setdefault(key, default)
+
+
+def _tcp_errors(cfg, values, with_uid):
+    from lib import st_tcp_tests as tt
+    groups = {g["UID"] for g in cfg.get("MESH_GROUP", [])}
+    return tt.field_errors(values, mesh_groups=groups, with_uid=with_uid)
+
+
+def create_tcp_test(state, values, actor, dry_run=False):
+    cfg = read_disk(state)
+    uid = str(values.get("UID", "")).strip()
+    _raise(_tcp_errors(cfg, values, True))
+    if _find_by(cfg.get("TCP_TEST", []), "UID", uid) is not None:
+        raise OpError(409, f"TCP test '{uid}' already exists", {"UID": "This name is already used"})
+    t = {"UID": uid}
+    _tcp_apply(t, values)
+    cfg.setdefault("TCP_TEST", []).append(t)
+    return dict(_commit(state, cfg, actor, "CREATE_TCP_TEST", f"TCP test '{uid}' created", dry_run), uid=uid)
+
+
+def update_tcp_test(state, uid, values, actor, dry_run=False):
+    cfg = read_disk(state)
+    t = _find_by(cfg.get("TCP_TEST", []), "UID", uid)
+    if t is None:
+        raise OpError(404, f"TCP test '{uid}' not found")
+    _raise(_tcp_errors(cfg, values, False))
+    _tcp_apply(t, values)
+    return dict(_commit(state, cfg, actor, "UPDATE_TCP_TEST", f"TCP test '{uid}' updated", dry_run), uid=uid)
+
+
+def delete_tcp_test(state, uid, actor, dry_run=False):
+    cfg = read_disk(state)
+    t = _find_by(cfg.get("TCP_TEST", []), "UID", uid)
+    if t is None:
+        raise OpError(404, f"TCP test '{uid}' not found")
+    cfg["TCP_TEST"].remove(t)
+    return dict(_commit(state, cfg, actor, "DELETE_TCP_TEST", f"TCP test '{uid}' deleted", dry_run), uid=uid)
+
+
+def run_tcp_test_now(state, uid, actor):
+    from lib import st_tcp_tests as tt
+    if _find_by(read_disk(state).get("TCP_TEST", []), "UID", uid) is None:
+        raise OpError(404, f"TCP test '{uid}' not found")
+    tt.SCHEDULER.run_now(uid)
+    store.log_event(state["config_file_path"], actor, "RUN_TCP_TEST", f"TCP test '{uid}' started by hand")
+    return {"uid": uid, "queued": True}
+
+
+def tcp_tests_status(state):
+    from lib import st_tcp_tests as tt
+    if not tt.seeded():  # serveur redémarré : derniers résultats connus, lus une fois dans la base
+        dbs = [d for d in state["config"].get("DATABASE", [])
+               if str(d.get("DB_ENGINE", "")).lower() == "victoriametrics"]
+        if dbs:
+            try:
+                from lib.st_vm_admin import VmAdmin
+                tt.seed(tt.results_from_vm(VmAdmin(dbs[0])))
+            except Exception as exc:  # noqa: BLE001 - la base peut être injoignable : page sans historique
+                log.info(f"TCP TEST RESULTS NOT READ FROM THE DATABASE: {type(exc).__name__}:{exc}")
+    return {"queue": tt.SCHEDULER.queued(), "results": tt.recent_results(100)}
+
+
+def tcp_tests_tick(state, now=None):
+    """Passage de la surveillance du serveur : tâches échues → un test à la fois, envoyé aux deux sondes."""
+    import time as _time
+    from lib import st_flow_catalog, st_quality, st_tcp_tests as tt
+    cfg = read_disk(state)
+    tests = [t for t in cfg.get("TCP_TEST", []) if not _tcp_errors(cfg, t, True)]
+    if not tests:
+        return []
+    live = state["config"]
+    flows = st_flow_catalog.expected_flows(live, state.get("_dict_by_node_generated_config") or {})
+    declared = {c["UID"]: c for c in live.get("SERVER_CLIENT", [])}
+    probes = {}
+    for uid, c in declared.items():
+        obj = state["dict_of_clients"].get(uid)
+        if obj is None or getattr(obj, "status", "") != "CONNECTED":
+            continue
+        address = getattr(obj, "ip_address", None) or c.get("IP_ADDRESS")
+        probes[uid] = {"address": address, "nat": bool(c.get("BEHIND_NAT")) or bool(getattr(obj, "nat_detected", False))}
+    jobs = tt.SCHEDULER.tick(now if now is not None else _time.time(), tests,
+                             lambda t: [p for p in tt.pairs(flows, t.get("MESH_GROUP"), probes)])
+    port = int(str(live.get("GLOBAL", {}).get("TCP_TEST_PORT") or tt.DEFAULT_PORT))
+    for job in jobs:
+        t = job["test"]
+        if (t.get("MODE") or "fixed") == "auto":
+            rtt = st_quality.latest_rtt({"CLIENT": job["initiator"], "SERVER": job["responder"]})
+            cap = tt.capacity_bps(t, declared.get(job["initiator"], {}).get("MAX_BANDWIDTH"),
+                                  declared.get(job["responder"], {}).get("MAX_BANDWIDTH"))
+            job["auto"] = tt.auto_params(cap, rtt, factor=float(t.get("AUTO_FACTOR") or 2.0),
+                                         pacing=bool(t.get("AUTO_PACING")))
+            if not job["auto"]:
+                log.info(f"TCP TEST {t.get('UID')}: AUTO MODE WITHOUT {'CAPACITY' if not cap else 'RTT'} FOR "
+                         f"{job['initiator']}-{job['responder']}: TCP LEFT TO THE OPERATING SYSTEM")
+        tt.dispatch(job, state["dict_of_commands_for_network_clients"], port=port)
+        log.info(f"TCP TEST {t.get('UID')} ({job['direction']}): {job['initiator']} -> {job['responder']} "
+                 f"AT {job['start_at']:.0f}")
+    return jobs
+
+
+# ------------------------------------------------------------------------------- déploiement vers Grafana
+
+GRAFANA_TEXT = ("URL", "FOLDER", "DATASOURCE_URL")
+
+
+def get_grafana(state):
+    from lib import st_grafana_deploy as gd
+    g = read_disk(state).get("GRAFANA", {})
+    row = {k: g.get(k, "") for k in GRAFANA_TEXT}
+    row["VERIFY_TLS"] = g.get("VERIFY_TLS", True) is not False
+    row["TOKEN_SET"] = bool(g.get("TOKEN"))
+    row["DEFAULT_DATASOURCE_URL"] = gd.default_datasource_url(state["config"])
+    row["DEFAULT_FOLDER"] = gd.DEFAULT_FOLDER
+    return row
+
+
+def _grafana_errors(values):
+    import re as _re
+    errors = {}
+    url = str(values.get("URL", "") or "").strip()
+    if url and not _re.match(r"^https?://[^\s/]+", url):
+        errors["URL"] = "The address of Grafana, e.g. https://grafana.example.com"
+    ds = str(values.get("DATASOURCE_URL", "") or "").strip()
+    if ds and not _re.match(r"^https?://[^\s/]+", ds):
+        errors["DATASOURCE_URL"] = "The address of VictoriaMetrics as Grafana reaches it, e.g. http://10.0.0.5:8428"
+    folder = str(values.get("FOLDER", "") or "").strip()
+    if len(folder) > 60:
+        errors["FOLDER"] = "60 characters at most"
+    return errors
+
+
+def update_grafana(state, values, actor, dry_run=False):
+    cfg = read_disk(state)
+    _raise(_grafana_errors(values))
+    g = cfg.setdefault("GRAFANA", {})
+    for key in GRAFANA_TEXT:
+        value = str(values.get(key, "") or "").strip()
+        if value:
+            g[key] = value
+        else:
+            g.pop(key, None)
+    token = str(values.get("TOKEN", "") or "").strip()
+    if token:  # vide : jeton inchangé (il n'est jamais renvoyé à l'interface)
+        g["TOKEN"] = token
+    if "VERIFY_TLS" in values:
+        if values.get("VERIFY_TLS") is False or str(values.get("VERIFY_TLS")).lower() == "false":
+            g["VERIFY_TLS"] = False
+        else:
+            g.pop("VERIFY_TLS", None)
+    return _commit(state, cfg, actor, "UPDATE_GRAFANA", "Grafana settings updated", dry_run)
+
+
+def _grafana_settings(state, values=None):
+    from lib import st_grafana_deploy as gd
+    g = dict(read_disk(state).get("GRAFANA", {}))
+    for key, value in (values or {}).items():  # valeurs du formulaire pas encore enregistrées (bouton Tester)
+        if key in GRAFANA_TEXT + ("TOKEN",) and str(value or "").strip():
+            g[key] = str(value).strip()
+        if key == "VERIFY_TLS":
+            g[key] = value is not False and str(value).lower() != "false"
+    g.setdefault("DATASOURCE_URL", gd.default_datasource_url(state["config"]))
+    g.setdefault("FOLDER", gd.DEFAULT_FOLDER)
+    return g
+
+
+def grafana_test(state, values=None):
+    from lib import st_grafana_deploy as gd
+    try:
+        return gd.test(_grafana_settings(state, values))
+    except gd.GrafanaError as exc:
+        raise OpError(502, str(exc))
+
+
+def grafana_deploy(state, actor, dry_run=False):
+    from lib import st_grafana_deploy as gd
+    settings = _grafana_settings(state)
+    try:
+        result = gd.deploy(settings, dry_run=dry_run)
+    except gd.GrafanaError as exc:
+        raise OpError(502, str(exc))
+    if not dry_run:
+        done = sum(d["status"] == "deployed" for d in result["dashboards"])
+        store.log_event(state["config_file_path"], actor, "DEPLOY_GRAFANA",
+                        f"{done} dashboard(s) and the VictoriaMetrics data source deployed to {settings.get('URL')}")
+    return result
+
+
+# --------------------------------------------------------------------------------- fenêtres de maintenance
+
+MAINTENANCE_TEXT = ("TARGET_TYPE", "TARGET", "MODE", "START", "END", "FROM", "TO", "DESCRIPTION")
+
+
+def list_maintenance(state):
+    return copy.deepcopy(read_disk(state).get("MAINTENANCE", []))
+
+
+def _maintenance_errors(cfg, values, with_uid):
+    from lib import st_maintenance
+    nodes = {c["UID"] for c in cfg.get("SERVER_CLIENT", [])}
+    groups = {g["UID"] for g in cfg.get("MESH_GROUP", [])}
+    return st_maintenance.field_errors(values, nodes=nodes, groups=groups, with_uid=with_uid)
+
+
+def _maintenance_apply(w, values):
+    for key in MAINTENANCE_TEXT:
+        value = str(values.get(key, "") or "").strip()
+        if value:
+            w[key] = value
+        else:
+            w.pop(key, None)
+    days = [str(d).lower()[:3] for d in (values.get("DAYS") or [])]
+    if (w.get("MODE") or "once") == "weekly" and days:
+        w["DAYS"] = days
+    else:
+        w.pop("DAYS", None)
+    if (w.get("MODE") or "once") == "weekly":
+        w.pop("START", None), w.pop("END", None)
+    else:
+        w.pop("FROM", None), w.pop("TO", None)
+    w["ENABLED"] = values.get("ENABLED", True) is not False and str(values.get("ENABLED", True)).lower() != "false"
+
+
+def create_maintenance(state, values, actor, dry_run=False):
+    cfg = read_disk(state)
+    uid = str(values.get("UID", "")).strip()
+    _raise(_maintenance_errors(cfg, values, True))
+    if _find_by(cfg.get("MAINTENANCE", []), "UID", uid) is not None:
+        raise OpError(409, f"Maintenance window '{uid}' already exists", {"UID": "This name is already used"})
+    w = {"UID": uid}
+    _maintenance_apply(w, values)
+    cfg.setdefault("MAINTENANCE", []).append(w)
+    return dict(_commit(state, cfg, actor, "CREATE_MAINTENANCE", f"Maintenance window '{uid}' created", dry_run),
+                uid=uid)
+
+
+def update_maintenance(state, uid, values, actor, dry_run=False):
+    cfg = read_disk(state)
+    w = _find_by(cfg.get("MAINTENANCE", []), "UID", uid)
+    if w is None:
+        raise OpError(404, f"Maintenance window '{uid}' not found")
+    _raise(_maintenance_errors(cfg, values, False))
+    _maintenance_apply(w, values)
+    return dict(_commit(state, cfg, actor, "UPDATE_MAINTENANCE", f"Maintenance window '{uid}' updated", dry_run),
+                uid=uid)
+
+
+def delete_maintenance(state, uid, actor, dry_run=False):
+    cfg = read_disk(state)
+    w = _find_by(cfg.get("MAINTENANCE", []), "UID", uid)
+    if w is None:
+        raise OpError(404, f"Maintenance window '{uid}' not found")
+    cfg["MAINTENANCE"].remove(w)
+    return dict(_commit(state, cfg, actor, "DELETE_MAINTENANCE", f"Maintenance window '{uid}' deleted", dry_run),
+                uid=uid)

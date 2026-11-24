@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% from "_macros.html" import page_header, crud_table, crud_modal, field %}
+{% block title %}TCP tests{% endblock %}
+{% block head %}<script src="{{ url_for('static', filename='js/st_crud.js') }}"></script>{% endblock %}
+{% block content %}
+{{ page_header("TCP tests", "Short recurring TCP throughput tests between the probes of a mesh group (iperf3). The server runs one test at a time across the whole mesh, so tests never disturb each other; the probe behind a NAT always initiates. Auto mode sizes the TCP window from the measured round trip and the link capacity (bandwidth-delay product).") }}
+{{ crud_table("TCP test") }}
+
+{% call crud_modal() %}
+    {{ field("t_uid", "UID", "Name", help="4 to 50 characters: letters, digits, '_' or '-'.", attrs='required maxlength="50"') }}
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <label for="t_group" class="form-label">Mesh group</label>
+            <select class="form-select" id="t_group" data-field="MESH_GROUP" aria-describedby="t_group_help"></select>
+            <div id="t_group_help" class="form-text">Every pair of probes of this group is tested.</div>
+            <div class="invalid-feedback" data-feedback="MESH_GROUP"></div>
+        </div>
+        <div class="col-md-6">{{ field("t_every", "EVERY", "Frequency", help="15m, 1h, 6h, 1d… (at least one minute; a number alone is minutes).", attrs='required placeholder="1h"') }}</div>
+    </div>
+    <div class="row">
+        <div class="col-md-4">{{ field("t_duration", "DURATION", "Duration (s)", type="number", attrs='min="1" max="60" placeholder="10"') }}</div>
+        <div class="col-md-4 mb-3">
+            <label for="t_direction" class="form-label">Direction</label>
+            <select class="form-select" id="t_direction" data-field="DIRECTION">
+                <option value="both">Both, one after the other</option>
+                <option value="upload">Upload (the initiator sends)</option>
+                <option value="download">Download (the initiator receives, -R)</option>
+            </select>
+            <div class="invalid-feedback" data-feedback="DIRECTION"></div>
+        </div>
+        <div class="col-md-4">{{ field("t_parallel", "PARALLEL", "Parallel streams (-P)", type="number", attrs='min="1" max="32" placeholder="1"') }}</div>
+    </div>
+    <div class="mb-3">
+        <label for="t_mode" class="form-label">Mode</label>
+        <select class="form-select" id="t_mode" data-field="MODE" aria-describedby="t_mode_help">
+            <option value="fixed">Fixed: the values below, or the operating system's defaults</option>
+            <option value="auto">Auto: window and target rate from the measured RTT and the capacity</option>
+        </select>
+        <div id="t_mode_help" class="form-text">Auto: window = capacity × 0.95 × RTT × factor; target rate = capacity × 0.95. RTT: SYNTRAF's continuous latency measurement. Capacity: the field below, or else the smallest maximum bandwidth declared for the two probes. Without either, TCP is left to the operating system.</div>
+        <div class="invalid-feedback" data-feedback="MODE"></div>
+    </div>
+    <div class="row" id="t_auto_fields">
+        <div class="col-md-6">{{ field("t_factor", "AUTO_FACTOR", "Window factor", type="number", attrs='min="1" max="8" step="0.5" placeholder="2"', help="1 to 8. Larger windows absorb more jitter, but a policer may drop the bursts.") }}</div>
+        <div class="col-md-6 mb-3 pt-md-4">
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="t_pacing">
+                <label class="form-check-label" for="t_pacing">Pace the segments at the link rate (--pacing-timer)</label>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-4">{{ field("t_bandwidth", "BANDWIDTH", "Capacity / target rate (-b)", attrs='placeholder="100M"', help="e.g. 100M, 1G. Empty: unlimited (fixed) or declared maximum (auto).") }}</div>
+        <div class="col-md-4">{{ field("t_window", "WINDOW", "Window (-w)", attrs='placeholder="OS default"', help="e.g. 256K, 4M. Fixed mode only.") }}</div>
+        <div class="col-md-4">{{ field("t_mss", "MSS", "MSS (-M)", type="number", attrs='min="88" max="9000" placeholder="OS default"') }}</div>
+    </div>
+    <div class="row">
+        <div class="col-md-4">{{ field("t_cc", "CONGESTION", "Congestion control (-C)", attrs='placeholder="OS default"', help="cubic, bbr, reno… (Linux).") }}</div>
+        <div class="col-md-4">{{ field("t_dscp", "DSCP", "DSCP", type="number", attrs='min="0" max="63" placeholder="0"') }}</div>
+        <div class="col-md-4">{{ field("t_omit", "OMIT", "Omit first seconds (-O)", type="number", attrs='min="0" max="10" placeholder="1"', help="Slow start excluded from the result.") }}</div>
+    </div>
+    <div class="mb-3">
+        <label for="t_description" class="form-label">Description <span class="text-white-50">(optional)</span></label>
+        <input class="form-control" id="t_description" data-field="DESCRIPTION" type="text" maxlength="200">
+    </div>
+    <div class="form-check form-switch mb-2">
+        <input class="form-check-input" type="checkbox" role="switch" id="t_enabled" checked>
+        <label class="form-check-label" for="t_enabled">Enabled</label>
+    </div>
+{% endcall %}
+
+<h2 class="h5 mt-4">Queue</h2>
+<p id="tcp_queue" class="small text-white-50">Nothing queued.</p>
+<h2 class="h5 mt-4">Latest results</h2>
+<p class="small text-white-50">Received bitrate as measured by iperf3; long-term trends are in the Grafana dashboard “SYNTRAF TCP tests”.</p>
+<table id="tcp_results" class="table table-sm table-hover"></table>
+
+<script>
+const el = id => document.getElementById(id);
+const DIRECTIONS = {both: "Both", upload: "Upload", download: "Download"};
+let groupsLoaded = false;
+
+async function loadGroups() {
+    if (groupsLoaded) return;
+    const r = await st.api("GET", "/api/v1/mesh-groups");
+    if (!r.ok) return;
+    el("t_group").replaceChildren(...r.data.map(g => new Option(g.UID, g.UID)));
+    groupsLoaded = true;
+}
+
+function syncMode() {
+    const auto = el("t_mode").value === "auto";
+    el("t_auto_fields").hidden = !auto;
+    el("t_window").disabled = auto;
+}
+el("t_mode").addEventListener("change", syncMode);
+
+const runBtn = document.createElement("button");
+runBtn.id = "btn_run"; runBtn.type = "button"; runBtn.className = "btn btn-outline-light"; runBtn.disabled = true;
+runBtn.innerHTML = '<i class="fas fa-play me-1"></i>Run now';
+el("toolbar").appendChild(runBtn);
+$("#table").on("check.bs.table uncheck.bs.table check-all.bs.table uncheck-all.bs.table post-body.bs.table",
+    () => { runBtn.disabled = $("#table").bootstrapTable("getSelections").length !== 1; });
+runBtn.addEventListener("click", async () => {
+    const uid = $("#table").bootstrapTable("getSelections")[0].UID;
+    const r = await st.api("POST", `/api/v1/config/tcp_tests/${encodeURIComponent(uid)}/run`);
+    st.toast(r.ok ? `“${uid}” queued: it starts within a few seconds, one pair and direction at a time.` : r.error.message,
+             r.ok ? "success" : "danger");
+    refreshStatus();
+});
+
+st.crud({
+    listUrl: "/api/v1/config/tcp_tests",
+    itemUrl: uid => `/api/v1/config/tcp_tests/${encodeURIComponent(uid)}`,
+    idField: "UID",
+    emptyText: "No TCP test yet. Schedule one to measure the throughput between the probes of a mesh group.",
+    titleNew: "Schedule a TCP test",
+    titleEdit: uid => `Edit TCP test “${uid}”`,
+    deleteTitle: uid => `Delete TCP test “${uid}”?`,
+    deleteWarning: "Its past results stay in the databases.",
+    columns: [
+        {field: "UID", title: "Name", sortable: true},
+        {field: "MESH_GROUP", title: "Mesh group", sortable: true},
+        {field: "EVERY", title: "Every"},
+        {field: "DURATION", title: "Duration", formatter: v => st.esc((v || "10") + " s")},
+        {field: "DIRECTION", title: "Direction", formatter: v => st.esc(DIRECTIONS[v || "both"])},
+        {field: "MODE", title: "Mode", formatter: v => st.esc(v === "auto" ? "Auto" : "Fixed")},
+        {field: "PARALLEL", title: "Streams", formatter: v => st.esc(v || "1")},
+        {field: "ENABLED", title: "Enabled", formatter: v => v === false ? `<span class="text-white-50">${st.esc("No")}</span>` : st.esc("Yes")},
+    ],
+    async fill(row) {
+        await loadGroups();
+        el("t_uid").value = row ? row.UID : "";
+        el("t_uid").readOnly = !!row;
+        el("t_group").value = row ? row.MESH_GROUP : (el("t_group").options[0] || {}).value || "";
+        el("t_every").value = row ? (row.EVERY || "") : "1h";
+        el("t_duration").value = row ? (row.DURATION || "") : "10";
+        el("t_direction").value = row ? (row.DIRECTION || "both") : "both";
+        el("t_parallel").value = row ? (row.PARALLEL || "") : "";
+        el("t_mode").value = row ? (row.MODE || "fixed") : "fixed";
+        el("t_factor").value = row ? (row.AUTO_FACTOR || "") : "";
+        el("t_pacing").checked = !!(row && row.AUTO_PACING);
+        el("t_bandwidth").value = row ? (row.BANDWIDTH || "") : "";
+        el("t_window").value = row ? (row.WINDOW || "") : "";
+        el("t_mss").value = row ? (row.MSS || "") : "";
+        el("t_cc").value = row ? (row.CONGESTION || "") : "";
+        el("t_dscp").value = row ? (row.DSCP || "") : "";
+        el("t_omit").value = row ? (row.OMIT || "") : "";
+        el("t_description").value = row ? (row.DESCRIPTION || "") : "";
+        el("t_enabled").checked = !row || row.ENABLED !== false;
+        syncMode();
+    },
+    read: () => ({
+        UID: el("t_uid").value.trim(), MESH_GROUP: el("t_group").value, EVERY: el("t_every").value.trim(),
+        DURATION: el("t_duration").value.trim(), DIRECTION: el("t_direction").value, PARALLEL: el("t_parallel").value.trim(),
+        MODE: el("t_mode").value, AUTO_FACTOR: el("t_mode").value === "auto" ? el("t_factor").value.trim() : "",
+        AUTO_PACING: el("t_mode").value === "auto" && el("t_pacing").checked,
+        BANDWIDTH: el("t_bandwidth").value.trim(), WINDOW: el("t_mode").value === "auto" ? "" : el("t_window").value.trim(),
+        MSS: el("t_mss").value.trim(), CONGESTION: el("t_cc").value.trim(), DSCP: el("t_dscp").value.trim(),
+        OMIT: el("t_omit").value.trim(), DESCRIPTION: el("t_description").value.trim(), ENABLED: el("t_enabled").checked,
+    }),
+});
+
+const num = (v, digits = 1) => v === undefined || v === null ? "—" : Number(v).toFixed(digits);
+async function refreshStatus() {
+    const r = await st.api("GET", "/api/v1/tcp_tests/status");
+    if (!r.ok) return;
+    const q = r.data.queue;
+    el("tcp_queue").textContent = q.length ? q.map(j => `${j.test}: ${j.initiator} → ${j.responder} (${j.direction})`).join(" · ")
+                                           : "Nothing queued.";
+    $("#tcp_results").bootstrapTable("destroy").bootstrapTable({
+        data: r.data.results, pagination: true, pageSize: 15, formatNoMatches: () => "No result yet.",
+        columns: st.escapedColumns([
+            {field: "time", title: "When", formatter: v => st.esc(new Date(v).toLocaleString())},
+            {field: "test", title: "Test"},
+            {field: "server", title: "Initiator"}, {field: "client", title: "Peer"},
+            {field: "direction", title: "Direction", formatter: v => st.esc(DIRECTIONS[v] || v || "")},
+            {field: "BITRATE_MBPS", title: "Mbit/s", formatter: (v, row) => row.FAILED ? `<span class="text-danger">${st.esc("Failed")}</span>` : num(v)},
+            {field: "RETRANSMITS", title: "Retransmits", formatter: v => st.esc(v ?? "—")},
+            {field: "RTT_MS", title: "TCP RTT (ms)", formatter: v => num(v, 2)},
+            {field: "WINDOW_BYTES", title: "Window", formatter: (v, row) => row.WINDOW_LIMITED
+                ? `<span class="text-warning" title="${st.esc("Above the operating system limit (net.core.wmem_max / rmem_max): TCP autotuning used instead.")}">${st.esc("OS (limited)")}</span>`
+                : v ? st.esc(Math.round(v / 1024) + " KiB") : "OS"},
+        ]),
+    });
+}
+refreshStatus();
+setInterval(refreshStatus, 10000);
+</script>
+{% endblock %}

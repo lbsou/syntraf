@@ -41,6 +41,9 @@ Looking for collaborators! Email me at shadow131 @ hotmail [dot] com
   ITU-T E-model) per flow for the codec of its profile, loss bursts (episodes, burst ratio, longest burst), and the
   round-trip latency between probes (TWAMP-Light), measured from behind a NAT too. A live map of the probes and
   their links, colored by loss, MOS, latency or jitter.
+- **Scheduled TCP tests.** Short recurring TCP throughput tests between the probes of a mesh group (frequency,
+  duration, direction, streams, window, MSS, congestion control, DSCP), one at a time across the mesh. Auto mode sizes
+  the window from the measured round trip and the link capacity (bandwidth-delay product), like AMPR-NG.
 
 | Topology choice | Grafana |
 | --- | --- |
@@ -61,6 +64,13 @@ The server holds the configuration and generates, for each client, its iperf3 *l
 configuration, run iperf3, and send back their measurements (buffered while the server is unreachable) and their logs.
 
 ## Quick start
+
+**Offline packages** (Debian, RHEL, Alpine, Windows, macOS on Apple silicon): `python packaging/build_packages.py`
+builds, for each platform, a server and a probe archive with a portable Python, the dependencies and iperf3v (the
+server archive also carries VictoriaMetrics and Grafana, installed already bound together); on the
+target, `sudo ./install.sh` (server) or `sudo ./install.sh --server <address> --token <token>` (probe), or
+`install.ps1` on Windows, installs without Internet access and creates the service. See the documentation, section
+*Installation › Offline packages*. The manual installation below is for development.
 
 Requirements: Python 3, iperf3 ≥ 3.9 with timestamps (the
 [keepalive branch](https://github.com/davidBar-On/iperf/tree/issue-812-835-control-connection-keepalive) is
@@ -162,9 +172,15 @@ shipped with `cygwin1.dll`, `cygcrypto-3.dll` and `cygz.dll`) runs SYNTRAF probe
 VictoriaMetrics, Grafana) with fault injection (`labctl.py degrade | cut | flap | heal`), unit tests, Docker
 scenarios and a browser end-to-end test. See [`lab/README.md`](lab/README.md).
 
+## Versioning
+
+Every commit increments the last digit of the version (`DefaultValues.SYNTRAF_VERSION` in `lib/st_global.py`:
+0.45 → 0.45.1 → 0.45.2…) through the `.githooks/pre-commit` hook; enable it once per clone with
+`git config core.hooksPath .githooks`. `python tools/bump_version.py --minor` (or `--major`) marks a notable version;
+`SYNTRAF_NO_BUMP=1 git commit …` skips the increment once. Packages and probe updates carry this version.
+
 ## Known issues
 
 - `IPERF3: ERROR - TEST AUTHORIZATION FAILED`: clock skew between nodes above the threshold (10 s by default):
   synchronize the clocks or raise *Clock skew tolerated* on the Server page (*Global*).
 - `UserWarning: libuv only supports millisecond timer resolution`: harmless.
-- SYNTRAF measures loss, jitter and throughput; it does not measure latency.

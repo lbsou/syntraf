@@ -5,7 +5,7 @@ FROM debian:bookworm-slim AS iperf-build
 # IPERF3_SOURCE : iperf3v (fork maintenu, IPERF3_REF = tag v3.22.1-v1...), esnet (IPERF3_REF = tag ESnet)
 # ou fork (IPERF3_FORK_REPO / IPERF3_FORK_BRANCH).
 ARG IPERF3_SOURCE=iperf3v
-ARG IPERF3_REF=v3.22.1-v1
+ARG IPERF3_REF=v3.22.1-v2
 ARG IPERF3_FORK_REPO=https://github.com/davidBar-On/iperf.git
 ARG IPERF3_FORK_BRANCH=issue-812-835-control-connection-keepalive
 RUN apt-get update && apt-get install -y --no-install-recommends \

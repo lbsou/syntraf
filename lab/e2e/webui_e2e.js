@@ -181,6 +181,32 @@ async function selectRow(page, uid) {
     const spread = await page.evaluate(() => { const b = window.stLiveMap.nodes().boundingBox(); return [b.w, b.h]; });
     check(spread[0] > 100 && spread[1] > 100, `live map: probes spread in both directions ${spread.map(Math.round)}`);
 
+    // 1c bis. Page Clients : chaque client connecté a ses courbes (un client sans statistiques ne doit pas empêcher
+    // de dessiner les suivants)
+    errors = [];
+    await page.goto(BASE + "/stats.html", {waitUntil: "domcontentloaded"});
+    await new Promise(r => setTimeout(r, 5000));
+    const sparks = await page.evaluate(() => [...document.querySelectorAll("[id$='_cpu_pct_usage']")]
+        .map(e => [e.id.replace("_cpu_pct_usage", ""), e.querySelector("svg path") !== null]));
+    check(sparks.length >= 4 && sparks.every(([, drawn]) => drawn) && errors.length === 0,
+          `clients page: CPU sparkline for every client ${JSON.stringify(sparks)} ${errors.join(" ; ")}`);
+
+    // 1d. Tests TCP : les tâches et les derniers résultats sont dessinés (un formateur en erreur vide le tableau)
+    errors = [];
+    await page.goto(BASE + "/tcp_tests.html", {waitUntil: "domcontentloaded"});
+    await page.waitForFunction(() => document.body.dataset.tableLoaded === "1", {timeout: 15000}).catch(() => {});
+    await new Promise(r => setTimeout(r, 1500));
+    const tcp = await page.evaluate(() => ({
+        tasks: $("#table").bootstrapTable("getData").length, taskRows: document.querySelectorAll("#table tbody tr[data-index]").length,
+        results: $("#tcp_results").bootstrapTable("getData").length,
+        resultRows: document.querySelectorAll("#tcp_results tbody tr[data-index]").length}));
+    check(tcp.taskRows === tcp.tasks && tcp.resultRows === Math.min(tcp.results, 15) && errors.length === 0,
+          `TCP tests page: ${JSON.stringify(tcp)} ${errors.join(" ; ")}`);
+    if (tcp.tasks) {
+        await page.click("#table tbody tr[data-index] td:nth-child(2)");
+        check(await page.$eval("#btn_run", b => !b.disabled), "TCP tests: Run now enabled for one selected test");
+    }
+
     // 2. Cycle de vie d'un mesh group temporaire
     errors = [];
     await page.goto(BASE + "/mesh_group_config.html", {waitUntil: "domcontentloaded"});

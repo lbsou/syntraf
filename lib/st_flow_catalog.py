@@ -4,6 +4,8 @@ SYNTRAF_FLOW_EXPECTED{MESH_GROUP, CLIENT (émetteur), SERVER (récepteur), UID, 
     publié par le serveur toutes les 30 s et après chaque changement : les tableaux de bord savent quels flux
     doivent être mesurés (un flux retiré par un changement de topologie n'est pas une panne, un flux attendu
     sans mesure en est une) et quel rôle (hub, spoke, member) a chaque extrémité.
+SYNTRAF_FLOW_NAT_PAIR{MESH_GROUP, CLIENT, SERVER} = 1
+    publié avec eux : les paires de sondes toutes deux derrière un NAT, jamais mesurées (aucune ne joint l'autre).
 SYNTRAF_CONFIG_CHANGE{ACTION, ACTOR, SUMMARY} = 1
     un point par entrée du journal d'audit : repères des changements sur les courbes.
 
@@ -51,6 +53,24 @@ def expected_flows(config, generated):
 def expected_points(flows, now=None):
     now = now or dt.datetime.now(dt.timezone.utc)
     return [{"measurement": "SYNTRAF_FLOW", "tags": dict(f), "time": now, "fields": {"EXPECTED": 1}} for f in flows]
+
+
+def nat_pairs(config):
+    """Paires de sondes d'un même mesh group toutes deux derrière un NAT : aucune ne peut joindre l'autre, le serveur
+    ne leur fait rien mesurer. Publiées pour que les tableaux de bord disent pourquoi leur case est vide."""
+    out = []
+    for g in config.get("MESH_GROUP", []):
+        if g.get("DISABLED"):
+            continue
+        nat = sorted(c["UID"] for c in config.get("SERVER_CLIENT", [])
+                     if c.get("BEHIND_NAT") and g.get("UID") in (c.get("MESH_GROUP_UID_LIST") or []))
+        out += [{"MESH_GROUP": g.get("UID"), "CLIENT": a, "SERVER": b} for a in nat for b in nat if a != b]
+    return out
+
+
+def nat_pair_points(pairs, now=None):
+    now = now or dt.datetime.now(dt.timezone.utc)
+    return [{"measurement": "SYNTRAF_FLOW", "tags": dict(p), "time": now, "fields": {"NAT_PAIR": 1}} for p in pairs]
 
 
 def bandwidth_bps(text):
@@ -136,8 +156,9 @@ def publish_expected(config, generated, conn_db):
     flows = expected_flows(config, generated)
     points = expected_points(flows, now)
     groups = group_points(config, flows, now)  # même horodatage : les tableaux de bord prennent la dernière publication
-    if points or groups:
-        _write(points + groups, conn_db, "EXPECTED_FLOWS")
+    nat = nat_pair_points(nat_pairs(config), now)
+    if points or groups or nat:
+        _write(points + groups + nat, conn_db, "EXPECTED_FLOWS")
     return len(points)
 
 

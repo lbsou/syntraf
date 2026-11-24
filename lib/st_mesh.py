@@ -328,6 +328,18 @@ def client_token(_config):
     return client['TOKEN']
 
 
+def client_command_tcp_test(_config, received_data, dict_data_to_send_to_server):
+    """Test TCP planifié par le serveur : vérifié, puis lancé dans un fil à part à l'heure dite."""
+    from lib import st_tcp_tests, st_outage
+    command = received_data.get('PAYLOAD') or {}
+    problem = st_tcp_tests.command_problem(command)
+    if problem:
+        client_log.warning(f"TCP TEST REFUSED: {guard.clean(problem)}")
+        return
+    st_tcp_tests.run_command(_config, command, dict_data_to_send_to_server, lambda q, p: st_outage.enqueue(
+        q, p, DefaultValues.DEFAULT_CLIENT_METRICS_QUEUE_SIZE))
+
+
 def client_command_set_token(_config, received_data):
     """Le serveur remet au client son jeton propre : il est gardé dans un fichier lisible par le seul propriétaire."""
     path = _config['CLIENT'].get('_TOKEN_FILE')
@@ -785,6 +797,9 @@ def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processe
                 elif received_data['COMMAND'] == "UPDATE":
                     client_command_update(_config, ssl_conn, received_data)
 
+                elif received_data['COMMAND'] == "TCP_TEST":
+                    client_command_tcp_test(_config, received_data, dict_data_to_send_to_server)
+
                 # We just received a specific part of the configuration that we should change locally.
                 elif received_data['COMMAND'] == "DIFFCONFIG":
                     client_command_diffconfig(_config, received_data, threads_n_processes)
@@ -909,6 +924,9 @@ def authenticate_server_client(_config, data, obj_client, sckt, enrollment=None,
     demandes en attente. Remet son jeton propre à un client épinglé qui s'est présenté avec un jeton partagé."""
     ip_addr = sckt.getpeername()[0]
     payload = data['PAYLOAD']
+    # Ce que le serveur savait de la sonde avant ce contact : repères de redémarrage, mise à jour, retour arrière
+    previous = {"status": getattr(obj_client, "status", None), "release": getattr(obj_client, "release_id", None),
+                "update_failed": getattr(obj_client, "update_failed", None)}
     obj_client.public_key_sha256 = st_enrollment.fingerprint(payload.get('PUBLIC_KEY'))
     obj_client.public_key = payload.get('PUBLIC_KEY')
     obj_client.release_id = payload.get('SYNTRAF_RELEASE')
@@ -918,6 +936,12 @@ def authenticate_server_client(_config, data, obj_client, sckt, enrollment=None,
                                        enrollment if isinstance(enrollment, st_enrollment.Enrollment) else None)
     if decision.accepted:
         decision = server_check_key_proof(_config, payload, decision)
+    if decision.accepted:
+        from lib import st_lifecycle
+        uid = decision.rename_to or payload.get('CLIENT_UID')
+        for event, summary in st_lifecycle.events(guard.clean(uid), previous, {
+                "release": payload.get('SYNTRAF_RELEASE'), "update_failed": payload.get('UPDATE_FAILED')}):
+            st_lifecycle.record(event, guard.clean(uid), summary)
     if decision.accepted and decision.rename_to:
         # Client renommé pendant son absence : admis sous son nouveau nom, qu'on lui remet
         server_log.warning(f"CONTEXT: {decision.rename_to} - PRESENTED ITS PREVIOUS NAME '{guard.clean(payload['CLIENT_UID'])}': "
@@ -980,6 +1004,8 @@ def server_save_metric(obj_client, conn_db, received_data, address, sckt):
         try:
             from lib import st_quality
             st_quality.enrich(received_data['PAYLOAD'], _SERVER_CONFIG.get('config'))
+            from lib import st_tcp_tests
+            st_tcp_tests.record(received_data['PAYLOAD'])  # derniers résultats des tests TCP, pour l'interface
         except Exception as exc:  # noqa: BLE001 - un plus : n'empêche jamais l'écriture des mesures
             server_log.debug(f"MOS NOT COMPUTED: {type(exc).__name__}:{exc}")
         for conn in conn_db:
@@ -1208,6 +1234,9 @@ def server_awaiting_commands(client_uid, dict_of_commands_for_network_clients, s
             sent_an_action = True
         elif action['ACTION'] == "SET_UID":
             sock_send(sckt, {"UID": action['UID']}, "SET_UID")
+            sent_an_action = True
+        elif action['ACTION'] == "TCP_TEST":  # test TCP planifié (lib/st_tcp_tests.py)
+            sock_send(sckt, {k: v for k, v in action.items() if k != "ACTION"}, "TCP_TEST")
             sent_an_action = True
         elif action['ACTION'] == "UPDATED_CONFIG" and action.get('ELEMENT') == "CLIENT_IP":
             sock_send(sckt, action, "DIFFCONFIG")

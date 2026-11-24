@@ -161,3 +161,88 @@ def test_peers_are_the_connectors_and_the_sources_of_accepted_iperf3_sessions():
     tw.learn_from_iperf3("'2026-11-23 00:31:28 '[  5] local 172.30.0.32 port 15910 connected to 172.30.0.35 port 38733")
     assert tw.allowed_peers(CONFIG) == {"172.30.0.31", "172.30.0.35"}
     tw.LEARNED.clear()
+
+
+# ------------------------------------------------------------------------- réordonnancement et doublons
+
+def reply(sender_seq, reflector_seq):
+    return {"sender_seq": sender_seq, "seq": reflector_seq}
+
+
+def test_in_order_echoes_have_no_reordering():
+    r = [reply(i, 100 + i) for i in range(10)]
+    assert tw.order_stats(r, sent=10) == {"REORDER_FWD_PCT": 0.0, "REORDER_REV_PCT": 0.0, "DUP_FWD": 0, "DUP_REV": 0}
+
+
+def test_forward_reordering_is_seen_in_the_reflector_arrival_order():
+    # le réflecteur a reçu 0 1 3 2 4 (numérotés 100..104 dans cet ordre), réponses revenues dans l'ordre
+    r = [reply(0, 100), reply(1, 101), reply(3, 102), reply(2, 103), reply(4, 104)]
+    m = tw.order_stats(r, sent=5)
+    assert m["REORDER_FWD_PCT"] == 20.0 and m["REORDER_REV_PCT"] == 0.0
+
+
+def test_reverse_reordering_is_seen_in_our_arrival_order():
+    r = [reply(0, 100), reply(2, 102), reply(1, 101), reply(3, 103)]
+    m = tw.order_stats(r, sent=4)
+    assert m["REORDER_REV_PCT"] == 25.0 and m["REORDER_FWD_PCT"] == 0.0
+
+
+def test_duplicates_in_each_direction():
+    fwd_dup = [reply(0, 100), reply(1, 101), reply(1, 102), reply(2, 103)]  # le réflecteur a reçu 1 deux fois
+    rev_dup = [reply(0, 100), reply(1, 101), reply(1, 101), reply(2, 102)]  # nous avons reçu sa réponse 101 deux fois
+    assert tw.order_stats(fwd_dup, sent=3)["DUP_FWD"] == 1 and tw.order_stats(fwd_dup, sent=3)["DUP_REV"] == 0
+    assert tw.order_stats(rev_dup, sent=3)["DUP_REV"] == 1 and tw.order_stats(rev_dup, sent=3)["DUP_FWD"] == 0
+
+
+def test_a_measurement_reports_order_and_duplicates():
+    reflector = tw.Reflector(0, host="127.0.0.1")
+    reflector.start()
+    try:
+        target = {"peer": "B", "me": "A", "address": "127.0.0.1", "dscp": 46, "mesh_group": "G", "interval": 1}
+        f = tw.measure_once(target, reflector.port)
+        assert f["LOSS_PCT"] == 0 and f["REORDER_FWD_PCT"] == 0 and f["DUP_REV"] == 0
+    finally:
+        reflector.stop()
+
+
+def test_the_echo_train_is_voice_like():
+    assert tw.COUNT == 10 and tw.TRAIN_SPACING_S == 0.02 and tw.RateLimiter().per_source >= 2 * tw.COUNT
+
+
+# -------------------------------------------------------------- marquage DSCP (à la manière de la RFC 7750)
+
+def test_the_sender_says_which_dscp_it_wants_and_the_reflector_reports_the_one_it_received():
+    pkt = tw.sender_packet(7, 1795400000.5, dscp=46)
+    assert tw.parse_sender(pkt)["dscp"] == 46
+    assert tw.parse_sender(tw.sender_packet(7, 0.0))["dscp"] is None  # ancienne sonde : rien d'annoncé
+    reply = tw.reflect(pkt, 1.0, 1.0, 3, received_tos=(0 << 2) | 1)  # réécrit en 0, ECN conservé
+    assert tw.parse_reply(reply)["received_dscp"] == 0
+    assert tw.parse_reply(tw.reflect(pkt, 1.0, 1.0, 3))["received_dscp"] is None  # réflecteur sans IP_RECVTOS
+    assert len(reply) <= tw.PACKET_SIZE
+
+
+def test_the_reply_carries_the_wanted_dscp_so_the_return_trip_is_checked_on_its_own():
+    """Le réflecteur répond avec le DSCP voulu par l'émetteur, pas celui reçu : une réécriture à l'aller ne doit pas
+    se répercuter (et se cacher) sur le retour."""
+    assert tw.reply_tos(tw.parse_sender(tw.sender_packet(1, 0.0, dscp=46)), received_tos=0) == 46 << 2
+    assert tw.reply_tos(tw.parse_sender(tw.sender_packet(1, 0.0)), received_tos=34 << 2) == 34 << 2  # ancien émetteur
+
+
+def test_dscp_statistics_per_direction():
+    f = tw.dscp_stats(46, forward=[46, 46, 0, 0], reverse=[46, 46, 46, 46])
+    assert f == {"DSCP_SENT": 46, "DSCP_OK_PCT_FWD": 50.0, "DSCP_RECV_FWD": 0, "DSCP_OK_PCT_REV": 100.0,
+                 "DSCP_RECV_REV": 46}
+    assert tw.dscp_stats(46, forward=[], reverse=[]) == {"DSCP_SENT": 46}  # rien de mesurable (Windows, ancienne sonde)
+
+
+@pytest.mark.skipif(not hasattr(__import__("socket").socket, "recvmsg"), reason="recvmsg absent (Windows)")
+def test_a_real_echo_reports_the_dscp_of_both_directions():
+    reflector = tw.Reflector(0, host="127.0.0.1")
+    reflector.start()
+    try:
+        target = {"peer": "B", "me": "A", "address": "127.0.0.1", "dscp": 46, "mesh_group": "G", "interval": 1}
+        f = tw.measure_once(target, reflector.port)
+        assert f["DSCP_OK_PCT_FWD"] == 100.0 and f["DSCP_RECV_FWD"] == 46
+        assert f["DSCP_OK_PCT_REV"] == 100.0 and f["DSCP_RECV_REV"] == 46
+    finally:
+        reflector.stop()

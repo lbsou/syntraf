@@ -1,0 +1,10 @@
+#!/bin/sh
+# Incrémente la version de SYNTRAF à chaque commit (tools/bump_version.py) et l'ajoute au commit.
+# Activé par : git config core.hooksPath .githooks   —   sauter une fois : SYNTRAF_NO_BUMP=1 git commit ...
+[ -n "${SYNTRAF_NO_BUMP:-}" ] && exit 0
+GIT_DIR=$(git rev-parse --git-dir)
+# pas pendant une fusion, un rebase ou un cherry-pick : la version suit la branche
+for f in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD rebase-merge rebase-apply; do [ -e "$GIT_DIR/$f" ] && exit 0; done
+ROOT=$(git rev-parse --show-toplevel)
+PY=$(command -v python3 || command -v python) || { echo "pre-commit : python introuvable, version non incrémentée" >&2; exit 0; }
+"$PY" "$ROOT/tools/bump_version.py" && git add "$ROOT/lib/st_global.py"

@@ -171,3 +171,47 @@ def test_the_live_map_names_the_hubs_for_its_layout(state, monkeypatch):
     from lib import st_live_map
     monkeypatch.setattr(st_live_map, "read_metrics", lambda vm: {"loss": {}, "jitter": {}, "mos": {}, "rtt": {}})
     assert ops.live_topology(state)["hubs"] == []
+
+
+# ------------------------------------------------------------------------------------------- tests TCP
+
+TCP = {"UID": "WAN_TCP", "MESH_GROUP": "GROUP1", "EVERY": "1h", "DURATION": "5", "DIRECTION": "upload",
+       "PARALLEL": "2", "MODE": "fixed", "ENABLED": True}
+
+
+def test_tcp_tests_can_be_created_listed_and_deleted_without_restarting_measurements(state):
+    preview = ops.create_tcp_test(state, TCP, actor="admin", dry_run=True)
+    assert preview["affected_clients"] == [] and preview["restart_required"] == []  # relu à chaque passage
+    ops.create_tcp_test(state, TCP, actor="admin")
+    assert [t["UID"] for t in ops.list_tcp_tests(state)] == ["WAN_TCP"]
+    assert toml.load(state["config_file_path"])["TCP_TEST"][0]["PARALLEL"] == "2"
+    ops.update_tcp_test(state, "WAN_TCP", dict(TCP, PARALLEL="8"), actor="admin")
+    assert ops.list_tcp_tests(state)[0]["PARALLEL"] == "8"
+    with pytest.raises(ops.OpError) as err:
+        ops.create_tcp_test(state, dict(TCP, UID="BAD_TCP", EVERY="5s"), actor="admin")
+    assert "EVERY" in err.value.fields
+    ops.delete_tcp_test(state, "WAN_TCP", actor="admin")
+    assert ops.list_tcp_tests(state) == []
+
+
+def test_the_server_turns_a_due_tcp_test_into_commands_for_both_probes(state, monkeypatch):
+    from lib import st_tcp_tests as tt
+    monkeypatch.setattr(tt, "SCHEDULER", tt.Scheduler(start_delay_s=10))
+    ops.create_tcp_test(state, TCP, actor="admin")
+    ops.run_tcp_test_now(state, "WAN_TCP", actor="admin")
+    jobs = ops.tcp_tests_tick(state, now=1000.0)
+    assert len(jobs) == 1
+    cmds = state["dict_of_commands_for_network_clients"]
+    roles = sorted(c["ROLE"] for u in cmds for c in cmds[u] if c["ACTION"] == "TCP_TEST")
+    assert roles == ["client", "server"]
+
+
+def test_auto_mode_uses_the_measured_round_trip_and_declared_capacity(state, monkeypatch):
+    from lib import st_tcp_tests as tt, st_quality
+    monkeypatch.setattr(tt, "SCHEDULER", tt.Scheduler(start_delay_s=10))
+    monkeypatch.setattr(st_quality, "latest_rtt", lambda tags, now=None: 40.0)
+    ops.create_tcp_test(state, dict(TCP, MODE="auto", BANDWIDTH="100M"), actor="admin")
+    ops.run_tcp_test_now(state, "WAN_TCP", actor="admin")
+    ops.tcp_tests_tick(state, now=1000.0)
+    client = [c for u in state["dict_of_commands_for_network_clients"].values() for c in u if c.get("ROLE") == "client"][0]
+    assert client["TEST"]["WINDOW"] == "950000" and client["TEST"]["BANDWIDTH"] == "95M"

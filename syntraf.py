@@ -165,6 +165,8 @@ def run():
     conn_db = []
     flag_at_least_one_db_online = False
     if "SERVER" in config:
+        from lib import st_lifecycle  # repère « serveur démarré », écrit au premier passage de la surveillance
+        st_lifecycle.record("SERVER_STARTED", "server", f"SYNTRAF server {DefaultValues.SYNTRAF_VERSION} started")
         if "DATABASE" in config:
             for database in config['DATABASE']:
                 from lib.st_db_factory import make_db_connection
@@ -257,7 +259,40 @@ def run():
             # Rafales de pertes de chaque flux (au plus chaque minute, dans un fil à part)
             from lib.st_quality import PUBLISHER as BURSTS
             BURSTS.maybe(config, conn_db)
+            # Baseline de chaque flux et alertes hors baseline (chaque minute, dans un fil à part)
+            # Redémarrages, mises à jour et retours arrière : repères dans Grafana
+            from lib import st_lifecycle
+            from lib.st_flow_catalog import _write as _write_points
+            st_lifecycle.flush(lambda pts: _write_points(pts, conn_db, "LIFECYCLE"))
+            from lib.st_baseline import PUBLISHER as BASELINE, HEALTH
+            BASELINE.maybe(config, conn_db, config_path=cli_parameters.config_file)
+            # Santé de SYNTRAF lui-même (sondes, bases, fils) : alertes dans l'interface et repères dans Grafana
+            HEALTH.maybe({"config": config, "dict_of_clients": dict_of_clients, "conn_db": conn_db,
+                          "_dict_by_node_generated_config": _dict_by_node_generated_config,
+                          "threads_n_processes": threads_n_processes,
+                          "dict_data_to_send_to_server": dict_data_to_send_to_server,
+                          "config_file_path": cli_parameters.config_file}, conn_db)
+            # Tests TCP courts planifiés : tâches échues → un test à la fois, confié aux deux sondes
+            tcp_tests_tick(config, cli_parameters.config_file, dict_of_clients, dict_of_commands_for_network_clients,
+                           _dict_by_node_generated_config)
         time.sleep(float(config['GLOBAL']['WATCHDOG_CHECK_RATE']))
+
+
+_TCP_TICK = {"last": 0.0}
+
+
+def tcp_tests_tick(config, config_file, dict_of_clients, commands, generated):
+    if time.time() - _TCP_TICK["last"] < 5:
+        return
+    _TCP_TICK["last"] = time.time()
+    try:
+        from lib import st_mesh_group_ops
+        st_mesh_group_ops.tcp_tests_tick({"config": config, "config_file_path": config_file,
+                                          "dict_of_clients": dict_of_clients,
+                                          "dict_of_commands_for_network_clients": commands,
+                                          "_dict_by_node_generated_config": generated})
+    except Exception as exc:  # noqa: BLE001 - jamais bloquant pour la surveillance
+        log.warning(f"TCP TESTS NOT SCHEDULED: {type(exc).__name__}:{exc}")
 
 
 def proc_dump(threads_n_processes, dict_of_clients, config):

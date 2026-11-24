@@ -311,6 +311,36 @@ def delete_profile_config(uid):
     return jsonify(ops.delete_profile(_state(), uid, _actor(), _dry_run()))
 
 
+@st_api_v1.get("/config/tcp_tests")
+def list_tcp_tests():
+    return jsonify(ops.list_tcp_tests(_state()))
+
+
+@st_api_v1.post("/config/tcp_tests")
+def create_tcp_test():
+    return _created(ops.create_tcp_test(_state(), _body(), _actor(), _dry_run()))
+
+
+@st_api_v1.put("/config/tcp_tests/<uid>")
+def update_tcp_test(uid):
+    return jsonify(ops.update_tcp_test(_state(), uid, _body(), _actor(), _dry_run()))
+
+
+@st_api_v1.delete("/config/tcp_tests/<uid>")
+def delete_tcp_test(uid):
+    return jsonify(ops.delete_tcp_test(_state(), uid, _actor(), _dry_run()))
+
+
+@st_api_v1.post("/config/tcp_tests/<uid>/run")
+def run_tcp_test(uid):
+    return jsonify(ops.run_tcp_test_now(_state(), uid, _actor()))
+
+
+@st_api_v1.get("/tcp_tests/status")
+def tcp_tests_status():
+    return jsonify(ops.tcp_tests_status(_state()))
+
+
 @st_api_v1.get("/config/databases")
 def list_database_configs():
     return jsonify(ops.list_databases(_state()))
@@ -424,6 +454,52 @@ def clients():
 @st_api_v1.delete("/clients/<uid>")
 def forget_client(uid):
     return jsonify(ops.forget_client(_state(), uid, _actor()))
+
+
+@st_api_v1.get("/config/maintenance")
+def list_maintenance():
+    return jsonify(ops.list_maintenance(_state()))
+
+
+@st_api_v1.post("/config/maintenance")
+def create_maintenance():
+    return _created(ops.create_maintenance(_state(), _body(), _actor(), _dry_run()))
+
+
+@st_api_v1.put("/config/maintenance/<uid>")
+def update_maintenance(uid):
+    return jsonify(ops.update_maintenance(_state(), uid, _body(), _actor(), _dry_run()))
+
+
+@st_api_v1.delete("/config/maintenance/<uid>")
+def delete_maintenance(uid):
+    return jsonify(ops.delete_maintenance(_state(), uid, _actor(), _dry_run()))
+
+
+@st_api_v1.get("/config/grafana")
+def get_grafana():
+    return jsonify(ops.get_grafana(_state()))
+
+
+@st_api_v1.put("/config/grafana")
+def update_grafana():
+    return jsonify(ops.update_grafana(_state(), _body(), _actor(), _dry_run()))
+
+
+@st_api_v1.post("/grafana/test")
+def grafana_test():
+    return jsonify(ops.grafana_test(_state(), request.get_json(silent=True) or {}))
+
+
+@st_api_v1.post("/grafana/deploy")
+def grafana_deploy():
+    return jsonify(ops.grafana_deploy(_state(), _actor(), _dry_run()))
+
+
+@st_api_v1.get("/alerts")
+def alerts():
+    from lib import st_baseline
+    return jsonify(st_baseline.summary())
 
 
 @st_api_v1.get("/topology/live")
@@ -648,6 +724,20 @@ OPENAPI = {
                                          "put": _op("Update a client declaration", False, True, ("uid",)),
                                          "delete": _op("Remove a client", False, True, ("uid",))},
         "/api/v1/clients/{uid}": {"delete": _op("Forget a client no longer declared (supervision, admission requests)", params=("uid",))},
+        "/api/v1/config/maintenance": {"get": _op("Maintenance windows (alerts suspended for a probe or a mesh group)"),
+                                       "post": _op("Create a maintenance window (UID, TARGET_TYPE node|mesh_group, "
+                                                   "TARGET, MODE once (START, END) | weekly (DAYS, FROM, TO), "
+                                                   "ENABLED, DESCRIPTION)", False, True)},
+        "/api/v1/config/maintenance/{uid}": {"put": _op("Update a maintenance window", False, True, ("uid",)),
+                                             "delete": _op("Delete a maintenance window", False, True, ("uid",))},
+        "/api/v1/config/grafana": {"get": _op("Grafana to deploy to (the token is never returned)"),
+                                   "put": _op("Set the Grafana to deploy to (URL, TOKEN, FOLDER, DATASOURCE_URL, "
+                                              "VERIFY_TLS); an empty TOKEN keeps the current one", False, True)},
+        "/api/v1/grafana/test": {"post": _op("Test the connection and the token (saved settings, or the ones given)")},
+        "/api/v1/grafana/deploy": {"post": _op("Deploy the VictoriaMetrics data source and the dashboards",
+                                               False, True)},
+        "/api/v1/alerts": {"get": _op("Out-of-baseline alerts: open ones, recently closed ones, flows watched or "
+                                      "still learning their baseline")},
         "/api/v1/topology/live": {"get": _op("Live map: probes and expected links with the quality of the last minute (?mesh_group=)")},
         "/api/v1/updates": {"get": _op("This server's release and where each client stands"),
                             "post": _op("Send this server's release to clients ({CLIENTS: [...], GROUPS: [deployment groups], FORCE})")},
@@ -682,6 +772,14 @@ OPENAPI = {
                                           "put": _op("Update a profile (applied live to its mesh groups)",
                                                      False, True, ("uid",)),
                                           "delete": _op("Delete an unused profile", False, True, ("uid",))},
+        "/api/v1/config/tcp_tests": {"get": _op("Scheduled short TCP tests"),
+                                     "post": _op("Schedule a TCP test (UID, MESH_GROUP, EVERY, DURATION, DIRECTION, "
+                                                 "PARALLEL, WINDOW, MSS, CONGESTION, BANDWIDTH, DSCP, OMIT, MODE "
+                                                 "fixed|auto, AUTO_FACTOR, AUTO_PACING, ENABLED)", False, True)},
+        "/api/v1/config/tcp_tests/{uid}": {"put": _op("Update a TCP test", False, True, ("uid",)),
+                                           "delete": _op("Delete a TCP test", False, True, ("uid",))},
+        "/api/v1/config/tcp_tests/{uid}/run": {"post": _op("Run a TCP test now (queued)", params=("uid",))},
+        "/api/v1/tcp_tests/status": {"get": _op("Queued TCP tests and the latest results")},
         "/api/v1/config/databases": {"get": _op("Declared databases (tokens are never returned)"),
                                      "post": _op("Declare a database", False, True)},
         "/api/v1/config/databases/test": {"post": _op("Test database parameters without saving them")},

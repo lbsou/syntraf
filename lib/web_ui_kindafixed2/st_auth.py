@@ -292,9 +292,25 @@ def _unauthorized():
     return redirect(url_for("st_auth.login", next=request.full_path if request.query_string else request.path))
 
 
+def _allowed_scraper(address):
+    """Collecteur autorisé à lire /metrics sans jeton (SERVER.METRICS_ALLOW) : la configuration en service."""
+    import ipaddress
+    from lib.st_mesh_group_ops import metrics_allow_networks
+    allow = (current_app.config.get("config") or {}).get("SERVER", {}).get("METRICS_ALLOW")
+    nets = metrics_allow_networks(allow) or []
+    try:
+        ip = ipaddress.ip_address(address or "")
+    except ValueError:
+        return False
+    return any(ip in n for n in nets)
+
+
 def _gate():
     path = request.path
     if path in PUBLIC_PATHS or path.startswith("/static/"):
+        return None
+    if path == "/metrics" and _allowed_scraper(request.remote_addr):
+        g.actor = "scraper"
         return None
     store = store_of(current_app)
     header = request.headers.get("Authorization", "")

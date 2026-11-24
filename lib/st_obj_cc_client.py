@@ -29,6 +29,11 @@ class cc_client:
         self._client_uid = client_uid
         self._ip_address = ip_address
         self._tcp_port = tcp_port
+        # Propres à chaque client : en attribut de classe, ces dictionnaires étaient partagés par les clients créés
+        # en cours de route (déclarés à chaud), et asjson() ne les renvoyait pas
+        self._system_stats = {}
+        self._system_infos = {}
+        self._thread_status = {}
 
     # make it serializable so it can be returned by the WEBAPI
     def asjson(self):

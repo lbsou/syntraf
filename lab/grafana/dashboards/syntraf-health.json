@@ -1,0 +1,820 @@
+{
+  "uid": "syntraf-health",
+  "title": "7 · Santé de SYNTRAF",
+  "tags": [
+    "syntraf",
+    "lab"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "links": [
+    {
+      "title": "1 · Vue d'ensemble",
+      "type": "link",
+      "url": "/d/syntraf-lab",
+      "icon": "dashboard",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
+    },
+    {
+      "title": "2 · Matrices",
+      "type": "link",
+      "url": "/d/syntraf-matrix",
+      "icon": "dashboard",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
+    },
+    {
+      "title": "3 · Qualité voix et latence",
+      "type": "link",
+      "url": "/d/syntraf-quality",
+      "icon": "dashboard",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
+    },
+    {
+      "title": "4 · Tests TCP",
+      "type": "link",
+      "url": "/d/syntraf-tcp",
+      "icon": "dashboard",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
+    },
+    {
+      "title": "5 · Hubs",
+      "type": "link",
+      "url": "/d/syntraf-hubs",
+      "icon": "dashboard",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
+    },
+    {
+      "title": "6 · Corrélations",
+      "type": "link",
+      "url": "/d/syntraf-correlation",
+      "icon": "dashboard",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
+    },
+    {
+      "title": "7 · Santé de SYNTRAF",
+      "type": "link",
+      "url": "/d/syntraf-health",
+      "icon": "dashboard",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "mesh_group",
+        "label": "Groupe",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "syntraf-vm"
+        },
+        "query": {
+          "query": "label_values(SYNTRAF_RX_PCT_LOSS, MESH_GROUP)",
+          "refId": "v"
+        },
+        "definition": "label_values(SYNTRAF_RX_PCT_LOSS, MESH_GROUP)",
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "refresh": 2,
+        "sort": 1,
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      },
+      {
+        "name": "client",
+        "label": "Source",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "syntraf-vm"
+        },
+        "query": {
+          "query": "label_values(SYNTRAF_RX_PCT_LOSS, CLIENT)",
+          "refId": "v"
+        },
+        "definition": "label_values(SYNTRAF_RX_PCT_LOSS, CLIENT)",
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "refresh": 2,
+        "sort": 1,
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      },
+      {
+        "name": "server",
+        "label": "Destination",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "syntraf-vm"
+        },
+        "query": {
+          "query": "label_values(SYNTRAF_RX_PCT_LOSS, SERVER)",
+          "refId": "v"
+        },
+        "definition": "label_values(SYNTRAF_RX_PCT_LOSS, SERVER)",
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "refresh": 2,
+        "sort": 1,
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      }
+    ]
+  },
+  "annotations": {
+    "list": [
+      {
+        "name": "Changements de configuration",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "syntraf-vm"
+        },
+        "enable": true,
+        "iconColor": "orange",
+        "expr": "last_over_time(SYNTRAF_CONFIG_CHANGE[1m])",
+        "step": "60s",
+        "titleFormat": "{{ACTION}}",
+        "textFormat": "{{SUMMARY}} — {{ACTOR}}",
+        "useValueForTime": false
+      },
+      {
+        "name": "Alertes",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "syntraf-vm"
+        },
+        "enable": true,
+        "iconColor": "red",
+        "expr": "last_over_time(SYNTRAF_ALERT_EVENT[1m])",
+        "step": "60s",
+        "titleFormat": "Alerte {{ACTION}} · {{METRIC}} · {{FLOW}}",
+        "textFormat": "{{MESH_GROUP}} — {{SUMMARY}}",
+        "useValueForTime": false
+      },
+      {
+        "name": "Redémarrages et mises à jour",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "syntraf-vm"
+        },
+        "enable": true,
+        "iconColor": "blue",
+        "expr": "last_over_time(SYNTRAF_LIFECYCLE_EVENT[1m])",
+        "step": "60s",
+        "titleFormat": "{{EVENT}} · {{SUBJECT}}",
+        "textFormat": "{{SUMMARY}}",
+        "useValueForTime": false
+      },
+      {
+        "name": "Maintenance",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "syntraf-vm"
+        },
+        "enable": true,
+        "iconColor": "purple",
+        "expr": "max by (UID, TARGET_TYPE, TARGET, DESCRIPTION) (SYNTRAF_MAINTENANCE_ACTIVE)",
+        "step": "60s",
+        "titleFormat": "Maintenance {{UID}} · {{TARGET}}",
+        "textFormat": "{{DESCRIPTION}} — alertes suspendues",
+        "useValueForTime": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 200,
+      "type": "row",
+      "title": "Collecte",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Collecte de /metrics",
+      "description": "Collecté toutes les 15 s sur /metrics du serveur (Server › Interface web : collecteurs autorisés). Les mêmes contrôles lèvent des alertes dans l'interface (groupe « SYNTRAF »).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "syntraf-vm"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 24,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "syntraf-vm"
+          },
+          "instant": true,
+          "legendFormat": "serveur",
+          "expr": "up{job=\"syntraf\"}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "collecté",
+                  "color": "green",
+                  "index": 0
+                },
+                "0": {
+                  "text": "injoignable",
+                  "color": "red",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 201,
+      "type": "row",
+      "title": "Sondes",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Sondes",
+      "description": "Collecté toutes les 15 s sur /metrics du serveur (Server › Interface web : collecteurs autorisés). Les mêmes contrôles lèvent des alertes dans l'interface (groupe « SYNTRAF »).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "syntraf-vm"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 7,
+        "w": 24,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "syntraf-vm"
+          },
+          "instant": true,
+          "legendFormat": "{{client}}",
+          "expr": "syntraf_client_connected"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "connectée",
+                  "color": "green",
+                  "index": 0
+                },
+                "0": {
+                  "text": "déconnectée",
+                  "color": "red",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Mesures en attente sur les sondes",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "syntraf-vm"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "syntraf-vm"
+          },
+          "expr": "syntraf_client_buffered_points",
+          "legendFormat": "{{client}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "Collecté toutes les 15 s sur /metrics du serveur (Server › Interface web : collecteurs autorisés). Les mêmes contrôles lèvent des alertes dans l'interface (groupe « SYNTRAF »)."
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Flux iperf3 par sonde",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "syntraf-vm"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 12,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "syntraf-vm"
+          },
+          "expr": "syntraf_client_flows",
+          "legendFormat": "{{client}} · {{role}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "Collecté toutes les 15 s sur /metrics du serveur (Server › Interface web : collecteurs autorisés). Les mêmes contrôles lèvent des alertes dans l'interface (groupe « SYNTRAF »)."
+    },
+    {
+      "id": 202,
+      "type": "row",
+      "title": "Serveur et bases",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Bases de données",
+      "description": "Collecté toutes les 15 s sur /metrics du serveur (Server › Interface web : collecteurs autorisés). Les mêmes contrôles lèvent des alertes dans l'interface (groupe « SYNTRAF »).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "syntraf-vm"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 12,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "syntraf-vm"
+          },
+          "instant": true,
+          "legendFormat": "{{database}}",
+          "expr": "syntraf_database_up"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "en ligne",
+                  "color": "green",
+                  "index": 0
+                },
+                "0": {
+                  "text": "injoignable",
+                  "color": "red",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Fils du serveur",
+      "description": "Collecté toutes les 15 s sur /metrics du serveur (Server › Interface web : collecteurs autorisés). Les mêmes contrôles lèvent des alertes dans l'interface (groupe « SYNTRAF »).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "syntraf-vm"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 22,
+        "w": 12,
+        "h": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "syntraf-vm"
+          },
+          "instant": true,
+          "legendFormat": "{{thread}}",
+          "expr": "syntraf_thread_up"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "actif",
+                  "color": "green",
+                  "index": 0
+                },
+                "0": {
+                  "text": "arrêté",
+                  "color": "red",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Points en attente d'écriture",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "syntraf-vm"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 27,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "syntraf-vm"
+          },
+          "expr": "syntraf_database_backlog",
+          "legendFormat": "{{database}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "Collecté toutes les 15 s sur /metrics du serveur (Server › Interface web : collecteurs autorisés). Les mêmes contrôles lèvent des alertes dans l'interface (groupe « SYNTRAF »)."
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "File du serveur",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "syntraf-vm"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 27,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "syntraf-vm"
+          },
+          "expr": "syntraf_queue_length",
+          "legendFormat": "mesures reçues, pas encore transmises"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "Collecté toutes les 15 s sur /metrics du serveur (Server › Interface web : collecteurs autorisés). Les mêmes contrôles lèvent des alertes dans l'interface (groupe « SYNTRAF »)."
+    }
+  ]
+}

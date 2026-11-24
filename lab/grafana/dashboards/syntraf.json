@@ -1,6 +1,6 @@
 {
   "uid": "syntraf-lab",
-  "title": "SYNTRAF — mesures du maillage",
+  "title": "1 · Vue d'ensemble",
   "tags": [
     "syntraf",
     "lab"
@@ -16,21 +16,95 @@
   },
   "links": [
     {
-      "title": "Tableaux de bord SYNTRAF",
-      "type": "dashboards",
-      "tags": [
-        "syntraf"
-      ],
+      "title": "1 · Vue d'ensemble",
+      "type": "link",
+      "url": "/d/syntraf-lab",
+      "icon": "dashboard",
       "asDropdown": false,
       "includeVars": true,
-      "keepTime": true
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
+    },
+    {
+      "title": "2 · Matrices",
+      "type": "link",
+      "url": "/d/syntraf-matrix",
+      "icon": "dashboard",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
+    },
+    {
+      "title": "3 · Qualité voix et latence",
+      "type": "link",
+      "url": "/d/syntraf-quality",
+      "icon": "dashboard",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
+    },
+    {
+      "title": "4 · Tests TCP",
+      "type": "link",
+      "url": "/d/syntraf-tcp",
+      "icon": "dashboard",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
+    },
+    {
+      "title": "5 · Hubs",
+      "type": "link",
+      "url": "/d/syntraf-hubs",
+      "icon": "dashboard",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
+    },
+    {
+      "title": "6 · Corrélations",
+      "type": "link",
+      "url": "/d/syntraf-correlation",
+      "icon": "dashboard",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
+    },
+    {
+      "title": "7 · Santé de SYNTRAF",
+      "type": "link",
+      "url": "/d/syntraf-health",
+      "icon": "dashboard",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
     }
   ],
   "templating": {
     "list": [
       {
         "name": "mesh_group",
-        "label": "MESH_GROUP",
+        "label": "Groupe",
         "type": "query",
         "datasource": {
           "type": "prometheus",
@@ -58,7 +132,7 @@
       },
       {
         "name": "client",
-        "label": "CLIENT",
+        "label": "Source",
         "type": "query",
         "datasource": {
           "type": "prometheus",
@@ -86,7 +160,7 @@
       },
       {
         "name": "server",
-        "label": "SERVER",
+        "label": "Destination",
         "type": "query",
         "datasource": {
           "type": "prometheus",
@@ -129,6 +203,48 @@
         "titleFormat": "{{ACTION}}",
         "textFormat": "{{SUMMARY}} — {{ACTOR}}",
         "useValueForTime": false
+      },
+      {
+        "name": "Alertes",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "syntraf-vm"
+        },
+        "enable": true,
+        "iconColor": "red",
+        "expr": "last_over_time(SYNTRAF_ALERT_EVENT[1m])",
+        "step": "60s",
+        "titleFormat": "Alerte {{ACTION}} · {{METRIC}} · {{FLOW}}",
+        "textFormat": "{{MESH_GROUP}} — {{SUMMARY}}",
+        "useValueForTime": false
+      },
+      {
+        "name": "Redémarrages et mises à jour",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "syntraf-vm"
+        },
+        "enable": true,
+        "iconColor": "blue",
+        "expr": "last_over_time(SYNTRAF_LIFECYCLE_EVENT[1m])",
+        "step": "60s",
+        "titleFormat": "{{EVENT}} · {{SUBJECT}}",
+        "textFormat": "{{SUMMARY}}",
+        "useValueForTime": false
+      },
+      {
+        "name": "Maintenance",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "syntraf-vm"
+        },
+        "enable": true,
+        "iconColor": "purple",
+        "expr": "max by (UID, TARGET_TYPE, TARGET, DESCRIPTION) (SYNTRAF_MAINTENANCE_ACTIVE)",
+        "step": "60s",
+        "titleFormat": "Maintenance {{UID}} · {{TARGET}}",
+        "textFormat": "{{DESCRIPTION}} — alertes suspendues",
+        "useValueForTime": false
       }
     ]
   },
@@ -146,7 +262,7 @@
         "x": 0,
         "y": 0,
         "w": 24,
-        "h": 4
+        "h": 5
       },
       "targets": [
         {
@@ -212,19 +328,197 @@
       }
     },
     {
+      "id": 200,
+      "type": "row",
+      "title": "Alertes",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
       "id": 1,
-      "type": "stat",
-      "title": "Silence par flux attendu (s depuis le dernier point)",
-      "description": "Seuls les flux que la configuration fait mesurer. « no data » : flux attendu sans aucune mesure depuis une heure.",
+      "type": "table",
+      "title": "Alertes ouvertes",
+      "description": "Alertes hors baseline de SYNTRAF (page Alertes de l'interface) : une mesure sortie de la norme apprise de son flux, du mauvais côté. Les flux encore en apprentissage (moins de 24 h d'historique) n'y figurent pas. Nombre de métriques en alerte sur chaque flux ; « OK » : aucune. « NAT ↔ NAT » : deux sondes derrière un NAT ne peuvent pas se joindre ; la paire n'est pas mesurée.",
       "datasource": {
         "type": "prometheus",
         "uid": "syntraf-vm"
       },
       "gridPos": {
         "x": 0,
-        "y": 4,
-        "w": 24,
-        "h": 5
+        "y": 6,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "syntraf-vm"
+          },
+          "expr": "sort_by_label(label_del(((sum by (CLIENT, SERVER) (last_over_time(SYNTRAF_BASELINE_ALERT{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",METRIC!=\"tcp\"}[3m]))) or ((max by (CLIENT, SERVER) (last_over_time(SYNTRAF_FLOW_NAT_PAIR{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s])) * 0 + -2) unless on(CLIENT, SERVER) (sum by (CLIENT, SERVER) (last_over_time(SYNTRAF_BASELINE_ALERT{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",METRIC!=\"tcp\"}[3m]))))), \"__name__\"), \"SERVER\", \"CLIENT\")",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "columnField": "SERVER",
+            "rowField": "CLIENT",
+            "valueField": "Value",
+            "emptyValue": "null"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "noValue": "—",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "no data",
+                  "color": "red",
+                  "index": 0
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "—",
+                  "color": "transparent",
+                  "index": 1
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "-2": {
+                  "text": "NAT ↔ NAT",
+                  "color": "transparent",
+                  "index": 2
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "OK",
+                  "color": "green",
+                  "index": 4
+                }
+              }
+            }
+          ],
+          "custom": {
+            "align": "center",
+            "minWidth": 70,
+            "cellOptions": {
+              "type": "color-background",
+              "mode": "basic"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CLIENT\\SERVER"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "De ↓  Vers →"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "custom.align",
+                "value": "left"
+              },
+              {
+                "id": "custom.width",
+                "value": 120
+              },
+              {
+                "id": "unit",
+                "value": "string"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "De ↓  Vers →",
+            "desc": false
+          }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "Alertes ouvertes · détail",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "syntraf-vm"
+      },
+      "description": "Alertes hors baseline de SYNTRAF (page Alertes de l'interface) : une mesure sortie de la norme apprise de son flux, du mauvais côté. Les flux encore en apprentissage (moins de 24 h d'historique) n'y figurent pas. Écart : 1 = au seuil, 2 = deux fois plus loin que le seuil.",
+      "gridPos": {
+        "x": 12,
+        "y": 6,
+        "w": 12,
+        "h": 10
       },
       "targets": [
         {
@@ -234,14 +528,284 @@
             "uid": "syntraf-vm"
           },
           "instant": true,
-          "legendFormat": "{{CLIENT}} → {{SERVER}}",
-          "expr": "(label_keep(((time() - tlast_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[1h])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") or (label_keep((last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5)), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") * 0 + -1) unless on(MESH_GROUP,CLIENT,SERVER) label_keep(((time() - tlast_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[1h])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\"))"
+          "format": "table",
+          "expr": "last_over_time(SYNTRAF_BASELINE_SCORE{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[3m]) and on(MESH_GROUP, CLIENT, SERVER, METRIC, DIRECTION, TEST) (last_over_time(SYNTRAF_BASELINE_ALERT{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[3m]) == 1)"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true
+            },
+            "indexByName": {
+              "MESH_GROUP": 0,
+              "CLIENT": 1,
+              "SERVER": 2,
+              "METRIC": 3,
+              "Value": 4
+            },
+            "renameByName": {
+              "MESH_GROUP": "Groupe",
+              "CLIENT": "Source",
+              "SERVER": "Destination",
+              "METRIC": "Métrique",
+              "Value": "Écart (× seuil)",
+              "DIRECTION": "Sens",
+              "TEST": "Test"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "noValue": "Aucune alerte ouverte",
+          "custom": {
+            "align": "left"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      }
+    },
+    {
+      "id": 201,
+      "type": "row",
+      "title": "Maintenant",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "Pertes · 30 s",
+      "description": "Pertes mesurées par la destination sur les 30 dernières secondes. Case « — » : flux non mesuré dans cette topologie ; « no data » : flux attendu sans mesure. « NAT ↔ NAT » : deux sondes derrière un NAT ne peuvent pas se joindre ; la paire n'est pas mesurée.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "syntraf-vm"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 17,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "syntraf-vm"
+          },
+          "expr": "sort_by_label(label_del((((label_keep(((avg_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") or (label_keep((last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5)), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") * 0 + -1) unless on(MESH_GROUP,CLIENT,SERVER) label_keep(((avg_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\"))) or ((max by (CLIENT, SERVER) (last_over_time(SYNTRAF_FLOW_NAT_PAIR{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s])) * 0 + -2) unless on(CLIENT, SERVER) ((label_keep(((avg_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") or (label_keep((last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5)), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") * 0 + -1) unless on(MESH_GROUP,CLIENT,SERVER) label_keep(((avg_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\"))))), \"__name__\"), \"SERVER\", \"CLIENT\")",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "columnField": "SERVER",
+            "rowField": "CLIENT",
+            "valueField": "Value",
+            "emptyValue": "null"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "—",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "orange",
+                "value": 5
+              },
+              {
+                "color": "red",
+                "value": 20
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "no data",
+                  "color": "red",
+                  "index": 0
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "—",
+                  "color": "transparent",
+                  "index": 1
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "-2": {
+                  "text": "NAT ↔ NAT",
+                  "color": "transparent",
+                  "index": 2
+                }
+              }
+            }
+          ],
+          "custom": {
+            "align": "center",
+            "minWidth": 70,
+            "cellOptions": {
+              "type": "color-background",
+              "mode": "basic"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CLIENT\\SERVER"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "De ↓  Vers →"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "custom.align",
+                "value": "left"
+              },
+              {
+                "id": "custom.width",
+                "value": 120
+              },
+              {
+                "id": "unit",
+                "value": "string"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "De ↓  Vers →",
+            "desc": false
+          }
+        ]
+      }
+    },
+    {
+      "id": 4,
+      "type": "table",
+      "title": "Silence (s sans mesure)",
+      "description": "Secondes depuis la dernière mesure. Rouge : plus rien n'arrive (panne, ou SYNTRAF qui ne rapporte plus). Case « — » : flux non mesuré dans cette topologie ; « no data » : flux attendu sans mesure. « NAT ↔ NAT » : deux sondes derrière un NAT ne peuvent pas se joindre ; la paire n'est pas mesurée.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "syntraf-vm"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 17,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "syntraf-vm"
+          },
+          "expr": "sort_by_label(label_del((((label_keep(((time() - tlast_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[1h])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") or (label_keep((last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5)), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") * 0 + -1) unless on(MESH_GROUP,CLIENT,SERVER) label_keep(((time() - tlast_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[1h])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\"))) or ((max by (CLIENT, SERVER) (last_over_time(SYNTRAF_FLOW_NAT_PAIR{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s])) * 0 + -2) unless on(CLIENT, SERVER) ((label_keep(((time() - tlast_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[1h])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") or (label_keep((last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5)), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") * 0 + -1) unless on(MESH_GROUP,CLIENT,SERVER) label_keep(((time() - tlast_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[1h])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\"))))), \"__name__\"), \"SERVER\", \"CLIENT\")",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "columnField": "SERVER",
+            "rowField": "CLIENT",
+            "valueField": "Value",
+            "emptyValue": "null"
+          }
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "s",
           "decimals": 0,
+          "noValue": "—",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -269,35 +833,109 @@
                   "index": 0
                 }
               }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "—",
+                  "color": "transparent",
+                  "index": 1
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "-2": {
+                  "text": "NAT ↔ NAT",
+                  "color": "transparent",
+                  "index": 2
+                }
+              }
             }
-          ]
+          ],
+          "custom": {
+            "align": "center",
+            "minWidth": 70,
+            "cellOptions": {
+              "type": "color-background",
+              "mode": "basic"
+            }
+          }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CLIENT\\SERVER"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "De ↓  Vers →"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "custom.align",
+                "value": "left"
+              },
+              {
+                "id": "custom.width",
+                "value": 120
+              },
+              {
+                "id": "unit",
+                "value": "string"
+              }
+            ]
+          }
+        ]
       },
       "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "value_and_name",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "De ↓  Vers →",
+            "desc": false
+          }
+        ]
       }
     },
     {
-      "id": 2,
+      "id": 202,
+      "type": "row",
+      "title": "Évolution",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 27,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 5,
       "type": "timeseries",
-      "title": "Pertes (%) par flux",
+      "title": "Pertes",
       "datasource": {
         "type": "prometheus",
         "uid": "syntraf-vm"
       },
       "gridPos": {
         "x": 0,
-        "y": 9,
+        "y": 28,
         "w": 12,
         "h": 9
       },
@@ -347,16 +985,16 @@
       }
     },
     {
-      "id": 3,
+      "id": 6,
       "type": "timeseries",
-      "title": "Débit reçu par flux",
+      "title": "Débit reçu",
       "datasource": {
         "type": "prometheus",
         "uid": "syntraf-vm"
       },
       "gridPos": {
         "x": 12,
-        "y": 9,
+        "y": 28,
         "w": 12,
         "h": 9
       },
@@ -439,16 +1077,16 @@
       }
     },
     {
-      "id": 4,
+      "id": 7,
       "type": "timeseries",
-      "title": "Gigue par flux",
+      "title": "Gigue",
       "datasource": {
         "type": "prometheus",
         "uid": "syntraf-vm"
       },
       "gridPos": {
         "x": 0,
-        "y": 18,
+        "y": 37,
         "w": 12,
         "h": 9
       },
@@ -492,7 +1130,7 @@
       }
     },
     {
-      "id": 5,
+      "id": 8,
       "type": "timeseries",
       "title": "Paquets perdus par intervalle",
       "datasource": {
@@ -501,7 +1139,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 18,
+        "y": 37,
         "w": 12,
         "h": 9
       },
@@ -547,6 +1185,241 @@
           "sort": "desc"
         }
       }
+    },
+    {
+      "id": 203,
+      "type": "row",
+      "title": "Derniers tests TCP",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 46,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 9,
+      "type": "table",
+      "title": "Débit TCP · dernier test",
+      "description": "Tests TCP planifiés (page Tests TCP de SYNTRAF), un point par test. Lu dans le sens des données : en ligne la sonde qui envoie, en colonne celle qui reçoit. Débit reçu, sans les premières secondes (-O). « NAT ↔ NAT » : deux sondes derrière un NAT ne peuvent pas se joindre ; la paire n'est pas mesurée.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "syntraf-vm"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 47,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "syntraf-vm"
+          },
+          "expr": "sort_by_label(label_del(((max by (SRC, DST) ((label_replace(label_replace(last_over_time(SYNTRAF_TCP_BITRATE_MBPS{MESH_GROUP=~\"$mesh_group\",DIRECTION=\"upload\"}[7d]), \"SRC\", \"$1\", \"SERVER\", \"(.*)\"), \"DST\", \"$1\", \"CLIENT\", \"(.*)\") or label_replace(label_replace(last_over_time(SYNTRAF_TCP_BITRATE_MBPS{MESH_GROUP=~\"$mesh_group\",DIRECTION=\"download\"}[7d]), \"SRC\", \"$1\", \"CLIENT\", \"(.*)\"), \"DST\", \"$1\", \"SERVER\", \"(.*)\")))) or ((max by (SRC, DST) (label_replace(label_replace(max by (CLIENT, SERVER) (last_over_time(SYNTRAF_FLOW_NAT_PAIR{MESH_GROUP=~\"$mesh_group\"}[90s])), \"SRC\", \"$1\", \"CLIENT\", \"(.*)\"), \"DST\", \"$1\", \"SERVER\", \"(.*)\")) * 0 + -2) unless on(SRC, DST) (max by (SRC, DST) ((label_replace(label_replace(last_over_time(SYNTRAF_TCP_BITRATE_MBPS{MESH_GROUP=~\"$mesh_group\",DIRECTION=\"upload\"}[7d]), \"SRC\", \"$1\", \"SERVER\", \"(.*)\"), \"DST\", \"$1\", \"CLIENT\", \"(.*)\") or label_replace(label_replace(last_over_time(SYNTRAF_TCP_BITRATE_MBPS{MESH_GROUP=~\"$mesh_group\",DIRECTION=\"download\"}[7d]), \"SRC\", \"$1\", \"CLIENT\", \"(.*)\"), \"DST\", \"$1\", \"SERVER\", \"(.*)\")))))), \"__name__\"), \"DST\", \"SRC\")",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "columnField": "DST",
+            "rowField": "SRC",
+            "valueField": "Value",
+            "emptyValue": "null"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Mbits",
+          "decimals": 1,
+          "noValue": "—",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "yellow",
+                "value": 10
+              },
+              {
+                "color": "green",
+                "value": 50
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "no data",
+                  "color": "red",
+                  "index": 0
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "—",
+                  "color": "transparent",
+                  "index": 1
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "-2": {
+                  "text": "NAT ↔ NAT",
+                  "color": "transparent",
+                  "index": 2
+                }
+              }
+            }
+          ],
+          "custom": {
+            "align": "center",
+            "minWidth": 70,
+            "cellOptions": {
+              "type": "color-background",
+              "mode": "basic"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "SRC\\DST"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "De ↓  Vers →"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "custom.align",
+                "value": "left"
+              },
+              {
+                "id": "custom.width",
+                "value": 120
+              },
+              {
+                "id": "unit",
+                "value": "string"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "De ↓  Vers →",
+            "desc": false
+          }
+        ]
+      }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Débit TCP",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "syntraf-vm"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 47,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "syntraf-vm"
+          },
+          "expr": "(label_replace(label_replace(SYNTRAF_TCP_BITRATE_MBPS{MESH_GROUP=~\"$mesh_group\",DIRECTION=\"upload\"}, \"SRC\", \"$1\", \"SERVER\", \"(.*)\"), \"DST\", \"$1\", \"CLIENT\", \"(.*)\") or label_replace(label_replace(SYNTRAF_TCP_BITRATE_MBPS{MESH_GROUP=~\"$mesh_group\",DIRECTION=\"download\"}, \"SRC\", \"$1\", \"CLIENT\", \"(.*)\"), \"DST\", \"$1\", \"SERVER\", \"(.*)\"))",
+          "legendFormat": "{{SRC}} → {{DST}} · {{TEST}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Mbits",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "spanNulls": true,
+            "showPoints": "always",
+            "pointSize": 6,
+            "scaleDistribution": {
+              "type": "log",
+              "log": 10
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "lastNotNull",
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "Tests TCP planifiés (page Tests TCP de SYNTRAF), un point par test. Lu dans le sens des données : en ligne la sonde qui envoie, en colonne celle qui reçoit. Débit reçu, sans les premières secondes (-O)."
     }
   ]
 }

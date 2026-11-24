@@ -2,6 +2,7 @@ from lib.st_global import DefaultValues
 from lib.st_process_and_thread import st_obj_process_n_thread
 from lib.st_iperf import *
 from lib.st_influxdb import *
+import json
 import time
 import re
 from datetime import datetime, timezone as _tz
@@ -43,8 +44,80 @@ def edge_flow_uid(_config, edge_type, edge_key):
     return None
 
 
+# ------------------------------------------------------------------------- sortie --json-stream (iperf3 ≥ 3.17)
+# Une ligne JSON par événement : start (sockets connectées, heure de début, source acceptée), interval (sum et, en
+# --bidir, sum_bidir_reverse ; celui qui reçoit a sender = false), error, end.
+
+def json_event(line):
+    text = (line or "").strip()
+    if not text.startswith("{"):
+        return None
+    try:
+        event = json.loads(text)
+    except ValueError:
+        return None
+    return event if isinstance(event, dict) and "event" in event else None
+
+
+def json_start(event, iperf3_obj):
+    data = event.get("data") or {}
+    connected = data.get("connected") or []
+    if len(connected) >= 2 and iperf3_obj is not None:
+        # en --bidir, la seconde socket est le flux de retour : son port garde la correspondance NAT (lib/st_nat.py)
+        iperf3_obj.bidir_src_port = connected[1].get("local_port")
+        iperf3_obj.bidir_local_addr = connected[1].get("local_host")
+    ts = data.get("timestamp") or {}
+    if iperf3_obj is not None:
+        start = ts.get("timemillisecs")
+        iperf3_obj.test_start = start / 1000.0 if start else ts.get("timesecs") or time.time()
+
+
+def json_interval(event, iperf3_obj):
+    """Mesures du sens reçu : {utime, timestamp, bitrate_kbps, jitter, loss, packet_loss, packet_total}, ou None
+    (émetteur seul)."""
+    data = event.get("data") or {}
+    rx = next((s for s in (data.get("sum"), data.get("sum_bidir_reverse")) if s and s.get("sender") is False), None)
+    if rx is None:
+        return None
+    start = getattr(iperf3_obj, "test_start", None) or time.time()
+    utime = start + float(rx.get("end") or 0)
+    packets = int(rx.get("packets") or 0)
+    lost = int(rx.get("lost_packets") or 0)
+    loss, jitter = float(rx.get("lost_percent") or 0), float(rx.get("jitter_ms") or 0)
+    if packets == 0:  # plus rien reçu dans l'intervalle (comme la ligne texte « 0/0 (0%) »)
+        loss, jitter = 100.0, 0.0
+    if iperf3_obj is not None:
+        iperf3_obj.measured_at = time.monotonic()
+    return {"utime": utime, "timestamp": datetime.fromtimestamp(utime, _tz.utc),
+            "bitrate_kbps": float(rx.get("bits_per_second") or 0) / 1000, "jitter": jitter, "loss": loss,
+            "packet_loss": lost, "packet_total": packets}
+
+
+def json_error(event, iperf3_obj):
+    if iperf3_obj is not None:
+        iperf3_obj.last_error = str(event.get("data") or "")
+
+
 def session_progress(line, iperf3_obj, uid):
     """Suit une session iperf3 d'après sa sortie : pair joint (contrôle établi), puis mesures."""
+    event = json_event(line)
+    if event is not None:
+        if event.get("event") == "start":
+            data = event.get("data") or {}
+            host = (data.get("accepted_connection") or {}).get("host")
+            if host:
+                try:
+                    from lib import st_twamp
+                    st_twamp.learn_from_iperf3(f"Accepted connection from {host}, port")
+                except Exception:  # noqa: BLE001
+                    pass
+            if iperf3_obj is not None and not iperf3_obj.peer_reached and data.get("connected"):
+                iperf3_obj.peer_reached = True
+                if uid and iperf3_obj.measured_at is None:
+                    SILENCE.establishing(uid)
+        elif event.get("event") == "interval" and iperf3_obj is not None:
+            iperf3_obj.measured_at = time.monotonic()  # la session vit, émetteur seul compris
+        return
     if "Accepted connection from" in line:  # pair légitime : le réflecteur de latence lui répondra
         try:
             from lib import st_twamp
@@ -68,9 +141,13 @@ UNREACHABLE_ERRORS = ("unable to connect", "connection refused", "no route to ho
 
 def peer_answered(iperf3_obj, last_breath=""):
     """Le pair a-t-il répondu ? Ligne « connected to » vue, session tuée pour blocage (iperf3 aurait sinon abandonné
-    sur « unable to connect » avant), ou toute autre erreur d'iperf3 que celles d'un pair injoignable."""
+    sur « unable to connect » avant), ou toute autre erreur d'iperf3 que celles d'un pair injoignable (en JSON,
+    l'erreur arrive dans un événement « error » sans le mot « error »)."""
     if getattr(iperf3_obj, "peer_reached", False) or getattr(iperf3_obj, "stall_killed", False):
         return True
+    json_error_text = str(getattr(iperf3_obj, "last_error", "") or "").lower()
+    if json_error_text:
+        return not any(e in json_error_text for e in UNREACHABLE_ERRORS)
     text = (last_breath or "").lower()
     return "error" in text and not any(e in text for e in UNREACHABLE_ERRORS)
 
@@ -179,6 +256,10 @@ def parse_line(line: string, _config: {}, edge_key: string, edge_type: string, d
 
     session_progress(line, getattr(current_obj_process_n_thread, "iperf3_obj_process_n_thread", None),
                      edge_flow_uid(_config, edge_type, edge_key))
+    event = json_event(line)
+    if event is not None:
+        return _parse_json(event, _config, edge_key, edge_type, dict_data_to_send_to_server,
+                           getattr(current_obj_process_n_thread, "iperf3_obj_process_n_thread", None))
 
     #The edge_type is used not only as reference to the type but also as a key in the config. In config there is an "S", so replacing for the current function and the save_config
     if edge_type == "CONNECTOR":
@@ -253,6 +334,35 @@ def parse_line(line: string, _config: {}, edge_key: string, edge_type: string, d
         log.error(f"parse_line:{type(exc).__name__}:{exc}", exc_info=True)
         return False
 
+    return True
+
+
+def _parse_json(event, _config, edge_key, edge_type, dict_data_to_send_to_server, iperf3_obj):
+    """Équivalent de la lecture texte pour une ligne --json-stream : mêmes points, même détection des silences."""
+    try:
+        kind = event.get("event")
+        section = "CONNECTORS" if edge_type == "CONNECTOR" else "LISTENERS"
+        edge = _config[section][edge_key]
+        if kind == "start":
+            json_start(event, iperf3_obj)
+        elif kind == "error":
+            json_error(event, iperf3_obj)
+        elif kind == "interval":
+            if section == "CONNECTORS" and not edge.get('BIDIR'):
+                return True  # émetteur seul : le récepteur en face mesure
+            m = json_interval(event, iperf3_obj)
+            if m is None:
+                return True
+            flow = (edge['UID_SERVER'], edge['UID_CLIENT']) if section == "CONNECTORS" else \
+                (edge['UID_CLIENT'], edge['UID_SERVER'])
+            ctx = _flow_ctx(_config, section, edge_key, *flow)
+            for point in SILENCE.record(st_outage.flow_uid(ctx), m["utime"], int(edge['INTERVAL']), ctx):
+                st_outage.enqueue(dict_data_to_send_to_server, point, DefaultValues.DEFAULT_CLIENT_METRICS_QUEUE_SIZE)
+            save_to_server([flow[0], flow[1], m["timestamp"], m["utime"], m["bitrate_kbps"], m["jitter"], m["loss"]],
+                           _config, section, edge_key, m["packet_loss"], m["packet_total"], dict_data_to_send_to_server)
+    except Exception as exc:
+        log.error(f"_parse_json:{type(exc).__name__}:{exc}", exc_info=True)
+        return False
     return True
 
 

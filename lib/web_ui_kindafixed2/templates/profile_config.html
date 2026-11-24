@@ -39,6 +39,12 @@
         <div id="p_codec_help" class="form-text">The voice quality score (MOS, ITU-T E-model) of these flows is computed for this codec. No effect on the measurements.</div>
         <div class="invalid-feedback" data-feedback="CODEC"></div>
     </div>
+    <div class="mb-3">
+        <label for="p_bl_k" class="form-label">Alert sensitivity <span class="text-white-50">(optional)</span></label>
+        <input class="form-control" id="p_bl_k" data-field="BASELINE_SENSITIVITY" inputmode="decimal" placeholder="server setting" aria-describedby="p_bl_k_help">
+        <div id="p_bl_k_help" class="form-text">For the mesh groups using this profile: 1 (strict, e.g. voice) to 10 (lenient). Empty: the server's setting (Server › Global). No effect on the measurements.</div>
+        <div class="invalid-feedback" data-feedback="BASELINE_SENSITIVITY"></div>
+    </div>
 {% endcall %}
 
 <script>
@@ -61,6 +67,7 @@ st.crud({
         {field: "PACKET_SIZE", title: "Packet size", formatter: v => st.esc(v || "—")},
         {field: "INTERVAL", title: "Interval", formatter: v => st.esc(v || "—")},
         {field: "CODEC", title: "MOS codec", formatter: v => st.esc(v || "G711")},
+        {field: "BASELINE_SENSITIVITY", title: "Alert sensitivity", formatter: v => st.esc(v || "—")},
         {field: "USED_BY", title: "Used by", formatter: v => (v || []).map(st.esc).join(", ") || '<span class="text-white-50">unused</span>'},
     ],
     fill(row) {
@@ -75,12 +82,13 @@ st.crud({
         el("p_packet_size").value = row ? (row.PACKET_SIZE || "") : "";
         el("p_interval").value = row ? (row.INTERVAL || "") : "";
         el("p_codec").value = row ? (row.CODEC || "") : "";
+        el("p_bl_k").value = row ? (row.BASELINE_SENSITIVITY || "") : "";
     },
     read: () => ({
         UID: el("p_uid").value.trim(), DESCRIPTION: el("p_description").value.trim(),
         BANDWIDTH: el("p_bandwidth").value.trim() ? el("p_bandwidth").value.trim() + el("p_bandwidth_unit").value : "",
         DSCP: el("p_dscp").value.trim(), PACKET_SIZE: el("p_packet_size").value.trim(), INTERVAL: el("p_interval").value.trim(),
-        CODEC: el("p_codec").value,
+        CODEC: el("p_codec").value, BASELINE_SENSITIVITY: el("p_bl_k").value.trim(),
     }),
 });
 </script>

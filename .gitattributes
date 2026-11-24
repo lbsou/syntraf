@@ -20,3 +20,5 @@ lib/webui_kindafixed/static/* -linguist-detectable
 # Lab : fichiers lus dans les conteneurs Linux
 lab/docker/* text eol=lf
 lab/config/* text eol=lf
+# Hook de version (sh) : toujours LF
+.githooks/* text eol=lf

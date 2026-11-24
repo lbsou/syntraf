@@ -134,3 +134,14 @@ def test_latency_settings_get_defaults(monkeypatch, tmp_path):
     g = {"IPERF3_BINARY_PATH": "DISABLE", "LATENCY_PORT": "0", "LATENCY": "nope"}
     assert v.config_validation_global({"GLOBAL": g})
     assert g["LATENCY"] is True and g["LATENCY_PORT"] == "8620"
+
+
+# ---------------------------------------------------------------------------------- --json-stream d'iperf3
+
+def test_json_stream_is_detected_and_replaces_the_text_options(monkeypatch):
+    mod = st_iperf()
+    assert "json-stream" in mod.parse_iperf3_features(STOCK_HELP + "\n  --json-stream             output in line-delimited JSON format")
+    monkeypatch.setattr(mod, "iperf3_features", lambda binary: {"json-stream"})
+    assert mod.output_args("iperf3") == ["--json-stream"]
+    monkeypatch.setattr(mod, "iperf3_features", lambda binary: set())
+    assert mod.output_args("iperf3") == ["-f", "k", "--timestamps='%F %T '"]

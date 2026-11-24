@@ -29,3 +29,17 @@ wheelhouse/
 syntraf_client_token
 syntraf_client_uid
 syntraf_server_pin
+dist/
+packaging/cache/
+
+# Fichiers locaux : clés, journaux, environnement, états de débogage, ancien code
+crypto/
+log/
+proc/
+venv/
+lib/web_ui/
+fake_data/
+client_status.txt
+real_thread_status.txt
+thread_status.txt
+threads.txt

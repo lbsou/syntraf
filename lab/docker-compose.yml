@@ -30,10 +30,13 @@ services:
       - -retentionPeriod=30d
       - -search.latencyOffset=0s
       - -memory.allowedPercent=60
+      # Santé de SYNTRAF : collecte de /metrics du serveur (autorisée par SERVER.METRICS_ALLOW)
+      - -promscrape.config=/etc/victoriametrics/scrape.yml
     ports:
       - "127.0.0.1:${VM_HOST_PORT}:8428"
     volumes:
       - vm-data:/storage
+      - ./victoriametrics/scrape.yml:/etc/victoriametrics/scrape.yml:ro
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8428/health"]
       interval: 3s
@@ -118,12 +121,38 @@ services:
       syntraf_lab: {ipv4_address: 172.30.0.35}
       starlink_lan: {ipv4_address: 10.99.0.2}
 
+  # Sonde mobile 5G/LTE derrière le CGNAT de l'opérateur (routeur mobile-gw) ; profil du lien : lab/README.md
+  c5:
+    <<: [*syntraf, *client-depends]
+    container_name: syntraf-lab-c5
+    environment: {ROLE: client, CLIENT_UID: LTE_5G, LAB_GATEWAY: 10.98.0.2}
+    volumes: ["../:/src:ro", "./reports/logs/c5:/logs", "c5-crypto:/app/crypto"]
+    networks: {mobile_lan: {ipv4_address: 10.98.0.35}}
+    depends_on:
+      server:
+        condition: service_started
+      mobile-gw:
+        condition: service_started
+
+  mobile-gw:
+    image: syntraf-lab:latest
+    container_name: syntraf-lab-mobile-gw
+    restart: "no"
+    init: true
+    mem_limit: 32m
+    cap_add: [NET_ADMIN]
+    sysctls: {net.ipv4.ip_forward: 1}
+    entrypoint: ["sh", "-c", "iptables -t nat -A POSTROUTING -s 10.98.0.0/24 ! -d 10.98.0.0/24 -j MASQUERADE && exec sleep infinity"]
+    networks:
+      syntraf_lab: {ipv4_address: 172.30.0.36}
+      mobile_lan: {ipv4_address: 10.98.0.2}
+
   grafana:
     image: grafana/grafana-oss:${GRAFANA_VERSION}
     container_name: syntraf-lab-grafana
     restart: "no"
     init: true
-    mem_limit: 384m
+    mem_limit: 768m  # Grafana 13 dépasse 384 Mio dès quelques tableaux de bord ouverts (tué par OOM)
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
       GF_AUTH_ANONYMOUS_ENABLED: "true"
@@ -155,6 +184,7 @@ volumes:
   c2-crypto:
   c3-crypto:
   c4-crypto:
+  c5-crypto:
 
 networks:
   syntraf_lab:
@@ -169,3 +199,8 @@ networks:
     ipam:
       config:
         - subnet: 10.99.0.0/24
+  mobile_lan:
+    name: syntraf_mobile_lan
+    ipam:
+      config:
+        - subnet: 10.98.0.0/24

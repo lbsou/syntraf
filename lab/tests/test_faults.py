@@ -56,3 +56,11 @@ def test_parse_lab_iface():
 
 def test_parse_lab_iface_absent():
     assert faults.parse_lab_iface("1: lo    inet 127.0.0.1/8 scope host lo\n") is None
+
+
+def test_remark_rewrites_the_dscp_like_a_router_would_and_heals_with_the_rest():
+    cmds = faults.remark_cmds(8)
+    assert cmds == [["iptables", "-t", "mangle", "-A", "POSTROUTING", "-m", "comment", "--comment", faults.TAG,
+                     "-j", "DSCP", "--set-dscp", "8"]]
+    to = faults.remark_cmds(0, to_ip="10.0.0.2")[0]
+    assert to[to.index("-d") + 1] == "10.0.0.2" and to[-1] == "0"

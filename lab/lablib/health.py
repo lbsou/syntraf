@@ -61,7 +61,7 @@ def stale_flows(client, flows: list[str], max_age_s: float) -> list[str]:
 
 
 def wait_healthy(client: vm.Client, timeout_s: float = 180) -> None:
-    """Sain = VictoriaMetrics répond et chacun des 12 flux a un point de moins de FRESH_S s."""
+    """Sain = VictoriaMetrics répond et chacun des flux attendus a un point de moins de FRESH_S s."""
     deadline = time.monotonic() + timeout_s
     stale = topology.expected_flows()
     while time.monotonic() < deadline:

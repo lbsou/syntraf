@@ -281,18 +281,14 @@ async function update_system_stats() {
         const timeConv = d3.timeParse("%Y-%m-%d %H:%M:%S.%f");
         for (let [client_uid, data] of Object.entries(system_stats)) {
           data = JSON.parse(data)
-
-          if (data['system_stats']['cpu_pct_usage'].length >= 1) {
-              render_chart_for_metric(client_uid, data, "cpu_pct_usage", timeConv)
-          }
-          if (data['system_stats']['mem_pct_free'].length >= 1) {
-              render_chart_for_metric(client_uid, data, "mem_pct_free", timeConv)
-          }
-          if (data['system_stats']['if_pct_usage_rx'].length >= 1) {
-              render_chart_for_metric(client_uid, data, "if_pct_usage_rx", timeConv)
-          }
-          if (data['system_stats']['if_pct_usage_tx'].length >= 1) {
-              render_chart_for_metric(client_uid, data, "if_pct_usage_tx", timeConv)
+          // Un client sans statistiques (pas encore reçues) est sauté : avant, il interrompait la boucle et les
+          // clients suivants n'avaient plus de courbes
+          const stats = data['system_stats'] || {};
+          for (const metric of ["cpu_pct_usage", "mem_pct_free", "if_pct_usage_rx", "if_pct_usage_tx"]) {
+              if ((stats[metric] || []).length >= 1) {
+                  try { render_chart_for_metric(client_uid, data, metric, timeConv); }
+                  catch (e) { console.warn("sparkline", client_uid, metric, e); }
+              }
           }
         }
     }

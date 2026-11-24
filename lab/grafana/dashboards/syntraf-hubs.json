@@ -1,6 +1,6 @@
 {
   "uid": "syntraf-hubs",
-  "title": "SYNTRAF — topologies à hubs",
+  "title": "5 · Hubs",
   "tags": [
     "syntraf",
     "lab"
@@ -16,21 +16,95 @@
   },
   "links": [
     {
-      "title": "Tableaux de bord SYNTRAF",
-      "type": "dashboards",
-      "tags": [
-        "syntraf"
-      ],
+      "title": "1 · Vue d'ensemble",
+      "type": "link",
+      "url": "/d/syntraf-lab",
+      "icon": "dashboard",
       "asDropdown": false,
       "includeVars": true,
-      "keepTime": true
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
+    },
+    {
+      "title": "2 · Matrices",
+      "type": "link",
+      "url": "/d/syntraf-matrix",
+      "icon": "dashboard",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
+    },
+    {
+      "title": "3 · Qualité voix et latence",
+      "type": "link",
+      "url": "/d/syntraf-quality",
+      "icon": "dashboard",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
+    },
+    {
+      "title": "4 · Tests TCP",
+      "type": "link",
+      "url": "/d/syntraf-tcp",
+      "icon": "dashboard",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
+    },
+    {
+      "title": "5 · Hubs",
+      "type": "link",
+      "url": "/d/syntraf-hubs",
+      "icon": "dashboard",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
+    },
+    {
+      "title": "6 · Corrélations",
+      "type": "link",
+      "url": "/d/syntraf-correlation",
+      "icon": "dashboard",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
+    },
+    {
+      "title": "7 · Santé de SYNTRAF",
+      "type": "link",
+      "url": "/d/syntraf-health",
+      "icon": "dashboard",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
     }
   ],
   "templating": {
     "list": [
       {
         "name": "mesh_group",
-        "label": "MESH_GROUP",
+        "label": "Groupe",
         "type": "query",
         "datasource": {
           "type": "prometheus",
@@ -58,7 +132,7 @@
       },
       {
         "name": "client",
-        "label": "CLIENT",
+        "label": "Source",
         "type": "query",
         "datasource": {
           "type": "prometheus",
@@ -86,7 +160,7 @@
       },
       {
         "name": "server",
-        "label": "SERVER",
+        "label": "Destination",
         "type": "query",
         "datasource": {
           "type": "prometheus",
@@ -129,6 +203,48 @@
         "titleFormat": "{{ACTION}}",
         "textFormat": "{{SUMMARY}} — {{ACTOR}}",
         "useValueForTime": false
+      },
+      {
+        "name": "Alertes",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "syntraf-vm"
+        },
+        "enable": true,
+        "iconColor": "red",
+        "expr": "last_over_time(SYNTRAF_ALERT_EVENT[1m])",
+        "step": "60s",
+        "titleFormat": "Alerte {{ACTION}} · {{METRIC}} · {{FLOW}}",
+        "textFormat": "{{MESH_GROUP}} — {{SUMMARY}}",
+        "useValueForTime": false
+      },
+      {
+        "name": "Redémarrages et mises à jour",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "syntraf-vm"
+        },
+        "enable": true,
+        "iconColor": "blue",
+        "expr": "last_over_time(SYNTRAF_LIFECYCLE_EVENT[1m])",
+        "step": "60s",
+        "titleFormat": "{{EVENT}} · {{SUBJECT}}",
+        "textFormat": "{{SUMMARY}}",
+        "useValueForTime": false
+      },
+      {
+        "name": "Maintenance",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "syntraf-vm"
+        },
+        "enable": true,
+        "iconColor": "purple",
+        "expr": "max by (UID, TARGET_TYPE, TARGET, DESCRIPTION) (SYNTRAF_MAINTENANCE_ACTIVE)",
+        "step": "60s",
+        "titleFormat": "Maintenance {{UID}} · {{TARGET}}",
+        "textFormat": "{{DESCRIPTION}} — alertes suspendues",
+        "useValueForTime": false
       }
     ]
   },
@@ -146,7 +262,7 @@
         "x": 0,
         "y": 0,
         "w": 24,
-        "h": 4
+        "h": 5
       },
       "targets": [
         {
@@ -212,9 +328,22 @@
       }
     },
     {
+      "id": 200,
+      "type": "row",
+      "title": "Spokes → hubs · 30 s",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
       "id": 1,
       "type": "table",
-      "title": "Spokes → hubs : pertes (%) — moyenne 30 s",
+      "title": "Pertes",
       "description": "Une ligne par spoke, une colonne par hub : ce que chaque hub reçoit du spoke. Avec deux hubs, comparer les deux colonnes désigne un hub (ou son chemin) dégradé.",
       "datasource": {
         "type": "prometheus",
@@ -222,9 +351,9 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 4,
+        "y": 6,
         "w": 12,
-        "h": 8
+        "h": 10
       },
       "targets": [
         {
@@ -233,7 +362,7 @@
             "type": "prometheus",
             "uid": "syntraf-vm"
           },
-          "expr": "label_del((label_keep(((avg_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") or (label_keep((last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]))) - 5)), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") * 0 + -1) unless on(MESH_GROUP,CLIENT,SERVER) label_keep(((avg_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\")), \"__name__\")",
+          "expr": "sort_by_label(label_del((label_keep(((avg_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") or (label_keep((last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]))) - 5)), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") * 0 + -1) unless on(MESH_GROUP,CLIENT,SERVER) label_keep(((avg_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\")), \"__name__\"), \"SERVER\", \"CLIENT\")",
           "instant": true,
           "range": false
         }
@@ -295,10 +424,32 @@
                   "index": 0
                 }
               }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "—",
+                  "color": "transparent",
+                  "index": 1
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "-2": {
+                  "text": "NAT ↔ NAT",
+                  "color": "transparent",
+                  "index": 2
+                }
+              }
             }
           ],
           "custom": {
             "align": "center",
+            "minWidth": 70,
             "cellOptions": {
               "type": "color-background",
               "mode": "basic"
@@ -314,7 +465,7 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "Spoke ↓ / Hub →"
+                "value": "Spoke ↓  Hub →"
               },
               {
                 "id": "custom.cellOptions",
@@ -327,6 +478,10 @@
                 "value": "left"
               },
               {
+                "id": "custom.width",
+                "value": 120
+              },
+              {
                 "id": "unit",
                 "value": "string"
               }
@@ -336,157 +491,32 @@
       },
       "options": {
         "showHeader": true,
-        "cellHeight": "lg",
+        "cellHeight": "md",
         "footer": {
           "show": false
-        }
+        },
+        "sortBy": [
+          {
+            "displayName": "Spoke ↓  Hub →",
+            "desc": false
+          }
+        ]
       }
     },
     {
       "id": 2,
       "type": "table",
-      "title": "Hubs → spokes : pertes (%) — moyenne 30 s",
-      "description": "Ce que chaque spoke reçoit de chaque hub.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "syntraf-vm"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 4,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "syntraf-vm"
-          },
-          "expr": "label_del((label_keep(((avg_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"hub\",SERVER_ROLE=\"spoke\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"hub\",SERVER_ROLE=\"spoke\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"hub\",SERVER_ROLE=\"spoke\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") or (label_keep((last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"hub\",SERVER_ROLE=\"spoke\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"hub\",SERVER_ROLE=\"spoke\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"hub\",SERVER_ROLE=\"spoke\"}[90s]))) - 5)), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") * 0 + -1) unless on(MESH_GROUP,CLIENT,SERVER) label_keep(((avg_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"hub\",SERVER_ROLE=\"spoke\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"hub\",SERVER_ROLE=\"spoke\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"hub\",SERVER_ROLE=\"spoke\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\")), \"__name__\")",
-          "instant": true,
-          "range": false
-        }
-      ],
-      "transformations": [
-        {
-          "id": "labelsToFields",
-          "options": {
-            "mode": "columns"
-          }
-        },
-        {
-          "id": "merge",
-          "options": {}
-        },
-        {
-          "id": "groupingToMatrix",
-          "options": {
-            "columnField": "CLIENT",
-            "rowField": "SERVER",
-            "valueField": "Value",
-            "emptyValue": "null"
-          }
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "decimals": 1,
-          "noValue": "—",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 1
-              },
-              {
-                "color": "orange",
-                "value": 5
-              },
-              {
-                "color": "red",
-                "value": 20
-              }
-            ]
-          },
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "-1": {
-                  "text": "no data",
-                  "color": "red",
-                  "index": 0
-                }
-              }
-            }
-          ],
-          "custom": {
-            "align": "center",
-            "cellOptions": {
-              "type": "color-background",
-              "mode": "basic"
-            }
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "SERVER\\CLIENT"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "Spoke ↓ / Hub →"
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "auto"
-                }
-              },
-              {
-                "id": "custom.align",
-                "value": "left"
-              },
-              {
-                "id": "unit",
-                "value": "string"
-              }
-            ]
-          }
-        ]
-      },
-      "options": {
-        "showHeader": true,
-        "cellHeight": "lg",
-        "footer": {
-          "show": false
-        }
-      }
-    },
-    {
-      "id": 3,
-      "type": "table",
-      "title": "Spokes → hubs : gigue (ms) — moyenne 30 s",
+      "title": "Gigue",
       "description": "",
       "datasource": {
         "type": "prometheus",
         "uid": "syntraf-vm"
       },
       "gridPos": {
-        "x": 0,
-        "y": 12,
+        "x": 12,
+        "y": 6,
         "w": 12,
-        "h": 8
+        "h": 10
       },
       "targets": [
         {
@@ -495,7 +525,7 @@
             "type": "prometheus",
             "uid": "syntraf-vm"
           },
-          "expr": "label_del((label_keep(((avg_over_time(SYNTRAF_RX_JITTER{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") or (label_keep((last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]))) - 5)), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") * 0 + -1) unless on(MESH_GROUP,CLIENT,SERVER) label_keep(((avg_over_time(SYNTRAF_RX_JITTER{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\")), \"__name__\")",
+          "expr": "sort_by_label(label_del((label_keep(((avg_over_time(SYNTRAF_RX_JITTER{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") or (label_keep((last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]))) - 5)), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") * 0 + -1) unless on(MESH_GROUP,CLIENT,SERVER) label_keep(((avg_over_time(SYNTRAF_RX_JITTER{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\")), \"__name__\"), \"SERVER\", \"CLIENT\")",
           "instant": true,
           "range": false
         }
@@ -557,10 +587,32 @@
                   "index": 0
                 }
               }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "—",
+                  "color": "transparent",
+                  "index": 1
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "-2": {
+                  "text": "NAT ↔ NAT",
+                  "color": "transparent",
+                  "index": 2
+                }
+              }
             }
           ],
           "custom": {
             "align": "center",
+            "minWidth": 70,
             "cellOptions": {
               "type": "color-background",
               "mode": "basic"
@@ -576,7 +628,7 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "Spoke ↓ / Hub →"
+                "value": "Spoke ↓  Hub →"
               },
               {
                 "id": "custom.cellOptions",
@@ -589,6 +641,10 @@
                 "value": "left"
               },
               {
+                "id": "custom.width",
+                "value": 120
+              },
+              {
                 "id": "unit",
                 "value": "string"
               }
@@ -598,26 +654,32 @@
       },
       "options": {
         "showHeader": true,
-        "cellHeight": "lg",
+        "cellHeight": "md",
         "footer": {
           "show": false
-        }
+        },
+        "sortBy": [
+          {
+            "displayName": "Spoke ↓  Hub →",
+            "desc": false
+          }
+        ]
       }
     },
     {
-      "id": 4,
+      "id": 3,
       "type": "table",
-      "title": "Spokes → hubs : silence (s depuis le dernier point)",
+      "title": "Silence (s sans mesure)",
       "description": "",
       "datasource": {
         "type": "prometheus",
         "uid": "syntraf-vm"
       },
       "gridPos": {
-        "x": 12,
-        "y": 12,
+        "x": 0,
+        "y": 16,
         "w": 12,
-        "h": 8
+        "h": 10
       },
       "targets": [
         {
@@ -626,7 +688,7 @@
             "type": "prometheus",
             "uid": "syntraf-vm"
           },
-          "expr": "label_del((label_keep(((time() - tlast_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[1h])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") or (label_keep((last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]))) - 5)), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") * 0 + -1) unless on(MESH_GROUP,CLIENT,SERVER) label_keep(((time() - tlast_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[1h])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\")), \"__name__\")",
+          "expr": "sort_by_label(label_del((label_keep(((time() - tlast_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[1h])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") or (label_keep((last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]))) - 5)), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") * 0 + -1) unless on(MESH_GROUP,CLIENT,SERVER) label_keep(((time() - tlast_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[1h])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\")), \"__name__\"), \"SERVER\", \"CLIENT\")",
           "instant": true,
           "range": false
         }
@@ -684,10 +746,32 @@
                   "index": 0
                 }
               }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "—",
+                  "color": "transparent",
+                  "index": 1
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "-2": {
+                  "text": "NAT ↔ NAT",
+                  "color": "transparent",
+                  "index": 2
+                }
+              }
             }
           ],
           "custom": {
             "align": "center",
+            "minWidth": 70,
             "cellOptions": {
               "type": "color-background",
               "mode": "basic"
@@ -703,7 +787,7 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "Spoke ↓ / Hub →"
+                "value": "Spoke ↓  Hub →"
               },
               {
                 "id": "custom.cellOptions",
@@ -716,6 +800,10 @@
                 "value": "left"
               },
               {
+                "id": "custom.width",
+                "value": 120
+              },
+              {
                 "id": "unit",
                 "value": "string"
               }
@@ -725,26 +813,267 @@
       },
       "options": {
         "showHeader": true,
-        "cellHeight": "lg",
+        "cellHeight": "md",
         "footer": {
           "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "Spoke ↓  Hub →",
+            "desc": false
+          }
+        ]
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Pertes moyennes vers chaque hub",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "syntraf-vm"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "syntraf-vm"
+          },
+          "expr": "avg by (MESH_GROUP, SERVER) (((SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]))) - 5))))",
+          "legendFormat": "{{MESH_GROUP}} · hub {{SERVER}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "max": 100,
+          "color": {
+            "mode": "shades",
+            "fixedColor": "red"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
         }
       }
     },
     {
+      "id": 201,
+      "type": "row",
+      "title": "Hubs → spokes · 30 s",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 26,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
       "id": 5,
-      "type": "stat",
-      "title": "Liaison entre les hubs : pertes (%) — moyenne 30 s",
-      "description": "Deux hubs seulement : les deux sens de leur liaison.",
+      "type": "table",
+      "title": "Pertes",
+      "description": "Ce que chaque spoke reçoit de chaque hub.",
       "datasource": {
         "type": "prometheus",
         "uid": "syntraf-vm"
       },
       "gridPos": {
         "x": 0,
-        "y": 20,
-        "w": 24,
-        "h": 4
+        "y": 27,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "syntraf-vm"
+          },
+          "expr": "sort_by_label(label_del((label_keep(((avg_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"hub\",SERVER_ROLE=\"spoke\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"hub\",SERVER_ROLE=\"spoke\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"hub\",SERVER_ROLE=\"spoke\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") or (label_keep((last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"hub\",SERVER_ROLE=\"spoke\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"hub\",SERVER_ROLE=\"spoke\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"hub\",SERVER_ROLE=\"spoke\"}[90s]))) - 5)), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") * 0 + -1) unless on(MESH_GROUP,CLIENT,SERVER) label_keep(((avg_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"hub\",SERVER_ROLE=\"spoke\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"hub\",SERVER_ROLE=\"spoke\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"hub\",SERVER_ROLE=\"spoke\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\")), \"__name__\"), \"CLIENT\", \"SERVER\")",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "columnField": "CLIENT",
+            "rowField": "SERVER",
+            "valueField": "Value",
+            "emptyValue": "null"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "—",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "orange",
+                "value": 5
+              },
+              {
+                "color": "red",
+                "value": 20
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "no data",
+                  "color": "red",
+                  "index": 0
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "—",
+                  "color": "transparent",
+                  "index": 1
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "-2": {
+                  "text": "NAT ↔ NAT",
+                  "color": "transparent",
+                  "index": 2
+                }
+              }
+            }
+          ],
+          "custom": {
+            "align": "center",
+            "minWidth": 70,
+            "cellOptions": {
+              "type": "color-background",
+              "mode": "basic"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "SERVER\\CLIENT"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Spoke ↓  Hub →"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "custom.align",
+                "value": "left"
+              },
+              {
+                "id": "custom.width",
+                "value": 120
+              },
+              {
+                "id": "unit",
+                "value": "string"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "Spoke ↓  Hub →",
+            "desc": false
+          }
+        ]
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Liaison entre les hubs · pertes",
+      "description": "Deux hubs seulement : les deux sens de leur liaison.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "syntraf-vm"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 27,
+        "w": 12,
+        "h": 10
       },
       "targets": [
         {
@@ -793,6 +1122,27 @@
                   "index": 0
                 }
               }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "—",
+                  "color": "transparent",
+                  "index": 1
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "-2": {
+                  "text": "NAT ↔ NAT",
+                  "color": "transparent",
+                  "index": 2
+                }
+              }
             }
           ]
         },
@@ -808,65 +1158,6 @@
           ],
           "fields": "",
           "values": false
-        }
-      }
-    },
-    {
-      "id": 6,
-      "type": "timeseries",
-      "title": "Pertes moyennes des spokes vers chaque hub (%)",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "syntraf-vm"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 24,
-        "w": 24,
-        "h": 9
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "syntraf-vm"
-          },
-          "expr": "avg by (MESH_GROUP, SERVER) (((SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\",CLIENT_ROLE=\"spoke\",SERVER_ROLE=\"hub\"}[90s]))) - 5))))",
-          "legendFormat": "{{MESH_GROUP}} · hub {{SERVER}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "custom": {
-            "lineWidth": 1,
-            "fillOpacity": 10,
-            "spanNulls": false,
-            "showPoints": "never"
-          },
-          "min": 0,
-          "max": 100,
-          "color": {
-            "mode": "shades",
-            "fixedColor": "red"
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "calcs": [
-            "mean",
-            "max",
-            "lastNotNull"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
         }
       }
     }

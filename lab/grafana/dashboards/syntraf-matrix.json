@@ -1,6 +1,6 @@
 {
   "uid": "syntraf-matrix",
-  "title": "SYNTRAF — matrice source × destination",
+  "title": "2 · Matrices",
   "tags": [
     "syntraf",
     "lab"
@@ -16,21 +16,95 @@
   },
   "links": [
     {
-      "title": "Tableaux de bord SYNTRAF",
-      "type": "dashboards",
-      "tags": [
-        "syntraf"
-      ],
+      "title": "1 · Vue d'ensemble",
+      "type": "link",
+      "url": "/d/syntraf-lab",
+      "icon": "dashboard",
       "asDropdown": false,
       "includeVars": true,
-      "keepTime": true
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
+    },
+    {
+      "title": "2 · Matrices",
+      "type": "link",
+      "url": "/d/syntraf-matrix",
+      "icon": "dashboard",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
+    },
+    {
+      "title": "3 · Qualité voix et latence",
+      "type": "link",
+      "url": "/d/syntraf-quality",
+      "icon": "dashboard",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
+    },
+    {
+      "title": "4 · Tests TCP",
+      "type": "link",
+      "url": "/d/syntraf-tcp",
+      "icon": "dashboard",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
+    },
+    {
+      "title": "5 · Hubs",
+      "type": "link",
+      "url": "/d/syntraf-hubs",
+      "icon": "dashboard",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
+    },
+    {
+      "title": "6 · Corrélations",
+      "type": "link",
+      "url": "/d/syntraf-correlation",
+      "icon": "dashboard",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
+    },
+    {
+      "title": "7 · Santé de SYNTRAF",
+      "type": "link",
+      "url": "/d/syntraf-health",
+      "icon": "dashboard",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
     }
   ],
   "templating": {
     "list": [
       {
         "name": "mesh_group",
-        "label": "MESH_GROUP",
+        "label": "Groupe",
         "type": "query",
         "datasource": {
           "type": "prometheus",
@@ -58,7 +132,7 @@
       },
       {
         "name": "client",
-        "label": "CLIENT",
+        "label": "Source",
         "type": "query",
         "datasource": {
           "type": "prometheus",
@@ -86,7 +160,7 @@
       },
       {
         "name": "server",
-        "label": "SERVER",
+        "label": "Destination",
         "type": "query",
         "datasource": {
           "type": "prometheus",
@@ -129,6 +203,48 @@
         "titleFormat": "{{ACTION}}",
         "textFormat": "{{SUMMARY}} — {{ACTOR}}",
         "useValueForTime": false
+      },
+      {
+        "name": "Alertes",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "syntraf-vm"
+        },
+        "enable": true,
+        "iconColor": "red",
+        "expr": "last_over_time(SYNTRAF_ALERT_EVENT[1m])",
+        "step": "60s",
+        "titleFormat": "Alerte {{ACTION}} · {{METRIC}} · {{FLOW}}",
+        "textFormat": "{{MESH_GROUP}} — {{SUMMARY}}",
+        "useValueForTime": false
+      },
+      {
+        "name": "Redémarrages et mises à jour",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "syntraf-vm"
+        },
+        "enable": true,
+        "iconColor": "blue",
+        "expr": "last_over_time(SYNTRAF_LIFECYCLE_EVENT[1m])",
+        "step": "60s",
+        "titleFormat": "{{EVENT}} · {{SUBJECT}}",
+        "textFormat": "{{SUMMARY}}",
+        "useValueForTime": false
+      },
+      {
+        "name": "Maintenance",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "syntraf-vm"
+        },
+        "enable": true,
+        "iconColor": "purple",
+        "expr": "max by (UID, TARGET_TYPE, TARGET, DESCRIPTION) (SYNTRAF_MAINTENANCE_ACTIVE)",
+        "step": "60s",
+        "titleFormat": "Maintenance {{UID}} · {{TARGET}}",
+        "textFormat": "{{DESCRIPTION}} — alertes suspendues",
+        "useValueForTime": false
       }
     ]
   },
@@ -146,7 +262,7 @@
         "x": 0,
         "y": 0,
         "w": 24,
-        "h": 4
+        "h": 5
       },
       "targets": [
         {
@@ -212,19 +328,32 @@
       }
     },
     {
+      "id": 200,
+      "type": "row",
+      "title": "Maintenant · 30 s",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
       "id": 1,
       "type": "table",
-      "title": "Pertes actuelles (%) — moyenne 30 s",
-      "description": "Pertes mesurées par la destination sur les 30 dernières secondes. Case « — » : flux non mesuré dans cette topologie ; « no data » : flux attendu sans mesure.",
+      "title": "Pertes",
+      "description": "Pertes mesurées par la destination sur les 30 dernières secondes. Case « — » : flux non mesuré dans cette topologie ; « no data » : flux attendu sans mesure. « NAT ↔ NAT » : deux sondes derrière un NAT ne peuvent pas se joindre ; la paire n'est pas mesurée.",
       "datasource": {
         "type": "prometheus",
         "uid": "syntraf-vm"
       },
       "gridPos": {
         "x": 0,
-        "y": 4,
+        "y": 6,
         "w": 12,
-        "h": 8
+        "h": 10
       },
       "targets": [
         {
@@ -233,7 +362,7 @@
             "type": "prometheus",
             "uid": "syntraf-vm"
           },
-          "expr": "label_del((label_keep(((avg_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") or (label_keep((last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5)), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") * 0 + -1) unless on(MESH_GROUP,CLIENT,SERVER) label_keep(((avg_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\")), \"__name__\")",
+          "expr": "sort_by_label(label_del((((label_keep(((avg_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") or (label_keep((last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5)), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") * 0 + -1) unless on(MESH_GROUP,CLIENT,SERVER) label_keep(((avg_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\"))) or ((max by (CLIENT, SERVER) (last_over_time(SYNTRAF_FLOW_NAT_PAIR{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s])) * 0 + -2) unless on(CLIENT, SERVER) ((label_keep(((avg_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") or (label_keep((last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5)), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") * 0 + -1) unless on(MESH_GROUP,CLIENT,SERVER) label_keep(((avg_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\"))))), \"__name__\"), \"SERVER\", \"CLIENT\")",
           "instant": true,
           "range": false
         }
@@ -295,10 +424,32 @@
                   "index": 0
                 }
               }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "—",
+                  "color": "transparent",
+                  "index": 1
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "-2": {
+                  "text": "NAT ↔ NAT",
+                  "color": "transparent",
+                  "index": 2
+                }
+              }
             }
           ],
           "custom": {
             "align": "center",
+            "minWidth": 70,
             "cellOptions": {
               "type": "color-background",
               "mode": "basic"
@@ -314,7 +465,7 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "Source ↓ / Destination →"
+                "value": "De ↓  Vers →"
               },
               {
                 "id": "custom.cellOptions",
@@ -327,6 +478,10 @@
                 "value": "left"
               },
               {
+                "id": "custom.width",
+                "value": 120
+              },
+              {
                 "id": "unit",
                 "value": "string"
               }
@@ -336,26 +491,32 @@
       },
       "options": {
         "showHeader": true,
-        "cellHeight": "lg",
+        "cellHeight": "md",
         "footer": {
           "show": false
-        }
+        },
+        "sortBy": [
+          {
+            "displayName": "De ↓  Vers →",
+            "desc": false
+          }
+        ]
       }
     },
     {
       "id": 2,
       "type": "table",
-      "title": "Silence (s depuis le dernier point)",
-      "description": "Une cellule rouge = aucune mesure reçue : panne, ou SYNTRAF qui ne rapporte plus. Case « — » : flux non mesuré dans cette topologie ; « no data » : flux attendu sans mesure.",
+      "title": "Silence (s sans mesure)",
+      "description": "Une cellule rouge = aucune mesure reçue : panne, ou SYNTRAF qui ne rapporte plus. Case « — » : flux non mesuré dans cette topologie ; « no data » : flux attendu sans mesure. « NAT ↔ NAT » : deux sondes derrière un NAT ne peuvent pas se joindre ; la paire n'est pas mesurée.",
       "datasource": {
         "type": "prometheus",
         "uid": "syntraf-vm"
       },
       "gridPos": {
         "x": 12,
-        "y": 4,
+        "y": 6,
         "w": 12,
-        "h": 8
+        "h": 10
       },
       "targets": [
         {
@@ -364,7 +525,7 @@
             "type": "prometheus",
             "uid": "syntraf-vm"
           },
-          "expr": "label_del((label_keep(((time() - tlast_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[1h])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") or (label_keep((last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5)), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") * 0 + -1) unless on(MESH_GROUP,CLIENT,SERVER) label_keep(((time() - tlast_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[1h])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\")), \"__name__\")",
+          "expr": "sort_by_label(label_del((((label_keep(((time() - tlast_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[1h])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") or (label_keep((last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5)), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") * 0 + -1) unless on(MESH_GROUP,CLIENT,SERVER) label_keep(((time() - tlast_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[1h])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\"))) or ((max by (CLIENT, SERVER) (last_over_time(SYNTRAF_FLOW_NAT_PAIR{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s])) * 0 + -2) unless on(CLIENT, SERVER) ((label_keep(((time() - tlast_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[1h])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") or (label_keep((last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5)), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") * 0 + -1) unless on(MESH_GROUP,CLIENT,SERVER) label_keep(((time() - tlast_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[1h])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\"))))), \"__name__\"), \"SERVER\", \"CLIENT\")",
           "instant": true,
           "range": false
         }
@@ -422,10 +583,32 @@
                   "index": 0
                 }
               }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "—",
+                  "color": "transparent",
+                  "index": 1
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "-2": {
+                  "text": "NAT ↔ NAT",
+                  "color": "transparent",
+                  "index": 2
+                }
+              }
             }
           ],
           "custom": {
             "align": "center",
+            "minWidth": 70,
             "cellOptions": {
               "type": "color-background",
               "mode": "basic"
@@ -441,7 +624,7 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "Source ↓ / Destination →"
+                "value": "De ↓  Vers →"
               },
               {
                 "id": "custom.cellOptions",
@@ -454,6 +637,10 @@
                 "value": "left"
               },
               {
+                "id": "custom.width",
+                "value": 120
+              },
+              {
                 "id": "unit",
                 "value": "string"
               }
@@ -463,26 +650,32 @@
       },
       "options": {
         "showHeader": true,
-        "cellHeight": "lg",
+        "cellHeight": "md",
         "footer": {
           "show": false
-        }
+        },
+        "sortBy": [
+          {
+            "displayName": "De ↓  Vers →",
+            "desc": false
+          }
+        ]
       }
     },
     {
       "id": 3,
       "type": "table",
-      "title": "Pertes moyennes sur la période affichée (%)",
-      "description": "Moyenne sur toute la plage de temps choisie en haut à droite, pour les flux actuellement mesurés.",
+      "title": "Gigue",
+      "description": "« NAT ↔ NAT » : deux sondes derrière un NAT ne peuvent pas se joindre ; la paire n'est pas mesurée.",
       "datasource": {
         "type": "prometheus",
         "uid": "syntraf-vm"
       },
       "gridPos": {
         "x": 0,
-        "y": 12,
+        "y": 16,
         "w": 12,
-        "h": 8
+        "h": 10
       },
       "targets": [
         {
@@ -491,138 +684,7 @@
             "type": "prometheus",
             "uid": "syntraf-vm"
           },
-          "expr": "label_del(((avg_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[$__range])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"__name__\")",
-          "instant": true,
-          "range": false
-        }
-      ],
-      "transformations": [
-        {
-          "id": "labelsToFields",
-          "options": {
-            "mode": "columns"
-          }
-        },
-        {
-          "id": "merge",
-          "options": {}
-        },
-        {
-          "id": "groupingToMatrix",
-          "options": {
-            "columnField": "SERVER",
-            "rowField": "CLIENT",
-            "valueField": "Value",
-            "emptyValue": "null"
-          }
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "decimals": 2,
-          "noValue": "—",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 1
-              },
-              {
-                "color": "orange",
-                "value": 5
-              },
-              {
-                "color": "red",
-                "value": 20
-              }
-            ]
-          },
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "-1": {
-                  "text": "no data",
-                  "color": "red",
-                  "index": 0
-                }
-              }
-            }
-          ],
-          "custom": {
-            "align": "center",
-            "cellOptions": {
-              "type": "color-background",
-              "mode": "basic"
-            }
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "CLIENT\\SERVER"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "Source ↓ / Destination →"
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "auto"
-                }
-              },
-              {
-                "id": "custom.align",
-                "value": "left"
-              },
-              {
-                "id": "unit",
-                "value": "string"
-              }
-            ]
-          }
-        ]
-      },
-      "options": {
-        "showHeader": true,
-        "cellHeight": "lg",
-        "footer": {
-          "show": false
-        }
-      }
-    },
-    {
-      "id": 4,
-      "type": "table",
-      "title": "Gigue (ms) — moyenne 30 s",
-      "description": "",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "syntraf-vm"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 12,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "syntraf-vm"
-          },
-          "expr": "label_del((label_keep(((avg_over_time(SYNTRAF_RX_JITTER{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") or (label_keep((last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5)), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") * 0 + -1) unless on(MESH_GROUP,CLIENT,SERVER) label_keep(((avg_over_time(SYNTRAF_RX_JITTER{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\")), \"__name__\")",
+          "expr": "sort_by_label(label_del((((label_keep(((avg_over_time(SYNTRAF_RX_JITTER{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") or (label_keep((last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5)), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") * 0 + -1) unless on(MESH_GROUP,CLIENT,SERVER) label_keep(((avg_over_time(SYNTRAF_RX_JITTER{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\"))) or ((max by (CLIENT, SERVER) (last_over_time(SYNTRAF_FLOW_NAT_PAIR{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s])) * 0 + -2) unless on(CLIENT, SERVER) ((label_keep(((avg_over_time(SYNTRAF_RX_JITTER{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") or (label_keep((last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5)), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") * 0 + -1) unless on(MESH_GROUP,CLIENT,SERVER) label_keep(((avg_over_time(SYNTRAF_RX_JITTER{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\"))))), \"__name__\"), \"SERVER\", \"CLIENT\")",
           "instant": true,
           "range": false
         }
@@ -684,10 +746,32 @@
                   "index": 0
                 }
               }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "—",
+                  "color": "transparent",
+                  "index": 1
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "-2": {
+                  "text": "NAT ↔ NAT",
+                  "color": "transparent",
+                  "index": 2
+                }
+              }
             }
           ],
           "custom": {
             "align": "center",
+            "minWidth": 70,
             "cellOptions": {
               "type": "color-background",
               "mode": "basic"
@@ -703,7 +787,7 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "Source ↓ / Destination →"
+                "value": "De ↓  Vers →"
               },
               {
                 "id": "custom.cellOptions",
@@ -716,6 +800,10 @@
                 "value": "left"
               },
               {
+                "id": "custom.width",
+                "value": 120
+              },
+              {
                 "id": "unit",
                 "value": "string"
               }
@@ -725,26 +813,32 @@
       },
       "options": {
         "showHeader": true,
-        "cellHeight": "lg",
+        "cellHeight": "md",
         "footer": {
           "show": false
-        }
+        },
+        "sortBy": [
+          {
+            "displayName": "De ↓  Vers →",
+            "desc": false
+          }
+        ]
       }
     },
     {
-      "id": 5,
+      "id": 4,
       "type": "table",
-      "title": "Débit reçu (kbit/s) — moyenne 30 s",
-      "description": "Comparer au débit par flux du bandeau « Paramètres des groupes ».",
+      "title": "Débit reçu",
+      "description": "Comparer au débit par flux du bandeau « Paramètres des groupes ». « NAT ↔ NAT » : deux sondes derrière un NAT ne peuvent pas se joindre ; la paire n'est pas mesurée.",
       "datasource": {
         "type": "prometheus",
         "uid": "syntraf-vm"
       },
       "gridPos": {
-        "x": 0,
-        "y": 20,
+        "x": 12,
+        "y": 16,
         "w": 12,
-        "h": 8
+        "h": 10
       },
       "targets": [
         {
@@ -753,7 +847,7 @@
             "type": "prometheus",
             "uid": "syntraf-vm"
           },
-          "expr": "label_del((label_keep(((avg_over_time(SYNTRAF_RX_BITRATE{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") or (label_keep((last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5)), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") * 0 + -1) unless on(MESH_GROUP,CLIENT,SERVER) label_keep(((avg_over_time(SYNTRAF_RX_BITRATE{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\")), \"__name__\")",
+          "expr": "sort_by_label(label_del((((label_keep(((avg_over_time(SYNTRAF_RX_BITRATE{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") or (label_keep((last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5)), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") * 0 + -1) unless on(MESH_GROUP,CLIENT,SERVER) label_keep(((avg_over_time(SYNTRAF_RX_BITRATE{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\"))) or ((max by (CLIENT, SERVER) (last_over_time(SYNTRAF_FLOW_NAT_PAIR{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s])) * 0 + -2) unless on(CLIENT, SERVER) ((label_keep(((avg_over_time(SYNTRAF_RX_BITRATE{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") or (label_keep((last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5)), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\") * 0 + -1) unless on(MESH_GROUP,CLIENT,SERVER) label_keep(((avg_over_time(SYNTRAF_RX_BITRATE{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[30s])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"MESH_GROUP\", \"CLIENT\", \"SERVER\", \"UID\"))))), \"__name__\"), \"SERVER\", \"CLIENT\")",
           "instant": true,
           "range": false
         }
@@ -811,10 +905,32 @@
                   "index": 0
                 }
               }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "—",
+                  "color": "transparent",
+                  "index": 1
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "-2": {
+                  "text": "NAT ↔ NAT",
+                  "color": "transparent",
+                  "index": 2
+                }
+              }
             }
           ],
           "custom": {
             "align": "center",
+            "minWidth": 70,
             "cellOptions": {
               "type": "color-background",
               "mode": "basic"
@@ -830,7 +946,7 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "Source ↓ / Destination →"
+                "value": "De ↓  Vers →"
               },
               {
                 "id": "custom.cellOptions",
@@ -843,6 +959,10 @@
                 "value": "left"
               },
               {
+                "id": "custom.width",
+                "value": 120
+              },
+              {
                 "id": "unit",
                 "value": "string"
               }
@@ -852,26 +972,45 @@
       },
       "options": {
         "showHeader": true,
-        "cellHeight": "lg",
+        "cellHeight": "md",
         "footer": {
           "show": false
-        }
+        },
+        "sortBy": [
+          {
+            "displayName": "De ↓  Vers →",
+            "desc": false
+          }
+        ]
       }
     },
     {
-      "id": 6,
+      "id": 201,
+      "type": "row",
+      "title": "Sur la période affichée",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 26,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 5,
       "type": "table",
-      "title": "Paquets perdus — total sur la période affichée",
-      "description": "",
+      "title": "Pertes moyennes",
+      "description": "Moyenne sur toute la plage de temps choisie en haut à droite, pour les flux actuellement mesurés. « NAT ↔ NAT » : deux sondes derrière un NAT ne peuvent pas se joindre ; la paire n'est pas mesurée.",
       "datasource": {
         "type": "prometheus",
         "uid": "syntraf-vm"
       },
       "gridPos": {
-        "x": 12,
-        "y": 20,
+        "x": 0,
+        "y": 27,
         "w": 12,
-        "h": 8
+        "h": 10
       },
       "targets": [
         {
@@ -880,7 +1019,170 @@
             "type": "prometheus",
             "uid": "syntraf-vm"
           },
-          "expr": "label_del(((sum_over_time(SYNTRAF_RX_PACKET_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[$__range])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5))), \"__name__\")",
+          "expr": "sort_by_label(label_del(((((avg_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[$__range])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5)))) or ((max by (CLIENT, SERVER) (last_over_time(SYNTRAF_FLOW_NAT_PAIR{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s])) * 0 + -2) unless on(CLIENT, SERVER) (((avg_over_time(SYNTRAF_RX_PCT_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[$__range])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5)))))), \"__name__\"), \"SERVER\", \"CLIENT\")",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "columnField": "SERVER",
+            "rowField": "CLIENT",
+            "valueField": "Value",
+            "emptyValue": "null"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 2,
+          "noValue": "—",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "orange",
+                "value": 5
+              },
+              {
+                "color": "red",
+                "value": 20
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "no data",
+                  "color": "red",
+                  "index": 0
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "—",
+                  "color": "transparent",
+                  "index": 1
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "-2": {
+                  "text": "NAT ↔ NAT",
+                  "color": "transparent",
+                  "index": 2
+                }
+              }
+            }
+          ],
+          "custom": {
+            "align": "center",
+            "minWidth": 70,
+            "cellOptions": {
+              "type": "color-background",
+              "mode": "basic"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CLIENT\\SERVER"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "De ↓  Vers →"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "custom.align",
+                "value": "left"
+              },
+              {
+                "id": "custom.width",
+                "value": 120
+              },
+              {
+                "id": "unit",
+                "value": "string"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "footer": {
+          "show": false
+        },
+        "sortBy": [
+          {
+            "displayName": "De ↓  Vers →",
+            "desc": false
+          }
+        ]
+      }
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Paquets perdus (total)",
+      "description": "« NAT ↔ NAT » : deux sondes derrière un NAT ne peuvent pas se joindre ; la paire n'est pas mesurée.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "syntraf-vm"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 27,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "syntraf-vm"
+          },
+          "expr": "sort_by_label(label_del(((((sum_over_time(SYNTRAF_RX_PACKET_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[$__range])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5)))) or ((max by (CLIENT, SERVER) (last_over_time(SYNTRAF_FLOW_NAT_PAIR{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s])) * 0 + -2) unless on(CLIENT, SERVER) (((sum_over_time(SYNTRAF_RX_PACKET_LOSS{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[$__range])) and on(MESH_GROUP,CLIENT,SERVER) (last_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) and on(MESH_GROUP,CLIENT,SERVER) (tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]) >= scalar(max(tlast_over_time(SYNTRAF_FLOW_EXPECTED{MESH_GROUP=~\"$mesh_group\",CLIENT=~\"$client\",SERVER=~\"$server\"}[90s]))) - 5)))))), \"__name__\"), \"SERVER\", \"CLIENT\")",
           "instant": true,
           "range": false
         }
@@ -938,10 +1240,32 @@
                   "index": 0
                 }
               }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "—",
+                  "color": "transparent",
+                  "index": 1
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "-2": {
+                  "text": "NAT ↔ NAT",
+                  "color": "transparent",
+                  "index": 2
+                }
+              }
             }
           ],
           "custom": {
             "align": "center",
+            "minWidth": 70,
             "cellOptions": {
               "type": "color-background",
               "mode": "basic"
@@ -957,7 +1281,7 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "Source ↓ / Destination →"
+                "value": "De ↓  Vers →"
               },
               {
                 "id": "custom.cellOptions",
@@ -970,6 +1294,10 @@
                 "value": "left"
               },
               {
+                "id": "custom.width",
+                "value": 120
+              },
+              {
                 "id": "unit",
                 "value": "string"
               }
@@ -979,10 +1307,16 @@
       },
       "options": {
         "showHeader": true,
-        "cellHeight": "lg",
+        "cellHeight": "md",
         "footer": {
           "show": false
-        }
+        },
+        "sortBy": [
+          {
+            "displayName": "De ↓  Vers →",
+            "desc": false
+          }
+        ]
       }
     }
   ]

@@ -50,13 +50,14 @@
     <li><a href="#intro">1. Introduction</a></li>
     <li><a href="#architecture">2. Architecture</a></li>
     <li><a href="#install">3. Installation</a>
-      <ol><li><a href="#install-req">Requirements</a></li><li><a href="#install-iperf">iperf3</a></li>
+      <ol><li><a href="#install-packages">Offline packages</a></li><li><a href="#install-req">Requirements</a></li><li><a href="#install-iperf">iperf3</a></li>
         <li><a href="#install-server">Server</a></li><li><a href="#install-client">Clients</a></li>
         <li><a href="#install-service">Running as a service</a></li><li><a href="#install-firewall">Firewall</a></li></ol></li>
     <li><a href="#quickstart">4. Quick start</a></li>
     <li><a href="#webui">5. Web interface</a>
-      <ol><li><a href="#ui-dashboard">Dashboard</a></li><li><a href="#ui-meshgroups">Mesh groups</a></li>
-        <li><a href="#ui-profiles">Profiles</a></li><li><a href="#ui-clients">Clients</a></li>
+      <ol><li><a href="#ui-dashboard">Dashboard</a></li><li><a href="#ui-alerts">Alerts</a></li><li><a href="#ui-meshgroups">Mesh groups</a></li>
+        <li><a href="#ui-profiles">Profiles</a></li><li><a href="#ui-tcptests">TCP tests</a></li>
+        <li><a href="#ui-clients">Clients</a></li>
         <li><a href="#ui-databases">Databases</a></li><li><a href="#ui-server">Server</a></li>
         <li><a href="#ui-tokens">Tokens</a></li><li><a href="#ui-logs">Logs</a></li>
         <li><a href="#ui-audit">Audit &amp; versions</a></li><li><a href="#ui-updates">Updates</a></li>
@@ -117,6 +118,41 @@ validate a QoS class (DSCP) end to end, check a satellite or LTE link.</p>
 </ul>
 
 <h2 id="install">3. Installation</h2>
+<h3 id="install-packages">Offline packages (recommended)</h3>
+<p>One archive per role and platform, with everything a machine without Internet access needs: a portable Python
+(python-build-standalone), the dependencies of the platform as wheels, SYNTRAF and iperf3v. The server package also
+installs VictoriaMetrics (listening on 127.0.0.1:8428 only, 12 months of retention by default) and Grafana (port
+3000), already bound together: SYNTRAF writes its measurements to that VictoriaMetrics, which also scrapes
+<code>/metrics</code>, and Grafana is provisioned with the data source and the SYNTRAF dashboards (folder SYNTRAF,
+« Vue d'ensemble » as the home page). <code>--no-stack</code> / <code>-NoStack</code> skips them if you have your
+own. The install script creates the services and writes the configuration; run it again with a newer package to
+update (configuration, data, measurements and Grafana settings are kept).</p>
+<table>
+  <tr><th>Package</th><th>Systems</th><th>Service</th></tr>
+  <tr><td><code>syntraf-{server,probe}-&lt;version&gt;-linux-x86_64.tar.gz</code></td><td>Debian, Ubuntu, RHEL, Rocky, Alma</td><td>systemd</td></tr>
+  <tr><td><code>…-linux-musl-x86_64.tar.gz</code></td><td>Alpine</td><td>OpenRC</td></tr>
+  <tr><td><code>…-windows-x86_64.zip</code></td><td>Windows 10, 11, Server 2016 and later</td><td>scheduled task « SYNTRAF &lt;role&gt; » at startup (SYSTEM)</td></tr>
+  <tr><td><code>…-macos-arm64.tar.gz</code></td><td>macOS on Apple silicon</td><td>launchd</td></tr>
+</table>
+<pre><code># server
+sudo ./install.sh                                        # Linux, macOS
+.\install.ps1                                           # Windows, PowerShell as administrator
+# probe: the server's address and an enrollment token (Server › Tokens, also shown when the server is installed)
+sudo ./install.sh --server 10.0.0.5 --token &lt;token&gt;
+.\install.ps1 -Server 10.0.0.5 -Token &lt;token&gt;</code></pre>
+<p>Locations on Linux: code <code>/opt/syntraf-&lt;role&gt;</code>, configuration <code>/etc/syntraf-&lt;role&gt;</code>,
+data (keys, token, update releases) <code>/var/lib/syntraf-&lt;role&gt;</code>, logs
+<code>/var/log/syntraf-&lt;role&gt;</code>; Windows: <code>C:\Program Files\SYNTRAF\&lt;role&gt;</code> and
+<code>C:\ProgramData\SYNTRAF\&lt;role&gt;</code>; macOS: under <code>/usr/local</code>. <code>uninstall.sh</code> /
+<code>uninstall.ps1</code> remove it (<code>--purge</code> / <code>-Purge</code>: configuration and data too). A fresh
+server starts without any mesh group: create them in the web interface (address and initial admin password shown at
+the end of the install).</p>
+<p>iperf3v: Linux packages carry a static build (the same binary on Debian, RHEL and Alpine), Windows the published
+release; there is no macOS build of iperf3v yet, so the macOS package uses the system's iperf3 (3.17 or later, e.g.
+from Homebrew) and says so if there is none. No package for macOS on Intel (a dependency, cryptography, no longer
+publishes wheels for it). The packages are built by <code>python packaging/build_packages.py</code> (needs Internet
+and Docker); <code>packaging/test_install.sh</code> installs one offline in a container and starts it.</p>
+
 <h3 id="install-req">Requirements</h3>
 <ul>
   <li>Python 3 on Linux, Windows or macOS (the lab and the tests run Python 3.14). A single standard Linux distribution is
@@ -134,6 +170,9 @@ cd iperf && ./configure && make && sudo make install && sudo ldconfig</code></pr
 <p>Prerequisites: <code>build-essential libssl-dev libtool</code> (Debian/Ubuntu) or
 <code>"Development Tools" openssl-devel</code> (RHEL family). On Windows, iperf3 can be built with Cygwin (see the
 README); ESnet does not support iperf3 on Windows.</p>
+<p>With iperf3 3.17 or later, probes read its <code>--json-stream</code> output (one JSON event per line: start,
+interval, error) instead of its text output: structured values, the exact test start time, the return-stream port for
+the NAT keepalive, the accepted peer for the latency reflector. An older iperf3 keeps the text output.</p>
 <p>A probe reads which options its iperf3 knows. An official iperf3 (distribution packages, Windows builds) has no
 <code>--cntl-ka</code>: the probe then runs without the control-connection keepalive and logs a warning once. An
 iperf3 built without OpenSSL has no RSA authentication: it cannot take part in flows while iperf3 authentication is
@@ -218,6 +257,8 @@ journalctl -u syntraf -f</code></pre>
   <tr><td>Server</td><td>TCP 6531</td><td>Control channel (clients)</td></tr>
   <tr><td>Server</td><td>TCP 5000</td><td>Web interface and API (restrict to administrators)</td></tr>
   <tr><td>Client</td><td>TCP and UDP 15000-16000</td><td>iperf3 listeners (not needed for a client behind a NAT)</td></tr>
+  <tr><td>Client</td><td>UDP 8620</td><td>Latency reflector (not needed for a client behind a NAT)</td></tr>
+  <tr><td>Client</td><td>TCP 5201</td><td>Scheduled TCP tests, only while a test runs (not needed behind a NAT)</td></tr>
 </table>
 
 <h2 id="quickstart">4. Quick start</h2>
@@ -244,6 +285,35 @@ immediately; <span class="badge r">restart</span> ones after a server restart, w
 waiting clients, queued points; recent configuration changes.</figcaption></figure>
 <p>Links: <code>/healthz</code> (200 or 503) for monitoring, <code>/metrics</code> in Prometheus format.</p>
 
+<h3 id="ui-alerts">Alerts</h3>
+<p>An alert is raised when a measurement leaves the <strong>baseline</strong> of its flow, in the bad direction only:
+more loss or jitter, a longer round trip, a lower voice score (MOS) or a lower TCP bitrate. There is no threshold to
+set: every flow and metric learns its own baseline, and a flow that is always slow (a satellite link at 67 ms) is
+not an alert, while the same 67 ms on a LAN flow is.</p>
+<ul>
+  <li><strong>Baseline</strong>: median and robust spread (MAD × 1.4826, insensitive to past outages) of the flow's
+    last 7 days, as 5-minute averages; per hour of the day once there are 3 days of history (a busy hour is only
+    compared to the same hours). The last 15 minutes are left out, so a drift in progress does not become its own
+    norm.</li>
+  <li><strong>Out of baseline</strong>: the average of the last 5 minutes differs from the median, on the bad side, by
+    more than max(k × spread, minimum margin). The margin keeps a flow always at 0 % loss from alerting at 0.1 %:
+    loss 1 point, jitter 2 ms or 50 %, round trip 10 ms or 25 %, MOS 0.3, TCP bitrate 30 % (one point per test,
+    compared with the previous tests). k = 4 (<code>BASELINE_SENSITIVITY</code> in <code>[GLOBAL]</code>).</li>
+  <li><strong>No flapping</strong>: an alert opens after 3 consecutive minutes out of baseline and closes after 3
+    minutes clearly back (under half the threshold). A flow that disappears closes its alerts.</li>
+  <li><strong>Learning</strong>: no alert before 24 h of history; a change of the group's bitrate, packet size, DSCP or
+    interval restarts it (a new member does not).</li>
+  <li>Silence (no measurement at all) is an outage, shown in absolute on the dashboards, not judged here.</li>
+</ul>
+<p>The <em>Alerts</em> page (Monitoring) lists the open alerts with a plain explanation (« Loss 4 % instead of 0 %
+usually (alert above 1 %) ») and the recently closed ones; their number shows next to <em>Alerts</em> in the menu on
+every page. Each opening and closing is also logged (warning / info), so it reaches syslog / CEF when forwarding is on.
+The server evaluates every minute and writes <code>SYNTRAF_BASELINE{MESH_GROUP, CLIENT, SERVER, METRIC}</code>
+(<code>MEDIAN</code>, <code>LIMIT</code>, <code>CURRENT</code>, <code>SCORE</code>: deviation / threshold, above 1 =
+out of baseline). <code>BASELINE = false</code> in <code>[GLOBAL]</code> turns it off; <code>GET /api/v1/alerts</code>.
+The detector is interchangeable; a learned (ML) detector would only be added if it does better on the lab's test bench
+(<code>lab/bench_alerts.py</code>: faults injected at known times, detections, misses, false alarms, delay).</p>
+
 <h3 id="ui-livemap">Live map</h3>
 <p>The probes and the links they measure, colored by the quality of the last minute: loss, voice quality (MOS),
 round-trip latency or jitter, the worst of the two directions (green, yellow, orange, red; dashed grey: an expected
@@ -267,6 +337,30 @@ count; the table gives connections, iperf3 processes and outgoing bandwidth per 
 <h3 id="ui-profiles">Profiles</h3>
 <p>Reusable traffic settings (<code>IPERF3_PROFILE</code>). Editing a profile regenerates every group that uses it and
 reconnects their members. Example: a G.711 voice profile, 87.2 Kbps, 218-byte packets, DSCP 46.</p>
+
+<h3 id="ui-tcptests">TCP tests</h3>
+<p>Short recurring TCP throughput tests between the probes of a mesh group, next to the continuous UDP measurements.
+A test (<code>[[TCP_TEST]]</code>) has a frequency (<code>15m</code>, <code>1h</code>, <code>1d</code>…, at least one
+minute), a duration (1 to 60 s), a direction (upload: the initiator sends; download: it receives; both: one after the
+other) and the iperf3 TCP parameters: parallel streams (<code>-P</code>), window (<code>-w</code>), MSS
+(<code>-M</code>), congestion control (<code>-C</code>), target rate (<code>-b</code>), DSCP, seconds omitted at the
+start (<code>-O</code>, slow start). <em>Run now</em> queues it at once.</p>
+<p>The server runs <strong>one test at a time across the whole mesh</strong> (a TCP test fills the link; two at once
+would measure each other): it asks the responder to open <code>iperf3 -s</code>, for the test's time slot only, on TCP 5201
+(<code>TCP_TEST_PORT</code> in <code>[GLOBAL]</code>) a few seconds ahead, then the initiator to run the client. The
+initiator is the probe behind a NAT when there is one; two probes both behind a NAT are not tested. The initiator
+reports the result (<code>iperf3 -J</code>) as <code>SYNTRAF_TCP</code>: received and sent bitrate, retransmits, TCP
+round trip, largest congestion window, MSS, CPU use, <code>FAILED</code> when the test could not run, and
+<code>WINDOW_LIMITED</code> when the window asked for was above what the operating system allows (Linux:
+<code>net.core.wmem_max</code> and <code>rmem_max</code>, 208 KiB by default) and TCP autotuning was used instead
+(raise those limits on the probes to test long fat links with a fixed window); dashboard
+<em>SYNTRAF — tests TCP</em>. The first run of a new test comes one period after it is created, not at once.</p>
+<p><strong>Auto mode</strong> (the principle of AMPR-NG): no window to guess. The window is the bandwidth-delay product
+times a factor (<code>AUTO_FACTOR</code>, 2 by default, 1 to 8): capacity × 0.95 × RTT × factor, and the target rate is
+capacity × 0.95; <code>AUTO_PACING</code> also spaces the segments at that rate (<code>--pacing-timer</code>). The RTT
+is SYNTRAF's continuous latency measurement of the pair; the capacity is the test's <code>BANDWIDTH</code>, or else
+the smallest <code>MAX_BANDWIDTH</code> declared for the two probes. Without a capacity or a recent RTT, TCP is left
+to the operating system (logged).</p>
 
 <h3 id="ui-clients">Clients</h3>
 <figure><img src="img/clients.png" alt="Clients"><figcaption>Security state, address (static, dynamic, behind
@@ -516,11 +610,25 @@ dropped messages and the last error; <em>Send a test message</em> checks the pat
 <h2 id="grafana">13. Grafana dashboards</h2>
 <figure><img src="img/grafana.png" alt="Grafana"><figcaption>Group parameters on top; silence per expected flow; loss,
 bitrate (with the expected bitrate dashed), jitter, lost packets.</figcaption></figure>
-<p>Three dashboards are generated by <code>lab/grafana/build_dashboards.py</code> (VictoriaMetrics data source):</p>
+<p>Six dashboards are generated by <code>lab/grafana/build_dashboards.py</code> (VictoriaMetrics data source), in
+the SYNTRAF folder, numbered in reading order and linked to each other (the time range and filters follow). Each is
+split into titled sections. The filters say <em>Source</em> and <em>Destination</em> (the sending and the receiving
+probe); every matrix reads the same way, source in rows, destination in columns, sorted by name, an empty cell
+(« — ») being a flow the configuration does not measure. « NAT ↔ NAT » marks two probes both behind a NAT:
+neither can reach the other, so the pair is never measured (the server publishes these pairs as
+<code>SYNTRAF_FLOW_NAT_PAIR</code>, next to the expected flows).</p>
 <ul>
-  <li><strong>Mesh measurements</strong>: time series per flow;</li>
-  <li><strong>Source × destination matrix</strong>: current loss, silence, jitter, bitrate, lost packets;</li>
-  <li><strong>Hub topologies</strong>: spokes × hubs, the link between the hubs, average per hub.</li>
+  <li><strong>1 · Overview</strong>: loss and silence now (matrices), loss, bitrate (with the expected bitrate
+    dashed), jitter and lost packets over time, and the latest TCP tests;</li>
+  <li><strong>2 · Matrices</strong>: loss, silence, jitter, bitrate now; average loss and lost packets over the
+    displayed range;</li>
+  <li><strong>3 · Voice quality &amp; latency</strong> and <strong>6 · Correlations</strong>: see below;</li>
+  <li><strong>4 · TCP tests</strong>: the scheduled TCP tests (<a href="#ui-tcptests">TCP tests</a>), read in the
+    direction of the data (the probe that sends → the one that receives): latest bitrate, retransmits, TCP round
+    trip and failures as matrices; bitrate (logarithmic scale: from a few Mbit/s over radio or satellite to tens of
+    Gbit/s), retransmits, round trip and congestion window over time. Configuration changes are hidden by default
+    there (toggle on top);</li>
+  <li><strong>5 · Hubs</strong>: spokes × hubs, the link between the hubs, average per hub.</li>
   <li><strong>Correlations</strong>: two flow × flow matrices (loss, jitter). Every minute the server computes the
     Pearson correlation of each pair of flows over the last 15 minutes (one point every 10 s) from VictoriaMetrics and
     writes it as <code>SYNTRAF_CORRELATION_LOSS</code> / <code>SYNTRAF_CORRELATION_JITTER</code>
@@ -537,14 +645,30 @@ bitrate (with the expected bitrate dashed), jitter, lost packets.</figcaption></
     longest burst and share of the loss in heavy seconds (≥ 20 %) (<code>SYNTRAF_LOSS_BURST_*</code>).</li>
   <li><strong>Latency</strong>: round-trip time between probes, measured with TWAMP-Light (RFC 5357, unauthenticated
     test packets): every probe runs a reflector on UDP <code>LATENCY_PORT</code> (8620 by default, Server page,
-    <em>Global</em>), and the probe that holds the connector to a peer sends 5 echoes per interval with the mesh
-    group's DSCP. RTT = round trip minus the time spent in the reflector: no clock synchronization needed. A probe
+    <em>Global</em>), and the probe that holds the connector to a peer sends a train of 10 echoes per interval, 20 ms
+    apart like voice, with the mesh group's DSCP. RTT = round trip minus the time spent in the reflector: no clock synchronization needed. A probe
     behind a NAT only has connectors, so it always initiates and its outgoing echo opens the way for the answer (and
     keeps the NAT mapping open); two probes both behind a NAT are not measured. Stored as
     <code>SYNTRAF_LATENCY_RTT_MS</code> (min, max, echo loss). The reflector answers only its peers (the addresses of
     its connectors and the sources of the iperf3 sessions its listeners accepted, a NAT's public address included),
-    never with a larger packet than the request, and at most 20 packets per second per source and 200 in total. Open
-    the port on the probes that are not behind a NAT.</li>
+    never with a larger packet than the request, and at most 50 packets per second per source and 500 in total. Open
+    the port on the probes that are not behind a NAT. The same echoes give <strong>reordering and duplicates per
+    direction</strong> (iperf3 only reports out-of-order packets in its end-of-test summary, never during a continuous
+    test, and does not tell them from duplicates): forward from the order in which the reflector received them,
+    backward from the order in which the answers came back (RFC 4737, simplified); a duplicate is a packet received
+    twice (<code>SYNTRAF_LATENCY_REORDER_FWD_PCT</code>, <code>_REV_PCT</code>, <code>SYNTRAF_LATENCY_DUP_FWD</code>,
+    <code>_REV</code>; matrices per flow on the voice quality dashboard).</li>
+  <li><strong>DSCP marking</strong>: whether each direction keeps the mesh group's DSCP, since a router or an
+    operator may rewrite or wipe it (the quality of service is then lost on that path, silently). Checked on the same
+    echoes, in the manner of RFC 7750: the sender announces the DSCP it wants, the reflector reports the DSCP it
+    received and answers with the wanted one (so a rewrite on the way out does not hide or fake the way back), and the
+    sender reads the DSCP of the answer. Stored as <code>SYNTRAF_LATENCY_DSCP_OK_PCT_FWD</code> / <code>_REV</code>
+    (share of packets that kept it) and <code>SYNTRAF_LATENCY_DSCP_RECV_FWD</code> / <code>_REV</code> (the value
+    received, the rewritten one when it changed); section <em>DSCP marking</em> of the voice quality dashboard: the
+    share kept, and « intact » or the value it was rewritten to (in red), the worst group shown when several connect
+    the same pair. Needs Linux or macOS on both probes (Windows does not give
+    the received DSCP to applications). Lab: <code>labctl remark mobile-gw --dscp 8</code> rewrites everything that
+    crosses the mobile operator's router, <code>--clear</code> stops.</li>
 </ul>
 <p>Only the flows the configuration currently makes measure are shown: a flow removed by a topology change
 disappears instead of looking like an outage, and an expected flow without any measurement shows <em>no data</em>
@@ -612,6 +736,14 @@ within a minute (or after 10 failed attempts), or a peer that does not answer, c
 <code>G729</code>, <code>OPUS</code>): codec of the voice quality score (MOS) of the flows of the mesh groups using the
 profile; no effect on the measurements.</p>
 
+<h3>[[TCP_TEST]]</h3>
+<p><code>UID</code>, <code>MESH_GROUP</code>, <code>EVERY</code>, and optionally <code>DURATION</code> (10),
+<code>DIRECTION</code> (<code>both</code>, <code>upload</code>, <code>download</code>), <code>PARALLEL</code> (1),
+<code>WINDOW</code>, <code>MSS</code>, <code>CONGESTION</code>, <code>BANDWIDTH</code>, <code>DSCP</code> (0),
+<code>OMIT</code> (1), <code>MODE</code> (<code>fixed</code> or <code>auto</code>), <code>AUTO_FACTOR</code> (2),
+<code>AUTO_PACING</code> (false), <code>ENABLED</code> (true), <code>DESCRIPTION</code>. See
+<a href="#ui-tcptests">TCP tests</a>. Changing them restarts no measurement.</p>
+
 <h3>[[SERVER_CLIENT]]</h3>
 <table>
   <tr><th>Key</th><th>Description</th></tr>
@@ -666,12 +798,38 @@ impact, settings needing a restart). A change that triggers a capacity alert ans
   <tr><td>Audit &amp; versions</td><td><code>GET /audit</code>, <code>GET /config/versions</code>, <code>GET /config/versions/{v}</code>, <code>GET /config/versions/{v}/diff</code>, <code>POST /config/versions/{v}/restore</code></td></tr>
   <tr><td>Updates</td><td><code>GET|POST /updates</code></td></tr>
   <tr><td>Data</td><td><code>GET /data</code>, <code>POST /data/{uid}/purge</code>, <code>POST /data/{uid}/snapshots</code>, <code>DELETE /data/{uid}/snapshots/{name}</code></td></tr>
+  <tr><td>Alerts</td><td><code>GET /alerts</code> (open and recently closed, flows watched and learning)</td></tr>
+  <tr><td>TCP tests</td><td><code>GET|POST /config/tcp_tests</code>, <code>PUT|DELETE /config/tcp_tests/{uid}</code>, <code>POST /config/tcp_tests/{uid}/run</code>, <code>GET /tcp_tests/status</code></td></tr>
 </table>
 <pre><code># preview, then create a mesh group
 curl -s -X POST "http://server:5000/api/v1/mesh-groups?dry_run=1" -H "Content-Type: application/json" \
      -d '{"UID":"VOICE","TOPOLOGY":"HUB_SPOKE","HUBS":["PARIS_01"],"IPERF3_PROFILE":"G711"}'
 curl -s -X POST "http://server:5000/api/v1/mesh-groups" -H "Content-Type: application/json" \
      -d '{"UID":"VOICE","TOPOLOGY":"HUB_SPOKE","HUBS":["PARIS_01"],"IPERF3_PROFILE":"G711"}'</code></pre>
+
+<h3 id="monitoring-syntraf">Monitoring SYNTRAF itself: /metrics, Prometheus, Zabbix</h3>
+<p><code>GET /metrics</code> describes the health of SYNTRAF (not the network measurements) in the Prometheus text
+format: <code>syntraf_build_info</code>, <code>syntraf_client_connected</code>, <code>syntraf_client_flows</code>,
+<code>syntraf_client_buffered_points</code> (measurements stuck on a probe), <code>syntraf_mesh_groups</code>,
+<code>syntraf_database_up</code>, <code>syntraf_database_backlog</code>, <code>syntraf_thread_up</code>,
+<code>syntraf_queue_length</code>, and the alerts: <code>syntraf_alert_open{group, source, destination, metric,
+kind}</code> (1 while open, 0 once closed) and <code>syntraf_alerts_open</code>. It needs an API token, except from
+the <em>collectors allowed</em> (Server › Web interface, <code>SERVER.METRICS_ALLOW</code>: addresses or networks, applied
+live). <code>/healthz</code> needs nothing and answers 200 or 503.</p>
+<p>The server checks the same things every minute and raises <strong>health alerts</strong> on the Alerts page (mesh
+group « SYNTRAF »), with the same delays as the other alerts: a declared probe disconnected, more than 1000
+measurements waiting on a probe, a database unreachable or more than 10 000 points behind, a server thread stopped,
+more than 10 000 measurements in the server queue. The lab's VictoriaMetrics reads <code>/metrics</code> every 15 s
+(<code>lab/victoriametrics/scrape.yml</code>); dashboard <em>7 · SYNTRAF health</em>.</p>
+<p><strong>Zabbix</strong> (6.0 or later): import <code>contrib/zabbix/syntraf_by_http.json</code> (Data collection ›
+Templates › Import), link the template <em>SYNTRAF by HTTP</em> to a host, set <code>{$SYNTRAF.URL}</code> (e.g.
+<code>https://syntraf.example.com:5000</code>), and either add the Zabbix server or proxy to the collectors allowed or
+put an API token in <code>{$SYNTRAF.TOKEN}</code>. One HTTP request per minute; everything else is dependent items and
+discoveries: one item and trigger per probe (disconnected, measurements piling up), per database (unreachable,
+behind), per server thread (stopped), and per SYNTRAF alert, which becomes a Zabbix problem and resolves when it
+closes. Thresholds are macros (<code>{$SYNTRAF.PROBE.BACKLOG.MAX}</code>, <code>{$SYNTRAF.DB.BACKLOG.MAX}</code>,
+<code>{$SYNTRAF.QUEUE.MAX}</code>). The template is generated by <code>contrib/zabbix/build_template.py</code>. The
+measurements themselves stay in VictoriaMetrics and Grafana; Zabbix gets the problems.</p>
 
 <h2 id="lab">16. The test lab</h2>
 <p><code>lab/</code> runs a complete SYNTRAF in Docker: server, four clients, VictoriaMetrics and Grafana, plus a

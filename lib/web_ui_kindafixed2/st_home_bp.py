@@ -222,6 +222,21 @@ def documentation(name="index.html"):
     return send_from_directory(DOCS_DIR, name)  # refuse tout chemin hors du dossier (404)
 
 
+@st_home_bp.route('/maintenance.html')
+def maintenance_page():
+    return render_template('maintenance.html')
+
+
+@st_home_bp.route('/grafana.html')
+def grafana_page():
+    return render_template('grafana.html')
+
+
+@st_home_bp.route('/alerts.html')
+def alerts_page():
+    return render_template('alerts.html')
+
+
 @st_home_bp.route('/live_map.html')
 def live_map():
     return render_template('live_map.html', title='SYNTRAF WEBUI')
@@ -232,6 +247,11 @@ def server():
     return render_template('server.html', title='SYNTRAF WEBUI', config=app.config['config'],
                            syntraf_version=DefaultValues.SYNTRAF_VERSION)
 
+
+
+@st_home_bp.route('/tcp_tests.html')
+def tcp_tests():
+    return render_template('tcp_tests.html')
 
 
 @st_home_bp.route('/profile_config.html')

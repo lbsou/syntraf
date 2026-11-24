@@ -31,13 +31,17 @@
                                 ("global", "fa-cogs", "Global"), ("logs", "fa-file-alt", "Logs")] %}
 {% set nav = [
             ("Overview", [("/home.html", "fa-tachometer-alt", "Dashboard")]),
-            ("Monitoring", [("/live_map.html", "fa-map-marked-alt", "Live map"),
+            ("Monitoring", [("/alerts.html", "fa-bell", "Alerts"),
+                            ("/live_map.html", "fa-map-marked-alt", "Live map"),
                             ("/stats.html", "fa-desktop", "Clients"),
                             ("/log_viewer.html", "fa-file-alt", "Logs")]),
             ("Configuration", [("/mesh_group_config.html", "fa-project-diagram", "Mesh groups"),
                                ("/profile_config.html", "fa-sliders-h", "Profiles"),
+                               ("/tcp_tests.html", "fa-stopwatch", "TCP tests"),
+                               ("/maintenance.html", "fa-tools", "Maintenance"),
                                ("/client_config.html", "fa-network-wired", "Clients"),
                                ("/database_config.html", "fa-database", "Databases"),
+                               ("/grafana.html", "fa-chart-area", "Grafana"),
                                ("/server.html", "fa-server", "Server"),
                                ("/token_config.html", "fa-key", "Tokens")]),
             ("Governance", [("/audit.html", "fa-history", "Audit & versions"),
@@ -78,6 +82,7 @@
                             <a class="nav-link{% if request.path == href %} active{% endif %}" href="{{ href }}"
                                {% if request.path == href %}aria-current="page"{% endif %}>
                                 <i class="fas {{ icon }} fa-fw me-2"></i>{{ label }}
+                                {% if href == "/alerts.html" %}<span id="st-alert-count" class="badge rounded-pill bg-danger ms-1" hidden></span>{% endif %}
                             </a>
                             {% if href == "/server.html" %}
                             <ul class="nav flex-column st-subnav" aria-label="Server sections">
@@ -118,6 +123,14 @@
         <script>
             (() => { const out = document.getElementById("st-logout");
                      if (out) out.addEventListener("click", async () => { await st.api("POST", "/logout"); location.href = "/login"; }); })();
+            // Alertes ouvertes (hors baseline) : nombre dans le menu, sur toutes les pages
+            (() => { const badge = document.getElementById("st-alert-count");
+                     if (!badge) return;
+                     const refresh = async () => { const r = await st.api("GET", "/api/v1/alerts");
+                         if (!r.ok) return;
+                         const n = r.data.open.length;
+                         badge.hidden = n === 0; badge.textContent = String(n); };
+                     refresh(); setInterval(refresh, 30000); })();
             (() => { const sel = document.getElementById("st-lang");
                      sel.value = window.st_i18n ? st_i18n.lang : "en";
                      sel.addEventListener("change", () => st_i18n.set(sel.value)); })();

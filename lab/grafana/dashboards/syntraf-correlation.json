@@ -1,6 +1,6 @@
 {
   "uid": "syntraf-correlation",
-  "title": "SYNTRAF — corrélations entre flux",
+  "title": "6 · Corrélations",
   "tags": [
     "syntraf",
     "lab"
@@ -16,21 +16,95 @@
   },
   "links": [
     {
-      "title": "Tableaux de bord SYNTRAF",
-      "type": "dashboards",
-      "tags": [
-        "syntraf"
-      ],
+      "title": "1 · Vue d'ensemble",
+      "type": "link",
+      "url": "/d/syntraf-lab",
+      "icon": "dashboard",
       "asDropdown": false,
       "includeVars": true,
-      "keepTime": true
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
+    },
+    {
+      "title": "2 · Matrices",
+      "type": "link",
+      "url": "/d/syntraf-matrix",
+      "icon": "dashboard",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
+    },
+    {
+      "title": "3 · Qualité voix et latence",
+      "type": "link",
+      "url": "/d/syntraf-quality",
+      "icon": "dashboard",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
+    },
+    {
+      "title": "4 · Tests TCP",
+      "type": "link",
+      "url": "/d/syntraf-tcp",
+      "icon": "dashboard",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
+    },
+    {
+      "title": "5 · Hubs",
+      "type": "link",
+      "url": "/d/syntraf-hubs",
+      "icon": "dashboard",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
+    },
+    {
+      "title": "6 · Corrélations",
+      "type": "link",
+      "url": "/d/syntraf-correlation",
+      "icon": "dashboard",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
+    },
+    {
+      "title": "7 · Santé de SYNTRAF",
+      "type": "link",
+      "url": "/d/syntraf-health",
+      "icon": "dashboard",
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "targetBlank": false,
+      "tooltip": "",
+      "tags": []
     }
   ],
   "templating": {
     "list": [
       {
         "name": "mesh_group",
-        "label": "MESH_GROUP",
+        "label": "Groupe",
         "type": "query",
         "datasource": {
           "type": "prometheus",
@@ -58,7 +132,7 @@
       },
       {
         "name": "client",
-        "label": "CLIENT",
+        "label": "Source",
         "type": "query",
         "datasource": {
           "type": "prometheus",
@@ -86,7 +160,7 @@
       },
       {
         "name": "server",
-        "label": "SERVER",
+        "label": "Destination",
         "type": "query",
         "datasource": {
           "type": "prometheus",
@@ -129,6 +203,48 @@
         "titleFormat": "{{ACTION}}",
         "textFormat": "{{SUMMARY}} — {{ACTOR}}",
         "useValueForTime": false
+      },
+      {
+        "name": "Alertes",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "syntraf-vm"
+        },
+        "enable": true,
+        "iconColor": "red",
+        "expr": "last_over_time(SYNTRAF_ALERT_EVENT[1m])",
+        "step": "60s",
+        "titleFormat": "Alerte {{ACTION}} · {{METRIC}} · {{FLOW}}",
+        "textFormat": "{{MESH_GROUP}} — {{SUMMARY}}",
+        "useValueForTime": false
+      },
+      {
+        "name": "Redémarrages et mises à jour",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "syntraf-vm"
+        },
+        "enable": true,
+        "iconColor": "blue",
+        "expr": "last_over_time(SYNTRAF_LIFECYCLE_EVENT[1m])",
+        "step": "60s",
+        "titleFormat": "{{EVENT}} · {{SUBJECT}}",
+        "textFormat": "{{SUMMARY}}",
+        "useValueForTime": false
+      },
+      {
+        "name": "Maintenance",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "syntraf-vm"
+        },
+        "enable": true,
+        "iconColor": "purple",
+        "expr": "max by (UID, TARGET_TYPE, TARGET, DESCRIPTION) (SYNTRAF_MAINTENANCE_ACTIVE)",
+        "step": "60s",
+        "titleFormat": "Maintenance {{UID}} · {{TARGET}}",
+        "textFormat": "{{DESCRIPTION}} — alertes suspendues",
+        "useValueForTime": false
       }
     ]
   },
@@ -136,7 +252,7 @@
     {
       "id": 1,
       "type": "table",
-      "title": "Corrélation des pertes entre flux",
+      "title": "Corrélation des pertes",
       "description": "Corrélation de Pearson entre flux sur les 15 dernières minutes (un point toutes les 10 s), recalculée chaque minute par le serveur. Rouge : ces flux se dégradent ensemble (lien, équipement ou goulot commun probable). Les flux sans variation (aucune perte) n'apparaissent pas.",
       "datasource": {
         "type": "prometheus",
@@ -155,7 +271,7 @@
             "type": "prometheus",
             "uid": "syntraf-vm"
           },
-          "expr": "label_del(last_over_time(SYNTRAF_CORRELATION_LOSS[5m]), \"__name__\")",
+          "expr": "sort_by_label(label_del(last_over_time(SYNTRAF_CORRELATION_LOSS[5m]), \"__name__\"), \"FLOW_B\", \"FLOW_A\")",
           "instant": true,
           "range": false
         }
@@ -221,10 +337,32 @@
                   "index": 0
                 }
               }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "—",
+                  "color": "transparent",
+                  "index": 1
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "-2": {
+                  "text": "NAT ↔ NAT",
+                  "color": "transparent",
+                  "index": 2
+                }
+              }
             }
           ],
           "custom": {
             "align": "center",
+            "minWidth": 70,
             "cellOptions": {
               "type": "color-background",
               "mode": "basic"
@@ -240,7 +378,7 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "Flux ↓ / Flux →"
+                "value": "Flux ↓  Flux →"
               },
               {
                 "id": "custom.cellOptions",
@@ -253,6 +391,10 @@
                 "value": "left"
               },
               {
+                "id": "custom.width",
+                "value": 120
+              },
+              {
                 "id": "unit",
                 "value": "string"
               }
@@ -262,16 +404,22 @@
       },
       "options": {
         "showHeader": true,
-        "cellHeight": "lg",
+        "cellHeight": "md",
         "footer": {
           "show": false
-        }
+        },
+        "sortBy": [
+          {
+            "displayName": "Flux ↓  Flux →",
+            "desc": false
+          }
+        ]
       }
     },
     {
       "id": 2,
       "type": "table",
-      "title": "Corrélation de la gigue entre flux",
+      "title": "Corrélation de la gigue",
       "description": "Corrélation de Pearson entre flux sur les 15 dernières minutes (un point toutes les 10 s), recalculée chaque minute par le serveur. Rouge : ces flux se dégradent ensemble (lien, équipement ou goulot commun probable). Les flux sans variation (aucune perte) n'apparaissent pas.",
       "datasource": {
         "type": "prometheus",
@@ -290,7 +438,7 @@
             "type": "prometheus",
             "uid": "syntraf-vm"
           },
-          "expr": "label_del(last_over_time(SYNTRAF_CORRELATION_JITTER[5m]), \"__name__\")",
+          "expr": "sort_by_label(label_del(last_over_time(SYNTRAF_CORRELATION_JITTER[5m]), \"__name__\"), \"FLOW_B\", \"FLOW_A\")",
           "instant": true,
           "range": false
         }
@@ -356,10 +504,32 @@
                   "index": 0
                 }
               }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "null",
+                "result": {
+                  "text": "—",
+                  "color": "transparent",
+                  "index": 1
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "-2": {
+                  "text": "NAT ↔ NAT",
+                  "color": "transparent",
+                  "index": 2
+                }
+              }
             }
           ],
           "custom": {
             "align": "center",
+            "minWidth": 70,
             "cellOptions": {
               "type": "color-background",
               "mode": "basic"
@@ -375,7 +545,7 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "Flux ↓ / Flux →"
+                "value": "Flux ↓  Flux →"
               },
               {
                 "id": "custom.cellOptions",
@@ -388,6 +558,10 @@
                 "value": "left"
               },
               {
+                "id": "custom.width",
+                "value": 120
+              },
+              {
                 "id": "unit",
                 "value": "string"
               }
@@ -397,10 +571,16 @@
       },
       "options": {
         "showHeader": true,
-        "cellHeight": "lg",
+        "cellHeight": "md",
         "footer": {
           "show": false
-        }
+        },
+        "sortBy": [
+          {
+            "displayName": "Flux ↓  Flux →",
+            "desc": false
+          }
+        ]
       }
     }
   ]

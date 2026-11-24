@@ -35,6 +35,8 @@ def parse_iperf3_features(help_text):
         features.add("cntl-ka")
     if "--rsa-public-key-path" in help_text and "--authorized-users-path" in help_text:
         features.add("auth")
+    if "--json-stream" in help_text:
+        features.add("json-stream")
     return features
 
 
@@ -64,6 +66,13 @@ def connect_timeout_ms(config):
     value = str(config.get('GLOBAL', {}).get('IPERF3_CONNECT_TIMEOUT', "") or "").strip()
     seconds = int(value) if value.isdigit() and 1 <= int(value) <= 60 else int(DefaultValues.DEFAULT_IPERF3_CONNECT_TIMEOUT)
     return str(seconds * 1000)
+
+
+def output_args(binary):
+    """Sortie d'iperf3 : JSON ligne par ligne (--json-stream, iperf3 ≥ 3.17) si connu, sinon texte horodaté."""
+    if "json-stream" in iperf3_features(binary):
+        return ["--json-stream"]
+    return ["-f", "k", "--timestamps='%F %T '"]
 
 
 def keepalive_args(binary):
@@ -102,6 +111,9 @@ def udp_hole_punch(dst_ip, dst_port, iperf3_connector_obj_pnt, connector_key, th
             break  # iperf3 redémarre : un nouveau fil sera lancé avec lui
         try:
             st_nat.send_keepalive(iperf3_connector_obj_pnt.bidir_local_addr, src_port, dst_ip, dst_port)
+            if warned:  # rétabli (par exemple après une coupure qui rejetait le trafic sortant)
+                iperf3_connectors_log.warning(f"NAT KEEPALIVE FOR {connector_key} WORKS AGAIN")
+                warned = False
             curr_thread.packet_sent += 1
             curr_thread.last_activity = datetime.now()
             iperf3_connectors_log.debug(f"NAT KEEPALIVE {connector_key}: {src_port} -> {dst_ip}:{dst_port}")
@@ -160,9 +172,8 @@ def iperf3_client(config, connector_key, connector_value, threads_n_processes):
         args.extend(["--connect-timeout=" + connect_timeout_ms(config)])
         args.extend(["--dscp", config['CONNECTORS'][connector_key]['DSCP']])
         args.extend(["--pacing-timer", str(config['CONNECTORS'][connector_key]['PACKET_PACING'])])
-        args.extend(["-f", "k"])
         args.extend(["-p", str(config['CONNECTORS'][connector_key]['PORT'])])
-        args.append("--timestamps='%F %T '")
+        args.extend(output_args(config['GLOBAL']['IPERF3_BINARY_PATH']))
         args.extend([a for a in (bidir_arg, "--forceflush") if a])  # pas d'argument vide sans --bidir
 
         ''' 
@@ -228,13 +239,12 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes):
         args.append(config['GLOBAL']['IPERF3_BINARY_PATH'])
         args.append("-s")
         args.extend(["-i", config['LISTENERS'][listener_key]['INTERVAL']])
-        args.extend(["-f", "k"])
         args.append("--forceflush")
         args.extend(["--idle-timeout", DefaultValues.DEFAULT_IPERF3_SERVER_IDLE_TIMEOUT])
         args.extend(["--rcv-timeout", DefaultValues.DEFAULT_IPERF3_RCV_TIMEOUT])
         args.append("--one-off")
         args.extend(["-p", str(config['LISTENERS'][listener_key]['PORT'])])
-        args.append("--timestamps='%F %T '")
+        args.extend(output_args(config['GLOBAL']['IPERF3_BINARY_PATH']))
 
         ''' 
         --cntl-ka[=#/#/#] use control connection TCP keepalive - KEEPIDLE/KEEPINTV/KEEPCNT
@@ -252,7 +262,6 @@ def iperf3_server(config, listener_key, listener_value, threads_n_processes):
             args.append(os.path.join(config['GLOBAL']['IPERF3_RSA_KEY_DIRECTORY'], 'credentials.csv'))
             args.append("--time-skew-threshold")
             args.append(config['GLOBAL']['IPERF3_TIME_SKEW_THRESHOLD'])
-            args.append("--timestamps='%F %T '")
 
         arguments = " "
         arguments = arguments.join(args)

@@ -26,13 +26,19 @@ log = logging.getLogger("syntraf." + __name__)
 
 NTP_OFFSET = 2208988800  # 1900 → 1970
 PACKET_SIZE = 64          # envoi rembourré : la réponse (41 octets + bourrage) n'est jamais plus grande (RFC 5357 §4.2.1)
-COUNT = 5                 # paquets par intervalle
+COUNT = 10                # paquets par intervalle, en train serré comme la voix (sinon rien ne se réordonne)
+TRAIN_SPACING_S = 0.02    # 20 ms entre deux échos (une trame de voix)
 TIMEOUT_S = 1.0
 ERROR_ESTIMATE = 0x0001   # horloge non synchronisée (bit S à 0), échelle 0, multiplicateur 1
 DEFAULT_PORT = 8620
 
 _SENDER = struct.Struct("!IQH")                # numéro, horodatage, estimation d'erreur
 _REPLY = struct.Struct("!IQHHQIQHHB")          # §4.2.1 : 41 octets
+# Marquage DSCP (à la manière de la RFC 7750) : l'émetteur annonce dans son bourrage le DSCP qu'il veut ; le
+# réflecteur rapporte, juste après le TTL, l'octet DSCP/ECN reçu. Un repère distingue ces octets d'un bourrage nul
+# (une sonde plus ancienne) : sans lui, rien n'est annoncé ni rapporté.
+_DSCP_FIELD = struct.Struct("!BB")             # (repère, DSCP voulu) dans l'envoi ; (TOS reçu, repère) dans la réponse
+DSCP_MARK = 0xD5
 
 
 def to_ntp(t):
@@ -44,26 +50,60 @@ def from_ntp(v):
     return (v >> 32) - NTP_OFFSET + (v & 0xFFFFFFFF) / (1 << 32)
 
 
-def sender_packet(seq, t):
-    return _SENDER.pack(seq & 0xFFFFFFFF, to_ntp(t), ERROR_ESTIMATE).ljust(PACKET_SIZE, b"\0")
+def sender_packet(seq, t, dscp=None):
+    head = _SENDER.pack(seq & 0xFFFFFFFF, to_ntp(t), ERROR_ESTIMATE)
+    if dscp is not None:
+        head += _DSCP_FIELD.pack(DSCP_MARK, int(dscp) & 0x3F)
+    return head.ljust(PACKET_SIZE, b"\0")
 
 
 def parse_sender(pkt):
     seq, ts, err = _SENDER.unpack_from(pkt)
-    return {"seq": seq, "ts": from_ntp(ts), "error": err}
+    dscp = None
+    if len(pkt) >= _SENDER.size + _DSCP_FIELD.size:
+        mark, value = _DSCP_FIELD.unpack_from(pkt, _SENDER.size)
+        dscp = value & 0x3F if mark == DSCP_MARK else None
+    return {"seq": seq, "ts": from_ntp(ts), "error": err, "dscp": dscp}
 
 
-def reflect(pkt, received, sent, seq, ttl=255):
+def reflect(pkt, received, sent, seq, ttl=255, received_tos=None):
     s = parse_sender(pkt)
     body = _REPLY.pack(seq & 0xFFFFFFFF, to_ntp(sent), ERROR_ESTIMATE, 0, to_ntp(received), s["seq"],
                        to_ntp(s["ts"]), s["error"], 0, ttl & 0xFF)
+    if received_tos is not None:
+        body += _DSCP_FIELD.pack(int(received_tos) & 0xFF, DSCP_MARK)
     return body.ljust(min(len(pkt), PACKET_SIZE), b"\0")
+
+
+def reply_tos(sender, received_tos):
+    """TOS de la réponse : le DSCP voulu par l'émetteur s'il l'annonce (le retour est ainsi vérifié pour lui-même,
+    une réécriture à l'aller ne s'y répercute pas), sinon celui reçu."""
+    if sender.get("dscp") is not None:
+        return sender["dscp"] << 2
+    return received_tos
 
 
 def parse_reply(pkt):
     seq, sent, _, _, received, sseq, sts, _, _, _ = _REPLY.unpack_from(pkt)
+    received_dscp = None
+    if len(pkt) >= _REPLY.size + _DSCP_FIELD.size:
+        tos, mark = _DSCP_FIELD.unpack_from(pkt, _REPLY.size)
+        received_dscp = tos >> 2 if mark == DSCP_MARK else None
     return {"seq": seq, "sent": from_ntp(sent), "received": from_ntp(received), "sender_seq": sseq,
-            "sender_ts": from_ntp(sts)}
+            "sender_ts": from_ntp(sts), "received_dscp": received_dscp}
+
+
+def dscp_stats(sent, forward, reverse):
+    """Par sens : part des paquets arrivés avec le DSCP envoyé (%), et le DSCP reçu : s'il y a eu réécriture, la valeur
+    la plus fréquente parmi les paquets réécrits (ce qu'ils sont devenus), sinon le DSCP envoyé."""
+    import collections
+    out = {"DSCP_SENT": int(sent)}
+    for suffix, values in (("FWD", forward), ("REV", reverse)):
+        if values:
+            out[f"DSCP_OK_PCT_{suffix}"] = round(100.0 * sum(1 for v in values if v == int(sent)) / len(values), 1)
+            rewritten = [v for v in values if v != int(sent)]
+            out[f"DSCP_RECV_{suffix}"] = collections.Counter(rewritten).most_common(1)[0][0] if rewritten else int(sent)
+    return out
 
 
 def rtt_ms(sent_mono, received_mono, reflector_received, reflector_sent):
@@ -77,6 +117,37 @@ def stats(sent, rtts):
         return {"LOSS_PCT": 100.0}
     return {"RTT_MS": round(sum(rtts) / len(rtts), 2), "RTT_MIN_MS": round(min(rtts), 2),
             "RTT_MAX_MS": round(max(rtts), 2), "LOSS_PCT": loss}
+
+
+def order_stats(replies, sent):
+    """Réordonnancement et doublons, par sens (RFC 4737, forme simplifiée : un paquet est réordonné si son numéro
+    est inférieur au plus grand déjà reçu). replies : réponses dans leur ordre d'arrivée chez nous.
+    Aller : ordre d'arrivée au réflecteur (son numéro) des numéros de l'émetteur ; retour : ordre d'arrivée chez
+    nous des numéros du réflecteur. Doublon aller : même numéro d'émetteur renvoyé deux fois par le réflecteur ;
+    doublon retour : même réponse du réflecteur reçue deux fois."""
+    seen_rev, unique, dup_rev, reordered_rev, high = set(), [], 0, 0, None
+    for r in replies:
+        if r["seq"] in seen_rev:
+            dup_rev += 1
+            continue
+        seen_rev.add(r["seq"])
+        unique.append(r)
+        if high is not None and r["seq"] < high:
+            reordered_rev += 1
+        high = r["seq"] if high is None else max(high, r["seq"])
+    seen_fwd, dup_fwd, reordered_fwd, high, forward = set(), 0, 0, None, 0
+    for r in sorted(unique, key=lambda x: x["seq"]):
+        if r["sender_seq"] in seen_fwd:
+            dup_fwd += 1
+            continue
+        seen_fwd.add(r["sender_seq"])
+        forward += 1
+        if high is not None and r["sender_seq"] < high:
+            reordered_fwd += 1
+        high = r["sender_seq"] if high is None else max(high, r["sender_seq"])
+    return {"REORDER_FWD_PCT": round(100.0 * reordered_fwd / forward, 1) if forward else 0.0,
+            "REORDER_REV_PCT": round(100.0 * reordered_rev / len(unique), 1) if unique else 0.0,
+            "DUP_FWD": dup_fwd, "DUP_REV": dup_rev}
 
 
 def targets(config):
@@ -121,8 +192,17 @@ def _tos_socket(dscp):
 def measure_once(target, port, count=COUNT, timeout=TIMEOUT_S):
     """Un intervalle de mesure : count échos espacés sur l'intervalle, puis attente des réponses en retard."""
     s = _tos_socket(target["dscp"])
-    sent_at, rtts = {}, []
-    spacing = max(float(target["interval"]) / count, 0.01)
+    recv_tos = hasattr(socket, "IP_RECVTOS") and hasattr(s, "recvmsg")  # DSCP du retour (pas sous Windows)
+    if recv_tos:
+        try:
+            s.setsockopt(socket.IPPROTO_IP, socket.IP_RECVTOS, 1)
+        except OSError:
+            recv_tos = False
+    sent_at, rtts, replies, reverse = {}, [], [], []
+
+    def collect(until):
+        _collect(s, sent_at, rtts, until, replies, reverse if recv_tos else None)
+    spacing = min(TRAIN_SPACING_S, max(float(target["interval"]) / count, 0.005))
     try:
         s.setblocking(False)
         deadline = None
@@ -131,19 +211,25 @@ def measure_once(target, port, count=COUNT, timeout=TIMEOUT_S):
             n = (seq + i) & 0xFFFFFFFF
             sent_at[n] = time.monotonic()
             try:
-                s.sendto(sender_packet(n, time.time()), (target["address"], int(port)))
+                s.sendto(sender_packet(n, time.time(), target["dscp"]), (target["address"], int(port)))
             except OSError:
                 pass
-            _collect(s, sent_at, rtts, time.monotonic() + spacing)
+            collect(time.monotonic() + spacing)
         deadline = time.monotonic() + timeout
         while len(rtts) < count and time.monotonic() < deadline:
-            _collect(s, sent_at, rtts, min(deadline, time.monotonic() + 0.05))
+            collect(min(deadline, time.monotonic() + 0.05))
+        collect(time.monotonic() + 0.02)  # doublons arrivés juste après
     finally:
         s.close()
-    return stats(count, rtts)
+    fields = stats(count, rtts)
+    if replies:
+        fields.update(order_stats(replies, count))
+        forward = [r["received_dscp"] for r in replies if r["received_dscp"] is not None]
+        fields.update(dscp_stats(target["dscp"], forward, reverse))
+    return fields
 
 
-def _collect(s, sent_at, rtts, until):
+def _collect(s, sent_at, rtts, until, replies=None, reverse=None):
     import select
     while True:
         left = until - time.monotonic()
@@ -152,14 +238,23 @@ def _collect(s, sent_at, rtts, until):
         ready, _, _ = select.select([s], [], [], left)
         if not ready:
             return
+        tos = None
         try:
-            data, _ = s.recvfrom(2048)
+            if reverse is not None:
+                data, anc, _, _ = s.recvmsg(2048, socket.CMSG_SPACE(4))
+                tos = next((c[2][0] for c in anc if c[0] == socket.IPPROTO_IP and c[1] == socket.IP_TOS), None)
+            else:
+                data, _ = s.recvfrom(2048)
         except (BlockingIOError, ConnectionResetError, OSError):
             continue  # Windows : ICMP « port injoignable » remonté en erreur sur la socket
         now = time.monotonic()
         if len(data) < _REPLY.size:
             continue
         r = parse_reply(data)
+        if reverse is not None and tos is not None:
+            reverse.append(tos >> 2)
+        if replies is not None:
+            replies.append(r)
         start = sent_at.pop(r["sender_seq"], None)
         if start is not None:
             rtts.append(rtt_ms(start, now, r["received"], r["sent"]))
@@ -210,10 +305,10 @@ def acceptable(data):
 
 class RateLimiter:
     """Seaux à jetons par source et global, remplis chaque seconde. Un initiateur envoie COUNT paquets par
-    intervalle et par mesh group : 20 par seconde laissent de la marge ; au-delà, le réflecteur se tait, ce qui
+    intervalle et par mesh group : 50 par seconde laissent de la marge pour plusieurs mesh groups ; au-delà, le réflecteur se tait, ce qui
     rend inutile tout usage comme relais (en plus, la réponse n'est jamais plus grande que la requête)."""
 
-    def __init__(self, per_source=20, total=200, max_sources=4096):
+    def __init__(self, per_source=50, total=500, max_sources=4096):
         self.per_source, self.total, self.max_sources = per_source, total, max_sources
         self._second, self._by_source, self._count = None, {}, 0
 
@@ -285,15 +380,16 @@ class Reflector:
             allowed = self._allowed
             if not acceptable(data) or (allowed is not None and addr[0] not in allowed)                     or not self._limiter.allow(addr[0]):
                 continue
-            if tos is not None and tos != tos_now:
+            out_tos = reply_tos(parse_sender(data), tos)
+            if out_tos is not None and out_tos != tos_now:
                 try:
-                    self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_TOS, tos)
-                    tos_now = tos
+                    self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_TOS, out_tos)
+                    tos_now = out_tos
                 except OSError:
                     pass
             self._seq += 1
             try:
-                self.sock.sendto(reflect(data, received, time.time(), self._seq), addr)
+                self.sock.sendto(reflect(data, received, time.time(), self._seq, received_tos=tos), addr)
             except OSError:
                 pass
 
