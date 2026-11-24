@@ -257,6 +257,21 @@
         <div class="col-md-6 mb-3"><div class="form-text pt-md-4">Longer on unstable links (radio, satellite) to ignore short events; an alert closes once the flow is clearly back (under half the threshold) for that long.</div></div>
     </div>
     <div class="row">
+        <div class="col-md-4 mb-3">
+            <div class="form-check form-switch pt-md-4">
+                <input class="form-check-input" type="checkbox" role="switch" id="g_upd_check" aria-describedby="g_upd_check_help">
+                <label class="form-check-label" for="g_upd_check">Check GitHub for new releases daily</label>
+                <div id="g_upd_check_help" class="form-text">Offered on the Updates page only when signed by the SYNTRAF project.</div>
+            </div>
+        </div>
+        <div class="col-md-8 mb-3">
+            <label for="g_upd_proxy" class="form-label">Proxy to reach GitHub <span class="badge bg-success">live</span></label>
+            <input class="form-control" id="g_upd_proxy" data-field="UPDATE_PROXY" placeholder="http://proxy.example:3128" autocomplete="off" spellcheck="false" aria-describedby="g_upd_proxy_help">
+            <div class="invalid-feedback" data-feedback="UPDATE_PROXY"></div>
+            <div id="g_upd_proxy_help" class="form-text">Empty: direct access, or the HTTPS_PROXY variable of the service. A password (http://user:password@proxy:3128) stays in the configuration file and is never shown.</div>
+        </div>
+    </div>
+    <div class="row">
         <div class="col-md mb-3">
             <label for="g_clock_off" class="form-label">Probe clock off by more than <span class="badge bg-success">live</span></label>
             <div class="input-group has-validation">
@@ -542,9 +557,9 @@ const GLOBAL_TEXT = {WATCHDOG_CHECK_RATE: "g_watchdog", IPERF3_TIME_SKEW_THRESHO
                      BASELINE_MARGIN_LOSS: "g_bl_loss", BASELINE_MARGIN_JITTER: "g_bl_jitter", BASELINE_MARGIN_RTT: "g_bl_rtt",
                      BASELINE_MARGIN_MOS: "g_bl_mos", BASELINE_MARGIN_TCP: "g_bl_tcp", BASELINE_OPEN_AFTER: "g_bl_open",
                      BASELINE_CLOSE_AFTER: "g_bl_close", CLOCK_OFFSET_MAX_MS: "g_clock_off",
-                     CLOCK_DRIFT_MAX_PPM: "g_clock_drift",
+                     CLOCK_DRIFT_MAX_PPM: "g_clock_drift", UPDATE_PROXY: "g_upd_proxy",
                      };
-const GLOBAL_BOOL = {IPERF3_AUTH: "g_auth", LOG_PURGE_ON_START: "g_purge", LATENCY: "g_latency", BASELINE: "g_baseline", PATH_TRACE_ON_ALERT: "g_pathtrace", REACHABILITY_CHECK: "g_reach"};
+const GLOBAL_BOOL = {IPERF3_AUTH: "g_auth", LOG_PURGE_ON_START: "g_purge", LATENCY: "g_latency", BASELINE: "g_baseline", PATH_TRACE_ON_ALERT: "g_pathtrace", REACHABILITY_CHECK: "g_reach", UPDATE_CHECK: "g_upd_check"};
 
 async function loadGlobal() {
     const r = await st.api("GET", "/api/v1/config/global");

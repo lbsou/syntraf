@@ -9,6 +9,9 @@ administrateur, le serveur la télécharge, vérifie signature, taille et emprei
 (st_updater) : installée à côté de la version en place, elle démarre, et revient automatiquement à la précédente si
 elle ne se confirme pas. Ensuite, la page Mises à jour diffuse cette version aux sondes, comme d'habitude.
 
+Derrière un proxy : réglage GLOBAL.UPDATE_PROXY (http://[utilisateur:mot de passe@]proxy:port) ; sans lui, les
+variables d'environnement HTTPS_PROXY / HTTP_PROXY / NO_PROXY du service s'appliquent.
+
 Ne sont pas mis à jour par ce chemin : Python, iperf3v, VictoriaMetrics, Grafana (le package d'installation les
 remplace : relancer install.sh d'une version plus récente).
 """
@@ -21,6 +24,7 @@ import re
 import tempfile
 import threading
 import time
+import urllib.parse
 import urllib.request
 
 log = logging.getLogger("syntraf." + __name__)
@@ -80,9 +84,43 @@ def verify(manifest, signature, keys=None):
     raise UpdateError("the release is not signed by the SYNTRAF project key: refused")
 
 
-def http_get(url):
+def valid_proxy(value):
+    """http(s)://[utilisateur:mot de passe@]hôte[:port]"""
+    try:
+        u = urllib.parse.urlsplit(str(value or "").strip())
+        port = u.port  # ValueError si hors de 0..65535
+    except ValueError:
+        return False
+    return u.scheme in ("http", "https") and bool(u.hostname) and (port is None or port > 0)         and u.path in ("", "/") and not u.query
+
+
+def mask_proxy(value):
+    """Le proxy sans son mot de passe, pour l'affichage et les journaux."""
+    value = str(value or "")
+    try:
+        u = urllib.parse.urlsplit(value)
+        if u.password is None:
+            return value
+        netloc = f"{u.username}:***@{u.hostname}" + (f":{u.port}" if u.port else "")
+        return urllib.parse.urlunsplit((u.scheme, netloc, u.path, u.query, u.fragment))
+    except ValueError:
+        return "(invalid proxy)"
+
+
+def proxy_of(config):
+    return str(((config or {}).get("GLOBAL", {}) or {}).get("UPDATE_PROXY") or "").strip() or None
+
+
+def opener(proxy=None):
+    """Avec proxy : tout passe par lui (CONNECT pour https). Sans : proxy des variables d'environnement s'il y en a."""
+    if proxy:
+        return urllib.request.build_opener(urllib.request.ProxyHandler({"http": proxy, "https": proxy}))
+    return urllib.request.build_opener()
+
+
+def http_get(url, proxy=None):
     req = urllib.request.Request(url, headers={"User-Agent": "syntraf-update", "Accept": "application/vnd.github+json"})
-    with urllib.request.urlopen(req, timeout=TIMEOUT_S) as r:
+    with opener(proxy).open(req, timeout=TIMEOUT_S) as r:
         data = r.read(MAX_ARCHIVE + 1)
     if len(data) > MAX_ARCHIVE:
         raise UpdateError(f"{url} is too large")
@@ -96,14 +134,19 @@ def _latest(get, repository):
     return data, version, assets
 
 
-def check(get, current, repository=REPOSITORY, keys=None):
-    """État : {current, latest, available, url, published_at, checked_at, note, error} ; ne lève jamais."""
+def check(get, current, repository=REPOSITORY, keys=None, proxy=None):
+    """État : {current, latest, available, url, published_at, checked_at, note, error, proxy} ; ne lève jamais."""
     status = {"current": current, "latest": None, "available": False, "url": None, "published_at": None,
-              "checked_at": time.time(), "note": None, "error": None, "repository": repository}
+              "checked_at": time.time(), "note": None, "error": None, "repository": repository,
+              "proxy": mask_proxy(proxy) if proxy else None}
     try:
         data, version, assets = _latest(get, repository)
     except (OSError, ValueError, UpdateError) as exc:
-        status["error"] = f"GitHub unreachable or unreadable: {exc}"
+        via = f" through the proxy {mask_proxy(proxy)}" if proxy else " (no proxy set: GLOBAL.UPDATE_PROXY)"
+        detail = str(getattr(exc, "reason", None) or exc)
+        if proxy:
+            detail = detail.replace(proxy, mask_proxy(proxy))
+        status["error"] = f"GitHub unreachable or unreadable{via}: {detail}"
         return status
     status.update(latest=version or None, url=data.get("html_url"), published_at=data.get("published_at"))
     if not version or not is_newer(version, current):
@@ -164,6 +207,11 @@ class Checker:
         self.lock, self.last, self.running = threading.Lock(), None, False
         self.status = None
 
+    @staticmethod
+    def _get(config):
+        proxy = proxy_of(config)
+        return (lambda url: http_get(url, proxy)), proxy
+
     def maybe(self, config, current, now=None, force=False):
         now = now if now is not None else time.time()
         g = (config or {}).get("GLOBAL", {}) or {}
@@ -174,18 +222,21 @@ class Checker:
                 return False
             self.last, self.running = now, True
         repo = str(g.get("UPDATE_REPOSITORY") or REPOSITORY)
-        threading.Thread(target=self._run, args=(current, repo), name="GITHUB_UPDATE_CHECK", daemon=True).start()
+        threading.Thread(target=self._run, args=(config, current, repo), name="GITHUB_UPDATE_CHECK",
+                         daemon=True).start()
         return True
 
     def run_now(self, config, current):
         repo = str(((config or {}).get("GLOBAL", {}) or {}).get("UPDATE_REPOSITORY") or REPOSITORY)
-        self.status = check(http_get, current, repo)
+        get, proxy = self._get(config)
+        self.status = check(get, current, repo, proxy=proxy)
         self.last = time.time()
         return self.status
 
-    def _run(self, current, repo):
+    def _run(self, config, current, repo):
         try:
-            self.status = check(http_get, current, repo)
+            get, proxy = self._get(config)
+            self.status = check(get, current, repo, proxy=proxy)
             if self.status.get("available"):
                 log.warning(f"SYNTRAF {self.status['latest']} IS AVAILABLE (THIS SERVER: {current}): "
                             f"UPDATES PAGE, « UPDATE THIS SERVER »")

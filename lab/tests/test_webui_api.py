@@ -620,7 +620,7 @@ def test_addresses_that_hang_up_before_identifying_are_listed_with_the_pending_r
 
 def test_the_server_update_from_github_api(env, monkeypatch):
     from lib import st_github_update as gu
-    monkeypatch.setattr(gu, "http_get", lambda url: (_ for _ in ()).throw(OSError("network unreachable")))
+    monkeypatch.setattr(gu, "http_get", lambda url, proxy=None: (_ for _ in ()).throw(OSError("network unreachable")))
     monkeypatch.delenv("SYNTRAF_SUPERVISED", raising=False)
     c = env["client"]
     st = c.get("/api/v1/server/update").json
@@ -630,3 +630,40 @@ def test_the_server_update_from_github_api(env, monkeypatch):
     r = c.post("/api/v1/server/update")
     assert r.status_code == 409 and "supervisor" in r.json["error"]["message"]
     assert "/api/v1/server/update" in c.get("/api/v1/openapi.json").json["paths"]
+
+
+def test_the_update_proxy_setting_keeps_its_password_hidden(env):
+    c = env["client"]
+    body = c.get("/api/v1/config/global").json
+    body = {k: v for k, v in body.items() if k not in ("RUNNING", "READ_ONLY", "FILE_ONLY", "LIVE_KEYS")}
+    r = c.put("/api/v1/config/global", json=dict(body, UPDATE_PROXY="proxy:3128"))
+    assert r.status_code == 400 and "UPDATE_PROXY" in r.json["error"]["fields"]
+    assert c.put("/api/v1/config/global", json=dict(body, UPDATE_PROXY="http://bob:s3cret@proxy.example:3128")).status_code == 200
+    got = c.get("/api/v1/config/global").json
+    assert got["UPDATE_PROXY"] == "http://bob:***@proxy.example:3128"
+    body = {k: v for k, v in got.items() if k not in ("RUNNING", "READ_ONLY", "FILE_ONLY", "LIVE_KEYS")}
+    assert c.put("/api/v1/config/global", json=body).status_code == 200  # renvoyé masqué : le mot de passe reste
+    from lib.st_github_update import mask_proxy
+    disk = open(env["path"], encoding="utf-8").read()
+    assert 'UPDATE_PROXY = "http://bob:s3cret@proxy.example:3128"' in disk
+    assert mask_proxy("http://bob:s3cret@proxy.example:3128") == got["UPDATE_PROXY"]
+
+
+def test_the_suggested_profiles_are_valid_and_added_without_touching_existing_ones(env):
+    from lib import st_mesh_group_ops as ops
+    for p in ops.SUGGESTED_PROFILES:
+        assert ops._profile_field_errors(p, with_uid=True) == {}, p["UID"]
+    c = env["client"]
+    mine = {"UID": "VIDEO", "BANDWIDTH": "5M", "DSCP": "34"}  # même nom qu'un profil suggéré : il reste à l'identique
+    assert c.post("/api/v1/config/profiles", json=mine).status_code == 201
+    preview = c.post("/api/v1/config/profiles/suggested?dry_run=1")
+    assert preview.status_code == 200 and "VIDEO" not in preview.json["added"]
+    assert c.get("/api/v1/config/profiles/VOIX_G711").status_code == 404  # aperçu : rien d'écrit
+    r = c.post("/api/v1/config/profiles/suggested")
+    names = {p["UID"] for p in ops.SUGGESTED_PROFILES}
+    assert r.status_code == 200 and set(r.json["added"]) == names - {"VIDEO"}
+    assert c.get("/api/v1/config/profiles/VIDEO").json["BANDWIDTH"] == "5M"
+    g711 = c.get("/api/v1/config/profiles/VOIX_G711").json
+    assert (g711["BANDWIDTH"], g711["DSCP"], g711["PACKET_SIZE"], g711["CODEC"]) == ("87K", "46", "172", "G711")
+    again = c.post("/api/v1/config/profiles/suggested")
+    assert again.status_code == 200 and again.json["added"] == []

@@ -52,3 +52,17 @@ def test_the_provisioned_datasource_is_the_one_the_dashboards_use():
         assert '"syntraf.json"' not in text and "syntraf.json" in text  # tableau d'accueil
     assert [n for n, _ in bp.dashboards()][0] == "syntraf.json"
     json.loads(dict(bp.dashboards())["syntraf.json"])
+
+
+def test_a_fresh_server_gets_the_suggested_profiles():
+    """install.sh et install.ps1 écrivent les profils suggérés (mêmes valeurs que SUGGESTED_PROFILES)."""
+    import re
+    import sys
+    sys.path.insert(0, str(ROOT))
+    from lib.st_mesh_group_ops import SUGGESTED_PROFILES
+    for name in ("install.sh", "install.ps1"):
+        text = (ROOT / "packaging" / "templates" / name).read_text(encoding="utf-8")
+        text = re.sub(r"^\s*echo(?: '(.*)')?\r?$", r"\1", text, flags=re.M)  # install.sh : echo '...'
+        blocks =re.findall(r"\[\[IPERF3_PROFILE\]\]((?:\s*\w+ = \"[^\"\n]*\")+)", text)
+        found = [dict(re.findall(r"(\w+) = \"([^\"\n]*)\"", b)) for b in blocks]
+        assert found == [{k: str(v) for k, v in p.items()} for p in SUGGESTED_PROFILES], name

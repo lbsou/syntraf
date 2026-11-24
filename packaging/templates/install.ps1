@@ -222,6 +222,49 @@ $today = "$labToken"
 
 $dbBlock
 
+# Profils de départ (page Profils) : un mesh group en choisit un au lieu de saisir ses valeurs
+[[IPERF3_PROFILE]]
+UID = "VOIX_G711"
+DESCRIPTION = "Téléphonie standard (G.711, 20 ms)"
+BANDWIDTH = "87K"
+DSCP = "46"
+PACKET_SIZE = "172"
+INTERVAL = "1"
+CODEC = "G711"
+
+[[IPERF3_PROFILE]]
+UID = "VOIX_G729"
+DESCRIPTION = "Téléphonie compressée (G.729, 20 ms)"
+BANDWIDTH = "31K"
+DSCP = "46"
+PACKET_SIZE = "32"
+INTERVAL = "1"
+CODEC = "G729"
+
+[[IPERF3_PROFILE]]
+UID = "VIDEO"
+DESCRIPTION = "Vidéoconférence (AF41)"
+BANDWIDTH = "2M"
+DSCP = "34"
+PACKET_SIZE = "1200"
+INTERVAL = "1"
+
+[[IPERF3_PROFILE]]
+UID = "DONNEES"
+DESCRIPTION = "Trafic ordinaire (best effort)"
+BANDWIDTH = "1M"
+DSCP = "0"
+PACKET_SIZE = "1400"
+INTERVAL = "1"
+
+[[IPERF3_PROFILE]]
+UID = "LIEN_FAIBLE"
+DESCRIPTION = "Liens lents ou facturés : Starlink, LTE/5G"
+BANDWIDTH = "64K"
+DSCP = "0"
+PACKET_SIZE = "1200"
+INTERVAL = "1"
+
 [GLOBAL]
 IPERF3_BINARY_PATH = "$iperfToml"
 LOG_TO = "file"

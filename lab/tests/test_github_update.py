@@ -117,3 +117,33 @@ def test_apply_never_goes_back_to_an_older_version(tmp_path):
 def test_the_project_key_is_built_in():
     assert gu.PUBLIC_KEYS and all("BEGIN PUBLIC KEY" in k for k in gu.PUBLIC_KEYS)
     assert base64  # (import gardé)
+
+
+def test_a_proxy_url_is_validated():
+    for ok in ("http://proxy.example:3128", "http://user:p%40ss@10.0.0.1:8080", "https://proxy.example"):
+        assert gu.valid_proxy(ok), ok
+    for bad in ("proxy:3128", "ftp://proxy:21", "http://", "http://proxy:99999", "socks5://proxy:1080"):
+        assert not gu.valid_proxy(bad), bad
+
+
+def test_the_proxy_password_is_never_shown():
+    assert gu.mask_proxy("http://user:secret@proxy:3128") == "http://user:***@proxy:3128"
+    assert gu.mask_proxy("http://proxy:3128") == "http://proxy:3128"
+    assert gu.mask_proxy("") == ""
+
+
+def test_requests_go_through_the_configured_proxy():
+    import urllib.request
+    handlers = [h for h in gu.opener("http://user:pw@proxy.example:3128").handlers
+                if isinstance(h, urllib.request.ProxyHandler)]
+    assert handlers and handlers[0].proxies == {"http": "http://user:pw@proxy.example:3128",
+                                                "https": "http://user:pw@proxy.example:3128"}
+
+
+def test_the_checker_uses_the_proxy_of_the_settings(monkeypatch):
+    seen = []
+    monkeypatch.setattr(gu, "http_get", lambda url, proxy=None: seen.append(proxy) or (_ for _ in ()).throw(OSError("refused")))
+    st = gu.Checker().run_now({"GLOBAL": {"UPDATE_PROXY": "http://u:secret@proxy.example:3128"}}, "0.45.14")
+    assert seen == ["http://u:secret@proxy.example:3128"]
+    assert "secret" not in st["error"] and "proxy.example:3128" in st["error"]
+    assert st["proxy"] == "http://u:***@proxy.example:3128"

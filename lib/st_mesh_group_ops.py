@@ -218,6 +218,20 @@ def duplicate(state, uid, actor, dry_run=False):
 # ------------------------------------------------------------------------------------------------ profils iperf3
 
 PROFILE_FIELDS = ("BANDWIDTH", "DSCP", "PACKET_SIZE", "INTERVAL")
+# Profils de départ : écrits par l'installateur d'un serveur neuf (packaging/templates/install.sh et install.ps1,
+# mêmes valeurs : test_packaging le vérifie) et proposés par la page Profils aux serveurs déjà installés
+SUGGESTED_PROFILES = [
+    {"UID": "VOIX_G711", "DESCRIPTION": "Téléphonie standard (G.711, 20 ms)", "BANDWIDTH": "87K", "DSCP": "46",
+     "PACKET_SIZE": "172", "INTERVAL": "1", "CODEC": "G711"},
+    {"UID": "VOIX_G729", "DESCRIPTION": "Téléphonie compressée (G.729, 20 ms)", "BANDWIDTH": "31K", "DSCP": "46",
+     "PACKET_SIZE": "32", "INTERVAL": "1", "CODEC": "G729"},
+    {"UID": "VIDEO", "DESCRIPTION": "Vidéoconférence (AF41)", "BANDWIDTH": "2M", "DSCP": "34",
+     "PACKET_SIZE": "1200", "INTERVAL": "1"},
+    {"UID": "DONNEES", "DESCRIPTION": "Trafic ordinaire (best effort)", "BANDWIDTH": "1M", "DSCP": "0",
+     "PACKET_SIZE": "1400", "INTERVAL": "1"},
+    {"UID": "LIEN_FAIBLE", "DESCRIPTION": "Liens lents ou facturés : Starlink, LTE/5G", "BANDWIDTH": "64K",
+     "DSCP": "0", "PACKET_SIZE": "1200", "INTERVAL": "1"},
+]
 
 
 def list_profiles(state):
@@ -227,6 +241,20 @@ def list_profiles(state):
     for p in rows:
         p["USED_BY"] = [g["UID"] for g in cfg.get("MESH_GROUP", []) if g.get("IPERF3_PROFILE") == p.get("UID")]
     return rows
+
+
+def add_suggested_profiles(state, actor, dry_run=False):
+    """Ajoute les profils suggérés absents ; un profil du même nom n'est jamais modifié."""
+    cfg = read_disk(state)
+    have = {p.get("UID") for p in cfg.get("IPERF3_PROFILE", [])}
+    added = [dict(p) for p in SUGGESTED_PROFILES if p["UID"] not in have]
+    if not added:
+        return {"added": [], "message": "All the suggested profiles are already there"}
+    cfg.setdefault("IPERF3_PROFILE", []).extend(added)
+    names = [p["UID"] for p in added]
+    result = _commit(state, cfg, actor, "ADD_SUGGESTED_PROFILES", f"Suggested profiles added: {', '.join(names)}",
+                     dry_run)
+    return dict(result, added=names)
 
 
 def create_profile(state, values, actor, dry_run=False):
@@ -474,7 +502,8 @@ GLOBAL_LIVE_KEYS = ("LOG_LEVEL", "LOG_FORWARD_LEVEL", "LOG_RETENTION_DAYS", "WAT
                     "IPERF3_TIME_SKEW_THRESHOLD", "IPERF3_CONNECT_TIMEOUT", "LATENCY", "LATENCY_PORT", "BASELINE",
                     "BASELINE_SENSITIVITY", "BASELINE_MARGIN_LOSS", "BASELINE_MARGIN_JITTER", "BASELINE_MARGIN_RTT",
                     "BASELINE_MARGIN_MOS", "BASELINE_MARGIN_TCP", "BASELINE_OPEN_AFTER",
-                    "BASELINE_CLOSE_AFTER", "PATH_TRACE_ON_ALERT", "REACHABILITY_CHECK", "UPDATE_CHECK", "CLOCK_OFFSET_MAX_MS",
+                    "BASELINE_CLOSE_AFTER", "PATH_TRACE_ON_ALERT", "REACHABILITY_CHECK", "UPDATE_CHECK", "UPDATE_PROXY",
+                    "CLOCK_OFFSET_MAX_MS",
                     "CLOCK_DRIFT_MAX_PPM") + st_syslog.KEYS
 # Réglages transmis aux clients à leur connexion : un changement les fait se reconnecter pour les recevoir
 GLOBAL_SENT_TO_CLIENTS = (("LOG_FORWARD_LEVEL", "INFO"), ("IPERF3_TIME_SKEW_THRESHOLD", None),
@@ -609,6 +638,8 @@ GLOBAL_FIELDS = {
     "BASELINE": (lambda v: True, "", True),
     "PATH_TRACE_ON_ALERT": (lambda v: True, "", True),
     "UPDATE_CHECK": (lambda v: True, "", True),
+    "UPDATE_PROXY": (lambda v: __import__("lib.st_github_update", fromlist=["x"]).valid_proxy(v),
+                     "A proxy URL: http://proxy.example:3128 (user:password@ allowed)", False),
     "REACHABILITY_CHECK": (lambda v: True, "", True),
     "CLOCK_OFFSET_MAX_MS": (_check_float_range(1, 3600000), "Milliseconds, 1 to 3600000", False),
     "CLOCK_DRIFT_MAX_PPM": (_check_float_range(0.1, 10000), "Parts per million, 0.1 to 10000", False),
@@ -641,6 +672,10 @@ def get_global(state):
     row["RUNNING"] = {k: str(live.get(k)) for k in GLOBAL_FIELDS if live.get(k) is not None}
     for k in GLOBAL_TRUE_BY_DEFAULT:  # absents du fichier : actifs (la page ne doit pas les montrer éteints)
         row["RUNNING"].setdefault(k, "True")
+    from lib.st_github_update import mask_proxy  # jamais le mot de passe du proxy hors du fichier
+    for d in (row, row["RUNNING"]):
+        if d.get("UPDATE_PROXY"):
+            d["UPDATE_PROXY"] = mask_proxy(d["UPDATE_PROXY"])
     row["READ_ONLY"] = {k: live.get(k) for k in GLOBAL_READ_ONLY if live.get(k)}
     row["FILE_ONLY"] = {k: str(g.get(k) or live.get(k) or "") for k in GLOBAL_FILE_ONLY}
     row["LIVE_KEYS"] = [k for k in GLOBAL_FIELDS if k in GLOBAL_LIVE_KEYS]
@@ -656,6 +691,11 @@ def update_global(state, values, actor, dry_run=False):
               if v[k] and not GLOBAL_FIELDS[k][2] and not _ok(GLOBAL_FIELDS[k][0], v[k])}
     cfg = read_disk(state)
     current = cfg.get("GLOBAL", {})
+    from lib.st_github_update import mask_proxy
+    stored_proxy = str(current.get("UPDATE_PROXY") or "")
+    if stored_proxy and v["UPDATE_PROXY"] == mask_proxy(stored_proxy):
+        v["UPDATE_PROXY"] = stored_proxy  # renvoyé masqué par la page : inchangé
+        errors.pop("UPDATE_PROXY", None)
     for key in GLOBAL_FILE_ONLY:  # absent ou inchangé : accepté (anciens appels) ; autre valeur : refusée
         given = str(values.get(key, "") or "").strip()
         if given and given != str(current.get(key, "") or ""):
@@ -751,6 +791,8 @@ def server_update_status(state):
                                      "error": None, "url": None, "published_at": None})
     st["current"] = DefaultValues.SYNTRAF_VERSION
     st["supervised"] = bool(os.environ.get(st_updater.ENV_CHILD))
+    proxy = gu.proxy_of(state["config"])
+    st["proxy"] = gu.mask_proxy(proxy) if proxy else None
     sv = st_updater.read_state(str(DefaultValues.SYNTRAF_DATA_DIR))
     st["release"] = os.environ.get(st_updater.ENV_RELEASE)
     st["pending"] = (sv.get("pending") or {}).get("id")
@@ -777,13 +819,16 @@ def server_update_apply(state, actor):
         raise OpError(409, "This server is not started through its supervisor (syntraf.py run by the service): "
                            "update it with its installation package")
     repo = str((state["config"].get("GLOBAL", {}) or {}).get("UPDATE_REPOSITORY") or gu.REPOSITORY)
+    proxy = gu.proxy_of(state["config"])
     try:
-        out = gu.apply(gu.http_get, DefaultValues.SYNTRAF_VERSION, str(DefaultValues.SYNTRAF_DATA_DIR),
+        out = gu.apply(lambda url: gu.http_get(url, proxy), DefaultValues.SYNTRAF_VERSION, str(DefaultValues.SYNTRAF_DATA_DIR),
                        _sys.executable, repo)
     except gu.UpdateError as exc:
         raise OpError(409, f"Not updated: {exc}")
     except (OSError, ValueError) as exc:
-        raise OpError(502, f"Not updated: GitHub unreachable ({exc})")
+        detail = str(getattr(exc, "reason", None) or exc)
+        via = f" through the proxy {gu.mask_proxy(proxy)}" if proxy else ""
+        raise OpError(502, f"Not updated: GitHub unreachable{via} ({detail.replace(proxy, gu.mask_proxy(proxy)) if proxy else detail})")
     except st_updater.UpdateError as exc:
         raise OpError(409, f"Not updated: {exc}")
     store.log_event(state["config_file_path"], actor, "UPDATE_SERVER",

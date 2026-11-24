@@ -315,6 +315,49 @@ EOF
                 echo "DB_SERVER_USE_SSL = false"
                 echo
             fi
+            echo '# Profils de départ (page Profils) : un mesh group en choisit un au lieu de saisir ses valeurs'
+            echo '[[IPERF3_PROFILE]]'
+            echo 'UID = "VOIX_G711"'
+            echo 'DESCRIPTION = "Téléphonie standard (G.711, 20 ms)"'
+            echo 'BANDWIDTH = "87K"'
+            echo 'DSCP = "46"'
+            echo 'PACKET_SIZE = "172"'
+            echo 'INTERVAL = "1"'
+            echo 'CODEC = "G711"'
+            echo
+            echo '[[IPERF3_PROFILE]]'
+            echo 'UID = "VOIX_G729"'
+            echo 'DESCRIPTION = "Téléphonie compressée (G.729, 20 ms)"'
+            echo 'BANDWIDTH = "31K"'
+            echo 'DSCP = "46"'
+            echo 'PACKET_SIZE = "32"'
+            echo 'INTERVAL = "1"'
+            echo 'CODEC = "G729"'
+            echo
+            echo '[[IPERF3_PROFILE]]'
+            echo 'UID = "VIDEO"'
+            echo 'DESCRIPTION = "Vidéoconférence (AF41)"'
+            echo 'BANDWIDTH = "2M"'
+            echo 'DSCP = "34"'
+            echo 'PACKET_SIZE = "1200"'
+            echo 'INTERVAL = "1"'
+            echo
+            echo '[[IPERF3_PROFILE]]'
+            echo 'UID = "DONNEES"'
+            echo 'DESCRIPTION = "Trafic ordinaire (best effort)"'
+            echo 'BANDWIDTH = "1M"'
+            echo 'DSCP = "0"'
+            echo 'PACKET_SIZE = "1400"'
+            echo 'INTERVAL = "1"'
+            echo
+            echo '[[IPERF3_PROFILE]]'
+            echo 'UID = "LIEN_FAIBLE"'
+            echo 'DESCRIPTION = "Liens lents ou facturés : Starlink, LTE/5G"'
+            echo 'BANDWIDTH = "64K"'
+            echo 'DSCP = "0"'
+            echo 'PACKET_SIZE = "1200"'
+            echo 'INTERVAL = "1"'
+            echo
             echo "[GLOBAL]"
             echo "IPERF3_BINARY_PATH = \"$IPERF\""
             echo 'LOG_TO = "file"'

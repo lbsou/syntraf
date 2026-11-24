@@ -70,7 +70,7 @@ function showServerUpdate(s) {
     const box = document.getElementById("server-update"), apply = document.getElementById("su_apply");
     const when = s.checked_at ? new Date(s.checked_at * 1000).toLocaleString() : "";
     let html = `Version ${st.esc(s.current)}`;
-    if (s.error) html += ` · <span class="text-warning">${st.esc(s.error)}</span>`;
+    if (s.error) html += ` · <span class="text-warning">${st.esc(s.error)}</span> <a href="/server.html#global">Proxy setting</a>`;
     else if (s.available) html += ` · <strong class="text-success">${st.esc(s.latest)} is available</strong> (<a href="${st.esc(s.url)}" target="_blank" rel="noopener">release notes</a>)`;
     else if (s.latest) html += ` · up to date (latest on GitHub: ${st.esc(s.latest)})`;
     else html += " · " + "not checked yet";
@@ -79,6 +79,7 @@ function showServerUpdate(s) {
     if (s.last_failed) html += `<div class="text-warning">Last failed release: ${st.esc(s.last_failed.id)} (${st.esc(s.last_failed.reason || "")}), the server went back by itself.</div>`;
     if (!s.supervised) html += `<div class="text-white-50">Not started through its supervisor: update it with its installation package.</div>`;
     if (when) html += `<div class="text-white-50">Checked ${st.esc(when)}</div>`;
+    if (s.proxy) html += `<div class="text-white-50">Through the proxy ${st.esc(s.proxy)}</div>`;
     box.innerHTML = html;
     apply.hidden = !(s.available && s.supervised);
     apply.querySelector("span").textContent = `Update this server to ${s.latest}`;

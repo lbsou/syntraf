@@ -50,11 +50,11 @@
 <script>
 const el = id => document.getElementById(id);
 
-st.crud({
+const crud = st.crud({
     listUrl: "/api/v1/config/profiles",
     itemUrl: uid => `/api/v1/config/profiles/${encodeURIComponent(uid)}`,
     idField: "UID",
-    emptyText: "No profile yet. A profile lets several mesh groups share the same traffic settings.",
+    emptyText: "No profile yet. A profile lets several mesh groups share the same traffic settings: “Add the suggested profiles” gives a starting set.",
     titleNew: "Create a profile",
     titleEdit: uid => `Edit profile “${uid}”`,
     deleteTitle: uid => `Delete profile “${uid}”?`,
@@ -90,6 +90,26 @@ st.crud({
         DSCP: el("p_dscp").value.trim(), PACKET_SIZE: el("p_packet_size").value.trim(), INTERVAL: el("p_interval").value.trim(),
         CODEC: el("p_codec").value, BASELINE_SENSITIVITY: el("p_bl_k").value.trim(),
     }),
+});
+
+// Profils suggérés (voix, vidéo, données, liens lents) : seulement ceux qui manquent, aucun profil existant modifié
+const suggestBtn = document.createElement("button");
+suggestBtn.type = "button";
+suggestBtn.className = "btn btn-outline-info";
+suggestBtn.innerHTML = '<i class="fas fa-magic me-1"></i>Add the suggested profiles';
+el("toolbar").appendChild(suggestBtn);
+suggestBtn.addEventListener("click", async () => {
+    const url = "/api/v1/config/profiles/suggested";
+    const preview = await st.api("POST", url + "?dry_run=1");
+    if (!preview.ok) { st.toast(preview.error.message, "danger"); return; }
+    if (!preview.data.added.length) { st.toast("All the suggested profiles are already there", "info"); return; }
+    const body = document.createElement("div");
+    body.innerHTML = `<p>${st.esc(preview.data.added.join(", "))}</p><p class="small text-white-50">A profile that already has one of these names is left as it is.</p>`;
+    if (!await st.confirm({title: "Add the suggested profiles?", body, confirmText: "Add"})) return;
+    const r = await st.api("POST", st.applyUrl(url, preview.data));
+    if (!r.ok) { st.toast(r.error.message, "danger"); return; }
+    st.toast(`Profiles added: ${r.data.added.join(", ")}`, "success");
+    crud.load();
 });
 </script>
 {% endblock %}
