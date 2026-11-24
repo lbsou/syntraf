@@ -33,7 +33,7 @@ def test_an_interval_gives_the_received_direction_of_a_bidir_client():
     p = Proc()
     ls = lines("iperf3_json_stream_client_bidir.txt")
     rl.json_start(rl.json_event(ls[0]), p)
-    m = rl.json_interval(rl.json_event(ls[1]), p)
+    m = rl.json_interval(rl.json_event(ls[1]), p, now=1795402963.486 + 1.2)
     assert m["jitter"] == pytest.approx(6.496, abs=1e-3) and m["packet_loss"] == 4 and m["packet_total"] == 58
     assert m["loss"] == pytest.approx(6.897, abs=1e-3) and m["bitrate_kbps"] == pytest.approx(94.16, abs=0.01)
     assert m["utime"] == pytest.approx(1795402963.486 + 1.00017, abs=1e-3)
@@ -82,3 +82,39 @@ def test_any_interval_proves_the_session_is_alive_even_for_a_sender_only_connect
                   '"bits_per_second":101135,"packets":58,"omitted":false,"sender":true}}}'
     rl.session_progress(sender_only, p, None)
     assert p.measured_at is not None
+
+
+def interval(end):
+    return {"event": "interval", "data": {"sum": {"end": end, "bits_per_second": 87000, "jitter_ms": 0.1,
+                                                  "lost_packets": 0, "packets": 50, "lost_percent": 0, "sender": False}}}
+
+
+def test_an_interval_on_time_is_dated_by_the_iperf3_clock():
+    p = Proc()
+    p.test_start = 1000.0
+    assert rl.json_interval(interval(10.0), p, now=1010.4)["utime"] == pytest.approx(1010.0)
+
+
+def test_late_intervals_are_put_back_on_the_wall_clock():
+    """iperf3 annonce end = 1, 2, 3… s alors que ses intervalles arrivent de plus en plus tard : « début + end » prenait
+    des minutes de retard sur une longue session, et les pages ne trouvaient plus rien dans la dernière minute."""
+    p = Proc()
+    p.test_start = 1000.0
+    assert rl.json_interval(interval(10.0), p, now=1015.0)["utime"] == pytest.approx(1015.0)
+    # la cadence d'iperf3 est gardée à partir de là, sans nouveau saut tant qu'elle suit l'horloge
+    assert rl.json_interval(interval(11.0), p, now=1016.3)["utime"] == pytest.approx(1016.0)
+    assert rl.json_interval(interval(12.0), p, now=1017.1)["utime"] == pytest.approx(1017.0)
+
+
+def test_an_interval_dated_in_the_future_is_brought_back_to_now():
+    p = Proc()
+    p.test_start = 5000.0
+    assert rl.json_interval(interval(1.0), p, now=1000.0)["utime"] == pytest.approx(1000.0)
+
+
+def test_a_new_session_forgets_the_previous_correction():
+    p = Proc()
+    p.test_start = 1000.0
+    rl.json_interval(interval(10.0), p, now=1100.0)
+    rl.json_start({"event": "start", "data": {"timestamp": {"timemillisecs": 2000000}}}, p)
+    assert rl.json_interval(interval(1.0), p, now=2001.2)["utime"] == pytest.approx(2001.0)

@@ -42,9 +42,10 @@ CLIENT_UID["c4"] = "STARLINK"  # nœud satellite derrière un NAT : latence, gig
 CLIENT_UID["c5"] = "LTE_5G"    # nœud mobile 5G/LTE derrière un CGNAT (labctl.py degrade, profil dans le README)
 BEHIND_NAT = tuple(GATEWAY_OF)
 FAULT_TARGETS = SYNTRAF_NODES + tuple(GATEWAY_OF.values())
-# Profils de lien permanents (sites satellite et mobile) : remis par heal après une panne, et à réappliquer après un
+# Profils de lien permanents (sites satellite et mobile, et un lien ordinaire dégradé dans un seul sens) : remis par heal après une panne, et à réappliquer après un
 # redémarrage de conteneur (netem ne lui survit pas) : python lab/labctl.py heal <service>
 LINK_PROFILES = {
+    "c3": {"delay_ms": 12, "jitter_ms": 4, "loss_pct": 2.0},                        # LAB_C3 → les autres seulement
     "c4": {"delay_ms": 30, "jitter_ms": 12, "loss_pct": 0.5},                        # STARLINK → les autres
     "starlink-gw": {"delay_ms": 30, "jitter_ms": 12, "loss_pct": 0.5},               # les autres → STARLINK
     "c5": {"delay_ms": 22, "jitter_ms": 8, "loss_pct": 0.8, "rate": "20mbit"},       # montée LTE_5G

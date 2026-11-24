@@ -70,17 +70,33 @@ def json_start(event, iperf3_obj):
     if iperf3_obj is not None:
         start = ts.get("timemillisecs")
         iperf3_obj.test_start = start / 1000.0 if start else ts.get("timesecs") or time.time()
+        iperf3_obj.clock_offset = 0.0  # nouvelle session : plus de correction (voir json_interval)
 
 
-def json_interval(event, iperf3_obj):
+RESYNC_AFTER_S = 2.0
+
+
+def json_interval(event, iperf3_obj, now=None):
     """Mesures du sens reçu : {utime, timestamp, bitrate_kbps, jitter, loss, packet_loss, packet_total}, ou None
-    (émetteur seul)."""
+    (émetteur seul).
+
+    Heure : début de session + end de l'intervalle, la cadence d'iperf3. Mais iperf3 annonce end = 1, 2, 3… s alors
+    que ses intervalles arrivent de plus en plus tard : sur une longue session, « début + end » prenait des minutes de
+    retard sur l'horloge. Au-delà de RESYNC_AFTER_S d'écart, l'heure est recalée sur l'horloge (l'intervalle vient de
+    finir : --forceflush) et la correction est gardée pour la suite de la session."""
     data = event.get("data") or {}
     rx = next((s for s in (data.get("sum"), data.get("sum_bidir_reverse")) if s and s.get("sender") is False), None)
     if rx is None:
         return None
-    start = getattr(iperf3_obj, "test_start", None) or time.time()
-    utime = start + float(rx.get("end") or 0)
+    now = time.time() if now is None else now
+    start = getattr(iperf3_obj, "test_start", None) or now
+    offset = getattr(iperf3_obj, "clock_offset", 0.0) or 0.0
+    utime = start + float(rx.get("end") or 0) + offset
+    if abs(now - utime) > RESYNC_AFTER_S:
+        offset += now - utime
+        utime = now
+        if iperf3_obj is not None:
+            iperf3_obj.clock_offset = offset
     packets = int(rx.get("packets") or 0)
     lost = int(rx.get("lost_packets") or 0)
     loss, jitter = float(rx.get("lost_percent") or 0), float(rx.get("jitter_ms") or 0)

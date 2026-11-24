@@ -98,5 +98,8 @@ def test_heal_leaves_an_ordinary_node_clean(monkeypatch):
 
 def test_every_permanent_profile_targets_a_known_lab_service():
     from lablib import topology
-    assert set(topology.LINK_PROFILES) == {"c4", "starlink-gw", "c5", "mobile-gw"}
+    assert set(topology.LINK_PROFILES) == {"c3", "c4", "starlink-gw", "c5", "mobile-gw"}
+    # c3 : lien ordinaire dégradé dans un seul sens (ses envois) ; son retour reste propre (pas de passerelle)
+    assert topology.LINK_PROFILES["c3"] == {"delay_ms": 12, "jitter_ms": 4, "loss_pct": 2.0}
+    assert "c3" not in topology.GATEWAY_OF
     assert topology.LINK_PROFILES["c5"] == {"delay_ms": 22, "jitter_ms": 8, "loss_pct": 0.8, "rate": "20mbit"}

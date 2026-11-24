@@ -89,6 +89,17 @@ retirer les pannes en cours) :
 python lab/labctl.py heal
 ```
 
+### Lien dégradé dans un seul sens (c3)
+
+LAB_C3 est sur le réseau ordinaire du lab, mais ses envois passent par un lien dégradé : 2 % de pertes et
+12 ± 4 ms de délai, de LAB_C3 vers les autres seulement ; le sens retour reste propre. Les tableaux de bord et les
+matrices montrent donc une asymétrie nette (un sens rouge, l'autre vert), comme un accès dont la montée est saturée.
+Profil permanent (`LINK_PROFILES`) : `labctl heal` le remet après une panne ; après un redémarrage du conteneur :
+
+```
+python lab/labctl.py heal c3
+```
+
 ### Nœud mobile 5G/LTE (c5), derrière un CGNAT
 
 c5 porte l'UID `LTE_5G` : une sonde sur un accès mobile (LTE ou 5G NSA), derrière le CGNAT de l'opérateur (routeur
