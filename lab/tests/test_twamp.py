@@ -71,7 +71,7 @@ def test_the_server_accepts_latency_points_from_the_probe_that_measured_them():
 
 
 def test_a_real_echo_on_the_loopback():
-    reflector = tw.Reflector(0, host="127.0.0.1")
+    reflector = tw.Reflector(0, host="127.0.0.1", allowed=None)
     reflector.start()
     try:
         target = {"peer": "B", "me": "A", "address": "127.0.0.1", "dscp": 46, "mesh_group": "G", "interval": 0.5}
@@ -79,6 +79,68 @@ def test_a_real_echo_on_the_loopback():
         assert fields["LOSS_PCT"] == 0 and 0 <= fields["RTT_MIN_MS"] <= fields["RTT_MS"] < 50
     finally:
         reflector.stop()
+
+
+def test_the_reply_is_never_larger_than_the_request():
+    """Aucune amplification, même avec une requête minimale et le champ DSCP rapporté."""
+    assert not tw.acceptable(b"\x00" * 14)  # l'en-tête seul : la réponse ferait 41 octets ou plus
+    for size in range(0, 1600, 1):
+        pkt = tw.sender_packet(1, time.time(), dscp=46).ljust(size, b"\x00")[:max(size, 14)]
+        if tw.acceptable(pkt):
+            assert len(tw.reflect(pkt, time.time(), time.time(), 1, received_tos=0xB8)) <= len(pkt), size
+
+
+def _probe(port, payload=None):
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        s.settimeout(0.5)
+        s.sendto(payload or tw.sender_packet(1, time.time()), ("127.0.0.1", port))
+        try:
+            return s.recv(2048)
+        except OSError:
+            return None
+
+
+def test_the_reflector_answers_nobody_until_its_peers_are_known():
+    closed = tw.Reflector(0, host="127.0.0.1").start()
+    peers = tw.Reflector(0, host="127.0.0.1", allowed={"127.0.0.1"}).start()
+    try:
+        assert _probe(closed.port) is None
+        assert _probe(peers.port) is not None
+        closed.set_allowed({"127.0.0.1"})
+        assert _probe(closed.port) is not None
+    finally:
+        closed.stop()
+        peers.stop()
+
+
+def test_replies_from_another_address_are_ignored():
+    """L'émetteur n'accepte que les réponses du réflecteur visé : une réponse forgée depuis un autre port ne compte pas."""
+    import socket
+    import threading
+    listen = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    listen.bind(("127.0.0.1", 0))
+    listen.settimeout(0.2)
+    forger = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    stop = threading.Event()
+
+    def answer_from_elsewhere():
+        while not stop.is_set():
+            try:
+                data, addr = listen.recvfrom(2048)
+            except OSError:
+                continue
+            forger.sendto(tw.reflect(data, time.time(), time.time(), 1), addr)
+    t = threading.Thread(target=answer_from_elsewhere, daemon=True)
+    t.start()
+    try:
+        target = {"peer": "B", "me": "A", "address": "127.0.0.1", "dscp": 0, "mesh_group": "G", "interval": 0.3}
+        assert tw.measure_once(target, listen.getsockname()[1], count=3, timeout=0.3) == {"LOSS_PCT": 100.0}
+    finally:
+        stop.set()
+        t.join(1)
+        listen.close()
+        forger.close()
 
 
 def test_a_silent_peer_is_100_percent_echo_loss():
@@ -122,7 +184,7 @@ def test_the_reflector_ignores_malformed_or_oversized_packets():
 
 def test_a_flood_from_one_source_gets_few_answers():
     import socket as so
-    reflector = tw.Reflector(0, host="127.0.0.1")
+    reflector = tw.Reflector(0, host="127.0.0.1", allowed=None)
     reflector.start()
     s = so.socket(so.AF_INET, so.SOCK_DGRAM)
     s.settimeout(0.3)
@@ -143,7 +205,7 @@ def test_a_flood_from_one_source_gets_few_answers():
 
 
 def test_the_reflector_only_answers_known_peers():
-    reflector = tw.Reflector(0, host="127.0.0.1")
+    reflector = tw.Reflector(0, host="127.0.0.1", allowed=None)
     reflector.start()
     try:
         target = {"peer": "B", "me": "A", "address": "127.0.0.1", "dscp": 0, "mesh_group": "G", "interval": 0.3}
@@ -195,7 +257,7 @@ def test_duplicates_in_each_direction():
 
 
 def test_a_measurement_reports_order_and_duplicates():
-    reflector = tw.Reflector(0, host="127.0.0.1")
+    reflector = tw.Reflector(0, host="127.0.0.1", allowed=None)
     reflector.start()
     try:
         target = {"peer": "B", "me": "A", "address": "127.0.0.1", "dscp": 46, "mesh_group": "G", "interval": 1}
@@ -237,7 +299,7 @@ def test_dscp_statistics_per_direction():
 
 @pytest.mark.skipif(not hasattr(__import__("socket").socket, "recvmsg"), reason="recvmsg absent (Windows)")
 def test_a_real_echo_reports_the_dscp_of_both_directions():
-    reflector = tw.Reflector(0, host="127.0.0.1")
+    reflector = tw.Reflector(0, host="127.0.0.1", allowed=None)
     reflector.start()
     try:
         target = {"peer": "B", "me": "A", "address": "127.0.0.1", "dscp": 46, "mesh_group": "G", "interval": 1}

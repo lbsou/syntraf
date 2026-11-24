@@ -89,7 +89,7 @@ def test_busy_tcp_port_still_counts_as_listening_service():
 
 
 def test_latency_reflector_admits_the_test_nonce_only_during_the_test():
-    refl = st_twamp.Reflector(0, host="127.0.0.1").start()
+    refl = st_twamp.Reflector(0, host="127.0.0.1", allowed=None).start()
     refl.set_allowed(set())  # aucun pair connu : seul le jeton du test fait répondre
     try:
         assert sr.try_latency("127.0.0.1", refl.port, NONCE, timeout=0.6) == "timeout"

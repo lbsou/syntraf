@@ -714,8 +714,11 @@ neither can reach the other, so the pair is never measured (the server publishes
     keeps the NAT mapping open); two probes both behind a NAT are not measured. Stored as
     <code>SYNTRAF_LATENCY_RTT_MS</code> (min, max, echo loss). The reflector answers only its peers (the addresses of
     its connectors and the sources of the iperf3 sessions its listeners accepted, a NAT's public address included),
-    never with a larger packet than the request, and at most 50 packets per second per source and 500 in total. Open
-    the port on the probes that are not behind a NAT. The same echoes give <strong>reordering and duplicates per
+    never with a larger packet than the request, and at most 50 packets per second per source and 500 in total; it
+    stays silent for everybody else, so a scan of the Internet does not see it. The probe that measures only accepts
+    the answers of the reflector it targets. Open the port on the probes that are not behind a NAT; on a probe exposed
+    to the Internet, allow it in the host firewall only from the peers' addresses when they are fixed: a flood is then
+    dropped by the system before it can slow the reflector down and distort the latency. The same echoes give <strong>reordering and duplicates per
     direction</strong> (iperf3 only reports out-of-order packets in its end-of-test summary, never during a continuous
     test, and does not tell them from duplicates): forward from the order in which the reflector received them,
     backward from the order in which the answers came back (RFC 4737, simplified); a duplicate is a packet received

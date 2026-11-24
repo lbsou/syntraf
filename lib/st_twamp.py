@@ -93,9 +93,9 @@ def reflect(pkt, received, sent, seq, ttl=255, received_tos=None):
     s = parse_sender(pkt)
     body = _REPLY.pack(seq & 0xFFFFFFFF, to_ntp(sent), ERROR_ESTIMATE, 0, to_ntp(received), s["seq"],
                        to_ntp(s["ts"]), s["error"], 0, ttl & 0xFF)
-    if received_tos is not None:
+    if received_tos is not None and len(pkt) >= _REPLY.size + _DSCP_FIELD.size:  # seulement s'il tient
         body += _DSCP_FIELD.pack(int(received_tos) & 0xFF, DSCP_MARK)
-    return body.ljust(min(len(pkt), PACKET_SIZE), b"\0")
+    return body.ljust(min(len(pkt), PACKET_SIZE), b"\0")  # jamais plus grande que la requête (voir acceptable())
 
 
 def reply_tos(sender, received_tos):
@@ -222,6 +222,11 @@ def measure_once(target, port, count=COUNT, timeout=TIMEOUT_S):
         except OSError:
             recv_tos = False
     sent_at, rtts, replies, reverse = {}, [], [], []
+    try:  # socket connectée : le système écarte tout paquet venu d'ailleurs que du réflecteur (réponses forgées)
+        s.connect((target["address"], int(port)))
+    except OSError:  # adresse injoignable ou introuvable : tout est perdu, comme un envoi raté
+        s.close()
+        return stats(count, [])
 
     def collect(until):
         _collect(s, sent_at, rtts, until, replies, reverse if recv_tos else None)
@@ -234,7 +239,7 @@ def measure_once(target, port, count=COUNT, timeout=TIMEOUT_S):
             n = (seq + i) & 0xFFFFFFFF
             sent_at[n] = time.monotonic()
             try:
-                s.sendto(sender_packet(n, time.time(), target["dscp"]), (target["address"], int(port)))
+                s.send(sender_packet(n, time.time(), target["dscp"]))
             except OSError:
                 pass
             collect(time.monotonic() + spacing)
@@ -322,8 +327,10 @@ def allowed_peers(config, now=None):
 
 
 def acceptable(data):
-    """Paquet de test plausible : au moins l'en-tête d'un envoi TWAMP, pas plus grand qu'un datagramme courant."""
-    return _SENDER.size <= len(data) <= MAX_PACKET
+    """Paquet de test plausible, pas plus petit que la réponse (aucune amplification : RFC 5357 §4.1.2, l'émetteur
+    rembourre son envoi à la taille de la réponse ; les sondes envoient PACKET_SIZE octets), pas plus grand qu'un
+    datagramme courant."""
+    return _REPLY.size <= len(data) <= MAX_PACKET
 
 
 class RateLimiter:
@@ -353,7 +360,7 @@ class Reflector:
     jamais plus grande que la requête (pas d'amplification), débit limité par source et au total, paquets mal
     formés ignorés. Aucune donnée de la sonde n'est révélée, hormis l'heure de son horloge."""
 
-    def __init__(self, port, host="0.0.0.0"):
+    def __init__(self, port, host="0.0.0.0", allowed=frozenset()):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock.bind((host, int(port)))
@@ -362,7 +369,8 @@ class Reflector:
         self._stop = threading.Event()
         self._seq = 0
         self._limiter = RateLimiter()
-        self._allowed = None  # None : toute source (tests) ; sinon, seulement ces adresses
+        # Seulement ces adresses ; personne tant que la liste n'est pas posée ; None : toute source (tests seulement)
+        self._allowed = None if allowed is None else frozenset(allowed)
         self._recv_tos = hasattr(socket, "IP_RECVTOS") and hasattr(self.sock, "recvmsg")
         if self._recv_tos:
             try:
@@ -441,7 +449,7 @@ class Manager:
                 if self.reflector is not None:
                     self.reflector.stop()
                 try:
-                    self.reflector = Reflector(port).start()
+                    self.reflector = Reflector(port, allowed=allowed_peers(config)).start()
                     log.info(f"LATENCY REFLECTOR (TWAMP-LIGHT) LISTENING ON UDP {port}")
                 except OSError as exc:
                     self.reflector = None
