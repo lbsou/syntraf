@@ -19,7 +19,8 @@ MAX_MESSAGE_BYTES = 64 * 1024 * 1024
 AUTH_DEADLINE_S = 30
 MAX_CONNECTIONS = 1000
 MAX_CONNECTIONS_PER_IP = 50
-CLIENT_MEASUREMENTS = frozenset({"SYNTRAF", "SYNTRAF_LATENCY", "SYNTRAF_TCP", "SYNTRAF_PATH"})  # + chemins
+# + chemins (st_paths) et tests d'accessibilité (st_reach, rangés à part, jamais dans la base)
+CLIENT_MEASUREMENTS = frozenset({"SYNTRAF", "SYNTRAF_LATENCY", "SYNTRAF_TCP", "SYNTRAF_PATH", "SYNTRAF_REACH"})
 CLEAN_MAX = 120
 
 

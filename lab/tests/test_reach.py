@@ -205,13 +205,26 @@ def test_automatic_tests_settle_skip_outbound_only_and_repeat(tmp_path):
     assert store.list() == []  # une minute pour installer ses flux
     sr.tick(cfg, clients, {}, {}, store, now=1000 + sr.AUTO_SETTLE_S)
     assert [r["target"] for r in store.list()] == ["A"]  # N : sortant seulement, pas testé d'office
-    store.update(store.list()[0]["id"], status="done")
+    store.update(store.list()[0]["id"], status="done", verdict="open")
     sr.tick(cfg, clients, {}, {}, store, now=1000 + sr.AUTO_SETTLE_S + 10)
-    assert len(store.list()) == 1
+    sr.tick(cfg, clients, {}, {}, store, now=1000 + sr.AUTO_SETTLE_S + sr.AUTO_RETRY_S + 1)
+    assert len(store.list()) == 1  # conclu : rien avant AUTO_EVERY_S
     clients["A"].ip_address = "10.9.9.9"  # nouvelle adresse : nouveau test
     sr.tick(cfg, clients, {}, {}, store, now=1000 + sr.AUTO_SETTLE_S + 20)
     assert len(store.list()) == 2
     sr.tick(config(REACHABILITY_CHECK="false"), probes("A", "C"), {}, {}, sr.ReachStore(tmp_path / "x.json"), now=9e9)
+
+
+def test_inconclusive_automatic_test_is_retried_sooner(tmp_path):
+    store = sr.ReachStore(tmp_path / "reach.json")
+    cfg, clients = config(), probes("A")
+    sr.tick(cfg, clients, {}, {}, store, now=1000)
+    sr.tick(cfg, clients, {}, {}, store, now=1000 + sr.AUTO_SETTLE_S)
+    store.update(store.list()[0]["id"], status="done", verdict="unknown")  # sonde muette, résultats perdus
+    sr.tick(cfg, clients, {}, {}, store, now=1000 + sr.AUTO_SETTLE_S + sr.AUTO_RETRY_S - 5)
+    assert len(store.list()) == 1
+    sr.tick(cfg, clients, {}, {}, store, now=1000 + sr.AUTO_SETTLE_S + sr.AUTO_RETRY_S + 5)
+    assert len(store.list()) == 2
 
 
 def test_results_are_filed_and_kept_out_of_the_database(tmp_path):
@@ -224,3 +237,12 @@ def test_results_are_filed_and_kept_out_of_the_database(tmp_path):
     assert sr.receive([other, pt], store, reporter="A") == [other]
     assert store.get(rec["id"])["listener"] is not None
     assert sr.receive([pt], store, reporter="B") == []  # pas sa part du test : ignoré
+
+
+def test_results_pass_the_channel_guard():
+    """Le serveur ne garde que les mesures connues d'une sonde : les résultats du test doivent passer la garde."""
+    from lib import st_channel_guard as guard
+    p = sr.point("LAB_C1", {"ID": "1-abc"}, "check", {"tcp": {}}, 1795521981)
+    kept, dropped = guard.authorized_points([p], "LAB_C1")
+    assert kept == [p] and dropped == 0
+    assert guard.authorized_points([p], "LAB_C2") == ([], 1)  # jamais au nom d'une autre sonde

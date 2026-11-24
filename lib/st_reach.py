@@ -48,6 +48,7 @@ RESULT_TIMEOUT_S = 90       # après START_AT : les résultats manquants devienn
 MAX_TESTERS = 3
 SERVER_TESTER = "@server"   # le serveur teste lui-même quand aucun pair n'est connecté
 AUTO_EVERY_S = 6 * 3600
+AUTO_RETRY_S = 30 * 60      # test sans verdict (sonde muette, résultats perdus) : refait plus tôt
 AUTO_SETTLE_S = 60          # une sonde qui vient de se connecter installe d'abord ses flux
 MAX_RUNNING = 2
 KEEP = 300
@@ -520,7 +521,8 @@ def _connected(dict_of_clients, uid):
 
 def auto_requests(config, declared, dict_of_clients, reach_store, now):
     """Sondes à tester d'office : connectées depuis AUTO_SETTLE_S, non déclarées sortant seulement, jamais testées,
-    testées il y a plus de AUTO_EVERY_S ou depuis une autre adresse. Une à la fois."""
+    testées il y a plus de AUTO_EVERY_S (AUTO_RETRY_S si le dernier test n'a rien conclu) ou depuis une autre
+    adresse. Une à la fois."""
     if not _bool(config.get("GLOBAL", {}).get("REACHABILITY_CHECK"), True):
         return []
     since = reach_store.connected_since
@@ -535,8 +537,10 @@ def auto_requests(config, declared, dict_of_clients, reach_store, now):
             continue
         last = reach_store.latest(uid)
         address = getattr(dict_of_clients[uid], "ip_address", None)
+        every = AUTO_RETRY_S if last is not None and (last["status"] == "failed" or last.get("verdict") in (
+            None, "unknown")) else AUTO_EVERY_S
         if last is not None and (last["status"] in ("pending", "running") or (
-                now - last["requested_at"] < AUTO_EVERY_S and last.get("seen_address") == address)):
+                now - last["requested_at"] < every and last.get("seen_address") == address)):
             continue
         rec = reach_store.request(uid, "auto", now)
         reach_store.update(rec["id"], seen_address=address)

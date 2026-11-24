@@ -588,7 +588,8 @@ reason: <em>rejected</em> (TCP reset or ICMP port unreachable) or <em>no answer<
 is <em>open</em>, <em>partial</em> (open the blocked ports, the whole range for iperf3) or <em>blocked</em> (declare
 the probe behind a NAT or a firewall). The Clients page shows <em>inbound blocked</em> or <em>inbound partly
 blocked</em> next to the address, and the details with a <em>Test now</em> button in the client form.</p>
-<p>The test runs by itself a minute after a probe connects, then every 6 hours and when its address changes, for the
+<p>The test runs by itself a minute after a probe connects, then every 6 hours (30 minutes after a test that
+concluded nothing) and when its address changes, for the
 probes not declared behind a NAT or a firewall (setting <em>Test the inbound reachability of the probes</em>,
 <code>GLOBAL.REACHABILITY_CHECK</code>, on by default). The UDP ports answer only the datagrams carrying the
 128-bit token of the test, with a datagram of the same size, and close at the end of the test. On Windows, the
