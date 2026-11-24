@@ -1044,7 +1044,9 @@ def list_pending(state):
     e = _enrollment(state)
     _drop_stale_requests(state, e)
     pending = [{k: v for k, v in p.items() if k != "PUBLIC_KEY"} for p in e.pending()]
-    return {"pending": pending, "rejected": e.rejected()}
+    import time as _time
+    from lib import st_preauth  # adresses qui raccrochent avant de s'identifier (clé du serveur non reconnue ?)
+    return {"pending": pending, "rejected": e.rejected(), "unidentified": st_preauth.DROPS.recent(_time.time())}
 
 
 def approve_client(state, uid, values, actor, dry_run=False):

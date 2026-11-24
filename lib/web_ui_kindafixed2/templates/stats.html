@@ -10,6 +10,15 @@
 {% from "_macros.html" import page_header %}
 {{ page_header("Clients", "Control-channel state of each client, its system information and its running threads.") }}
 
+{# Demandes d'inscription en attente : elles ne sont pas encore des clients, l'approbation se fait dans la configuration #}
+<div class="alert alert-warning d-flex align-items-center gap-2" id="pending_notice" role="status" hidden>
+    <i class="fas fa-user-clock" aria-hidden="true"></i>
+    <span><span id="pending_text"></span> <a href="/client_config.html#pending" class="alert-link">Review and approve on Configuration › Clients</a></span>
+</div>
+{% if not dict_of_clients %}
+<p class="text-white-50" id="no_client">No client declared yet. A probe installed with the server's enrollment token asks to join; approve it on <a href="/client_config.html#pending">Configuration › Clients</a>.</p>
+{% endif %}
+
 <div class="modal fade" id="modal_system_stats_empty" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-dialog-centered" role="document">
         <div  class="modal-content text-center">
@@ -374,6 +383,21 @@ async function toggle_pause(client) {
     }
     update_system_stats();
 }
+
+async function show_pending() {
+    const r = await st.api("GET", "/api/v1/clients/pending");
+    if (!r.ok) return;
+    const n = (r.data.pending || []).length, lost = (r.data.unidentified || []).length;
+    el_pending.hidden = n === 0 && lost === 0;
+    const parts = [];
+    if (n) parts.push(n === 1 ? `1 probe is waiting for approval (${r.data.pending[0].UID}).` : `${n} probes are waiting for approval.`);
+    if (lost) parts.push(lost === 1 ? `1 address connects and hangs up before identifying (${r.data.unidentified[0].IP_ADDRESS}): a probe that does not recognize this server's key?`
+                                    : `${lost} addresses connect and hang up before identifying: probes that do not recognize this server's key?`);
+    document.getElementById("pending_text").textContent = parts.join(" ");
+}
+const el_pending = document.getElementById("pending_notice");
+show_pending();
+setInterval(show_pending, 15000);
 
 async function restart_client(client) {
         const API_URL = "/api";

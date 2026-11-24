@@ -27,6 +27,12 @@ Ports à ouvrir sur le serveur : 6531/tcp (sondes), 5000/tcp (interface web), 30
 Mise à jour : relancer le script d'installation d'une version plus récente ; la configuration et les données sont
 gardées. Les sondes peuvent aussi être mises à jour depuis le serveur (page Updates).
 
+Serveur réinstallé ou remplacé : il a une nouvelle clé et un nouveau jeton, et chaque sonde refuse un serveur dont la
+clé a changé (elle mémorise la clé à sa première connexion). Sur chaque sonde, relancer l'installation avec l'adresse
+et le nouveau jeton :
+    sudo ./install.sh --server <adresse> --token <nouveau jeton>       (Windows : .\install.ps1 -Server … -Token …)
+La sonde oublie l'ancienne clé et se présente de nouveau ; l'approuver dans Configuration › Clients du serveur.
+
 Désinstallation : ./uninstall.sh (ou .\uninstall.ps1) ; --purge / -Purge efface aussi configuration et données.
 
 Emplacements

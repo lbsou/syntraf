@@ -9,6 +9,11 @@
     <p class="small text-white-50">These clients presented a valid shared token but are not declared. Approving one pins its key and issues a token of its own, handed over at its next attempt (within a minute).</p>
     <div id="pending-list"></div>
 </section>
+<section class="st-card border-warning" id="unidentified" aria-labelledby="unidentified-title" hidden>
+    <h2 id="unidentified-title" class="h6"><i class="fas fa-plug me-2 text-warning"></i>Connections that hang up before identifying</h2>
+    <p class="small text-white-50 mb-2">These addresses connect to the control channel and close it before authenticating, again and again. A SYNTRAF probe does this when it does not recognize this server's key (the server was reinstalled, or replaced). On the probe, run its installer again with <code>--server</code> and <code>--token</code> (the token of this server, Server › Tokens), or delete <code>syntraf_server_pin</code> next to its configuration and restart it; it then appears above, waiting for approval.</p>
+    <div id="unidentified-list" class="small"></div>
+</section>
 <details class="mb-3" id="rejected" hidden><summary class="small text-white-50">Rejected clients (<span id="rejected-count">0</span>)</summary><div id="rejected-list" class="mt-2"></div></details>
 
 {{ crud_table("Client") }}
@@ -214,6 +219,9 @@ async function loadPending() {
     const r = await st.api("GET", "/api/v1/clients/pending");
     if (!r.ok) return;
     el("pending").hidden = !r.data.pending.length;
+    const lost = r.data.unidentified || [];
+    el("unidentified").hidden = !lost.length;
+    el("unidentified-list").innerHTML = lost.map(u => `<div class="py-1">${st.esc(u.IP_ADDRESS)} · ${u.ATTEMPTS} attempt(s) in 10 min, last ${st.esc(fmtTime(u.LAST_SEEN))}</div>`).join("");
     el("pending-list").innerHTML = r.data.pending.map(p => `<div class="d-flex flex-wrap align-items-center gap-3 py-2 border-bottom border-secondary" data-uid="${st.esc(p.UID)}">
         <div class="flex-grow-1"><strong>${st.esc(p.UID)}</strong> <span class="text-white-50">from ${st.esc(p.IP_ADDRESS)} · v${st.esc(p.VERSION || "?")} · ${p.ATTEMPTS} attempt(s), last ${st.esc(fmtTime(p.LAST_SEEN))}</span>
             <div class="small"><code title="Fingerprint of the client's public key">${st.esc(p.PUBLIC_KEY_SHA256)}</code></div>

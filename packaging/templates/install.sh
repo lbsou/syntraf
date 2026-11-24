@@ -262,6 +262,16 @@ EOF
     chmod 755 "$PREFIX/bin/run-victoriametrics" "$PREFIX/bin/run-grafana"
 fi
 
+# Sonde déjà installée et --server ou --token donnés : réinscription (serveur réinstallé ou remplacé). L'adresse et
+# le jeton sont remplacés ; la clé du serveur mémorisée et le jeton propre donné par l'ancien serveur sont oubliés,
+# sinon la sonde refuserait le nouveau serveur (clé différente) ou lui présenterait un jeton qu'il ne connaît pas.
+if [ "$ROLE" = probe ] && [ -f "$CONF" ] && { [ -n "$SERVER" ] || [ -n "$TOKEN" ]; }; then
+    [ -n "$SERVER" ] && sed -i.bak "s|^SERVER = .*|SERVER = \"$SERVER\"|; s|^SERVER_PORT = .*|SERVER_PORT = \"$SERVER_PORT\"|" "$CONF"
+    [ -n "$TOKEN" ] && sed -i.bak "s|^TOKEN = .*|TOKEN = \"$TOKEN\"|" "$CONF"
+    rm -f "$CONF.bak" "$CONF_DIR/syntraf_server_pin" "$CONF_DIR/syntraf_client_token"
+    echo "Réinscription : nouveau serveur ou jeton enregistré ; la clé du serveur sera mémorisée à la prochaine connexion."
+fi
+
 # Configuration : écrite seulement à la première installation (une mise à jour garde la vôtre)
 if [ ! -f "$CONF" ]; then
     if [ "$ROLE" = probe ]; then

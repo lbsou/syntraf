@@ -592,3 +592,27 @@ def test_a_probe_can_be_paused_and_resumed_from_the_api(env):
     assert c.post("/api/v1/clients/NODE_A/resume").json["paused"] is False
     assert c.get("/api/v1/clients").json[0]["status_label"] in ("CONNECTED", "DISCONNECTED", "NEVER_SEEN")
     assert c.post("/api/v1/clients/NOPE/pause").status_code == 404
+
+
+def test_the_clients_page_lists_declared_clients_only_and_points_to_pending_approvals(env):
+    """Avant l'authentification, une connexion est rangée sous son adresse IP : la page Clients en faisait une ligne
+    vide, sans dire qu'une demande attendait d'être approuvée (Configuration › Clients)."""
+    from lib.web_ui_kindafixed2 import st_api_v1
+    with env["app"].app_context():
+        st_api_v1._state()["dict_of_clients"]["10.120.130.27"] = type("Pending", (), {"status": "AUTH_FAILED"})()
+    html = env["client"].get("/stats.html").get_data(as_text=True)
+    assert "NODE_A" in html and "10.120.130.27" not in html
+    assert 'id="pending_notice"' in html and "/client_config.html" in html
+
+
+def test_addresses_that_hang_up_before_identifying_are_listed_with_the_pending_requests(env):
+    import time
+    from lib import st_preauth
+    st_preauth.DROPS.forget("10.120.130.27")
+    for i in range(3):
+        st_preauth.DROPS.record("10.120.130.27", time.time() - 30 + i)
+    try:
+        d = env["client"].get("/api/v1/clients/pending").json
+        assert [u["IP_ADDRESS"] for u in d["unidentified"]] == ["10.120.130.27"] and d["unidentified"][0]["ATTEMPTS"] == 3
+    finally:
+        st_preauth.DROPS.forget("10.120.130.27")

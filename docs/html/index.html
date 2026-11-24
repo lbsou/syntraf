@@ -147,6 +147,12 @@ data (keys, token, update releases) <code>/var/lib/syntraf-&lt;role&gt;</code>, 
 <code>uninstall.ps1</code> remove it (<code>--purge</code> / <code>-Purge</code>: configuration and data too). A fresh
 server starts without any mesh group: create them in the web interface (address and initial admin password shown at
 the end of the install).</p>
+<p><strong>Server reinstalled or replaced.</strong> It has a new key and a new enrollment token, and a probe refuses a
+server whose key changed (it remembers the key at its first connection): it hangs up before identifying, every
+10 seconds. The server says so in its log and on Configuration › Clients (« Connections that hang up before
+identifying »). On each probe, run the installer again with the address and the new token
+(<code>sudo ./install.sh --server &lt;address&gt; --token &lt;token&gt;</code>, or <code>install.ps1 -Server … -Token …</code>):
+the probe forgets the old key and asks to join again, to be approved on Configuration › Clients.</p>
 <p>iperf3v: Linux packages carry a static build (the same binary on Debian, RHEL and Alpine), Windows the published
 release; there is no macOS build of iperf3v yet, so the macOS package uses the system's iperf3 (3.17 or later, e.g.
 from Homebrew) and says so if there is none. No package for macOS on Intel (a dependency, cryptography, no longer

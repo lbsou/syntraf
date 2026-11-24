@@ -10,6 +10,7 @@ from lib.st_cc_commands import queue_client_ip_update, next_command, dynamic_cli
 from lib.st_sockutil import recv_exact, recv_message, ProtocolViolation
 from lib import st_channel_guard as guard
 from lib import st_identity
+from lib import st_preauth
 from lib.st_files import open_private
 from lib.st_config_diff import edges_to_restart, reuse_keys
 from lib.st_iperf3_credentials import load_or_create
@@ -1317,6 +1318,13 @@ def server_awaiting_commands(client_uid, dict_of_commands_for_network_clients, s
         server_log.debug(f"CONTEXT: {client_uid} - NOP SENT")
 
 
+def server_preauth_drop(ip):
+    """Connexion coupée avant même l'AUTH : répété, c'est presque toujours une sonde qui ne reconnaît pas la clé du
+    serveur (serveur réinstallé). Écrit une fois toutes les 10 minutes par adresse, avec la marche à suivre."""
+    if st_preauth.DROPS.record(ip, time.time()):
+        server_log.warning(st_preauth.hint(ip))
+
+
 def server_track_clock(obj_client, payload, t2):
     """Écart et dérive de l'horloge de la sonde, à chaque demande de commande (lib/st_clock.py)."""
     try:
@@ -1393,6 +1401,7 @@ class Handler(StreamRequestHandler):
 
         # Avant une authentification réussie : AUTH seulement, message court, avant l'échéance
         authenticated = False
+        auth_seen = False  # une sonde qui raccroche avant même de s'identifier : voir lib/st_preauth.py
         auth_deadline = time.monotonic() + guard.AUTH_DEADLINE_S
         try:
             sckt.settimeout(guard.AUTH_DEADLINE_S)
@@ -1411,6 +1420,8 @@ class Handler(StreamRequestHandler):
                     server_log.debug(f"CONTEXT: {dict_of_clients[uid].client_uid} - INVALID DATA RECEIVED")
                     dict_of_clients[uid].status_explanation = "CONNECTION RESET BY PEER"
                     server_log.warning(f"CONNECTION RESET BY PEER: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+                    if not auth_seen:
+                        server_preauth_drop(address[0])
                     break
                 else:
                     # Log the command that was received
@@ -1424,6 +1435,8 @@ class Handler(StreamRequestHandler):
                         break
 
                     if received_data['COMMAND'] == "AUTH":
+                        auth_seen = True
+                        st_preauth.DROPS.forget(address[0])
 
                         if not server_auth(received_data, dict_of_clients[uid], _config,
                                            dict_of_clients[uid].ip_address, dict_of_commands_for_network_clients, sckt,
@@ -1515,6 +1528,8 @@ class Handler(StreamRequestHandler):
             elif exc.errno == 104:
                 dict_of_clients[uid].status_explanation = "CONNECTION RESET BY PEER"
                 server_log.warning(f"CONNECTION RESET BY PEER: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+                if not auth_seen:
+                    server_preauth_drop(address[0])
             elif exc.errno == 113:
                 dict_of_clients[uid].status_explanation = "NO ROUTE TO HOST"
                 server_log.error(f"NO ROUTE TO HOST: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")

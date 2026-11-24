@@ -150,9 +150,14 @@ def audit():
 
 @st_home_bp.route('/stats.html')
 def stats():
+    # Clients déclarés seulement : avant son authentification, une connexion est rangée sous son adresse IP (objet
+    # temporaire, gardé après un refus ou en attente d'approbation) ; elle faisait une ligne vide. Les demandes en
+    # attente sont signalées par un bandeau qui renvoie à Configuration › Clients.
+    declared = {c.get('UID') for c in app.config['config'].get('SERVER_CLIENT', [])}
+    clients = {k: v for k, v in app.config['dict_of_clients'].items() if k in declared}
     return render_template('stats.html', title='SYNTRAF WEBUI', config=app.config['config'],
                            _dict_by_node_generated_config=app.config['_dict_by_node_generated_config'],
-                           dict_of_clients=app.config['dict_of_clients'])
+                           dict_of_clients=clients)
 
 
 @st_home_bp.route('/api', methods=['GET', 'POST'])

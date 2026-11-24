@@ -161,6 +161,19 @@ cd /d "$gfDir"
 }
 
 # Configuration : écrite seulement à la première installation
+# Sonde déjà installée et -Server ou -Token donnés : réinscription (serveur réinstallé ou remplacé). L'adresse et le
+# jeton sont remplacés ; la clé du serveur mémorisée et le jeton propre donné par l'ancien serveur sont oubliés.
+if ($role -eq "probe" -and (Test-Path $conf) -and ($Server -or $Token)) {
+    $text = [IO.File]::ReadAllText($conf)
+    if ($Server) {
+        $text = $text -replace '(?m)^SERVER = .*$', "SERVER = ""$Server""" -replace '(?m)^SERVER_PORT = .*$', "SERVER_PORT = ""$ServerPort"""
+    }
+    if ($Token) { $text = $text -replace '(?m)^TOKEN = .*$', "TOKEN = ""$Token""" }
+    Write-Utf8 $conf $text
+    foreach ($f in "syntraf_server_pin", "syntraf_client_token") { Remove-Item -Force (Join-Path $DataDir $f) -ErrorAction SilentlyContinue }
+    Write-Host "Réinscription : nouveau serveur ou jeton enregistré ; la clé du serveur sera mémorisée à la prochaine connexion."
+}
+
 if (-not (Test-Path $conf)) {
     $iperfToml = $iperf.Replace("\", "/")
     if ($role -eq "probe") {
