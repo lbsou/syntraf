@@ -553,3 +553,14 @@ def test_metrics_exposes_the_clock_of_each_connected_probe(env):
     st_clock.tracker(obj).add(1000.0, offset=0.042, delay=0.003)
     text = env["client"].get("/metrics").get_data(as_text=True)
     assert 'syntraf_client_clock_offset_seconds{client="NODE_A"} 0.042' in text
+
+
+def test_a_probe_can_be_paused_and_resumed_from_the_api(env):
+    c = env["client"]
+    r = c.post("/api/v1/clients/NODE_A/pause")
+    assert r.status_code == 200 and r.json["paused"] is True
+    rows = {x["uid"]: x for x in c.get("/api/v1/clients").json}
+    assert rows["NODE_A"]["status_label"] == "CONNECTED - PAUSED" and rows["NODE_A"]["status"] == "CONNECTED"
+    assert c.post("/api/v1/clients/NODE_A/resume").json["paused"] is False
+    assert c.get("/api/v1/clients").json[0]["status_label"] in ("CONNECTED", "DISCONNECTED", "NEVER_SEEN")
+    assert c.post("/api/v1/clients/NOPE/pause").status_code == 404

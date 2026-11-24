@@ -10,7 +10,6 @@
 
 *.py linguist-language=Python
 crypto/* -linguist-detectable
-doc/* -linguist-detectable
 etc/* -linguist-detectable
 lib/web_ui/static/* -linguist-detectable
 lib/web_ui_kindafixed2/static/* -linguist-detectable

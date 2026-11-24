@@ -4,16 +4,10 @@ if CompilationOptions.client_only:  # sonde : l'interface web n'a pas ses paquet
     raise ImportError("the web interface needs the server packages, missing: " + ", ".join(missing_server_parts()))
 
 from flask import Flask
-#from flask_sqlalchemy import SQLAlchemy
-#from flask_login import LoginManager
 from lib.web_ui_kindafixed2 import st_config
 import os
 import secrets
 from lib.st_global import DefaultValues
-
-# Globally accessible libraries
-#db = SQLAlchemy()
-#login_manager = LoginManager()
 
 
 def create_app(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generated_config,
@@ -28,24 +22,10 @@ def create_app(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generat
     from lib.web_ui_kindafixed2 import st_auth
     st_auth.init_app(app, config_file_path, tls=bool((config.get("SERVER") or {}).get("WEBUI_TLS")))
 
-    # Initialize flask-login plugin
-    # login_manager.login_view = "users.login"
-    #login_manager.login_message = u"Please log in to access this page."
-    #login_manager.login_message_category = "info"
-    #login_manager.init_app(app)
-
-    # Initialize SQLAlchemy Plugins
-    #db.init_app(app)
-
     with app.app_context():
 
         # Include blueprint
         from lib.web_ui_kindafixed2.st_home_bp import st_home_bp
-
-        # Warning, crashed wsgi on linux, no time to investigate further.
-        #from lib.web_ui.st_auth_bp import st_auth_bp
-
-        #db.create_all()  # Create sql tables for our data models
 
         from lib.web_ui_kindafixed2.st_api_v1 import st_api_v1, st_ops_bp
 
@@ -67,16 +47,6 @@ def create_app(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generat
             return {"syntraf_version": DefaultValues.SYNTRAF_VERSION, "current_user": session.get("user")}
         #app.register_blueprint(st_auth_bp)
 
-        """ Converting a dict of tuple to a dict of arrays for javascript """
-        dict_of_arrays_generated_tuples_for_map = {}
-
-        # for key, value in _dict_by_group_of_generated_tuple_for_map.items():
-        #     if not key in dict_of_arrays_generated_tuples_for_map: dict_of_arrays_generated_tuples_for_map[key] = []
-        #     for tuple in value:
-        #         dict_of_arrays_generated_tuples_for_map[key].append([tuple[0], tuple[1]])
-        #
-        # dict_of_arrays_generated_tuples_for_map = dict_of_arrays_generated_tuples_for_map
-
         app.config['threads_n_processes'] = threads_n_processes
         app.config['subprocess_iperf_dict'] = subprocess_iperf_dict
         app.config['_dict_by_node_generated_config'] = _dict_by_node_generated_config
@@ -87,6 +57,5 @@ def create_app(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generat
         app.config['conn_db'] = conn_db
         app.config['dict_of_commands_for_network_clients'] = dict_of_commands_for_network_clients
         app.config['dict_of_clients'] = dict_of_clients
-        app.config['dict_of_arrays_generated_tuples_for_map'] = dict_of_arrays_generated_tuples_for_map
 
         return app

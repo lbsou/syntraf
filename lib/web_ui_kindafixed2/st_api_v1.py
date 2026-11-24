@@ -341,6 +341,16 @@ def tcp_tests_status():
     return jsonify(ops.tcp_tests_status(_state()))
 
 
+@st_api_v1.post("/clients/<uid>/pause")
+def pause_client(uid):
+    return jsonify(ops.set_client_paused(_state(), uid, True, _actor(), _dry_run()))
+
+
+@st_api_v1.post("/clients/<uid>/resume")
+def resume_client(uid):
+    return jsonify(ops.set_client_paused(_state(), uid, False, _actor(), _dry_run()))
+
+
 @st_api_v1.get("/paths")
 def list_paths():
     a = request.args
@@ -811,6 +821,9 @@ OPENAPI = {
                           "post": _op("Trace the path from probe SOURCE to probe DESTINATION now (the source probe "
                                       "runs it)")},
         "/api/v1/paths/{id}": {"get": _op("One path trace with its hops")},
+        "/api/v1/clients/{uid}/pause": {"post": _op("Pause a probe: it measures nothing and nobody measures it, it "
+                                                    "stays connected (status CONNECTED - PAUSED); kept across restarts")},
+        "/api/v1/clients/{uid}/resume": {"post": _op("Resume a paused probe: its flows come back")},
         "/api/v1/config/databases": {"get": _op("Declared databases (tokens are never returned)"),
                                      "post": _op("Declare a database", False, True)},
         "/api/v1/config/databases/test": {"post": _op("Test database parameters without saving them")},

@@ -170,7 +170,7 @@
                       <div class="dropdown-menu">
                         <a class="dropdown-item" href="#" onclick="reconnect_client('{{ key }}')">Reconnect</a>
                         <a class="dropdown-item" href="#" onclick="restart_client('{{ key }}')">Restart</a>
-                        <a class="dropdown-item" href="#">Pause</a>
+                        <a class="dropdown-item" href="#" id="{{ key }}_pause" data-paused="0" onclick="toggle_pause('{{ key }}'); return false;">Pause</a>
                         <a type="button" class="dropdown-item btn btn-info" id="dd_sys_infos_{{ key }}" data-client-uid="{{ key }}" onclick="get_sys_infos(this)">System informations</a>
                         <a type="button" class="dropdown-item btn btn-info" id="dd_thread_status_{{ key }}" data-client-uid="{{ key }}" onclick="get_thread_status(this)">Thread status</a>
                       </div>
@@ -231,7 +231,13 @@ async function update_system_stats() {
         for (let [client_uid, data] of Object.entries(system_stats)) {
             data = JSON.parse(data)
 
-            document.getElementById(client_uid + '_status').textContent = data['status'];
+            // Sonde en pause : connectée, mais sans aucune mesure
+            document.getElementById(client_uid + '_status').textContent = data['status'] + (data['paused'] ? " - PAUSED" : "");
+            const pause = document.getElementById(client_uid + '_pause');
+            if (pause) {
+                pause.dataset.paused = data['paused'] ? "1" : "0";
+                pause.textContent = data['paused'] ? "Resume" : "Pause";  // traduit par st_i18n (DOM)
+            }
            // document.getElementById(client_uid + '_status').title = data['status_explanation'];
             $("#" + client_uid + "_status").attr("title", data['status_explanation']).tooltip();
 
@@ -243,7 +249,7 @@ async function update_system_stats() {
                 document.getElementById(client_uid + '_ip_address').className = "text-danger text-muted";
             }
             else if (data['status'].includes("CONNECTED")){
-                document.getElementById(client_uid + '_status').className = "text-success";
+                document.getElementById(client_uid + '_status').className = data['paused'] ? "text-info" : "text-success";
                 document.getElementById(client_uid + '_status_since').className = "";
                 document.getElementById(client_uid + '_syntraf_version').className = "";
                 document.getElementById(client_uid + '_clock_skew').className = "";
@@ -354,6 +360,18 @@ function render_chart_for_metric(client_uid, data_client, metric, timeConv) {
       lineChart.renderArea(false);
     lineChart.ordinalColors(d3.schemeCategory10);
     lineChart.render();
+}
+
+async function toggle_pause(client) {
+    const item = document.getElementById(client + '_pause');
+    const resume = item && item.dataset.paused === "1";
+    const r = await st.api("POST", `/api/v1/clients/${encodeURIComponent(client)}/${resume ? "resume" : "pause"}`);
+    if (!r.ok) {
+        document.getElementById("error_modal_text").textContent = r.error.message;
+        $('#modal_system_stats_empty').modal('show');
+        return;
+    }
+    update_system_stats();
 }
 
 async function restart_client(client) {

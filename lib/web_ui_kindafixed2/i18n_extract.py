@@ -21,7 +21,7 @@ PYTHON = [HERE / "st_api_v1.py", HERE.parent / "st_mesh_group_ops.py", HERE.pare
           HERE.parent / "st_tcp_tests.py", HERE.parent / "st_baseline.py"]
 DICTIONARY = HERE / "static" / "i18n" / "fr.json"
 # Pages de l'ancienne interface, non servies par la navigation actuelle
-SKIP = {"login2.html", "map.html", "maps.html", "config.html", "global_config.html", "users_config.html"}
+SKIP = set()
 ATTRS = ("title", "placeholder", "aria-label", "data-bs-title", "alt")
 WORD = re.compile(r"[A-Za-z]{2,}")
 FRENCH = re.compile(r"[éèàùçêâîôûœ«»]|\b(les|des|une|est|pour|dans|avec|sans)\b")

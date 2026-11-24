@@ -48,6 +48,8 @@ def clients(state):
             "status": getattr(obj, "status", "NEVER_SEEN") if obj is not None else "NEVER_SEEN",
             "status_since": _s(getattr(obj, "status_since", None)),
             "status_explanation": getattr(obj, "status_explanation", None),
+            "paused": decl.get("PAUSED") is True,
+            "status_label": _status_label(obj, decl),
             "ip_address": getattr(obj, "ip_address", "") or decl.get("IP_ADDRESS", ""),
             "dynamic_ip": decl.get("IP_ADDRESS", "") in ("", "0.0.0.0"),
             "syntraf_version": getattr(obj, "syntraf_version", "") if obj is not None else "",
@@ -61,6 +63,12 @@ def clients(state):
             "declared": uid in declared,
         })
     return rows
+
+
+def _status_label(obj, decl):
+    """Statut affiché : celui de la connexion, suivi de « PAUSED » pour une sonde mise en pause."""
+    status = getattr(obj, "status", "NEVER_SEEN") if obj is not None else "NEVER_SEEN"
+    return f"{status} - PAUSED" if decl.get("PAUSED") is True else status
 
 
 def _clock(obj):

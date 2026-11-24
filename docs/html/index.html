@@ -412,6 +412,12 @@ NAT), mesh groups.</figcaption></figure>
   <li><strong>Secure</strong> pins the key of a connected client and gives it a token of its own;
     <strong>Rotate token</strong> issues a new one; <strong>Rename…</strong> renames it with its history.</li>
   <li>Optional: maximum outgoing bandwidth, listener port range.</li>
+  <li><strong>Pause</strong> (the probe's menu on the Clients page of the Monitoring section): the probe stops every
+    measurement and no other probe measures it any more, so no flow towards it raises an alert; it stays connected and
+    can still be updated, restarted or traced. Its status reads <em>CONNECTED - PAUSED</em>. The pause is kept in the
+    configuration (<code>PAUSED = true</code> in its <code>[[SERVER_CLIENT]]</code>), so it survives restarts;
+    <strong>Resume</strong> gives its flows back (<code>POST /api/v1/clients/{uid}/pause</code>,
+    <code>/resume</code>; audited).</li>
 </ul>
 
 <h3 id="ui-databases">Databases</h3>
@@ -821,7 +827,7 @@ impact, settings needing a restart). A change that triggers a capacity alert ans
   <tr><td>Status</td><td><code>GET /status</code>, <code>GET /events</code> (SSE), <code>GET /clients</code>, <code>GET /databases</code>, <code>GET /healthz</code>, <code>GET /metrics</code></td></tr>
   <tr><td>Mesh groups</td><td><code>GET|POST /mesh-groups</code>, <code>GET|PUT|PATCH|DELETE /mesh-groups/{uid}</code>, <code>POST /mesh-groups/{uid}/duplicate</code></td></tr>
   <tr><td>Profiles</td><td><code>GET|POST /config/profiles</code>, <code>GET|PUT|DELETE /config/profiles/{uid}</code></td></tr>
-  <tr><td>Clients</td><td><code>GET|POST /config/clients</code>, <code>GET|PUT|DELETE /config/clients/{uid}</code>, <code>POST /config/clients/{uid}/secure|rotate-token|rename</code></td></tr>
+  <tr><td>Clients</td><td><code>GET|POST /config/clients</code>, <code>GET|PUT|DELETE /config/clients/{uid}</code>, <code>POST /config/clients/{uid}/secure|rotate-token|rename</code>, <code>POST /clients/{uid}/pause|resume</code></td></tr>
   <tr><td>Enrollment</td><td><code>GET /clients/pending</code>, <code>POST /clients/pending/{uid}/approve|reject</code>, <code>DELETE /clients/rejected/{uid}</code></td></tr>
   <tr><td>Databases</td><td><code>GET|POST /config/databases</code>, <code>POST /config/databases/test</code>, <code>GET|PUT|DELETE /config/databases/{uid}</code></td></tr>
   <tr><td>Server</td><td><code>GET|PUT /config/server</code>, <code>GET|PUT /config/global</code>, <code>POST /server/restart</code></td></tr>

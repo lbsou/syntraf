@@ -245,3 +245,81 @@ def test_the_timeline_window_is_checked(state, monkeypatch):
     assert ops.topology_timeline(state, "1000000", str(1000000 + 7 * 86400))["step"] == 1680
     with pytest.raises(ops.OpError):
         ops.topology_timeline(state, "2000", "1000")
+
+
+# ------------------------------------------------------------------------------------------- pause d'une sonde
+
+def _peers(generated, uid):
+    """Sondes avec lesquelles uid a un flux (listeners ou connectors), d'après la configuration générée."""
+    edges = {**(generated.get(uid) or {}).get("LISTENERS", {}), **(generated.get(uid) or {}).get("CONNECTORS", {})}
+    return {v.get(k) for v in edges.values() for k in ("UID_CLIENT", "UID_SERVER") if v.get(k) and v.get(k) != uid}
+
+
+def test_a_paused_probe_measures_nothing_and_nobody_measures_it(state):
+    gen = state["_dict_by_node_generated_config"]
+    assert "WAVE_1" in _peers(gen, "PILOT_1")
+    r = ops.set_client_paused(state, "WAVE_1", True, "tester")
+    assert "WAVE_1" in r["reconnected_clients"] and "PILOT_1" in r["reconnected_clients"]
+    assert gen["WAVE_1"] == {"LISTENERS": {}, "CONNECTORS": {}} or not _peers(gen, "WAVE_1")
+    assert all("WAVE_1" not in _peers(gen, u) for u in ("PILOT_1", "WAVE_2", "LOOSE"))
+    assert ops.list_clients(state)[1]["PAUSED"] is True  # gardé dans la configuration : survit à un redémarrage
+    assert ops.list_clients(state)[0]["PAUSED"] is False
+
+
+def test_resuming_a_probe_gives_its_flows_back(state):
+    ops.set_client_paused(state, "WAVE_1", True, "tester")
+    ops.set_client_paused(state, "WAVE_1", False, "tester")
+    assert "WAVE_1" in _peers(state["_dict_by_node_generated_config"], "PILOT_1")
+    assert "PAUSED" not in toml.loads(Path(state["config_file_path"]).read_text())["SERVER_CLIENT"][1]
+
+
+def test_pausing_an_unknown_probe_is_refused(state):
+    with pytest.raises(ops.OpError) as e:
+        ops.set_client_paused(state, "NOPE", True, "tester")
+    assert e.value.status == 404
+
+
+def test_the_paused_probe_still_shows_connected_with_its_pause(state):
+    try:
+        from lib.web_ui_kindafixed2 import st_status
+    except ImportError:
+        pytest.skip("interface web absente (paquets du serveur)")
+    ops.set_client_paused(state, "WAVE_1", True, "tester")
+    rows = {r["uid"]: r for r in st_status.clients(state)}
+    assert rows["WAVE_1"]["status"] == "CONNECTED" and rows["WAVE_1"]["paused"] is True
+    assert rows["WAVE_1"]["status_label"] == "CONNECTED - PAUSED"
+    assert rows["PILOT_1"]["status_label"] == "CONNECTED" and rows["PILOT_1"]["paused"] is False
+
+
+def test_pausing_reconfigures_the_peers_live_instead_of_reconnecting_them(state):
+    """Les sondes qui savent recevoir leur configuration en direct ne sont pas déconnectées ; les plus anciennes,
+    si."""
+    for uid in ("PILOT_1", "WAVE_1", "WAVE_2"):
+        state["dict_of_clients"][uid].capabilities = {"LIVE_CONFIG"}
+    r = ops.set_client_paused(state, "WAVE_1", True, "tester")
+    cmds = state["dict_of_commands_for_network_clients"]
+    assert cmds["PILOT_1"] == [{"ACTION": "NEWCONFIG"}] and cmds["WAVE_1"] == [{"ACTION": "NEWCONFIG"}]
+    assert cmds["LOOSE"] == [{"ACTION": "RECONNECT_CLIENT"}]  # sans la capacité : reconnectée comme avant
+    assert set(r["reconfigured_clients"]) >= {"PILOT_1", "WAVE_1", "WAVE_2"} and r["reconnected_clients"] == ["LOOSE"]
+    ops.set_client_paused(state, "WAVE_1", False, "tester")
+    assert cmds["PILOT_1"] == [{"ACTION": "NEWCONFIG"}]  # une seule configuration en attente : la dernière
+
+
+def _ports(generated):
+    """{(groupe, sonde qui écoute, sonde qui envoie): port}."""
+    return {(v["MESH_GROUP"], v["UID_SERVER"], v["UID_CLIENT"]): v["PORT"]
+            for g in generated.values() for v in (g.get("LISTENERS") or {}).values()}
+
+
+def test_a_flow_keeps_its_listener_port_when_another_probe_is_paused_or_resumed(state):
+    """Ports attribués dans l'ordre : retirer une sonde décalait ceux des autres flux, relancés sans raison."""
+    before = _ports(state["_dict_by_node_generated_config"])
+    ops.set_client_paused(state, "WAVE_1", True, "tester")
+    during = _ports(state["_dict_by_node_generated_config"])
+    assert during == {k: p for k, p in before.items() if "WAVE_1" not in k[1:]}
+    ops.set_client_paused(state, "WAVE_1", False, "tester")
+    after = _ports(state["_dict_by_node_generated_config"])
+    assert after == before  # les ports des flux rendus ne prennent celui de personne
+    for node in {k[1] for k in after}:
+        mine = [p for k, p in after.items() if k[1] == node]
+        assert len(mine) == len(set(mine))  # jamais deux flux sur le même port d'une sonde

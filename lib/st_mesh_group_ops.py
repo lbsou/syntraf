@@ -215,12 +215,6 @@ def duplicate(state, uid, actor, dry_run=False):
     return dict(result, uid=new_uid)
 
 
-def save_map(state, uid, cyto_json, actor):
-    cfg = read_disk(state)
-    _require(cfg, uid)["WEBUI_JSON"] = cyto_json
-    return _commit(state, cfg, actor, "SAVE_MAP", f"Map of mesh group '{uid}' saved", False)
-
-
 # ------------------------------------------------------------------------------------------------ profils iperf3
 
 PROFILE_FIELDS = ("BANDWIDTH", "DSCP", "PACKET_SIZE", "INTERVAL")
@@ -839,6 +833,10 @@ CLIENT_MESSAGES = {
 # mesures (absente de la configuration générée des clients).
 DEPLOYMENT_GROUP_RE = re.compile(r"^[A-Za-z0-9._-]{1,32}$")
 METADATA_CLIENT_KEYS = {"DEPLOYMENT_GROUP"}
+# Clés d'un client dont le changement ne demande pas de reconnexion : descriptives, ou qui ne jouent que sur les flux
+# générés (une sonde qui sait recevoir sa configuration en direct la reçoit sans être déconnectée)
+LIVE_CLIENT_KEYS = METADATA_CLIENT_KEYS | {"PAUSED"}
+LIVE_CONFIG = "LIVE_CONFIG"  # capacité annoncée par la sonde à sa connexion
 
 
 def list_clients(state):
@@ -850,6 +848,7 @@ def list_clients(state):
         c["PINNED"] = bool(c.get("PUBLIC_KEY_SHA256"))
         c["OWN_TOKEN"] = bool(c.pop("TOKEN", None))  # jamais la valeur du jeton
         c["BEHIND_NAT"] = bool(c.get("BEHIND_NAT"))
+        c["PAUSED"] = c.get("PAUSED") is True
         # NAT constaté à la dernière connexion : adresse vue par le serveur ≠ adresses du client
         c["NAT_DETECTED"] = getattr(state["dict_of_clients"].get(c["UID"]), "nat_detected", None)
     return rows
@@ -879,6 +878,23 @@ def update_client(state, uid, values, actor, dry_run=False):
                       {"MESH_GROUP_UID_LIST": f"Hub of {', '.join(left)}"})
     _apply_client_form(c, values)
     return dict(_commit(state, cfg, actor, "UPDATE_CLIENT", f"Client '{uid}' updated", dry_run), uid=uid)
+
+
+def set_client_paused(state, uid, paused, actor, dry_run=False):
+    """Pause d'une sonde : elle ne mesure plus rien et plus personne ne la mesure (ses flux sont retirés de la
+    configuration générée), mais reste connectée et pilotable (statut « CONNECTED - PAUSED »). Gardée dans la
+    configuration : elle survit aux redémarrages ; la reprise rend ses flux."""
+    cfg = read_disk(state)
+    c = _find_by(cfg.get("SERVER_CLIENT", []), "UID", uid)
+    if c is None:
+        raise OpError(404, f"Client '{uid}' not found")
+    if paused:
+        c["PAUSED"] = True
+    else:
+        c.pop("PAUSED", None)
+    action, summary = ("PAUSE_CLIENT", f"Client '{uid}' paused") if paused else \
+        ("RESUME_CLIENT", f"Client '{uid}' resumed")
+    return dict(_commit(state, cfg, actor, action, summary, dry_run), uid=uid, paused=bool(paused))
 
 
 def delete_client(state, uid, actor, dry_run=False):
@@ -1457,7 +1473,7 @@ def _commit(state, disk_cfg, actor, action, summary, dry_run):
     new_clients = {c["UID"]: c for c in disk_cfg.get("SERVER_CLIENT", [])}
     changed_clients = {u for u in set(old_clients) | set(new_clients) if old_clients.get(u) != new_clients.get(u)}
     # Clés descriptives (groupe de déploiement) : un client dont seules elles changent ne se reconnecte pas
-    measured = lambda c: {k: v for k, v in c.items() if k not in METADATA_CLIENT_KEYS} if c else c  # noqa: E731
+    measured = lambda c: {k: v for k, v in c.items() if k not in LIVE_CLIENT_KEYS} if c else c  # noqa: E731
     reconnecting = {u for u in changed_clients if measured(old_clients.get(u)) != measured(new_clients.get(u))}
     live_clients = live.get("SERVER_CLIENT", [])
     if changed_clients:
@@ -1478,7 +1494,7 @@ def _commit(state, disk_cfg, actor, action, summary, dry_run):
                       SERVER=dict(live.get("SERVER", {})), MESH_GROUP=copy.deepcopy(groups),
                       SERVER_CLIENT=copy.deepcopy(live_clients))
     _apply_live_server(probe_live, old_disk, disk_cfg)
-    scratch = {}
+    scratch = copy.deepcopy(state["_dict_by_node_generated_config"])  # mêmes ports que la régénération réelle
     try:
         _, tuples = generate_client_config_mesh(probe_live, scratch)
     except PortExhausted as exc:
@@ -1504,7 +1520,7 @@ def _commit(state, disk_cfg, actor, action, summary, dry_run):
     old_text = _read_text(state["config_file_path"])
     new_text = toml.dumps(disk_cfg)
     result = {"impact": impact, "message": summary, "diff": store.redacted_diff(old_text, new_text), "affected_clients": affected,
-              "reconnected_clients": [], "recreated_databases": recreated,
+              "reconnected_clients": [], "reconfigured_clients": [], "recreated_databases": recreated,
               "restart_required": _restart_keys(old_disk, disk_cfg), "dry_run": dry_run}
     if dry_run:
         return result
@@ -1534,14 +1550,23 @@ def _commit(state, disk_cfg, actor, action, summary, dry_run):
 
     for uid in affected:
         client = state["dict_of_clients"].get(uid)
-        if client is not None and client.status == "CONNECTED":
-            state["dict_of_commands_for_network_clients"].setdefault(uid, []).append({"ACTION": "RECONNECT_CLIENT"})
+        if client is None or client.status != "CONNECTED":
+            continue
+        queue = state["dict_of_commands_for_network_clients"].setdefault(uid, [])
+        if uid not in reconnecting | everyone and LIVE_CONFIG in (getattr(client, "capabilities", None) or ()):
+            # Seuls ses flux changent : la configuration du moment lui est envoyée, sans reconnexion
+            queue[:] = [a for a in queue if a.get("ACTION") != "NEWCONFIG"]  # la dernière suffit
+            queue.append({"ACTION": "NEWCONFIG"})
+            result["reconfigured_clients"].append(uid)
+        else:
+            queue.append({"ACTION": "RECONNECT_CLIENT"})
             result["reconnected_clients"].append(uid)
     try:  # les tableaux de bord suivent tout de suite (flux retirés, rôles)
         st_flow_catalog.PUBLISHER.maybe(live, current, state.get("conn_db"), force=True)
     except Exception as exc:  # noqa: BLE001
         log.error(f"EXPECTED FLOWS NOT PUBLISHED: {type(exc).__name__}:{exc}")
-    log.info(f"{action} BY {actor}: {summary}; RECONNECTING {result['reconnected_clients']}; "
+    log.info(f"{action} BY {actor}: {summary}; RECONFIGURING {result['reconfigured_clients']}; "
+             f"RECONNECTING {result['reconnected_clients']}; "
              f"RECREATED DATABASE CONNECTIONS {recreated}")
     return dict(result, version=entry["version"])
 

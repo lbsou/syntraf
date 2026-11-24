@@ -1406,6 +1406,15 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
             listeners_ports = list(map(int, client['MESH_LISTENERS_PORT_RANGE'].split('-')))
             _dict_port_ref[client['UID']] = listeners_ports
 
+    # Ports stables : un flux qui existait garde son port d'écoute (sinon, retirer ou ajouter une sonde décalait ceux
+    # de tous les flux suivants, relancés sans raison) ; un nouveau flux prend un port libre qu'aucun flux existant
+    # ne réclame.
+    port_ranges = {uid: (r[0], r[1]) for uid, r in _dict_port_ref.items()}
+    previous_ports = previous_listener_ports(_dict_by_node_generated_config)
+    reserved_ports, taken_ports = {}, {}
+    for (_g, listening, _sending), port in previous_ports.items():
+        reserved_ports.setdefault(listening, set()).add(port)
+
     # iterate over all mesh_group and generate config for every client
     for mesh_group in _config['MESH_GROUP']:
 
@@ -1416,8 +1425,10 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
         # This list is used to fill a dictionary (_dict_by_group_of_generated_tuple_for_map) in which the keys are the mesh_group. We need to reinitialize it at each loop so that it contain only the nodes of the current group
         _list_tuple_for_map_gen = []
 
-        # Loop over all client
+        # Loop over all client (une sonde en pause ne mesure rien et n'est mesurée par personne)
         for client in _config['SERVER_CLIENT']:
+            if client.get('PAUSED') is True:
+                continue
             #Maybe client
             if 'MESH_GROUP_UID_LIST' in client:
                 # if the current client is member of the current mesh_group
@@ -1425,6 +1436,8 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
 
                     # Loop over all mesh client
                     for client2 in _config['SERVER_CLIENT']:
+                        if client2.get('PAUSED') is True:
+                            continue
                         # if the current client is member of the current mesh_group
                         if 'MESH_GROUP_UID_LIST' in client2:
                             if mesh_group['UID'] in client2['MESH_GROUP_UID_LIST']:
@@ -1469,8 +1482,14 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
                                         _list_tuple_for_map_gen.append((client2['UID'], client['UID']))
 
                                         # obtain a free port for the listeners
-                                        listener_client1_port = find_free_port(_dict_port_ref, client['UID'])
-                                        listener_client2_port = find_free_port(_dict_port_ref, client2['UID'])
+                                        listener_client1_port = take_port(
+                                            port_ranges, client['UID'],
+                                            previous_ports.get((mesh_group['UID'], client['UID'], client2['UID'])),
+                                            reserved_ports, taken_ports)
+                                        listener_client2_port = take_port(
+                                            port_ranges, client2['UID'],
+                                            previous_ports.get((mesh_group['UID'], client2['UID'], client['UID'])),
+                                            reserved_ports, taken_ports)
 
                                         client_ip = client['IP_ADDRESS']
                                         client2_ip = client2['IP_ADDRESS']
@@ -1633,6 +1652,37 @@ class PortExhausted(ValueError):
         super().__init__(f"client '{uid}' has no free listener port left: widen MESH_LISTENERS_PORT_RANGE "
                          f"(server or client) or reduce its flows")
         self.uid = uid
+
+
+def previous_listener_ports(generated):
+    """{(mesh group, sonde qui écoute, sonde qui envoie): port} d'une configuration générée."""
+    out = {}
+    for node_config in list((generated or {}).values()):
+        for listener in list(((node_config or {}).get('LISTENERS') or {}).values()):
+            try:
+                out[(listener['MESH_GROUP'], listener['UID_SERVER'], listener['UID_CLIENT'])] = int(listener['PORT'])
+            except (KeyError, TypeError, ValueError):
+                continue
+    return out
+
+
+def take_port(port_ranges, uid, wanted, reserved, taken):
+    """Port d'écoute pour un flux de uid : wanted (son port précédent) s'il est encore dans la plage et libre ; sinon
+    le plus haut port libre de la plage que ne réclame aucun flux existant (reserved). Comme avant, la borne basse de
+    la plage n'est jamais attribuée."""
+    low, high = port_ranges[uid]
+    used = taken.setdefault(uid, set())
+    if wanted is not None and low < wanted <= high and wanted not in used:
+        used.add(wanted)
+        return wanted
+    blocked = used | reserved.get(uid, set())
+    for port in range(high, low, -1):
+        if port not in blocked:
+            used.add(port)
+            return port
+    log.error("Port exhaustion encountered when generating client configuration. Please expand the "
+              "MESH_LISTENERS_PORT_RANGE value.")
+    raise PortExhausted(uid)
 
 
 def find_free_port(_dict_port_ref, uid):

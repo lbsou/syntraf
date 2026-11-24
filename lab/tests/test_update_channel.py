@@ -146,3 +146,28 @@ def test_server_records_the_update_status():
     client = cc_client("CONNECTED", None, "", False, "NODE_A")
     st_mesh.server_save_update_status(client, {"RELEASE": "r", "STATE": "FAILED", "MESSAGE": "no space left"})
     assert client.update_status["STATE"] == "FAILED" and client.update_status["AT"]
+
+
+def test_a_new_configuration_reaches_a_probe_without_reconnecting_it(monkeypatch):
+    """Flux changés (pause d'une sonde, groupe modifié) : la configuration part par le canal de commandes, la sonde
+    n'arrête que les flux qui changent ; aucune reconnexion."""
+    sent = []
+    monkeypatch.setattr(st_mesh, "sock_send", lambda s, p, c: sent.append((c, p)))
+    config = {"SERVER": {"RSA_KEY_LISTENERS": b"L", "RSA_KEY_CONNECTORS": b"C", "IPERF3_USERNAME": "u",
+                         "IPERF3_PASSWORD": "p", "IPERF3_PASSWORD_HASH": "h"},
+              "GLOBAL": {"IPERF3_TIME_SKEW_THRESHOLD": "10"}, "SERVER_CLIENT": [{"UID": "NODE_A"}]}
+    generated = {"NODE_A": {"LISTENERS": {}, "CONNECTORS": {"k": {"UID_SERVER": "NODE_B"}}}}
+    st_mesh.server_awaiting_commands("NODE_A", {"NODE_A": [{"ACTION": "NEWCONFIG"}]}, None, generated, config)
+    [(command, payload)] = sent
+    assert command == "NEWCONFIG" and payload["CONNECTORS"] == {"k": {"UID_SERVER": "NODE_B"}}
+    assert payload["CLIENT"]["IPERF3_USERNAME"] == "u" and payload["GLOBAL"]["IPERF3_TIME_SKEW_THRESHOLD"] == "10"
+
+
+@pytest.mark.parametrize("action", [{"ACTION": "TCP_TEST", "ROLE": "server", "PORT": 5201},
+                                    {"ACTION": "PATH_TRACE", "ID": "p1", "ADDRESS": "10.0.0.2"}])
+def test_each_poll_gets_exactly_one_answer(monkeypatch, action):
+    """La sonde lit une réponse par AWAITING_COMMAND : un NOP en plus décalerait toutes les suivantes d'un cran."""
+    sent = []
+    monkeypatch.setattr(st_mesh, "sock_send", lambda s, p, c: sent.append(c))
+    st_mesh.server_awaiting_commands("NODE_A", {"NODE_A": [dict(action)]}, None)
+    assert sent == [action["ACTION"]]

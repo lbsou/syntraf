@@ -442,7 +442,8 @@ def client_send_auth(_config, client_utime, ssl_conn):
                              'TIMESTAMP': client_utime, 'SYNTRAF_CLIENT_VERSION': DefaultValues.SYNTRAF_VERSION,
                              'PUBLIC_KEY': _config['CLIENT']['PUBLIC_KEY'],
                              'SYNTRAF_RELEASE': running_release(), 'UPDATE_FAILED': last_failed_release(),
-                             'LOCAL_ADDRESSES': st_nat.local_ipv4_addresses(), 'PROOF': client_key_proof(_config)}
+                             'LOCAL_ADDRESSES': st_nat.local_ipv4_addresses(), 'PROOF': client_key_proof(_config),
+                             'CAPABILITIES': ['LIVE_CONFIG']}  # configuration reçue en direct (NEWCONFIG), sans reconnexion
 
         sock_send(ssl_conn, payload_greetings, "AUTH")
         received_data = sock_rcv(ssl_conn)
@@ -466,11 +467,15 @@ def client_send_auth(_config, client_utime, ssl_conn):
 
 
 def client_receive_configuration(_config, ssl_conn, threads_n_processes, config_file_path, cli_parameters):
-    try:
-        # If successful, receiving configuration!
-        client_log.debug(f"WAITING FOR CONFIGURATION")
-        received_data = sock_rcv(ssl_conn)
+    # If successful, receiving configuration!
+    client_log.debug(f"WAITING FOR CONFIGURATION")
+    client_apply_configuration(_config, sock_rcv(ssl_conn), threads_n_processes, config_file_path, cli_parameters)
 
+
+def client_apply_configuration(_config, received_data, threads_n_processes, config_file_path, cli_parameters):
+    """Configuration envoyée par le serveur, à la connexion ou en direct (commande NEWCONFIG) : seuls les flux qui
+    changent sont arrêtés ; les nouveaux démarrent au prochain passage de la surveillance."""
+    try:
         # Todo, no received data
         if not received_data is None:
             # If no config for this client
@@ -819,6 +824,11 @@ def client(_config, stop_thread, dict_data_to_send_to_server, threads_n_processe
                 elif received_data['COMMAND'] == "PATH_TRACE":
                     client_command_path_trace(_config, received_data, dict_data_to_send_to_server)
 
+                # Flux changés (pause d'une sonde, groupe modifié…) : nouvelle configuration, sans reconnexion
+                elif received_data['COMMAND'] == "NEWCONFIG":
+                    client_apply_configuration(_config, received_data, threads_n_processes, config_file_path,
+                                               cli_parameters)
+
                 # We just received a specific part of the configuration that we should change locally.
                 elif received_data['COMMAND'] == "DIFFCONFIG":
                     client_command_diffconfig(_config, received_data, threads_n_processes)
@@ -1130,6 +1140,8 @@ def server_auth(received_data, obj_client, _config, address, dict_of_commands_fo
     bool_we_have_config_for_this_client = send_config(_dict_by_node_generated_config, obj_client.client_uid, sckt, _config)
 
     obj_client.syntraf_version = received_data['PAYLOAD']['SYNTRAF_CLIENT_VERSION']
+    obj_client.capabilities = {str(c) for c in (received_data['PAYLOAD'].get('CAPABILITIES') or [])
+                               if isinstance(c, str)}
 
     # No config for this client!
     if not bool_we_have_config_for_this_client:
@@ -1229,7 +1241,7 @@ def server_save_logs(_config, client_uid, received_data):
         server_log.error(f"server_save_logs:{type(exc).__name__}:{exc}")
 
 
-def server_awaiting_commands(client_uid, dict_of_commands_for_network_clients, sckt):
+def server_awaiting_commands(client_uid, dict_of_commands_for_network_clients, sckt, generated=None, _config=None):
     """
     Read a dictionary of pending command and send them to the client
     :param client_uid: The uid of the client we are serving
@@ -1261,6 +1273,9 @@ def server_awaiting_commands(client_uid, dict_of_commands_for_network_clients, s
             sent_an_action = True
         elif action['ACTION'] == "TCP_TEST":  # test TCP planifié (lib/st_tcp_tests.py)
             sock_send(sckt, {k: v for k, v in action.items() if k != "ACTION"}, "TCP_TEST")
+            sent_an_action = True
+        elif action['ACTION'] == "NEWCONFIG":  # flux changés : la configuration du moment, sans reconnexion
+            sent_an_action = generated is not None and _config is not None and                 send_config(generated, client_uid, sckt, _config)
         elif action['ACTION'] == "PATH_TRACE":  # trace du chemin vers une autre sonde (lib/st_paths.py)
             sock_send(sckt, {k: v for k, v in action.items() if k != "ACTION"}, "PATH_TRACE")
             sent_an_action = True
@@ -1411,6 +1426,7 @@ class Handler(StreamRequestHandler):
                             dict_of_clients[new_uid].release_id = dict_of_clients[uid].release_id
                             dict_of_clients[new_uid].update_failed = dict_of_clients[uid].update_failed
                             dict_of_clients[new_uid].nat_detected = getattr(dict_of_clients[uid], "nat_detected", None)
+                            dict_of_clients[new_uid].capabilities = getattr(dict_of_clients[uid], "capabilities", set())
                             dict_of_clients[new_uid].ip_address = address[0]
                             dict_of_clients[new_uid].tcp_port = address[1]
                             dict_of_clients.pop(uid)
@@ -1440,7 +1456,7 @@ class Handler(StreamRequestHandler):
                         elif received_data['COMMAND'] == "AWAITING_COMMAND":
                             t2 = time.time()
                             server_awaiting_commands(dict_of_clients[uid].client_uid, dict_of_commands_for_network_clients,
-                                                     sckt)
+                                                     sckt, _dict_by_node_generated_config, _config)
                             server_track_clock(dict_of_clients[uid], received_data.get('PAYLOAD'), t2)
 
                         elif received_data['COMMAND'] == "GET_RELEASE_CHUNK":
