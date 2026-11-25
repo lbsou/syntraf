@@ -2,13 +2,13 @@
 {% from "_macros.html" import page_header %}
 {% block title %}Live map{% endblock %}
 {% block content %}
-{{ page_header("Live map", "Probes and the links they measure, colored by the quality of the last minute (worst direction). Refreshed every 10 seconds. Move the time cursor to replay the network as it was during an incident.") }}
+{{ page_header("Live map", "The probes of one mesh group and what they measure: one arrow per direction, pointing to the probe that receives it and colored by the quality of that direction over the last minute. Refreshed every 10 seconds. Move the time cursor to replay the network as it was during an incident.") }}
 
 <section class="st-card">
   <div class="d-flex flex-wrap align-items-end gap-3 mb-2">
     <div>
       <label for="lm_group" class="form-label small mb-0">Mesh group</label>
-      <select class="form-select form-select-sm" id="lm_group"><option value="">All mesh groups</option></select>
+      <select class="form-select form-select-sm" id="lm_group"></select>
     </div>
     <div>
       <label for="lm_metric" class="form-label small mb-0">Color by</label>
@@ -40,7 +40,7 @@
   <div id="lm_note" class="small text-warning mb-2" hidden></div>
   <div class="row g-3">
     <div class="col-lg-9"><div id="lm_cy" style="height: 68vh; border: 1px solid #3a3a3a; border-radius: .5rem; background: #1e1e1e" role="img" aria-label="Map of the probes and their links"></div></div>
-    <div class="col-lg-3"><div id="lm_detail" class="small"><p class="text-white-50">Point at a link or a probe for its details. Each value is shown next to the probe that receives that direction.</p></div></div>
+    <div class="col-lg-3"><div id="lm_detail" class="small"><p class="text-white-50">Point at an arrow or a probe for its details. Each arrow is one direction of a pair: it points to the probe that receives it, and its value is the quality measured by that probe.</p></div></div>
   </div>
 </section>
 
@@ -105,16 +105,18 @@ function savePositions() {
     localStorage.setItem(SAVED(), JSON.stringify(pos));
 }
 
-function edgeId(l) { return `${l.a}|${l.b}|${l.mesh_group}`; }
+// Une flèche par sens : de l'émetteur vers la sonde qui reçoit, colorée par la qualité de CE sens, sa valeur près
+// de la pointe. Le RTT est propre à la paire : même couleur pour les deux flèches, valeur sur une seule.
+function edgeId(l, d) { return `${d.from}>${d.to}|${l.mesh_group}`; }
 
-// Valeur de chaque sens près de la sonde qui la reçoit (au lieu du milieu du lien, où les diagonales se croisent) ;
-// le RTT, propre à la paire, près d'une seule extrémité.
-function endLabels(l, metric) {
-    const f = {loss: "loss_pct", mos: "mos", jitter: "jitter_ms"}[metric];
+function arrowData(l, d, metric) {
     const show = v => v === null || v === undefined ? "" : LABELS[metric](v);
-    if (metric === "rtt") return {atA: show(l.rtt_ms), atB: ""};
-    const to = id => (l.directions.find(d => d.to === id) || {})[f];
-    return {atA: show(to(l.a)), atB: show(to(l.b))};
+    const first = d === l.directions[0];
+    const g = metric === "rtt" ? l.grade.rtt : (d.grade || {})[metric] || "nodata";
+    const value = metric === "rtt" ? (first ? show(l.rtt_ms) : "") : show(d[FIELD[metric]]);
+    const alerted = (l.alerts || []).some(a => a.startsWith(`${d.from} → ${d.to} `));
+    return {id: edgeId(l, d), source: d.from, target: d.to, color: COLORS[g], dashed: g === "nodata" ? 1 : 0,
+            alert: alerted ? 1 : 0, value, raw: l, dir: d};
 }
 
 function legend(grades, metric) {
@@ -131,10 +133,7 @@ function render(data) {
     const elements = [
         ...data.nodes.map(n => ({group: "nodes", data: {id: n.id, label: n.behind_nat ? `${n.id} (NAT)` : n.id,
             color: STATUS[n.status] || "#777777", nat: n.behind_nat ? 1 : 0, raw: n}})),
-        ...data.links.map(l => ({group: "edges", data: Object.assign({id: edgeId(l), source: l.a, target: l.b,
-            color: COLORS[l.grade[metric]], dashed: l.grade[metric] === "nodata" ? 1 : 0,
-            alert: l.alerts && l.alerts.length ? 1 : 0, raw: l},
-            endLabels(l, metric))})),
+        ...data.links.flatMap(l => l.directions.map(d => ({group: "edges", data: arrowData(l, d, metric)}))),
     ];
     if (!cy) {
         cy = cytoscape({
@@ -147,18 +146,19 @@ function render(data) {
                     "text-background-opacity": 0.9, "text-background-padding": 3, "text-background-shape": "roundrectangle",
                     "min-zoomed-font-size": 7, "z-index": 10}},
                 {selector: "node[nat = 1]", style: {"border-style": "dashed", "border-color": "#3498db"}},
-                // Valeurs aux extrémités, horizontales, sur fond opaque ; liens parallèles écartés
+                // Une flèche par sens (les deux d'une paire s'écartent l'une de l'autre) ; valeur près de la pointe,
+                // horizontale, sur fond opaque
                 {selector: "edge", style: {"line-color": "data(color)", width: 4, "curve-style": "bezier",
-                    "control-point-step-size": 90, "source-label": "data(atA)", "target-label": "data(atB)",
-                    "source-text-offset": 62, "target-text-offset": 62, "font-size": 11, color: "#eee",
+                    "control-point-step-size": 80, "target-arrow-shape": "triangle", "target-arrow-color": "data(color)",
+                    "arrow-scale": 1.3, "target-label": "data(value)",
+                    "target-text-offset": 58, "font-size": 11, color: "#eee",
                     "text-background-color": "#1e1e1e", "text-background-opacity": 0.9,
                     "text-background-padding": 2, "text-background-shape": "roundrectangle",
                     "min-zoomed-font-size": 8, "z-index": 1}},
                 {selector: "edge[dashed = 1]", style: {"line-style": "dashed", width: 2}},
                 {selector: "edge[alert = 1]", style: {"overlay-color": "#e74c3c", "overlay-opacity": 0.3, "overlay-padding": 6}},
-                {selector: "edge.lm-quiet", style: {"source-label": "", "target-label": ""}},
-                {selector: "edge.lm-hover", style: {"source-label": "data(atA)", "target-label": "data(atB)",
-                    "z-index": 20, width: 6}},
+                {selector: "edge.lm-quiet", style: {"target-label": ""}},
+                {selector: "edge.lm-hover", style: {"target-label": "data(value)", "z-index": 20, width: 6}},
                 {selector: ":selected", style: {"overlay-opacity": 0.15, "overlay-color": "#fff"}},
             ],
             layout: layoutFor(data),
@@ -169,7 +169,7 @@ function render(data) {
         cy.on("mouseover", "edge", e => e.target.addClass("lm-hover"));
         cy.on("mouseout", "edge", e => e.target.removeClass("lm-hover"));
         window.addEventListener("resize", () => { cy.resize(); cy.fit(undefined, 40); capZoom(); });
-        cy.on("mouseover tap", "edge", e => showLink(e.target.data("raw")));
+        cy.on("mouseover tap", "edge", e => showLink(e.target.data("raw"), e.target.data("dir")));
         cy.on("mouseover tap", "node", e => showNode(e.target.data("raw")));
         window.stLiveMap = cy;
     } else {
@@ -183,19 +183,20 @@ function render(data) {
         }
         if (added) cy.layout(layoutFor(data)).run();
     }
-    // Beaucoup de liens : leurs valeurs n'apparaissent qu'au survol (sinon elles se chevauchent au centre)
-    cy.edges().toggleClass("lm-quiet", cy.edges().length > 24);
+    // Beaucoup de flèches : leurs valeurs n'apparaissent qu'au survol (sinon elles se chevauchent au centre)
+    cy.edges().toggleClass("lm-quiet", cy.edges().length > 48);
     legend(data.grades, metric);
 }
 
 function fmt(v, f) { return v === null || v === undefined ? "–" : f(v); }
 
-function showLink(l) {
-    el("lm_detail").innerHTML = `<h3 class="h6">${st.esc(l.a)} ↔ ${st.esc(l.b)}</h3>
+function showLink(l, dir) {
+    const here = d => dir && d.from === dir.from && d.to === dir.to;
+    el("lm_detail").innerHTML = `<h3 class="h6">${dir ? `${st.esc(dir.from)} → ${st.esc(dir.to)}` : `${st.esc(l.a)} ↔ ${st.esc(l.b)}`}</h3>
         <p class="text-white-50 mb-2">Mesh group ${st.esc(l.mesh_group || "")} · round trip ${fmt(l.rtt_ms, v => v.toFixed(1) + " ms")}</p>
         ${l.alerts && l.alerts.length ? `<p class="text-danger mb-2"><i class="fas fa-bell me-1" aria-hidden="true"></i>Alerts open: ${l.alerts.map(st.esc).join(", ")}</p>` : ""}
         <table class="table table-sm small"><thead><tr><th scope="col">Direction</th><th scope="col">Loss</th><th scope="col">Jitter</th><th scope="col">MOS</th></tr></thead><tbody>
-        ${l.directions.map(d => `<tr><td>${st.esc(d.from)} → ${st.esc(d.to)}</td><td>${fmt(d.loss_pct, v => v.toFixed(1) + " %")}</td>
+        ${l.directions.map(d => `<tr${here(d) ? ' class="table-active fw-bold"' : ""}><td>${st.esc(d.from)} → ${st.esc(d.to)}</td><td>${fmt(d.loss_pct, v => v.toFixed(1) + " %")}</td>
             <td>${fmt(d.jitter_ms, v => v.toFixed(1) + " ms")}</td><td>${fmt(d.mos, v => v.toFixed(2))}</td></tr>`).join("")}
         </tbody></table>`;
 }
@@ -213,9 +214,12 @@ async function load() {
     const r = await st.api("GET", "/api/v1/topology/live" + (q.toString() ? "?" + q : ""));
     if (!r.ok) { el("lm_note").hidden = false; el("lm_note").textContent = r.error.message; return; }
     last = r.data;
-    const sel = el("lm_group"), current = sel.value;
-    sel.innerHTML = '<option value="">All mesh groups</option>' + r.data.mesh_groups.map(g => `<option value="${st.esc(g)}">${st.esc(g)}</option>`).join("");
-    sel.value = current;
+    // Un seul mesh group à la fois : celui que le serveur a servi (le premier si aucun n'était choisi)
+    const sel = el("lm_group");
+    sel.innerHTML = r.data.mesh_groups.length
+        ? r.data.mesh_groups.map(g => `<option value="${st.esc(g)}">${st.esc(g)}</option>`).join("")
+        : '<option value="">No mesh group</option>';
+    sel.value = r.data.mesh_group || "";
     el("lm_note").hidden = r.data.metrics_available;
     el("lm_note").textContent = "No VictoriaMetrics database: the map shows the probes and the expected links, without quality.";
     render(r.data);

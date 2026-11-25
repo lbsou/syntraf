@@ -166,3 +166,13 @@ def test_victoriametrics_queries_at_an_instant():
 
     VmAdmin({"DB_UID": "VM", "DB_SERVER": "h", "DB_PORT": "1"}, http=http).query("up", time=1234)
     assert calls == [("/api/v1/query", {"query": "up", "time": 1234})]
+
+
+def test_each_direction_has_its_own_grade():
+    """Carte : une flèche par sens, colorée par la qualité de CE sens (et non par le pire des deux)."""
+    ab = [l for l in build()["links"] if {l["a"], l["b"]} == {"A", "B"}][0]
+    by = {(d["from"], d["to"]): d for d in ab["directions"]}
+    assert by[("A", "B")]["grade"]["loss"] == "green" and by[("B", "A")]["grade"]["loss"] == "orange"
+    assert by[("A", "B")]["grade"]["mos"] == "green" and by[("B", "A")]["grade"]["mos"] == "yellow"
+    ac = [l for l in build()["links"] if {l["a"], l["b"]} == {"A", "C"}][0]
+    assert ac["directions"][0]["grade"]["loss"] == "nodata"

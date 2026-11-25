@@ -667,3 +667,15 @@ def test_the_suggested_profiles_are_valid_and_added_without_touching_existing_on
     assert (g711["BANDWIDTH"], g711["DSCP"], g711["PACKET_SIZE"], g711["CODEC"]) == ("87K", "46", "172", "G711")
     again = c.post("/api/v1/config/profiles/suggested")
     assert again.status_code == 200 and again.json["added"] == []
+
+
+def test_the_live_map_shows_a_single_mesh_group(env):
+    """Jamais plusieurs mesh groups sur la même carte : sans choix, le premier ; un nom inconnu est refusé."""
+    c = env["client"]
+    data = c.get("/api/v1/topology/live").json
+    assert data["mesh_groups"] and data["mesh_group"] == data["mesh_groups"][0]
+    assert {l["mesh_group"] for l in data["links"]} <= {data["mesh_group"]}
+    other = data["mesh_groups"][-1]
+    shown = c.get(f"/api/v1/topology/live?mesh_group={other}").json
+    assert shown["mesh_group"] == other and {l["mesh_group"] for l in shown["links"]} <= {other}
+    assert c.get("/api/v1/topology/live?mesh_group=NO_SUCH_GROUP").status_code == 404

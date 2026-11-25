@@ -143,12 +143,14 @@ def build(flows, clients, metrics, mesh_group=None, alerts=None):
         key = (min(a, b), max(a, b), g)
         link = pairs.setdefault(key, {"a": key[0], "b": key[1], "mesh_group": g, "directions": []})
         if not any(d["from"] == a and d["to"] == b for d in link["directions"]):
-            link["directions"].append({
-                "from": a, "to": b,
-                "loss_pct": metrics.get("loss", {}).get((a, b, g)),
-                "jitter_ms": metrics.get("jitter", {}).get((a, b, g)),
-                "mos": metrics.get("mos", {}).get((a, b, g)),
-            })
+            d = {"from": a, "to": b,
+                 "loss_pct": metrics.get("loss", {}).get((a, b, g)),
+                 "jitter_ms": metrics.get("jitter", {}).get((a, b, g)),
+                 "mos": metrics.get("mos", {}).get((a, b, g))}
+            # Qualité de CE sens (la carte dessine une flèche par sens) ; le RTT est celui de la paire
+            d["grade"] = {"loss": grade("loss", d["loss_pct"]), "jitter": grade("jitter", d["jitter_ms"]),
+                          "mos": grade("mos", d["mos"])}
+            link["directions"].append(d)
     links = []
     for link in pairs.values():
         d = link["directions"]

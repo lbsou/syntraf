@@ -807,8 +807,9 @@ OPENAPI = {
                                                False, True)},
         "/api/v1/alerts": {"get": _op("Out-of-baseline alerts: open ones, recently closed ones, flows watched or "
                                       "still learning their baseline")},
-        "/api/v1/topology/live": {"get": _op("Live map: probes and expected links with the quality of the last minute "
-                                             "(?mesh_group=) ; ?at= (Unix time): the network as it was then")},
+        "/api/v1/topology/live": {"get": _op("Live map of one mesh group (?mesh_group=, default: the first one): probes "
+                                             "and expected links with the quality of each direction over the last "
+                                             "minute ; ?at= (Unix time): the network as it was then")},
         "/api/v1/topology/timeline": {"get": _op("Worst state of the links and open alerts per step, to find an incident "
                                                  "to replay (?from=, ?to= Unix time, ?mesh_group=)")},
         "/api/v1/updates": {"get": _op("This server's release and where each client stands"),

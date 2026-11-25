@@ -1896,6 +1896,7 @@ def live_topology(state, mesh_group=None, at=None):
     at (secondes Unix) : l'état du réseau à cet instant passé, pour rejouer un incident."""
     from lib import st_flow_catalog, st_live_map
     cfg = state["config"]
+    mesh_group = _map_group(cfg, mesh_group)
     flows = st_flow_catalog.expected_flows(cfg, state.get("_dict_by_node_generated_config") or {})
     clients = []
     for c in read_disk(state).get("SERVER_CLIENT", []):
@@ -1923,15 +1924,28 @@ def live_topology(state, mesh_group=None, at=None):
             metrics = st_live_map.read_metrics(VmAdmin(vm))
         from lib import st_baseline
         alerts = [a for a in st_baseline.BOOK.open() if a.get("CLIENT")]
-    result = st_live_map.build(flows, clients, metrics, mesh_group=mesh_group or None, alerts=alerts)
+    if mesh_group is None:  # aucun mesh group : carte vide (jamais tous les groupes mêlés)
+        flows, clients = [], []
+    result = st_live_map.build(flows, clients, metrics, mesh_group=mesh_group, alerts=alerts)
     result["at"] = at
+    result["mesh_group"] = mesh_group
     result["mesh_groups"] = sorted(g["UID"] for g in cfg.get("MESH_GROUP", []) if not g.get("DISABLED"))
     # Hubs des mesh groups affichés (placement : au centre)
     from lib import st_topology
-    shown = [g for g in cfg.get("MESH_GROUP", []) if not g.get("DISABLED") and mesh_group in (None, "", g.get("UID"))]
+    shown = [g for g in cfg.get("MESH_GROUP", []) if not g.get("DISABLED") and g.get("UID") == mesh_group]
     result["hubs"] = sorted({h for g in shown for h in st_topology.hubs(g)})
     result["metrics_available"] = vm is not None
     return result
+
+
+def _map_group(cfg, mesh_group):
+    """La carte montre un seul mesh group : celui demandé, sinon le premier (par nom) ; None s'il n'y en a aucun."""
+    groups = sorted(g["UID"] for g in cfg.get("MESH_GROUP", []) if not g.get("DISABLED"))
+    if mesh_group in (None, ""):
+        return groups[0] if groups else None
+    if mesh_group not in groups:
+        raise OpError(404, f"Mesh group '{mesh_group}' not found (or disabled)")
+    return mesh_group
 
 
 def topology_timeline(state, start, end, mesh_group=None):
@@ -1948,7 +1962,8 @@ def topology_timeline(state, start, end, mesh_group=None):
     from lib.st_vm_admin import VmAdmin
     step = max(60, ((end - start) // 360) // 60 * 60)
     start = start // step * step
-    return dict(st_live_map.timeline(VmAdmin(vm), start, end, step, mesh_group or None), step=step)
+    mesh_group = _map_group(state["config"], mesh_group)
+    return dict(st_live_map.timeline(VmAdmin(vm), start, end, step, mesh_group), step=step, mesh_group=mesh_group)
 
 
 # ---------------------------------------------------------------------------------- tests TCP planifiés
