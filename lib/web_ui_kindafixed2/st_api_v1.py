@@ -305,6 +305,16 @@ def list_profile_configs():
     return jsonify(ops.list_profiles(_state()))
 
 
+@st_api_v1.get("/config/clients/<uid>/addresses")
+def get_client_addresses(uid):
+    return jsonify(ops.client_addresses(_state(), uid))
+
+
+@st_api_v1.put("/config/clients/<uid>/addresses")
+def update_client_addresses(uid):
+    return jsonify(ops.update_client_addresses(_state(), uid, _body(), _actor(), _dry_run()))
+
+
 @st_api_v1.post("/config/profiles/suggested")
 def add_suggested_profiles():
     return jsonify(ops.add_suggested_profiles(_state(), _actor(), _dry_run()))
@@ -843,6 +853,11 @@ OPENAPI = {
                                   "post": _op("Create a random token ({NAME}); its value is returned once", False, True)},
         "/api/v1/config/tokens/{name}": {"delete": _op("Revoke a token", False, True, ("name",))},
         "/api/v1/config/tokens/{name}/reveal": {"post": _op("Value of a token (audited)", params=("name",))},
+        "/api/v1/config/clients/{uid}/addresses": {
+            "get": _op("Addresses of a probe (learned from its interfaces, seen by the server, added by hand) and the "
+                       "address each peer uses to reach it, with the reason (forced, same_network, declared)"),
+            "put": _op("Addresses added by hand ({EXTRA_ADDRESSES: [...]}, /prefix allowed) and address forced per peer "
+                       "({FORCED: {peer: address, or \"\" for automatic}}); applied live (?dry_run=1: preview)")},
         "/api/v1/config/profiles/suggested": {"post": _op("Add the suggested profiles that are missing (voice, video, "
                                                           "data, slow links); existing profiles are never changed")},
         "/api/v1/config/profiles": {"get": _op("iperf3 profiles and the mesh groups using them"),

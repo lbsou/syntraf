@@ -1495,18 +1495,12 @@ def generate_client_config_mesh(_config, _dict_by_node_generated_config={}):
                                             previous_ports.get((mesh_group['UID'], client2['UID'], client['UID'])),
                                             reserved_ports, taken_ports)
 
-                                        client_ip = client['IP_ADDRESS']
-                                        client2_ip = client2['IP_ADDRESS']
-
-                                        if 'OVERRIDE_DST_NODE_IP' in client:
-                                            for k, v in client['OVERRIDE_DST_NODE_IP'].items():
-                                                if k == client2['UID']:
-                                                    client2_ip = v
-
-                                        if 'OVERRIDE_DST_NODE_IP' in client2:
-                                            for k, v in client2['OVERRIDE_DST_NODE_IP'].items():
-                                                if k == client['UID']:
-                                                    client_ip = v
+                                        # Adresse par laquelle chacun joint l'autre (lib/st_addresses.py) : forcée
+                                        # (OVERRIDE_DST_NODE_IP), sinon celle du réseau qu'ils partagent, sinon
+                                        # l'adresse déclarée
+                                        from lib import st_addresses
+                                        client_ip = st_addresses.choose(client2, client)[0]
+                                        client2_ip = st_addresses.choose(client, client2)[0]
 
                                         # Manage bidirectionnal connection in case there is a node behind a firewall/NAT
                                         if 'BEHIND_NAT' in client:

@@ -8,6 +8,7 @@ from lib.st_conf_validation import valid_dir_rsa_keypair, validate_ipv4
 from lib.st_obj_cc_client import cc_client
 from lib.st_cc_commands import queue_client_ip_update, next_command, dynamic_client_uids, ForgetScheduler
 from lib.st_sockutil import recv_exact, recv_message, ProtocolViolation
+from lib import st_addresses
 from lib import st_channel_guard as guard
 from lib import st_identity
 from lib import st_preauth
@@ -458,6 +459,8 @@ def client_send_auth(_config, client_utime, ssl_conn):
                              'PUBLIC_KEY': _config['CLIENT']['PUBLIC_KEY'],
                              'SYNTRAF_RELEASE': running_release(), 'UPDATE_FAILED': last_failed_release(),
                              'LOCAL_ADDRESSES': st_nat.local_ipv4_addresses(), 'PROOF': client_key_proof(_config),
+                             # avec leur sous-réseau : le serveur choisit l'adresse de chaque paire (lib/st_addresses.py)
+                             'LOCAL_INTERFACES': st_addresses.local_interfaces(),
                              'CAPABILITIES': ['LIVE_CONFIG']}  # configuration reçue en direct (NEWCONFIG), sans reconnexion
 
         sock_send(ssl_conn, payload_greetings, "AUTH")
@@ -759,6 +762,36 @@ def client_command_diffconfig(_config, received_data, threads_n_processes):
                                     terminate_connector_and_childs(threads_n_processes, connector_key, thr, _config)
     except Exception as exc:
         raise exc
+
+
+def _flow_edges(generated):
+    generated = generated or {}
+    return {k: generated.get(k) or {} for k in ("LISTENERS", "CONNECTORS")}
+
+
+def server_push_address_change(_config, generated, dict_of_clients, commands, uid):
+    """Une sonde a annoncé d'autres adresses : flux régénérés ; seuls les pairs dont un flux change d'adresse
+    reçoivent leur configuration (en direct, ou par reconnexion pour une sonde ancienne). Renvoie leurs UID."""
+    import copy as _copy
+    before = {u: _copy.deepcopy(_flow_edges(v)) for u, v in generated.items()}
+    generate_client_config_mesh(_config, generated)
+    pushed = []
+    for peer, cfg in generated.items():
+        if peer == uid or _flow_edges(cfg) == before.get(peer, _flow_edges(None)):
+            continue
+        client = dict_of_clients.get(peer)
+        if client is None or getattr(client, "status", None) != "CONNECTED":
+            continue
+        queue = commands.setdefault(peer, [])
+        if "LIVE_CONFIG" in (getattr(client, "capabilities", None) or ()):
+            queue[:] = [a for a in queue if a.get("ACTION") != "NEWCONFIG"]  # la dernière suffit
+            queue.append({"ACTION": "NEWCONFIG"})
+        else:
+            queue.append({"ACTION": "RECONNECT_CLIENT"})
+        pushed.append(peer)
+    if pushed:
+        server_log.info(f"CONTEXT: {uid} - NEW ADDRESSES: CONFIGURATION SENT TO {sorted(pushed)}")
+    return sorted(pushed)
 
 
 # Server side: clients declared without IP (set when the server starts), and the delayed forgetting of their IP
@@ -1129,6 +1162,12 @@ def server_auth(received_data, obj_client, _config, address, dict_of_commands_fo
 
         return False
 
+    # Adresses annoncées (interfaces avec leur sous-réseau) et adresse vue : avant toute régénération des flux
+    addresses_changed = st_addresses.LEARNED.record(obj_client.client_uid,
+                                                    received_data['PAYLOAD'].get('LOCAL_INTERFACES'),
+                                                    obj_client.ip_address)
+    regenerated = False
+
     for server_client in _config.get('SERVER_CLIENT', []):
         if server_client['UID'] == obj_client.client_uid:
 
@@ -1153,8 +1192,18 @@ def server_auth(received_data, obj_client, _config, address, dict_of_commands_fo
 
                 # Telling to every other client to update their config. The update is appended to their
                 # pending commands, never replacing them: another dynamic client may have just been announced.
+                # Chaque pair reçoit l'adresse par laquelle il la joint (même réseau : son adresse interne)
                 queue_client_ip_update(_config, dict_of_commands_for_network_clients, obj_client.client_uid,
-                                       obj_client.ip_address)
+                                       obj_client.ip_address,
+                                       address_for=lambda peer, me=server_client: st_addresses.choose(peer, me)[0])
+                regenerated = True
+
+    if addresses_changed and not regenerated:
+        try:
+            server_push_address_change(_config, _dict_by_node_generated_config, dict_of_clients,
+                                       dict_of_commands_for_network_clients, obj_client.client_uid)
+        except Exception as exc:  # noqa: BLE001 - jamais bloquant pour la connexion de la sonde
+            server_log.error(f"CONTEXT: {obj_client.client_uid} - ADDRESSES NOT APPLIED: {type(exc).__name__}:{exc}")
 
     # Show an alert in the log when the clock skew is too great
     server_log.debug(f"CONTEXT: {obj_client.client_uid} - STARTING VALIDATION OF CLOCK SKEW")

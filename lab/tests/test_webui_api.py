@@ -679,3 +679,19 @@ def test_the_live_map_shows_a_single_mesh_group(env):
     shown = c.get(f"/api/v1/topology/live?mesh_group={other}").json
     assert shown["mesh_group"] == other and {l["mesh_group"] for l in shown["links"]} <= {other}
     assert c.get("/api/v1/topology/live?mesh_group=NO_SUCH_GROUP").status_code == 404
+
+
+def test_the_addresses_of_a_probe_through_the_api(env):
+    c = env["client"]
+    uids = [x["UID"] for x in c.get("/api/v1/config/clients").json]
+    uid = uids[0]
+    a = c.get(f"/api/v1/config/clients/{uid}/addresses").json
+    assert a["uid"] == uid and "peers" in a and "learned" in a
+    assert c.get("/api/v1/config/clients/NO_SUCH/addresses").status_code == 404
+    r = c.put(f"/api/v1/config/clients/{uid}/addresses?dry_run=1", json={"EXTRA_ADDRESSES": ["10.9.0.5/24"]})
+    assert r.status_code == 200 and r.json["dry_run"] is True
+    r = c.put(f"/api/v1/config/clients/{uid}/addresses", json={"EXTRA_ADDRESSES": ["pas valide !"]})
+    assert r.status_code == 400 and "EXTRA_ADDRESSES" in r.json["error"]["fields"]
+    assert c.put(f"/api/v1/config/clients/{uid}/addresses", json={"EXTRA_ADDRESSES": ["10.9.0.5/24"]}).status_code == 200
+    assert c.get(f"/api/v1/config/clients/{uid}/addresses").json["manual"] == ["10.9.0.5/24"]
+    assert "/api/v1/config/clients/{uid}/addresses" in c.get("/api/v1/openapi.json").json["paths"]

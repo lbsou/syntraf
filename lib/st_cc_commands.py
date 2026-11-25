@@ -13,10 +13,12 @@ Bibliothèque standard uniquement.
 """
 
 
-def queue_client_ip_update(_config, commands, client_uid, ip_address) -> list:
+def queue_client_ip_update(_config, commands, client_uid, ip_address, address_for=None) -> list:
     """Annonce la nouvelle IP de client_uid à tous les autres clients ; renvoie les UID notifiés.
 
     Un client qui fixe lui-même l'IP de destination de client_uid (OVERRIDE_DST_NODE_IP) est ignoré.
+    address_for(client) : l'adresse propre à ce pair (lib/st_addresses.py, un pair du même réseau passe par l'adresse
+    interne) ; sinon ip_address pour tous.
     """
     notified = []
     for server_client in _config.get('SERVER_CLIENT', []):
@@ -25,8 +27,9 @@ def queue_client_ip_update(_config, commands, client_uid, ip_address) -> list:
             continue
         if client_uid in (server_client.get('OVERRIDE_DST_NODE_IP') or ()):
             continue
+        address = address_for(server_client) if address_for else ip_address
         commands.setdefault(uid, []).append(
-            {"ACTION": "UPDATED_CONFIG", "ELEMENT": "CLIENT_IP", "CLIENT_UID": client_uid, "IP_ADDRESS": ip_address})
+            {"ACTION": "UPDATED_CONFIG", "ELEMENT": "CLIENT_IP", "CLIENT_UID": client_uid, "IP_ADDRESS": address})
         notified.append(uid)
     return notified
 

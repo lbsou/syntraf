@@ -49,6 +49,20 @@
             <div id="c_reach_result"></div>
         </div>
     </fieldset>
+    <fieldset class="mb-3" id="c_addr" hidden>
+        <legend class="form-label fs-6">Addresses, and how each peer reaches this client</legend>
+        <div class="form-text mt-0 mb-2">Learned at each connection: its interfaces, and the address the server sees. A peer that shares a network with it uses its address on that network, otherwise the address above. Add an address it does not know itself (a public address mapped by a firewall); force the address of one peer if needed. Applied live: only the peers concerned get their new configuration.</div>
+        <table class="table table-sm small mb-2" id="c_addr_known" aria-label="Known addresses"></table>
+        <div class="input-group input-group-sm mb-1" style="max-width: 30rem">
+            <input class="form-control" id="c_addr_new" placeholder="198.51.100.9, 10.9.0.5/24 or a host name" aria-label="Address to add">
+            <button class="btn btn-outline-light" type="button" id="c_addr_add"><i class="fas fa-plus me-1"></i>Add</button>
+        </div>
+        <div class="small text-danger mb-2" id="c_addr_error" aria-live="polite"></div>
+        <div class="small text-info mb-2" id="c_addr_nat" hidden><i class="fas fa-info-circle me-1"></i>Behind a NAT or a firewall: its peers do not connect to it, it connects to them. These addresses are not used.</div>
+        <table class="table table-sm small mb-2" id="c_addr_peers" aria-label="Address used by each peer"></table>
+        <button type="button" class="btn btn-sm btn-primary" id="c_addr_save" disabled>Review address changes…</button>
+        <span class="small text-white-50 ms-2" id="c_addr_status" aria-live="polite"></span>
+    </fieldset>
     <fieldset class="mb-3">
         <legend class="form-label fs-6">Mesh groups</legend>
         <div id="c_groups" data-field="MESH_GROUP_UID_LIST" class="d-flex flex-wrap gap-3"></div>
@@ -66,6 +80,92 @@
 <script>
 const el = id => document.getElementById(id);
 const ADVANCED = ["EXCLUDED_CLIENT_UID", "OVERRIDE_DST_NODE_IP", "PUBLIC_KEY"];
+
+// ---- Adresses de la sonde : apprises, ajoutées à la main, et celle par laquelle chaque pair la joint
+const addr = {uid: null, data: null, manual: [], forced: {}};
+const REASON = {forced: "forced", same_network: "same network", declared: "declared address", unknown: "not connected (dynamic)"};
+
+async function loadAddresses(uid) {
+    addr.uid = uid;
+    el("c_addr").hidden = !uid;
+    el("c_addr_error").textContent = el("c_addr_status").textContent = "";
+    if (!uid) return;
+    const r = await st.api("GET", `/api/v1/config/clients/${encodeURIComponent(uid)}/addresses`);
+    if (!r.ok) { el("c_addr_status").textContent = r.error.message; return; }
+    addr.data = r.data;
+    addr.manual = [...r.data.manual];
+    addr.forced = Object.fromEntries(r.data.peers.map(p => [p.peer, p.forced || ""]));
+    renderAddresses();
+}
+
+function addressesDirty() {
+    const d = addr.data;
+    return !!d && (JSON.stringify(addr.manual) !== JSON.stringify(d.manual)
+        || d.peers.some(p => (addr.forced[p.peer] || "") !== (p.forced || "")));
+}
+
+function renderAddresses() {
+    const d = addr.data, when = t => t ? new Date(t * 1000).toLocaleString() : "";
+    const rows = d.learned.map(a => `<tr><td><code>${st.esc(a.address)}${a.prefix !== undefined ? "/" + a.prefix : ""}</code></td>
+            <td>${a.source === "observed" ? "seen by the server" : st.esc(`interface ${a.interface || ""}`)}</td>
+            <td class="text-white-50">${st.esc(when(a.seen_at))}</td><td></td></tr>`)
+        .concat(addr.manual.map((a, i) => `<tr><td><code>${st.esc(a)}</code></td><td>${"added by hand"}</td><td></td>
+            <td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger py-0" data-remove="${i}">${"Remove"}</button></td></tr>`));
+    el("c_addr_known").innerHTML = rows.length
+        ? `<thead><tr><th scope="col">Address</th><th scope="col">Source</th><th scope="col">Last seen</th><th></th></tr></thead><tbody>${rows.join("")}</tbody>`
+        : `<tbody><tr><td class="text-white-50">Nothing learned yet: the client has not connected since the server started (or runs a version that does not report its interfaces).</td></tr></tbody>`;
+    el("c_addr_nat").hidden = !d.behind_nat;
+    const choices = [...new Set([d.current, ...d.learned.map(a => a.address), ...addr.manual.map(a => a.split("/")[0])]
+        .filter(a => a && a !== "0.0.0.0"))];
+    el("c_addr_peers").innerHTML = d.peers.length
+        ? `<thead><tr><th scope="col">Peer</th><th scope="col">Reaches it by</th><th scope="col">Why</th><th scope="col">Force</th></tr></thead><tbody>` +
+          d.peers.map(p => {
+              const f = addr.forced[p.peer] || "", options = [...new Set(f ? [...choices, f] : choices)];
+              return `<tr><td>${st.esc(p.peer)}</td><td><code>${st.esc(p.address)}</code></td><td>${st.esc(REASON[p.reason] || p.reason)}</td>
+                  <td><select class="form-select form-select-sm py-0" data-peer="${st.esc(p.peer)}" aria-label="${st.esc(`Address forced for ${p.peer}`)}">
+                  <option value=""${f ? "" : " selected"}>Automatic</option>
+                  ${options.map(a => `<option value="${st.esc(a)}"${a === f ? " selected" : ""}>${st.esc(a)}</option>`).join("")}
+                  </select></td></tr>`;
+          }).join("") + "</tbody>"
+        : `<tbody><tr><td class="text-white-50">No peer: this client shares no mesh group with another client.</td></tr></tbody>`;
+    el("c_addr_save").disabled = !addressesDirty();
+}
+
+el("c_addr_known").addEventListener("click", e => {
+    const i = e.target.dataset.remove;
+    if (i === undefined) return;
+    addr.manual.splice(Number(i), 1);
+    renderAddresses();
+});
+el("c_addr_peers").addEventListener("change", e => {
+    if (!e.target.dataset.peer) return;
+    addr.forced[e.target.dataset.peer] = e.target.value;
+    el("c_addr_save").disabled = !addressesDirty();
+});
+el("c_addr_add").addEventListener("click", () => {
+    const v = el("c_addr_new").value.trim();
+    el("c_addr_error").textContent = "";
+    if (!v) return;
+    if (addr.manual.includes(v)) { el("c_addr_error").textContent = "Already in the list"; return; }
+    addr.manual.push(v);
+    el("c_addr_new").value = "";
+    renderAddresses();
+});
+el("c_addr_new").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); el("c_addr_add").click(); } });
+el("c_addr_save").addEventListener("click", async () => {
+    const url = `/api/v1/config/clients/${encodeURIComponent(addr.uid)}/addresses`;
+    const changed = addr.data.peers.filter(p => (addr.forced[p.peer] || "") !== (p.forced || ""));
+    const body = {EXTRA_ADDRESSES: addr.manual, FORCED: Object.fromEntries(changed.map(p => [p.peer, addr.forced[p.peer] || ""]))};
+    el("c_addr_error").textContent = "";
+    const preview = await st.api("PUT", url + "?dry_run=1", body);
+    if (!preview.ok) { el("c_addr_error").textContent = preview.error.message + " " + Object.values(preview.error.fields || {}).join(" "); return; }
+    if (!await st.confirm({title: `Apply the addresses of “${addr.uid}”?`, body: st.previewNode(preview.data), confirmText: "Apply"})) return;
+    const r = await st.api("PUT", st.applyUrl(url, preview.data), body);
+    if (!r.ok) { el("c_addr_error").textContent = r.error.message; return; }
+    const sent = r.data.reconfigured_clients;
+    el("c_addr_status").textContent = sent.length ? `Applied: sent to ${sent.join(", ")}` : "Applied";
+    await loadAddresses(addr.uid);
+});
 
 function syncIpMode() {
     const dynamic = el("c_ip_dynamic").checked;
@@ -115,6 +215,7 @@ const crud = st.crud({
         el("c_nat").checked = !!(row && row.BEHIND_NAT);
         el("c_nat_hint").hidden = !(row && row.NAT_DETECTED && !row.BEHIND_NAT);
         showReach(row);
+        loadAddresses(row ? row.UID : null);
         el("c_max_bw").value = row ? (row.MAX_BANDWIDTH || "") : "";
         el("c_ports").value = row ? (row.MESH_LISTENERS_PORT_RANGE || "") : "";
         el("c_deploy").value = row ? (row.DEPLOYMENT_GROUP || "") : "";

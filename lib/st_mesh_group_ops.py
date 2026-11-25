@@ -934,7 +934,8 @@ DEPLOYMENT_GROUP_RE = re.compile(r"^[A-Za-z0-9._-]{1,32}$")
 METADATA_CLIENT_KEYS = {"DEPLOYMENT_GROUP"}
 # Clés d'un client dont le changement ne demande pas de reconnexion : descriptives, ou qui ne jouent que sur les flux
 # générés (une sonde qui sait recevoir sa configuration en direct la reçoit sans être déconnectée)
-LIVE_CLIENT_KEYS = METADATA_CLIENT_KEYS | {"PAUSED"}
+# EXTRA_ADDRESSES, OVERRIDE_DST_NODE_IP : seule l'adresse de quelques flux change (lib/st_addresses.py)
+LIVE_CLIENT_KEYS = METADATA_CLIENT_KEYS | {"PAUSED", "EXTRA_ADDRESSES", "OVERRIDE_DST_NODE_IP"}
 LIVE_CONFIG = "LIVE_CONFIG"  # capacité annoncée par la sonde à sa connexion
 
 
@@ -984,6 +985,97 @@ def update_client(state, uid, values, actor, dry_run=False):
                       {"MESH_GROUP_UID_LIST": f"Hub of {', '.join(left)}"})
     _apply_client_form(c, values)
     return dict(_commit(state, cfg, actor, "UPDATE_CLIENT", f"Client '{uid}' updated", dry_run), uid=uid)
+
+
+# ------------------------------------------------------------------------------------------ adresses d'une sonde
+
+_HOST = re.compile(r"^(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+                   r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$")
+
+
+def _valid_address(text, allow_prefix=False):
+    """Adresse IPv4 (avec /préfixe si allow_prefix) ou nom d'hôte ; sans résolution DNS."""
+    address, slash, prefix = str(text).strip().partition("/")
+    try:
+        ipaddress.IPv4Address(address)
+    except ValueError:
+        return not slash and bool(_HOST.match(address)) and not address.replace(".", "").isdigit()
+    return not slash or (allow_prefix and prefix.isdigit() and 0 <= int(prefix) <= 32)
+
+
+def client_addresses(state, uid):
+    """Adresses d'une sonde (apprises, ajoutées à la main) et celle par laquelle chacun de ses pairs la joint."""
+    from lib import st_addresses
+    disk_clients = read_disk(state).get("SERVER_CLIENT", [])
+    c = _find_by(disk_clients, "UID", uid)
+    if c is None:
+        raise OpError(404, f"Client '{uid}' not found")
+    live = {x["UID"]: x for x in state["config"].get("SERVER_CLIENT", [])}
+    me = dict(live.get(uid) or c, EXTRA_ADDRESSES=c.get("EXTRA_ADDRESSES") or [])
+    entry = st_addresses.LEARNED.get(uid)
+    learned = []
+    if entry:
+        if entry.get("observed"):
+            learned.append({"address": entry["observed"], "source": "observed", "seen_at": entry["seen_at"]})
+        learned += [dict(a, source="interface", seen_at=entry["seen_at"]) for a in entry["interfaces"]]
+    groups = set(c.get("MESH_GROUP_UID_LIST") or [])
+    peers = []
+    for p in disk_clients:
+        if p["UID"] == uid or not groups & set(p.get("MESH_GROUP_UID_LIST") or []):
+            continue
+        address, reason = st_addresses.choose(live.get(p["UID"]) or p, me)
+        peers.append({"peer": p["UID"], "address": address, "reason": reason,
+                      "forced": (p.get("OVERRIDE_DST_NODE_IP") or {}).get(uid)})
+    declared = str(c.get("IP_ADDRESS") or "")
+    return {"uid": uid, "declared": declared, "dynamic": declared == st_addresses.DYNAMIC,
+            "current": str(me.get("IP_ADDRESS") or ""), "behind_nat": bool(c.get("BEHIND_NAT")),
+            "learned": learned, "manual": list(c.get("EXTRA_ADDRESSES") or []),
+            "peers": sorted(peers, key=lambda x: x["peer"])}
+
+
+def update_client_addresses(state, uid, values, actor, dry_run=False):
+    """Adresses ajoutées à la main (EXTRA_ADDRESSES : la liste complète) et adresse forcée par pair (FORCED :
+    {pair: adresse, ou "" pour revenir au choix automatique}). Appliqué en direct : seuls les pairs dont un flux
+    change d'adresse reçoivent leur nouvelle configuration."""
+    cfg = read_disk(state)
+    clients = cfg.get("SERVER_CLIENT", [])
+    c = _find_by(clients, "UID", uid)
+    if c is None:
+        raise OpError(404, f"Client '{uid}' not found")
+    errors = {}
+    extras = None
+    if "EXTRA_ADDRESSES" in values:
+        extras = [str(x).strip() for x in _as_list(values.get("EXTRA_ADDRESSES")) if str(x).strip()]
+        bad = [x for x in extras if not _valid_address(x, allow_prefix=True)]
+        if bad:
+            errors["EXTRA_ADDRESSES"] = f"Not an IPv4 address (optionally /prefix) or a host name: {', '.join(bad)}"
+    forced = values.get("FORCED") or {}
+    if not isinstance(forced, dict):
+        raise OpError(400, "FORCED must be an object {peer: address}", {"FORCED": "Expected {peer: address}"})
+    peers = {p["UID"]: p for p in clients if p["UID"] != uid}
+    for peer, address in forced.items():
+        address = str(address or "").strip()
+        if peer not in peers:
+            errors[f"FORCED.{peer}"] = "Unknown client"
+        elif address and not _valid_address(address):
+            errors[f"FORCED.{peer}"] = "An IPv4 address or a host name"
+    _raise(errors)
+    if extras is not None:
+        if extras:
+            c["EXTRA_ADDRESSES"] = extras
+        else:
+            c.pop("EXTRA_ADDRESSES", None)
+    for peer, address in forced.items():
+        address = str(address or "").strip()
+        overrides = peers[peer].setdefault("OVERRIDE_DST_NODE_IP", {})
+        if address:
+            overrides[uid] = address
+        else:
+            overrides.pop(uid, None)
+        if not overrides:
+            peers[peer].pop("OVERRIDE_DST_NODE_IP", None)
+    return dict(_commit(state, cfg, actor, "UPDATE_CLIENT_ADDRESSES", f"Addresses of client '{uid}' updated",
+                        dry_run), uid=uid)
 
 
 def set_client_paused(state, uid, paused, actor, dry_run=False):
@@ -1071,6 +1163,8 @@ def rename_client(state, uid, values, actor, dry_run=False):
     result = _commit(state, cfg, actor, "RENAME_CLIENT", f"Client '{uid}' renamed '{new}'", dry_run)
     history = []
     if not dry_run:
+        from lib import st_addresses
+        st_addresses.LEARNED.rename(uid, new)  # ses adresses apprises le suivent
         # Le client connecté sous l'ancien nom reçoit le nouveau, l'écrit et se reconnecte
         # (en tête : avant la reconnexion demandée par _commit)
         state.setdefault("dict_of_commands_for_network_clients", {}).setdefault(uid, []).insert(
