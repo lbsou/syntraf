@@ -21,7 +21,12 @@ import time
 DYNAMIC = "0.0.0.0"
 # Interfaces jamais retenues : ponts et interfaces virtuelles locales (Docker, Podman, Kubernetes, libvirt...)
 EXCLUDED_PREFIXES = ("lo", "docker", "br-", "veth", "virbr", "cni", "flannel", "cali", "cilium", "kube", "podman",
-                     "lxcbr", "lxdbr", "vmnet", "vboxnet")
+                     "lxcbr", "lxdbr", "vmnet", "vboxnet",
+                     # Windows : cartes des machines virtuelles (souvent le même 192.168.x.1/24 d'un PC à l'autre)
+                     "vmware", "virtualbox")
+# Windows, Hyper-V : commutateurs internes seulement ; un commutateur externe (« vEthernet (Externe) ») porte la vraie
+# adresse du poste et reste retenu (« veth » ci-dessus ne vise que les paires Linux, pas « vEthernet »)
+HYPERV_INTERNAL = ("vethernet (wsl", "vethernet (default switch)", "vethernet (nat)")
 
 
 def _usable(address, interface=""):
@@ -31,7 +36,10 @@ def _usable(address, interface=""):
         return False
     if ip.version != 4 or ip.is_loopback or ip.is_link_local or ip.is_unspecified or ip.is_multicast:
         return False
-    return not str(interface or "").lower().startswith(EXCLUDED_PREFIXES)
+    name = str(interface or "").lower()
+    if name.startswith("vethernet"):
+        return not name.startswith(HYPERV_INTERNAL)
+    return not name.startswith(EXCLUDED_PREFIXES)
 
 
 def _clean(interfaces):

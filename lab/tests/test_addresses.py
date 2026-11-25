@@ -92,3 +92,17 @@ def test_the_probe_reports_its_interfaces_with_their_prefix():
     assert isinstance(found, list)
     for a in found:
         assert set(a) == {"address", "prefix", "interface"} and 0 <= a["prefix"] <= 32
+
+
+def test_virtual_machine_adapters_of_a_windows_probe_are_ignored():
+    """Vu en production : les cartes VMware d'un poste Windows remontaient comme de vraies adresses (192.168.x.1/24,
+    souvent identiques d'un PC à l'autre). Le commutateur externe de Hyper-V, lui, porte la vraie adresse du poste."""
+    store = sa.Learned()
+    store.record("PC", [iface("192.168.182.1", 24, "VMware Network Adapter VMnet1"),
+                        iface("192.168.240.1", 24, "VMware Network Adapter VMnet8"),
+                        iface("192.168.56.1", 24, "VirtualBox Host-Only Network"),
+                        iface("172.24.160.1", 20, "vEthernet (WSL (Hyper-V firewall))"),
+                        iface("172.31.48.1", 20, "vEthernet (Default Switch)"),
+                        iface("10.1.2.3", 24, "vEthernet (Externe)"),
+                        iface("199.84.4.233", 24, "Ethernet 2")], "69.159.150.87", now=1.0)
+    assert [a["address"] for a in store.interfaces("PC")] == ["10.1.2.3", "199.84.4.233"]
