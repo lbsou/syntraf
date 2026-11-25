@@ -20,7 +20,9 @@ l'iperf3 du système s'il existe. La construction a besoin d'Internet et de Dock
 import argparse
 import hashlib
 import io
+import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -38,9 +40,9 @@ from lib.st_global import DefaultValues  # noqa: E402
 HERE = Path(__file__).resolve().parent
 CACHE = HERE / "cache"
 DIST = ROOT / "dist"
-PY_VERSION, PY_BUILD = "3.14.10", "20261123"
+PY_VERSION, PY_BUILD = "3.14.10", "20261124"
 IPERF3V_TAG = "v3.22.1-v2"  # v3.22.1-v3 (binaire macOS) : quand sa release sera publiée
-VM_VERSION, GRAFANA_VERSION = "v1.156.0", "13.0.2"
+VM_VERSION, GRAFANA_VERSION = "v1.157.0", "13.3.2"
 
 TARGETS = {
     "linux-x86_64": {"python": "x86_64-unknown-linux-gnu", "os": "linux", "iperf": "linux-static",
@@ -154,20 +156,130 @@ def iperf3v_macos():
     return iperf3v_asset(f"iperf3v-{IPERF3V_TAG[1:]}-macos-arm64.tar.gz")
 
 
+def _verified(path, expected, source):
+    """path si son empreinte est celle publiée (source) ; sinon il est retiré du cache et la construction s'arrête."""
+    actual = hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    if not expected or actual != expected.strip().lower():
+        Path(path).unlink(missing_ok=True)  # construction suivante : retéléchargé depuis la source
+        sys.exit(f"{Path(path).name} : empreinte {actual[:12]}… différente de celle publiée ({source}) : arrêt")
+    return path
+
+
 def victoriametrics(target):
-    """Archive officielle de VictoriaMetrics (un seul binaire, statique)."""
+    """Archive officielle de VictoriaMetrics (un seul binaire, statique), vérifiée contre son *_checksums.txt."""
     plat = TARGETS[target]["vm"]
     ext = "zip" if plat.startswith("windows") else "tar.gz"
     name = f"victoria-metrics-{plat}-{VM_VERSION}.{ext}"
-    return fetch(f"https://github.com/VictoriaMetrics/VictoriaMetrics/releases/download/{VM_VERSION}/{name}", name)
+    base = f"https://github.com/VictoriaMetrics/VictoriaMetrics/releases/download/{VM_VERSION}/"
+    path = fetch(base + name, name)
+    sums_name = f"victoria-metrics-{plat}-{VM_VERSION}_checksums.txt"
+    sums = {line.split()[-1]: line.split()[0]
+            for line in fetch(base + sums_name, sums_name).read_text(encoding="ascii").splitlines() if line.strip()}
+    return _verified(path, sums.get(name), sums_name)
 
 
 def grafana(target):
-    """Archive officielle de Grafana OSS (un dossier grafana-<version>/ à la racine)."""
+    """Archive officielle de Grafana OSS (un dossier grafana-<version>/ à la racine), vérifiée contre son .sha256."""
     plat = TARGETS[target]["grafana"]
     ext = "zip" if plat.startswith("windows") else "tar.gz"
     name = f"grafana-{GRAFANA_VERSION}.{plat}.{ext}"
-    return fetch(f"https://dl.grafana.com/oss/release/{name}", name)
+    url = f"https://dl.grafana.com/oss/release/{name}"
+    path = fetch(url, name)
+    expected = fetch(url + ".sha256", name + ".sha256").read_text(encoding="ascii").split()
+    return _verified(path, expected[0] if expected else None, name + ".sha256")
+
+
+# ------------------------------------------------------------------------------------------- versions embarquées
+# Vérifiées à chaque construction (avertissement) ; la CI hebdomadaire (.github/workflows/bundle-versions.yml) monte
+# celles dont la montée est automatique (--bump), construit et installe un package de test, puis ouvre une PR.
+# Montée automatique : VictoriaMetrics (v1.x), Grafana dans la même version majeure, Python dans la même 3.x.
+# Signalées seulement : une nouvelle majeure de Grafana (provisionnement des tableaux de bord à revalider) et
+# iperf3v (notre fork : le binaire macOS dépend de sa release).
+
+def _api(url):
+    headers = {"User-Agent": "syntraf-build", "Accept": "application/vnd.github+json"}
+    if os.environ.get("GH_TOKEN") and url.startswith("https://api.github.com/"):
+        headers["Authorization"] = f"Bearer {os.environ['GH_TOKEN']}"  # CI : limite d'appels plus large
+    with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=60) as r:
+        return json.loads(r.read())
+
+
+def _semver(text):
+    return tuple(int(n) for n in re.findall(r"\d+", str(text))[:3])
+
+
+def _release_tags(api, repo):
+    return [r["tag_name"] for r in api(f"https://api.github.com/repos/{repo}/releases?per_page=100")
+            if not r.get("prerelease") and not r.get("draft")]
+
+
+def latest_versions(api=_api):
+    """{composant: {pinned, latest, auto, behind}} ; auto : la CI peut monter la version seule."""
+    def entry(pinned, latest, auto, behind=None):
+        return {"pinned": pinned, "latest": latest, "auto": auto,
+                "behind": (_semver(latest) > _semver(pinned)) if behind is None else behind}
+
+    out = {}
+    vm = [t for t in _release_tags(api, "VictoriaMetrics/VictoriaMetrics") if re.fullmatch(r"v1\.\d+\.\d+", t)]
+    out["victoriametrics"] = entry(VM_VERSION, max(vm, key=_semver), True)
+
+    grafana_versions = [t[1:] for t in _release_tags(api, "grafana/grafana") if re.fullmatch(r"v\d+\.\d+\.\d+", t)]
+    major = _semver(GRAFANA_VERSION)[0]
+    same_major = [v for v in grafana_versions if _semver(v)[0] == major] or [GRAFANA_VERSION]
+    out["grafana"] = entry(GRAFANA_VERSION, max(same_major, key=_semver), True)
+    newest = max(grafana_versions, key=_semver)
+    if _semver(newest)[0] > major:
+        out["grafana-major"] = entry(GRAFANA_VERSION, newest, False)
+
+    pbs = api("https://api.github.com/repos/astral-sh/python-build-standalone/releases/latest")
+    minor = PY_VERSION.rsplit(".", 1)[0]
+    patches = {m.group(1) for a in pbs.get("assets", [])
+               for m in [re.match(rf"cpython-({re.escape(minor)}\.\d+)\+", a["name"])] if m}
+    if patches:
+        best = max(patches, key=_semver)
+        newer = (_semver(best), pbs["tag_name"]) > (_semver(PY_VERSION), PY_BUILD)
+        out["python"] = entry(f"{PY_VERSION}+{PY_BUILD}", f"{best}+{pbs['tag_name']}", True, newer)
+
+    tag = api("https://api.github.com/repos/lbsou/iperf3v/releases/latest")["tag_name"]
+    out["iperf3v"] = entry(IPERF3V_TAG, tag, False, tag != IPERF3V_TAG and _semver(tag) >= _semver(IPERF3V_TAG))
+    return out
+
+
+NAMES = {"victoriametrics": "VictoriaMetrics", "grafana": "Grafana", "grafana-major": "Grafana (majeure)",
+         "python": "Python", "iperf3v": "iperf3v"}
+
+
+def bump_text(text, versions):
+    """(texte de build_packages.py avec les versions automatiques montées, [changements])"""
+    changes = []
+    vm, gr, py = versions.get("victoriametrics"), versions.get("grafana"), versions.get("python")
+    new_vm = vm["latest"] if vm and vm["auto"] and vm["behind"] else VM_VERSION_IN(text)[0]
+    new_gr = gr["latest"] if gr and gr["auto"] and gr["behind"] else VM_VERSION_IN(text)[1]
+    for key, item in (("victoriametrics", vm), ("grafana", gr), ("python", py)):
+        if item and item["auto"] and item["behind"]:
+            changes.append(f"{NAMES[key]} {item['pinned']} → {item['latest']}")
+    text = re.sub(r'^VM_VERSION, GRAFANA_VERSION = "[^"]*", "[^"]*"',
+                  f'VM_VERSION, GRAFANA_VERSION = "{new_vm}", "{new_gr}"', text, count=1, flags=re.M)
+    if py and py["auto"] and py["behind"]:
+        version, build = py["latest"].split("+", 1)
+        text = re.sub(r'^PY_VERSION, PY_BUILD = "[^"]*", "[^"]*"', f'PY_VERSION, PY_BUILD = "{version}", "{build}"',
+                      text, count=1, flags=re.M)
+    return text, changes
+
+
+def VM_VERSION_IN(text):  # noqa: N802 - (VM_VERSION, GRAFANA_VERSION) tels qu'écrits dans text
+    m = re.search(r'^VM_VERSION, GRAFANA_VERSION = "([^"]*)", "([^"]*)"', text, flags=re.M)
+    return m.groups() if m else (VM_VERSION, GRAFANA_VERSION)
+
+
+def report_versions(versions):
+    """Lignes à afficher : un composant par ligne, « à jour » ou ce qui est disponible."""
+    lines = []
+    for key, v in versions.items():
+        state = "à jour" if not v["behind"] else (
+            f"{v['latest']} disponible" + ("" if v["auto"] else " (à valider à la main)"))
+        lines.append(f"  {NAMES[key]:<18} {v['pinned']:<20} {state}")
+    return lines
 
 
 def dashboards():
@@ -303,7 +415,31 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--targets", nargs="*", default=list(TARGETS), choices=list(TARGETS))
     ap.add_argument("--roles", nargs="*", default=list(ROLES), choices=list(ROLES))
+    ap.add_argument("--check-versions", action="store_true",
+                    help="compare les versions embarquées aux dernières publiées (code 1 si une montée automatique attend)")
+    ap.add_argument("--bump", action="store_true",
+                    help="monte dans ce fichier les versions à montée automatique, affiche les changements")
     args = ap.parse_args()
+    if args.check_versions or args.bump:
+        versions = latest_versions()
+        print("\n".join(report_versions(versions)))
+        pending = [k for k, v in versions.items() if v["auto"] and v["behind"]]
+        if args.bump:
+            with open(__file__, encoding="utf-8", newline="") as f:  # fins de ligne gardées telles quelles
+                text, changes = bump_text(f.read(), versions)
+            if changes:
+                with open(__file__, "w", encoding="utf-8", newline="") as f:
+                    f.write(text)
+            print("\n".join(f"- {c}" for c in changes) if changes else "rien à monter")
+            return 0
+        return 1 if pending else 0
+    try:  # avertissement seulement : la construction reste possible hors ligne ou si GitHub limite les appels
+        behind = [line for line in report_versions(latest_versions()) if "disponible" in line]
+        if behind:
+            print("ATTENTION : composants embarqués en retard (python packaging/build_packages.py --bump)\n"
+                  + "\n".join(behind))
+    except Exception as exc:  # noqa: BLE001
+        print(f"versions embarquées non vérifiées ({type(exc).__name__}: {exc})")
     version = DefaultValues.SYNTRAF_VERSION
     if (DIST / "SHA256SUMS").exists():
         (DIST / "SHA256SUMS").unlink()

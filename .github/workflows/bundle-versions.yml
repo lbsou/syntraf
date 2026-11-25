@@ -1,0 +1,73 @@
+# Composants embarqués par les packages (VictoriaMetrics, Grafana, Python) : chaque lundi, monte les versions dont la
+# montée est automatique (packaging/build_packages.py --bump), construit le package serveur Linux, l'installe hors
+# ligne dans Debian (SYNTRAF, VictoriaMetrics et Grafana reliés, tableaux de bord), puis ouvre ou met à jour une PR.
+# Une nouvelle majeure de Grafana et iperf3v sont seulement signalés dans le résumé de l'exécution.
+name: Bundle versions
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Dependencies
+        run: pip install -q -r requirements_server.txt pytest
+
+      - name: Versions
+        id: bump
+        run: |
+          python packaging/build_packages.py --bump | tee bump.txt
+          { echo '```'; cat bump.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          if git diff --quiet -- packaging/build_packages.py; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Unit tests
+        if: steps.bump.outputs.changed == 'true'
+        run: python -m pytest -q lab/tests/test_packaging.py lab/tests/test_bundle_versions.py
+
+      - name: Linux server package, offline install in Debian
+        if: steps.bump.outputs.changed == 'true'
+        run: |
+          python packaging/build_packages.py --targets linux-x86_64 --roles server
+          version=$(python -c "import sys; sys.path.insert(0, '.'); from lib.st_global import DefaultValues; print(DefaultValues.SYNTRAF_VERSION)")
+          docker run --rm --network none -v "$PWD/dist:/dist:ro" -v "$PWD/packaging/test_install.sh:/t.sh:ro" \
+            debian:12-slim sh /t.sh "syntraf-server-$version-linux-x86_64" 2>&1 | tee install.log
+          for expected in "syntraf /healthz 200" "VM : séries écrites par SYNTRAF" "grafana source de données OK" "grafana tableaux de bord"; do
+            grep -q "$expected" install.log || { echo "échec : « $expected » absent"; exit 1; }
+          done
+
+      - name: Pull request
+        if: steps.bump.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B bundle-versions
+          git commit -qam "build: composants embarqués à jour" -m "$(grep '^- ' bump.txt)"
+          git push -f origin bundle-versions
+          body="$(printf 'Versions montées par la CI hebdomadaire (construction et installation hors ligne vérifiées dans Debian).\n\n%s\n' "$(cat bump.txt)")"
+          if gh pr view bundle-versions --json state -q .state 2>/dev/null | grep -q OPEN; then
+            gh pr edit bundle-versions --body "$body"
+          elif ! gh pr create --base master --head bundle-versions --title "Composants embarqués à jour" --body "$body"; then
+            # Dépôt où les Actions ne peuvent pas ouvrir de PR : un ticket à la place
+            gh issue create --title "Composants embarqués à jour (branche bundle-versions)" \
+              --body "$body Branche prête : bundle-versions."
+          fi
