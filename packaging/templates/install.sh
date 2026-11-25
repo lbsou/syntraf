@@ -17,6 +17,9 @@ OS=$(uname -s)
 if [ "$OS" = "Darwin" ]; then
     PREFIX=/usr/local/syntraf-$ROLE; CONF_DIR=/usr/local/etc/syntraf-$ROLE
     DATA_DIR=/usr/local/var/syntraf-$ROLE; LOG_DIR=/usr/local/var/log/syntraf-$ROLE
+    # Archive téléchargée par un navigateur : macOS met en quarantaine tout ce qui en sort et bloquerait iperf3v,
+    # Python, VictoriaMetrics et Grafana (non notariés) ; le package a été vérifié par son empreinte (SHA256SUMS)
+    xattr -dr com.apple.quarantine "$HERE" 2>/dev/null || true
 else
     PREFIX=/opt/syntraf-$ROLE; CONF_DIR=/etc/syntraf-$ROLE
     DATA_DIR=/var/lib/syntraf-$ROLE; LOG_DIR=/var/log/syntraf-$ROLE
@@ -161,7 +164,7 @@ PY=$PREFIX/python/bin/python3
 rm -rf "$PREFIX/app"
 cp -R "$HERE/payload/app" "$PREFIX/app"
 
-# iperf3v : celui du package (Linux), sinon celui du système (macOS)
+# iperf3v : celui du package (Linux, macOS 15+), sinon celui du système
 mkdir -p "$PREFIX/bin"
 if [ -f "$HERE/payload/bin/iperf3v" ]; then
     cp "$HERE/payload/bin/iperf3v" "$PREFIX/bin/iperf3v"

@@ -66,3 +66,24 @@ def test_a_fresh_server_gets_the_suggested_profiles():
         blocks =re.findall(r"\[\[IPERF3_PROFILE\]\]((?:\s*\w+ = \"[^\"\n]*\")+)", text)
         found = [dict(re.findall(r"(\w+) = \"([^\"\n]*)\"", b)) for b in blocks]
         assert found == [{k: str(v) for k, v in p.items()} for p in SUGGESTED_PROFILES], name
+
+
+def test_iperf3v_release_assets_are_checked_against_their_sha256sums(tmp_path, monkeypatch):
+    """Binaires iperf3v téléchargés (Windows, macOS) : refusés si leur empreinte n'est pas celle de SHA256SUMS."""
+    import hashlib
+    import pytest
+    asset = tmp_path / "iperf3v-x-macos-arm64.tar.gz"
+    asset.write_bytes(b"binaire")
+    sums = tmp_path / "SHA256SUMS"
+    monkeypatch.setattr(bp, "fetch", lambda url, name: sums if name.endswith("SHA256SUMS") else asset)
+    sums.write_text(f"{hashlib.sha256(b'binaire').hexdigest()}  {asset.name}\n")
+    assert bp.iperf3v_asset(asset.name) == asset
+    sums.write_text(f"{'0' * 64}  {asset.name}\n")
+    with pytest.raises(SystemExit):
+        bp.iperf3v_asset(asset.name)
+
+
+def test_the_macos_package_ships_iperf3v():
+    assert bp.TARGETS["macos-arm64"]["iperf"] == "macos"
+    install = (ROOT / "packaging" / "templates" / "install.sh").read_text(encoding="utf-8")
+    assert "com.apple.quarantine" in install  # archive téléchargée par un navigateur : binaire bloqué sinon

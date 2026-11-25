@@ -38,7 +38,7 @@ HERE = Path(__file__).resolve().parent
 CACHE = HERE / "cache"
 DIST = ROOT / "dist"
 PY_VERSION, PY_BUILD = "3.14.10", "20261123"
-IPERF3V_TAG = "v3.22.1-v2"
+IPERF3V_TAG = "v3.22.1-v3"
 VM_VERSION, GRAFANA_VERSION = "v1.156.0", "13.0.2"
 
 TARGETS = {
@@ -51,7 +51,7 @@ TARGETS = {
     "windows-x86_64": {"python": "x86_64-pc-windows-msvc", "os": "windows", "iperf": "windows",
                        "vm": "windows-amd64", "grafana": "windows-amd64",
                        "platforms": ["win_amd64"]},
-    "macos-arm64": {"python": "aarch64-apple-darwin", "os": "macos", "iperf": None,
+    "macos-arm64": {"python": "aarch64-apple-darwin", "os": "macos", "iperf": "macos",  # iperf3v : macOS 15+
                     "vm": "darwin-arm64", "grafana": "darwin-arm64",
                     "platforms": ["macosx_11_0_arm64", "macosx_10_15_universal2", "macosx_10_9_universal2"]},
     # macOS Intel : pas de cible, cryptography (dépendance) ne publie plus de wheel x86_64 pour macOS
@@ -120,9 +120,27 @@ def iperf3v_linux_static():
     return out
 
 
+def iperf3v_asset(name):
+    """Fichier de la release iperf3v, vérifié contre son SHA256SUMS (publié par le workflow de release)."""
+    base = f"https://github.com/lbsou/iperf3v/releases/download/{IPERF3V_TAG}/"
+    path = fetch(base + name, name)
+    sums = fetch(base + "SHA256SUMS", f"iperf3v-{IPERF3V_TAG}-SHA256SUMS")
+    expected = {line.split()[-1].lstrip("*"): line.split()[0]
+                for line in sums.read_text(encoding="ascii").splitlines() if line.strip()}
+    actual = hashlib.sha256(path.read_bytes()).hexdigest()
+    if expected.get(name) != actual:
+        path.unlink(missing_ok=True)  # téléchargement suivant : depuis la source
+        sys.exit(f"{name} : empreinte {actual[:12]}… absente de SHA256SUMS ou différente ({IPERF3V_TAG})")
+    return path
+
+
 def iperf3v_windows():
-    name = f"iperf3v-{IPERF3V_TAG[1:]}-windows-x86_64.zip"
-    return fetch(f"https://github.com/lbsou/iperf3v/releases/download/{IPERF3V_TAG}/{name}", name)
+    return iperf3v_asset(f"iperf3v-{IPERF3V_TAG[1:]}-windows-x86_64.zip")
+
+
+def iperf3v_macos():
+    """Binaire macOS arm64 (OpenSSL lié statiquement, signé ad hoc), construit par la CI d'iperf3v sur macOS 15."""
+    return iperf3v_asset(f"iperf3v-{IPERF3V_TAG[1:]}-macos-arm64.tar.gz")
 
 
 def victoriametrics(target):
@@ -221,6 +239,10 @@ def build(target, role, version):
             for n in z.namelist():
                 if not n.endswith("/") and n.lower().endswith((".exe", ".dll")):
                     a.add_bytes(f"payload/bin/{Path(n).name}", z.read(n))
+    elif t["iperf"] == "macos":
+        with tarfile.open(iperf3v_macos()) as z:
+            binary = next(m for m in z.getmembers() if m.isfile() and m.name.endswith("/bin/iperf3v"))
+            a.add_bytes("payload/bin/iperf3v", z.extractfile(binary).read(), 0o755)
     a.close()
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
     with open(DIST / "SHA256SUMS", "a", encoding="ascii") as f:
