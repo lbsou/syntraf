@@ -107,6 +107,20 @@ function savePositions() {
 
 // Une flèche par sens : de l'émetteur vers la sonde qui reçoit, colorée par la qualité de CE sens, sa valeur près
 // de la pointe. Le RTT est propre à la paire : même couleur pour les deux flèches, valeur sur une seule.
+// Nom de chaque sonde du côté extérieur de la carte (au-dessus, en dessous, à gauche ou à droite selon sa place par
+// rapport au centre) : les flèches arrivent de l'intérieur et ne le croisent plus
+function placeLabels() {
+    if (!cy || !cy.nodes().length) return;
+    const bb = cy.nodes().boundingBox(), cx = (bb.x1 + bb.x2) / 2, cy0 = (bb.y1 + bb.y2) / 2;
+    cy.batch(() => cy.nodes().forEach(n => {
+        const dx = n.position("x") - cx, dy = n.position("y") - cy0;
+        const side = Math.abs(dy) >= Math.abs(dx) ? (dy < 0 ? "top" : "bottom") : (dx < 0 ? "left" : "right");
+        n.data({lv: side === "top" ? "top" : side === "bottom" ? "bottom" : "center",
+                lh: side === "left" ? "left" : side === "right" ? "right" : "center",
+                mx: side === "left" ? -8 : side === "right" ? 8 : 0, my: side === "top" ? -8 : side === "bottom" ? 8 : 0});
+    }));
+}
+
 function edgeId(l, d) { return `${d.from}>${d.to}|${l.mesh_group}`; }
 
 function arrowData(l, d, metric) {
@@ -132,6 +146,7 @@ function render(data) {
     const metric = el("lm_metric").value;
     const elements = [
         ...data.nodes.map(n => ({group: "nodes", data: {id: n.id, label: n.behind_nat ? `${n.id} (NAT)` : n.id,
+            lv: "bottom", lh: "center", mx: 0, my: 8,  // placement par défaut ; placeLabels le corrige
             color: STATUS[n.status] || "#777777", nat: n.behind_nat ? 1 : 0, raw: n}})),
         ...data.links.flatMap(l => l.directions.map(d => ({group: "edges", data: arrowData(l, d, metric)}))),
     ];
@@ -140,31 +155,34 @@ function render(data) {
             container: el("lm_cy"), elements, wheelSensitivity: 0.2, minZoom: 0.2, maxZoom: 3,
             style: [
                 {selector: "node", style: {"background-color": "data(color)", label: "data(label)", color: "#eee",
-                    "font-size": 12, "text-valign": "bottom", "text-halign": "center", "text-margin-y": 6,
+                    "font-size": 12, "text-valign": "data(lv)", "text-halign": "data(lh)",
+                    "text-margin-x": "data(mx)", "text-margin-y": "data(my)",
                     width: 30, height: 30, "border-width": 3, "border-color": "#2b2b2b",
                     "text-wrap": "wrap", "text-max-width": 110, "text-background-color": "#1e1e1e",
-                    "text-background-opacity": 0.9, "text-background-padding": 3, "text-background-shape": "roundrectangle",
-                    "min-zoomed-font-size": 7, "z-index": 10}},
+                    "text-background-opacity": 0.8, "text-background-padding": 2, "text-background-shape": "roundrectangle",
+                    // sous les flèches ; le nom est placé côté extérieur de la carte (placeLabels), loin d'elles
+                    "min-zoomed-font-size": 7, "z-index-compare": "manual", "z-index": 10}},
                 {selector: "node[nat = 1]", style: {"border-style": "dashed", "border-color": "#3498db"}},
                 // Une flèche par sens (les deux d'une paire s'écartent l'une de l'autre) ; valeur près de la pointe,
                 // horizontale, sur fond opaque
                 {selector: "edge", style: {"line-color": "data(color)", width: 4, "curve-style": "bezier",
                     "control-point-step-size": 80, "target-arrow-shape": "triangle", "target-arrow-color": "data(color)",
-                    "arrow-scale": 1.3, "target-label": "data(value)",
-                    "target-text-offset": 58, "font-size": 11, color: "#eee",
+                    "arrow-scale": 1.3, "target-distance-from-node": 3, "target-label": "data(value)",
+                    // valeur en retrait de la sonde (et de son nom), sur sa flèche
+                    "target-text-offset": 95, "font-size": 11, color: "#eee",
                     "text-background-color": "#1e1e1e", "text-background-opacity": 0.9,
                     "text-background-padding": 2, "text-background-shape": "roundrectangle",
-                    "min-zoomed-font-size": 8, "z-index": 1}},
+                    "min-zoomed-font-size": 8, "z-index-compare": "manual", "z-index": 20}},
                 {selector: "edge[dashed = 1]", style: {"line-style": "dashed", width: 2}},
                 {selector: "edge[alert = 1]", style: {"overlay-color": "#e74c3c", "overlay-opacity": 0.3, "overlay-padding": 6}},
                 {selector: "edge.lm-quiet", style: {"target-label": ""}},
-                {selector: "edge.lm-hover", style: {"target-label": "data(value)", "z-index": 20, width: 6}},
+                {selector: "edge.lm-hover", style: {"target-label": "data(value)", "z-index": 30, width: 6}},
                 {selector: ":selected", style: {"overlay-opacity": 0.15, "overlay-color": "#fff"}},
             ],
             layout: layoutFor(data),
         });
-        cy.on("dragfree", "node", savePositions);
-        cy.on("layoutstop", capZoom);
+        cy.on("dragfree", "node", () => { savePositions(); placeLabels(); });
+        cy.on("layoutstop", () => { capZoom(); placeLabels(); });
         capZoom();
         cy.on("mouseover", "edge", e => e.target.addClass("lm-hover"));
         cy.on("mouseout", "edge", e => e.target.removeClass("lm-hover"));
@@ -185,6 +203,7 @@ function render(data) {
     }
     // Beaucoup de flèches : leurs valeurs n'apparaissent qu'au survol (sinon elles se chevauchent au centre)
     cy.edges().toggleClass("lm-quiet", cy.edges().length > 48);
+    placeLabels();  // l'actualisation remet les données des sondes : leur nom reprend sa place
     legend(data.grades, metric);
 }
 
