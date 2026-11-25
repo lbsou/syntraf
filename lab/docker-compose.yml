@@ -24,7 +24,9 @@ services:
     container_name: syntraf-lab-victoriametrics
     restart: "no"
     init: true
-    mem_limit: 256m
+    # 256 Mio ne suffisaient plus (~340 Mio en service, pointes à ~620 Mio en absorbant un arriéré) : tué par OOM
+    # le 2026-11-25, ce qui a fait tomber le serveur (arriérés des sondes renvoyés d'un bloc, corrigé en 0.45.20)
+    mem_limit: 768m
     command:
       - -storageDataPath=/storage
       - -retentionPeriod=30d
@@ -58,6 +60,7 @@ services:
         IPERF3_FORK_REPO: ${IPERF3_FORK_REPO}
         IPERF3_FORK_BRANCH: ${IPERF3_FORK_BRANCH}
     container_name: syntraf-lab-server
+    mem_limit: 256m  # ~120 Mio en service ; marge pour l'arriéré des sondes après une coupure de la base
     environment:
       ROLE: server
     volumes:
