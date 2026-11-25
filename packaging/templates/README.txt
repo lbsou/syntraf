@@ -2,7 +2,7 @@ SYNTRAF : installation hors ligne
 =================================
 
 Ce package contient tout ce qu'il faut, sans accès Internet : Python, les dépendances, SYNTRAF et iperf3v.
-macOS : Mac Apple silicon sous macOS 15 (Sequoia) ou plus récent.
+macOS : iperf3 du système, 3.17 ou plus récent (brew install iperf3), en attendant iperf3v pour Mac.
 
 Sonde
 -----

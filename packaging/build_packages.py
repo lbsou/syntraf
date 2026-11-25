@@ -39,7 +39,7 @@ HERE = Path(__file__).resolve().parent
 CACHE = HERE / "cache"
 DIST = ROOT / "dist"
 PY_VERSION, PY_BUILD = "3.14.10", "20261123"
-IPERF3V_TAG = "v3.22.1-v3"
+IPERF3V_TAG = "v3.22.1-v2"  # v3.22.1-v3 (binaire macOS) : quand sa release sera publiée
 VM_VERSION, GRAFANA_VERSION = "v1.156.0", "13.0.2"
 
 TARGETS = {
@@ -56,7 +56,7 @@ TARGETS = {
     "windows-x86_64": {"python": "x86_64-pc-windows-msvc", "os": "windows", "iperf": "windows",
                        "vm": "windows-amd64", "grafana": "windows-amd64",
                        "platforms": ["win_amd64"]},
-    "macos-arm64": {"python": "aarch64-apple-darwin", "os": "macos", "iperf": "macos",  # iperf3v : macOS 15+
+    "macos-arm64": {"python": "aarch64-apple-darwin", "os": "macos", "iperf": None,  # "macos" avec iperf3v v3.22.1-v3
                     "vm": "darwin-arm64", "grafana": "darwin-arm64",
                     "platforms": ["macosx_11_0_arm64", "macosx_10_15_universal2", "macosx_10_9_universal2"]},
     # macOS Intel : pas de cible, cryptography (dépendance) ne publie plus de wheel x86_64 pour macOS
