@@ -54,7 +54,7 @@ class CompilationOptions:
 
 class DefaultValues:
     # GLOBAL
-    SYNTRAF_VERSION = "0.45.19"
+    SYNTRAF_VERSION = "0.45.20"
     SYNTRAF_ROOT_DIR = pathlib.Path(__file__).parent.parent.absolute()  # code de la version qui tourne
     # Données (clés, état) : dans l'installation en place, même quand une release installée à distance tourne
     # (st_updater la désigne par SYNTRAF_BASE_DIR) ; sinon l'identité du client changerait à chaque mise à jour.
@@ -81,6 +81,9 @@ class DefaultValues:
     DEFAULT_SERVER_PORT = "6531"
     DEFAULT_KEY_SIZE = 2_048
     DEFAULT_CLIENT_METRICS_QUEUE_SIZE = 86_400
+    # Mesures par message SAVE_METRIC : un arriéré part par lots (un message de 86 400 mesures faisait tomber le serveur
+    # et VictoriaMetrics faute de mémoire, et ne passait pas un lien lent dans le délai du canal de contrôle)
+    CLIENT_METRICS_PER_MESSAGE = 2_000
     DEFAULT_CLIENT_METRICS_UPDATE_FREQUENCY = 1
     CONTROL_CHANNEL_HEARTBEAT = 1
     # A peer silent for this long is considered gone (the client sends a heartbeat every second)
