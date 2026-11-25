@@ -1134,7 +1134,8 @@ def server_save_metric(obj_client, conn_db, received_data, address, sckt):
 
 
 def server_auth(received_data, obj_client, _config, address, dict_of_commands_for_network_clients, sckt,
-                _dict_by_node_generated_config, dict_of_client_pending_acceptance, threads_n_processes):
+                _dict_by_node_generated_config, dict_of_client_pending_acceptance, threads_n_processes,
+                dict_of_clients=None):
     obj_client.client_uid = received_data['PAYLOAD']['CLIENT_UID']
     public_key = received_data['PAYLOAD']['PUBLIC_KEY']
 
@@ -1200,7 +1201,7 @@ def server_auth(received_data, obj_client, _config, address, dict_of_commands_fo
 
     if addresses_changed and not regenerated:
         try:
-            server_push_address_change(_config, _dict_by_node_generated_config, dict_of_clients,
+            server_push_address_change(_config, _dict_by_node_generated_config, dict_of_clients or {},
                                        dict_of_commands_for_network_clients, obj_client.client_uid)
         except Exception as exc:  # noqa: BLE001 - jamais bloquant pour la connexion de la sonde
             server_log.error(f"CONTEXT: {obj_client.client_uid} - ADDRESSES NOT APPLIED: {type(exc).__name__}:{exc}")
@@ -1492,7 +1493,8 @@ class Handler(StreamRequestHandler):
 
                         if not server_auth(received_data, dict_of_clients[uid], _config,
                                            dict_of_clients[uid].ip_address, dict_of_commands_for_network_clients, sckt,
-                                           _dict_by_node_generated_config, dict_of_client_pending_acceptance, threads_n_processes):
+                                           _dict_by_node_generated_config, dict_of_client_pending_acceptance, threads_n_processes,
+                                           dict_of_clients=dict_of_clients):
                             return
 
                         # Now that we know the identity of the client connecting, we can update the dictionary of client objects

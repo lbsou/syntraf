@@ -117,3 +117,15 @@ def test_new_addresses_announced_by_a_probe_reach_only_the_peers_concerned(state
     assert pushed == ["INTERNE"]
     assert state["dict_of_commands_for_network_clients"]["INTERNE"] == [{"ACTION": "NEWCONFIG"}]
     assert destination(state, "INTERNE", "X") == "10.0.0.99"
+
+
+def test_the_authentication_passes_the_clients_to_the_address_propagation():
+    """Régression : server_auth appelait server_push_address_change avec un dict_of_clients qu'il ne recevait pas
+    (NameError rattrapé : les adresses changées n'étaient jamais propagées)."""
+    import inspect
+    import lib.st_process_and_thread  # noqa: F401
+    from lib import st_mesh
+    assert "dict_of_clients" in inspect.signature(st_mesh.server_auth).parameters
+    source = inspect.getsource(st_mesh)
+    call = source[source.index("if not server_auth("):]
+    assert "dict_of_clients=dict_of_clients" in call[:call.index("):")]

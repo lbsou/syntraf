@@ -54,7 +54,7 @@ class CompilationOptions:
 
 class DefaultValues:
     # GLOBAL
-    SYNTRAF_VERSION = "0.45.23"
+    SYNTRAF_VERSION = "0.45.24"
     SYNTRAF_ROOT_DIR = pathlib.Path(__file__).parent.parent.absolute()  # code de la version qui tourne
     # Données (clés, état) : dans l'installation en place, même quand une release installée à distance tourne
     # (st_updater la désigne par SYNTRAF_BASE_DIR) ; sinon l'identité du client changerait à chaque mise à jour.
