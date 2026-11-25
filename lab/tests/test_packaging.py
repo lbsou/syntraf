@@ -68,6 +68,22 @@ def test_a_fresh_server_gets_the_suggested_profiles():
         assert found == [{k: str(v) for k, v in p.items()} for p in SUGGESTED_PROFILES], name
 
 
+def test_the_linux_probe_runs_on_glibc_2_17():
+    """RHEL/CentOS 7 : la sonde ne doit embarquer aucun wheel manylinux_2_28 (pip prend le premier tag qui convient)."""
+    probe = bp.platforms_of("linux-x86_64", "probe")
+    assert probe[0] == "manylinux2014_x86_64" and not any("2_28" in p for p in probe)
+    assert bp.TARGETS["linux-x86_64"]["glibc"] == {"probe": "2.17", "server": "2.28"}
+    assert bp.platforms_of("windows-x86_64", "probe") == ["win_amd64"]
+
+
+def test_archive_entries_are_not_dated_1970(tmp_path):
+    a = bp.Archive(tmp_path / "p.tar.gz", "pkg")
+    a.add_bytes("x.txt", b"x")
+    a.close()
+    with tarfile.open(tmp_path / "p.tar.gz") as t:
+        assert t.getmembers()[0].mtime > 1_600_000_000
+
+
 def test_iperf3v_release_assets_are_checked_against_their_sha256sums(tmp_path, monkeypatch):
     """Binaires iperf3v téléchargés (Windows, macOS) : refusés si leur empreinte n'est pas celle de SHA256SUMS."""
     import hashlib

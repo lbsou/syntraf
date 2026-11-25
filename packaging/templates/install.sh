@@ -149,6 +149,17 @@ EOF
     fi
 }
 
+# glibc trop ancienne pour le Python et les wheels du package : le dire avant de rien toucher
+if [ -f "$HERE/payload/GLIBC_MIN" ] && [ "$OS" = Linux ]; then
+    NEED=$(cat "$HERE/payload/GLIBC_MIN")
+    HAVE=$(getconf GNU_LIBC_VERSION 2>/dev/null | awk '{print $2}')
+    if [ -n "$HAVE" ] && [ "$(printf '%s\n%s\n' "$NEED" "$HAVE" | sort -t. -k1,1n -k2,2n | head -n1)" != "$NEED" ]; then
+        echo "Ce package demande glibc $NEED ou plus ; ce système a glibc $HAVE." >&2
+        [ "$ROLE" = server ] && echo "Le serveur demande RHEL 8, Debian 10, Ubuntu 20.04 ou plus récent." >&2
+        exit 2
+    fi
+fi
+
 echo "SYNTRAF $ROLE $VERSION → $PREFIX"
 if [ "$SERVICE" = 1 ]; then for c in $COMPONENTS; do service_stop "$c"; done; fi
 mkdir -p "$PREFIX" "$CONF_DIR" "$DATA_DIR" "$LOG_DIR"

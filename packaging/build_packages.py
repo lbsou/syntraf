@@ -25,6 +25,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import time
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -44,7 +45,11 @@ VM_VERSION, GRAFANA_VERSION = "v1.156.0", "13.0.2"
 TARGETS = {
     "linux-x86_64": {"python": "x86_64-unknown-linux-gnu", "os": "linux", "iperf": "linux-static",
                      "vm": "linux-amd64", "grafana": "linux-amd64",
-                     "platforms": ["manylinux_2_28_x86_64", "manylinux_2_17_x86_64", "manylinux2014_x86_64"]},
+                     "platforms": ["manylinux_2_28_x86_64", "manylinux_2_17_x86_64", "manylinux2014_x86_64"],
+                     # Sonde : glibc 2.17 (RHEL/CentOS 7) ; pip prend le premier tag qui convient, un wheel 2_28
+                     # (cryptography) exigerait glibc 2.28. Le serveur reste en 2_28 : gevent n'a plus de wheel 2014.
+                     "probe_platforms": ["manylinux2014_x86_64", "manylinux_2_17_x86_64"],
+                     "glibc": {"probe": "2.17", "server": "2.28"}},
     "linux-musl-x86_64": {"python": "x86_64-unknown-linux-musl", "os": "linux", "iperf": "linux-static",
                           "vm": "linux-amd64", "grafana": "linux-amd64-musl",
                           "platforms": ["musllinux_1_2_x86_64", "musllinux_1_1_x86_64"]},
@@ -78,9 +83,15 @@ def python_archive(target):
     return fetch(f"https://github.com/astral-sh/python-build-standalone/releases/download/{PY_BUILD}/{name}", name)
 
 
+def platforms_of(target, role):
+    t = TARGETS[target]
+    return t.get(f"{role}_platforms") or t["platforms"]
+
+
 def wheels(target, role):
     """Wheels des dépendances pour la plateforme et le Python cibles (pip download, binaires seulement)."""
-    out = CACHE / "wheels" / f"{target}-{role}"
+    platforms = platforms_of(target, role)
+    out = CACHE / "wheels" / f"{target}-{role}-{platforms[0]}"  # nouvelle plateforme : nouveau cache
     if out.exists() and any(out.glob("*.whl")):
         return out
     out.mkdir(parents=True, exist_ok=True)
@@ -95,7 +106,7 @@ def wheels(target, role):
     cmd = [sys.executable, "-m", "pip", "download", "--disable-pip-version-check", "--quiet", "--dest", str(out),
            "--only-binary=:all:", "--implementation", "cp", "--python-version", PY_VERSION.rsplit(".", 1)[0],
            "-r", str(ROOT / ROLES[role]["requirements"])]
-    for p in TARGETS[target]["platforms"]:
+    for p in platforms:
         cmd += ["--platform", p]
     print(f"  wheels {target}/{role}")
     subprocess.run(cmd, check=True, cwd=ROOT)
@@ -167,6 +178,20 @@ def dashboards():
             for n, d in st_grafana_dashboards.all_dashboards()]
 
 
+def _commit_time():
+    """Date des fichiers de l'archive : celle du dernier commit (reproductible), pas 1970 (tar s'en plaint)."""
+    if os.environ.get("SOURCE_DATE_EPOCH"):
+        return int(os.environ["SOURCE_DATE_EPOCH"])
+    try:
+        return int(subprocess.run(["git", "log", "-1", "--format=%ct"], cwd=ROOT, capture_output=True, text=True,
+                                  check=True).stdout.strip())
+    except (OSError, ValueError, subprocess.CalledProcessError):
+        return int(time.time())
+
+
+MTIME = _commit_time()
+
+
 class Archive:
     """tar.gz (modes Unix fixés ici : la construction peut se faire sous Windows) ou zip."""
 
@@ -180,7 +205,7 @@ class Archive:
             self.f.writestr(name, data)
             return
         info = tarfile.TarInfo(name)
-        info.size, info.mode, info.mtime = len(data), mode, 0
+        info.size, info.mode, info.mtime = len(data), mode, MTIME
         self.f.addfile(info, io.BytesIO(data))
 
     def add_file(self, rel, path, mode=0o644):
@@ -214,6 +239,8 @@ def build(target, role, version):
     a.add_bytes("payload/ROLE", f"{role}\n".encode())
     a.add_bytes("payload/VERSION", f"{version}\n".encode())
     a.add_bytes("payload/TARGET", f"{target}\n".encode())
+    if t.get("glibc"):  # vérifiée par install.sh avant de rien installer
+        a.add_bytes("payload/GLIBC_MIN", f"{t['glibc'][role]}\n".encode())
     a.add_file("payload/python.tar.gz", python_archive(target))
     for whl in sorted(wheels(target, role).glob("*.whl")):
         a.add_file(f"payload/wheels/{whl.name}", whl)
