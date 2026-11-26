@@ -100,3 +100,17 @@ html.st-i18n-pending body { visibility: hidden; }
 /* Sous-sections de la page Server, dans le menu latéral */
 .st-sidebar .st-subnav .nav-link { padding: .25rem 1rem .25rem 2.4rem; font-size: .85rem; color: #aaa; }
 .st-sidebar .st-subnav .nav-link.active { color: #fff; background: #2a2a2a; border-left-color: #00bc8c; }
+
+/* Bootstrap 5.3 (Darkly) : la piste d'un curseur prend presque la couleur du fond ; elle redevient visible
+   (curseur de relecture de la carte en direct) */
+.form-range::-webkit-slider-runnable-track { background-color: #adb5bd; }
+.form-range::-moz-range-track { background-color: #adb5bd; }
+/* Bootstrap 5.3 en mode sombre donne aux listes une flèche claire, alors que Darkly garde leur fond blanc : flèche
+   foncée, lisible */
+[data-bs-theme=dark] .form-select {
+    --bs-form-select-bg-img: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23303030' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+}
+/* Même cause pour les interrupteurs éteints : rond clair sur fond blanc, invisible ; rond foncé comme en 5.2 */
+[data-bs-theme=dark] .form-switch .form-check-input:not(:checked):not(:focus) {
+    --bs-form-switch-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='rgba%280, 0, 0, 0.25%29'/%3e%3c/svg%3e");
+}
