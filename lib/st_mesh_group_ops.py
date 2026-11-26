@@ -29,6 +29,7 @@ from lib import st_config_store as store
 from lib import st_capacity
 from lib import st_flow_catalog
 from lib import st_syslog
+from lib import st_toml
 from lib import st_topology
 
 # Confirmation explicite d'un changement qui franchit le seuil d'alerte de capacité (posée par l'API, ?confirm=1)
@@ -1739,7 +1740,14 @@ def _commit(state, disk_cfg, actor, action, summary, dry_run):
     if impact["alert"] and not dry_run and not CONFIRMED.get():
         raise OpError(428, f"Large change ({impact['alert_reason']}): review it and confirm explicitly")
     old_text = _read_text(state["config_file_path"])
-    new_text = toml.dumps(disk_cfg)
+    new_text = st_toml.dumps(disk_cfg)
+    try:  # un fichier qui ne se relirait pas à l'identique n'est jamais écrit (le serveur ne redémarrerait plus)
+        reread = toml.loads(new_text)
+    except toml.TomlDecodeError:
+        reread = None
+    if reread != disk_cfg:
+        log.error(f"{action} NOT APPLIED: THE CONFIGURATION WOULD NOT READ BACK IDENTICALLY")
+        raise OpError(422, "Not applied: a value cannot be written to the configuration file as it is")
     result = {"impact": impact, "message": summary, "diff": store.redacted_diff(old_text, new_text), "affected_clients": affected,
               "reconnected_clients": [], "reconfigured_clients": [], "recreated_databases": recreated,
               "restart_required": _restart_keys(old_disk, disk_cfg), "dry_run": dry_run}

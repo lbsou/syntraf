@@ -3,6 +3,7 @@ from lib.st_files import open_private
 from lib.st_logging import *
 import pathlib
 import toml
+from lib import st_toml
 import logging
 import sys
 log = logging.getLogger("syntraf." + __name__)
@@ -63,7 +64,7 @@ def write_toml(config, config_file_path):
         return False
     try:
         with open_private(p) as toml_file:  # la configuration d'un client contient son jeton
-            toml.dump(config, toml_file)
+            st_toml.dump(config, toml_file)
     except TypeError as err:
         log.error(f"AN ERROR OCCURED WHILE WRITING CONFIG TO FILE '{p.absolute()}'")
         log.error(f"{err}")

@@ -659,6 +659,7 @@
  "None: use the values below": "Aucun : utiliser les valeurs ci-dessous",
  "Not an IPv4 address (optionally /prefix) or a host name: {0}": "Ni une adresse IPv4 (avec /préfixe au besoin) ni un nom d'hôte : {0}",
  "Not applied: a client would exceed its MAX_BANDWIDTH, or the client configuration": "Non appliqué : un client dépasserait son MAX_BANDWIDTH, ou la configuration des clients",
+ "Not applied: a value cannot be written to the configuration file as it is": "Non appliqué : une valeur ne peut pas être écrite telle quelle dans le fichier de configuration",
  "Not applied: {0}": "Non appliqué : {0}",
  "Not found": "Introuvable",
  "Not reported by this client version": "Non transmis par cette version du client",

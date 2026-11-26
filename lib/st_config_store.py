@@ -13,8 +13,7 @@ import shutil
 import tempfile
 
 from lib.st_files import open_private
-
-import toml
+from lib import st_toml
 
 HISTORY_LIMIT = 200
 _LISTENERS = {}  # nom -> fonction(entrée d'audit), ex. l'écriture des changements dans les bases (repères Grafana)
@@ -38,7 +37,7 @@ def save(path, config, actor, action, summary, now=None):
     Renvoie l'entrée d'audit écrite.
     """
     now = now or dt.datetime.now(dt.timezone.utc)
-    return save_text(path, toml.dumps(config), actor, action, summary, now)
+    return save_text(path, st_toml.dumps(config), actor, action, summary, now)
 
 
 def save_text(path, new_text, actor, action, summary, now=None):

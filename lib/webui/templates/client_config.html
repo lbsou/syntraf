@@ -202,12 +202,12 @@ const crud = st.crud({
         {field: "MAX_BANDWIDTH", title: "Max bandwidth", formatter: v => st.esc(v || "")},
         {field: "MESH_LISTENERS_PORT_RANGE", title: "Port range", formatter: v => st.esc(v || "")},
         {field: "DEPLOYMENT_GROUP", title: "Deployment group", sortable: true,
-         formatter: v => v ? `<span class="badge bg-secondary">${st.esc(v)}</span>` : ""},
+         formatter: v => v ? `<span class="badge bg-secondary" data-no-i18n>${st.esc(v)}</span>` : ""},
         {field: "DESCRIPTION", title: "Description", formatter: v => {
             if (!v) return "";
             const lines = String(v).split(/\r?\n/);
             const short = lines[0].length > 60 ? lines[0].slice(0, 60) + "…" : lines[0] + (lines.length > 1 ? " …" : "");
-            return `<span title="${st.esc(v)}">${st.esc(short)}</span>`;
+            return `<span data-no-i18n title="${st.esc(v)}">${st.esc(short)}</span>`;
         }},
     ],
     async fill(row) {

@@ -76,6 +76,28 @@ def test_a_form_without_description_keeps_it(state):
     assert disk(state)["DESCRIPTION"] == "note"
 
 
+def test_a_windows_path_in_the_description_keeps_the_configuration_readable(state):
+    text = "Journaux : C:\\xampp\\logs\nProfil : C:\\Users\\xavier"
+    ops.update_client(state, "SITE_A", form(DESCRIPTION=text), actor="admin")
+    assert disk(state)["DESCRIPTION"] == text
+    assert ops.list_clients(state)[0]["DESCRIPTION"] == text
+
+
+def test_a_configuration_that_would_not_read_back_is_not_written(state, monkeypatch):
+    before = Path(state["config_file_path"]).read_text()
+    monkeypatch.setattr(ops.st_toml, "dumps", lambda cfg: toml.dumps(cfg).replace("10.0.0.4", "10.0.0.9"))
+    with pytest.raises(ops.OpError) as err:
+        ops.update_client(state, "SITE_A", form(DESCRIPTION="note"), actor="admin")
+    assert err.value.status == 422
+    assert Path(state["config_file_path"]).read_text() == before
+
+
+def test_the_description_column_is_not_translated():
+    page = (Path(__file__).resolve().parents[2] / "lib/webui/templates/client_config.html").read_text(encoding="utf-8")
+    column = page[page.index('{field: "DESCRIPTION"'):]
+    assert "data-no-i18n" in column[:column.index("}},")]
+
+
 def test_a_new_client_can_have_a_description(state):
     ops.create_client(state, form(UID="SITE_B", IP_ADDRESS="10.0.0.5", DESCRIPTION="neuf"), actor="admin")
     assert toml.load(state["config_file_path"])["SERVER_CLIENT"][1]["DESCRIPTION"] == "neuf"
