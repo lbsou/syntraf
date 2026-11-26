@@ -272,6 +272,32 @@
         </div>
     </div>
     <div class="row">
+        <div class="col-md-8 mb-3">
+            <label for="g_internal" class="form-label">Internal networks (local network) <span class="badge bg-success">live</span></label>
+            <input class="form-control" id="g_internal" data-field="INTERNAL_NETWORKS" placeholder="10.0.0.0/8" autocomplete="off" spellcheck="false" aria-describedby="g_internal_help">
+            <div class="invalid-feedback" data-feedback="INTERNAL_NETWORKS"></div>
+            <div id="g_internal_help" class="form-text">A flow sent to an address in these networks travels over your local network; any other over the Internet (live map). Separated by commas, e.g. 10.0.0.0/8, 172.16.0.0/12, 142.83.130.0/23. Empty: 10.0.0.0/8.</div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-8 mb-3">
+            <label for="g_vpn" class="form-label">VPN access networks <span class="badge bg-success">live</span></label>
+            <input class="form-control" id="g_vpn" data-field="VPN_NETWORKS" placeholder="10.251.0.0/16" autocomplete="off" spellcheck="false" aria-describedby="g_vpn_help">
+            <div class="invalid-feedback" data-feedback="VPN_NETWORKS"></div>
+            <div id="g_vpn_help" class="form-text">Addresses given to VPN clients. A flow to one of them, or from a probe that has one, travels through the VPN (live map). Separated by commas. Empty: no VPN.</div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <label for="g_vpn_mode" class="form-label">VPN tunnel <span class="badge bg-success">live</span></label>
+            <select class="form-select" id="g_vpn_mode" data-field="VPN_MODE" aria-describedby="g_vpn_mode_help">
+                <option value="">Split tunneling (default)</option>
+                <option value="split">Split tunneling</option>
+                <option value="full">Full tunnel</option>
+            </select>
+            <div class="invalid-feedback" data-feedback="VPN_MODE"></div>
+            <div id="g_vpn_mode_help" class="form-text">Split: only the traffic to the internal networks goes through the VPN, the rest over the Internet. Full: all the traffic of a VPN probe goes through the VPN.</div>
+        </div>
+    </div>
+    <div class="row">
         <div class="col-md mb-3">
             <label for="g_clock_off" class="form-label">Probe clock off by more than <span class="badge bg-success">live</span></label>
             <div class="input-group has-validation">
@@ -557,7 +583,7 @@ const GLOBAL_TEXT = {WATCHDOG_CHECK_RATE: "g_watchdog", IPERF3_TIME_SKEW_THRESHO
                      BASELINE_MARGIN_LOSS: "g_bl_loss", BASELINE_MARGIN_JITTER: "g_bl_jitter", BASELINE_MARGIN_RTT: "g_bl_rtt",
                      BASELINE_MARGIN_MOS: "g_bl_mos", BASELINE_MARGIN_TCP: "g_bl_tcp", BASELINE_OPEN_AFTER: "g_bl_open",
                      BASELINE_CLOSE_AFTER: "g_bl_close", CLOCK_OFFSET_MAX_MS: "g_clock_off",
-                     CLOCK_DRIFT_MAX_PPM: "g_clock_drift", UPDATE_PROXY: "g_upd_proxy",
+                     CLOCK_DRIFT_MAX_PPM: "g_clock_drift", UPDATE_PROXY: "g_upd_proxy", INTERNAL_NETWORKS: "g_internal", VPN_NETWORKS: "g_vpn", VPN_MODE: "g_vpn_mode",
                      };
 const GLOBAL_BOOL = {IPERF3_AUTH: "g_auth", LOG_PURGE_ON_START: "g_purge", LATENCY: "g_latency", BASELINE: "g_baseline", PATH_TRACE_ON_ALERT: "g_pathtrace", REACHABILITY_CHECK: "g_reach", UPDATE_CHECK: "g_upd_check"};
 

@@ -502,7 +502,8 @@ GLOBAL_LIVE_KEYS = ("LOG_LEVEL", "LOG_FORWARD_LEVEL", "LOG_RETENTION_DAYS", "WAT
                     "IPERF3_TIME_SKEW_THRESHOLD", "IPERF3_CONNECT_TIMEOUT", "LATENCY", "LATENCY_PORT", "BASELINE",
                     "BASELINE_SENSITIVITY", "BASELINE_MARGIN_LOSS", "BASELINE_MARGIN_JITTER", "BASELINE_MARGIN_RTT",
                     "BASELINE_MARGIN_MOS", "BASELINE_MARGIN_TCP", "BASELINE_OPEN_AFTER",
-                    "BASELINE_CLOSE_AFTER", "PATH_TRACE_ON_ALERT", "REACHABILITY_CHECK", "UPDATE_CHECK", "UPDATE_PROXY",
+                    "BASELINE_CLOSE_AFTER", "PATH_TRACE_ON_ALERT", "REACHABILITY_CHECK", "UPDATE_CHECK", "UPDATE_PROXY", "INTERNAL_NETWORKS",
+                    "VPN_NETWORKS", "VPN_MODE",
                     "CLOCK_OFFSET_MAX_MS",
                     "CLOCK_DRIFT_MAX_PPM") + st_syslog.KEYS
 # Réglages transmis aux clients à leur connexion : un changement les fait se reconnecter pour les recevoir
@@ -638,6 +639,13 @@ GLOBAL_FIELDS = {
     "BASELINE": (lambda v: True, "", True),
     "PATH_TRACE_ON_ALERT": (lambda v: True, "", True),
     "UPDATE_CHECK": (lambda v: True, "", True),
+    "INTERNAL_NETWORKS": (lambda v: (lambda r: bool(r[0]) and not r[1])(
+                              __import__("lib.st_addresses", fromlist=["x"]).parse_networks(v)),
+                          "Networks separated by commas, e.g. 10.0.0.0/8, 172.16.0.0/12", False),
+    "VPN_NETWORKS": (lambda v: (lambda r: bool(r[0]) and not r[1])(
+                         __import__("lib.st_addresses", fromlist=["x"]).parse_networks(v)),
+                     "Networks separated by commas, e.g. 10.251.0.0/16", False),
+    "VPN_MODE": (lambda v: v.lower() in ("split", "full"), "split (split tunneling) or full (full tunnel)", False),
     "UPDATE_PROXY": (lambda v: __import__("lib.st_github_update", fromlist=["x"]).valid_proxy(v),
                      "A proxy URL: http://proxy.example:3128 (user:password@ allowed)", False),
     "REACHABILITY_CHECK": (lambda v: True, "", True),
@@ -715,7 +723,7 @@ def update_global(state, values, actor, dry_run=False):
         elif is_bool:
             g[key] = _bool_text(v[key])
         else:
-            g[key] = v[key].lower() if key == "LOG_TO" else v[key]
+            g[key] = v[key].lower() if key in ("LOG_TO", "VPN_MODE") else v[key]
     return _commit(state, cfg, actor, "UPDATE_GLOBAL", "Global settings updated", dry_run)
 
 
@@ -2020,7 +2028,17 @@ def live_topology(state, mesh_group=None, at=None):
         alerts = [a for a in st_baseline.BOOK.open() if a.get("CLIENT")]
     if mesh_group is None:  # aucun mesh group : carte vide (jamais tous les groupes mêlés)
         flows, clients = [], []
-    result = st_live_map.build(flows, clients, metrics, mesh_group=mesh_group, alerts=alerts)
+    # Chemin de chaque sens (réseau local ou Internet) d'après les connecteurs en service ; en relecture aussi
+    # (les adresses d'alors ne sont pas historisées)
+    from lib import st_addresses
+    networks, vpn = st_addresses.internal_networks(cfg), st_addresses.vpn_networks(cfg)
+    full = st_addresses.full_tunnel(cfg)
+    on_vpn = st_addresses.vpn_clients(cfg.get("SERVER_CLIENT", []), vpn)
+    paths = st_live_map.flow_paths(state.get("_dict_by_node_generated_config") or {}, networks, vpn, on_vpn, full)
+    result = st_live_map.build(flows, clients, metrics, mesh_group=mesh_group, alerts=alerts, paths=paths)
+    result["internal_networks"] = [str(n) for n in networks]
+    result["vpn_networks"] = [str(n) for n in vpn]
+    result["vpn_mode"] = "full" if full else "split"
     result["at"] = at
     result["mesh_group"] = mesh_group
     result["mesh_groups"] = sorted(g["UID"] for g in cfg.get("MESH_GROUP", []) if not g.get("DISABLED"))

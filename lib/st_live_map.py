@@ -134,8 +134,27 @@ def _worst(values, kind):
     return min(values) if kind == "mos" else max(values)
 
 
-def build(flows, clients, metrics, mesh_group=None, alerts=None):
-    """flows : flux attendus ({MESH_GROUP, CLIENT (émetteur), SERVER (récepteur)}) ; clients : état des sondes."""
+def flow_paths(generated, networks, vpn_nets=(), vpn_clients=(), full_tunnel=False):
+    """{(émetteur, récepteur, mesh group): {address, via}} d'après les connecteurs générés : l'adresse visée par le
+    connecteur et son chemin (lib/st_addresses.classify) ; un connecteur --bidir (sonde derrière un NAT) porte aussi
+    le sens inverse, par le même chemin."""
+    from lib import st_addresses
+    out = {}
+    for cfg in (generated or {}).values():
+        for c in ((cfg or {}).get("CONNECTORS") or {}).values():
+            a, b, g = c.get("UID_CLIENT"), c.get("UID_SERVER"), c.get("MESH_GROUP")
+            entry = {"address": c.get("DESTINATION_ADDRESS"),
+                     "via": st_addresses.classify(c.get("DESTINATION_ADDRESS"), networks, vpn_nets,
+                                                  a in vpn_clients, full_tunnel)}
+            out[(a, b, g)] = entry
+            if c.get("BIDIR"):
+                out.setdefault((b, a, g), dict(entry))
+    return out
+
+
+def build(flows, clients, metrics, mesh_group=None, alerts=None, paths=None):
+    """flows : flux attendus ({MESH_GROUP, CLIENT (émetteur), SERVER (récepteur)}) ; clients : état des sondes ;
+    paths : chemin de chaque sens (flow_paths)."""
     flows = [f for f in flows if mesh_group in (None, "", f.get("MESH_GROUP"))]
     pairs = {}
     for f in flows:
@@ -150,6 +169,8 @@ def build(flows, clients, metrics, mesh_group=None, alerts=None):
             # Qualité de CE sens (la carte dessine une flèche par sens) ; le RTT est celui de la paire
             d["grade"] = {"loss": grade("loss", d["loss_pct"]), "jitter": grade("jitter", d["jitter_ms"]),
                           "mos": grade("mos", d["mos"])}
+            path = (paths or {}).get((a, b, g)) or {}
+            d["via"], d["address"] = path.get("via", "unknown"), path.get("address")
             link["directions"].append(d)
     links = []
     for link in pairs.values():

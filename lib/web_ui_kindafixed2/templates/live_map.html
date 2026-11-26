@@ -42,6 +42,28 @@
     <div class="col-lg-9"><div id="lm_cy" style="height: 68vh; border: 1px solid #3a3a3a; border-radius: .5rem; background: #1e1e1e" role="img" aria-label="Map of the probes and their links"></div></div>
     <div class="col-lg-3"><div id="lm_detail" class="small"><p class="text-white-50">Point at an arrow or a probe for its details. Each arrow is one direction of a pair: it points to the probe that receives it, and its value is the quality measured by that probe.</p></div></div>
   </div>
+  <details class="mt-2 small" id="lm_key_box" open>
+    <summary class="text-white-50">Legend</summary>
+    <div class="d-flex flex-wrap gap-4 mt-2" id="lm_key">
+      <div>
+        <div class="fw-bold mb-1">Probes</div>
+        <div><svg width="18" height="18" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="#00bc8c" stroke="#2b2b2b" stroke-width="2"/></svg> connected</div>
+        <div><svg width="18" height="18" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="#e74c3c" stroke="#2b2b2b" stroke-width="2"/></svg> disconnected</div>
+        <div><svg width="18" height="18" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="#777777" stroke="#2b2b2b" stroke-width="2"/></svg> never seen, or unknown at that time</div>
+        <div><svg width="18" height="18" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="#00bc8c" stroke="#3498db" stroke-width="2" stroke-dasharray="3 2"/></svg> dashed blue border: behind a NAT or a firewall, outbound only. It opens the connections itself and measures both directions; two such probes cannot measure each other.</div>
+      </div>
+      <div>
+        <div class="fw-bold mb-1">Arrows (one per direction)</div>
+        <div><svg width="44" height="12" aria-hidden="true"><line x1="2" y1="6" x2="34" y2="6" stroke="#00bc8c" stroke-width="3"/><polygon points="34,1 42,6 34,11" fill="#00bc8c"/></svg> points to the probe that receives that direction; the value near the tip is what it measured</div>
+        <div>color: quality of that direction over the last minute (scale above)</div>
+        <div><svg width="44" height="12" aria-hidden="true"><line x1="2" y1="6" x2="40" y2="6" stroke="#bbb" stroke-width="3"/></svg> solid: over the local network (<span id="lm_internal"></span>)</div>
+        <div><svg width="44" height="12" aria-hidden="true"><line x1="2" y1="6" x2="40" y2="6" stroke="#bbb" stroke-width="3" stroke-dasharray="10 4"/></svg> ☁️ long dashes: over the Internet</div>
+        <div id="lm_key_vpn"><svg width="44" height="12" aria-hidden="true"><line x1="2" y1="6" x2="40" y2="6" stroke="#bbb" stroke-width="3" stroke-linecap="round" stroke-dasharray="0.1 6"/></svg> 🔒 dots: through the VPN (<span id="lm_vpn"></span> · <span id="lm_vpn_mode"></span>)</div>
+        <div><svg width="44" height="12" aria-hidden="true"><line x1="2" y1="6" x2="40" y2="6" stroke="#777" stroke-width="1.5" stroke-dasharray="3 2"/></svg> thin grey short dashes: expected, but no measurement</div>
+        <div><svg width="44" height="12" aria-hidden="true"><line x1="2" y1="6" x2="40" y2="6" stroke="#e74c3c" stroke-opacity="0.35" stroke-width="10"/><line x1="2" y1="6" x2="40" y2="6" stroke="#e67e22" stroke-width="3"/></svg> red halo: an alert is open on that direction</div>
+      </div>
+    </div>
+  </details>
 </section>
 
 <script src="/static/cytoscape-js/cytoscape.min.js"></script>
@@ -129,8 +151,10 @@ function arrowData(l, d, metric) {
     const g = metric === "rtt" ? l.grade.rtt : (d.grade || {})[metric] || "nodata";
     const value = metric === "rtt" ? (first ? show(l.rtt_ms) : "") : show(d[FIELD[metric]]);
     const alerted = (l.alerts || []).some(a => a.startsWith(`${d.from} → ${d.to} `));
+    const same = l.directions.every(x => x.via === d.via);
+    const icon = same && d !== l.directions[0] ? "" : (ICON[d.via] || "");
     return {id: edgeId(l, d), source: d.from, target: d.to, color: COLORS[g], dashed: g === "nodata" ? 1 : 0,
-            alert: alerted ? 1 : 0, value, raw: l, dir: d};
+            alert: alerted ? 1 : 0, via: d.via || "unknown", icon, value, raw: l, dir: d};
 }
 
 function legend(grades, metric) {
@@ -169,14 +193,21 @@ function render(data) {
                     "control-point-step-size": 80, "target-arrow-shape": "triangle", "target-arrow-color": "data(color)",
                     "arrow-scale": 1.3, "target-distance-from-node": 3, "target-label": "data(value)",
                     // valeur en retrait de la sonde (et de son nom), sur sa flèche
-                    "target-text-offset": 95, "font-size": 11, color: "#eee",
+                    "target-text-offset": 95, "font-size": 12, color: "#eee",  // valeurs et icônes, même taille
                     "text-background-color": "#1e1e1e", "text-background-opacity": 0.9,
                     "text-background-padding": 2, "text-background-shape": "roundrectangle",
                     "min-zoomed-font-size": 8, "z-index-compare": "manual", "z-index": 20}},
-                {selector: "edge[dashed = 1]", style: {"line-style": "dashed", width: 2}},
+                // Par Internet : tirets longs, pleine largeur (la couleur reste la qualité) ; sans mesure : tirets
+                // courts, fins et gris (cette version de cytoscape n'a pas de trait double)
+                {selector: 'edge[via = "internet"]', style: {"line-style": "dashed", "line-dash-pattern": [14, 5]}},
+                {selector: 'edge[via = "vpn"]', style: {"line-style": "dotted"}},
+                // Au milieu de la ligne : ☁ par Internet, 🔒 par le VPN (rien pour le réseau local)
+                {selector: "edge[?icon]", style: {label: "data(icon)", "text-background-opacity": 1,
+                    "text-background-color": "#1e1e1e", "text-background-padding": 2, "text-background-shape": "roundrectangle"}},
+                {selector: "edge[dashed = 1]", style: {"line-style": "dashed", "line-dash-pattern": [5, 3], width: 2}},
                 {selector: "edge[alert = 1]", style: {"overlay-color": "#e74c3c", "overlay-opacity": 0.3, "overlay-padding": 6}},
-                {selector: "edge.lm-quiet", style: {"target-label": ""}},
-                {selector: "edge.lm-hover", style: {"target-label": "data(value)", "z-index": 30, width: 6}},
+                {selector: "edge.lm-quiet", style: {"target-label": "", label: ""}},
+                {selector: "edge.lm-hover", style: {"target-label": "data(value)", label: "data(icon)", "z-index": 30, width: 6}},
                 {selector: ":selected", style: {"overlay-opacity": 0.15, "overlay-color": "#fff"}},
             ],
             layout: layoutFor(data),
@@ -207,6 +238,9 @@ function render(data) {
     legend(data.grades, metric);
 }
 
+const VIA = {local: "local network", internet: "Internet", vpn: "VPN", unknown: "unknown"};
+const ICON = {internet: "☁️", vpn: "🔒"};  // émojis en couleur : même taille
+
 function fmt(v, f) { return v === null || v === undefined ? "–" : f(v); }
 
 function showLink(l, dir) {
@@ -214,8 +248,9 @@ function showLink(l, dir) {
     el("lm_detail").innerHTML = `<h3 class="h6">${dir ? `${st.esc(dir.from)} → ${st.esc(dir.to)}` : `${st.esc(l.a)} ↔ ${st.esc(l.b)}`}</h3>
         <p class="text-white-50 mb-2">Mesh group ${st.esc(l.mesh_group || "")} · round trip ${fmt(l.rtt_ms, v => v.toFixed(1) + " ms")}</p>
         ${l.alerts && l.alerts.length ? `<p class="text-danger mb-2"><i class="fas fa-bell me-1" aria-hidden="true"></i>Alerts open: ${l.alerts.map(st.esc).join(", ")}</p>` : ""}
-        <table class="table table-sm small"><thead><tr><th scope="col">Direction</th><th scope="col">Loss</th><th scope="col">Jitter</th><th scope="col">MOS</th></tr></thead><tbody>
-        ${l.directions.map(d => `<tr${here(d) ? ' class="table-active fw-bold"' : ""}><td>${st.esc(d.from)} → ${st.esc(d.to)}</td><td>${fmt(d.loss_pct, v => v.toFixed(1) + " %")}</td>
+        <table class="table table-sm small"><thead><tr><th scope="col">Direction</th><th scope="col">Path</th><th scope="col">Loss</th><th scope="col">Jitter</th><th scope="col">MOS</th></tr></thead><tbody>
+        ${l.directions.map(d => `<tr${here(d) ? ' class="table-active fw-bold"' : ""}><td>${st.esc(d.from)} → ${st.esc(d.to)}</td>
+            <td>${st.esc(VIA[d.via] || VIA.unknown)}${d.address ? `<br><code class="small">${st.esc(d.address)}</code>` : ""}</td><td>${fmt(d.loss_pct, v => v.toFixed(1) + " %")}</td>
             <td>${fmt(d.jitter_ms, v => v.toFixed(1) + " ms")}</td><td>${fmt(d.mos, v => v.toFixed(2))}</td></tr>`).join("")}
         </tbody></table>`;
 }
@@ -239,6 +274,11 @@ async function load() {
         ? r.data.mesh_groups.map(g => `<option value="${st.esc(g)}">${st.esc(g)}</option>`).join("")
         : '<option value="">No mesh group</option>';
     sel.value = r.data.mesh_group || "";
+    el("lm_internal").textContent = (r.data.internal_networks || []).join(", ");
+    const vpn = r.data.vpn_networks || [];
+    el("lm_key_vpn").hidden = !vpn.length;
+    el("lm_vpn").textContent = vpn.join(", ");
+    el("lm_vpn_mode").textContent = r.data.vpn_mode === "full" ? "full tunnel" : "split tunneling";
     el("lm_note").hidden = r.data.metrics_available;
     el("lm_note").textContent = "No VictoriaMetrics database: the map shows the probes and the expected links, without quality.";
     render(r.data);

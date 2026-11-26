@@ -155,3 +155,81 @@ def choose(src, dst, store=None):
         if any(ip in net for net in nets):
             return address, "same_network"
     return declared, "declared"
+
+
+# ------------------------------------------------------------------------------- réseau local ou Internet
+# GLOBAL.INTERNAL_NETWORKS : sous-réseaux du réseau local (« 10.0.0.0/8, 172.16.0.0/12 ») ; un flux vers une adresse
+# de ces réseaux passe par le réseau local, sinon par Internet (carte en direct). La configuration décide seule : une
+# plage privée non déclarée compte comme Internet, une plage publique déclarée compte comme réseau local.
+DEFAULT_INTERNAL_NETWORKS = ("10.0.0.0/8",)
+
+
+def parse_networks(text):
+    """(réseaux valides, entrées invalides) d'une liste séparée par des virgules, points-virgules ou espaces."""
+    import re
+    good, bad = [], []
+    for item in re.split(r"[\s,;]+", str(text or "").strip()):
+        if not item:
+            continue
+        try:
+            good.append(ipaddress.ip_network(item, strict=False))
+        except ValueError:
+            bad.append(item)
+    return good, bad
+
+
+def internal_networks(config):
+    value = ((config or {}).get("GLOBAL", {}) or {}).get("INTERNAL_NETWORKS")
+    nets = parse_networks(", ".join(value) if isinstance(value, list) else value)[0] if value else []
+    return nets or [ipaddress.ip_network(n) for n in DEFAULT_INTERNAL_NETWORKS]
+
+
+def vpn_networks(config):
+    value = ((config or {}).get("GLOBAL", {}) or {}).get("VPN_NETWORKS")
+    return parse_networks(", ".join(value) if isinstance(value, list) else value)[0] if value else []
+
+
+def full_tunnel(config):
+    """GLOBAL.VPN_MODE : « full » (tout le trafic des postes VPN passe par le tunnel) ou « split » (défaut : seul le
+    trafic vers le réseau interne y passe, le reste sort par Internet)."""
+    return str(((config or {}).get("GLOBAL", {}) or {}).get("VPN_MODE") or "split").lower() == "full"
+
+
+def vpn_clients(clients, vpn_nets, store=None):
+    """UID des sondes au bout d'un VPN : une de leurs adresses (déclarée, vue par le serveur, d'interface) est dans
+    un sous-réseau d'accès VPN."""
+    store = store or LEARNED
+    if not vpn_nets:
+        return set()
+    out = set()
+    for c in clients:
+        entry = store.get(c["UID"]) or {}
+        addresses = [c.get("IP_ADDRESS"), entry.get("observed")] + [a["address"] for a in entry.get("interfaces", [])]
+        for a in addresses:
+            try:
+                if any(ipaddress.ip_address(str(a)) in n for n in vpn_nets):
+                    out.add(c["UID"])
+                    break
+            except ValueError:
+                continue
+    return out
+
+
+def classify(address, networks, vpn_nets=(), initiator_on_vpn=False, full=False):
+    """Chemin d'un flux vers address : local, internet, vpn ou unknown (adresse inconnue, nom d'hôte).
+    - destination dans un sous-réseau VPN : vpn ;
+    - sonde qui ouvre la connexion au bout du VPN : vpn vers le réseau interne ; vers une adresse publique, vpn en
+      tunnel complet (full), internet en tunnel partagé ;
+    - sinon local (réseaux internes) ou internet."""
+    try:
+        ip = ipaddress.ip_address(str(address or ""))
+    except ValueError:
+        return "unknown"
+    if ip.is_unspecified:
+        return "unknown"
+    internal = any(ip in n for n in networks)
+    if any(ip in n for n in vpn_nets):
+        return "vpn"
+    if initiator_on_vpn and (internal or full):
+        return "vpn"
+    return "local" if internal else "internet"

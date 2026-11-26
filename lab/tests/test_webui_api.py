@@ -695,3 +695,28 @@ def test_the_addresses_of_a_probe_through_the_api(env):
     assert c.put(f"/api/v1/config/clients/{uid}/addresses", json={"EXTRA_ADDRESSES": ["10.9.0.5/24"]}).status_code == 200
     assert c.get(f"/api/v1/config/clients/{uid}/addresses").json["manual"] == ["10.9.0.5/24"]
     assert "/api/v1/config/clients/{uid}/addresses" in c.get("/api/v1/openapi.json").json["paths"]
+
+
+def test_the_internal_networks_are_a_global_setting(env):
+    c = env["client"]
+    body = {k: v for k, v in c.get("/api/v1/config/global").json.items()
+            if k not in ("RUNNING", "READ_ONLY", "FILE_ONLY", "LIVE_KEYS")}
+    r = c.put("/api/v1/config/global", json=dict(body, INTERNAL_NETWORKS="10.0.0.0/8, pas un réseau"))
+    assert r.status_code == 400 and "INTERNAL_NETWORKS" in r.json["error"]["fields"]
+    r = c.put("/api/v1/config/global", json=dict(body, INTERNAL_NETWORKS="10.0.0.0/8, 142.83.130.0/23"))
+    assert r.status_code == 200 and r.json["restart_required"] == []
+    data = c.get("/api/v1/topology/live").json
+    assert data["internal_networks"] == ["10.0.0.0/8", "142.83.130.0/23"]
+    assert all("via" in d for l in data["links"] for d in l["directions"])
+
+
+def test_the_vpn_subnets_and_tunnel_mode_are_global_settings(env):
+    c = env["client"]
+    body = {k: v for k, v in c.get("/api/v1/config/global").json.items()
+            if k not in ("RUNNING", "READ_ONLY", "FILE_ONLY", "LIVE_KEYS")}
+    r = c.put("/api/v1/config/global", json=dict(body, VPN_MODE="parfois"))
+    assert r.status_code == 400 and "VPN_MODE" in r.json["error"]["fields"]
+    r = c.put("/api/v1/config/global", json=dict(body, VPN_NETWORKS="10.251.0.0/16", VPN_MODE="full"))
+    assert r.status_code == 200 and r.json["restart_required"] == []
+    data = c.get("/api/v1/topology/live").json
+    assert data["vpn_networks"] == ["10.251.0.0/16"] and data["vpn_mode"] == "full"
