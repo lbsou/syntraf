@@ -32,9 +32,22 @@ def test_powershell_scripts_get_a_utf8_bom_for_windows_powershell(tmp_path):
     assert data.startswith(b"\xef\xbb\xbf") and "installé".encode() in data
 
 
+def test_cmd_launchers_bypass_the_execution_policy_with_crlf(tmp_path):
+    """Un .ps1 extrait d'un zip téléchargé est refusé (non signé) : install.cmd le lance avec -ExecutionPolicy Bypass."""
+    a = bp.Archive(tmp_path / "p.zip", "pkg")
+    for name in ("install", "uninstall"):
+        a.add_file(f"{name}.cmd", ROOT / "packaging" / "templates" / f"{name}.cmd")
+    a.close()
+    for name in ("install", "uninstall"):
+        data = zipfile.ZipFile(tmp_path / "p.zip").read(f"pkg/{name}.cmd")
+        assert data.isascii() and data.count(b"\n") == data.count(b"\r\n") > 0
+        assert f'-ExecutionPolicy Bypass -File "%~dp0{name}.ps1" %*'.encode() in data
+
+
 def test_targets_and_templates():
     assert set(bp.TARGETS) == {"linux-x86_64", "linux-musl-x86_64", "windows-x86_64", "macos-arm64"}
-    for name in ("install.sh", "uninstall.sh", "install.ps1", "uninstall.ps1", "README.txt"):
+    for name in ("install.sh", "uninstall.sh", "install.ps1", "uninstall.ps1", "install.cmd", "uninstall.cmd",
+                 "README.txt"):
         assert (ROOT / "packaging" / "templates" / name).is_file()
     install = (ROOT / "packaging" / "templates" / "install.sh").read_text(encoding="utf-8")
     assert "--no-index" in install and "SYNTRAF_BASE_DIR" in install  # hors ligne ; données hors du code

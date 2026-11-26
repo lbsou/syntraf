@@ -70,7 +70,7 @@ configuration, run iperf3, and send back their measurements (buffered while the 
 builds, for each platform, a server and a probe archive with a portable Python, the dependencies and iperf3v (the
 server archive also carries VictoriaMetrics and Grafana, installed already bound together); on the
 target, `sudo ./install.sh` (server) or `sudo ./install.sh --server <address> --token <token>` (probe), or
-`install.ps1` on Windows, installs without Internet access and creates the service. See the documentation, section
+`install.cmd` on Windows, installs without Internet access and creates the service. See the documentation, section
 *Installation › Offline packages*. The manual installation below is for development.
 
 Requirements: Python 3, iperf3 ≥ 3.9 with timestamps (the

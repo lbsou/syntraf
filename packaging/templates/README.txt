@@ -7,7 +7,7 @@ macOS : iperf3 du système, 3.17 ou plus récent (brew install iperf3), en atten
 Sonde
 -----
 Linux / macOS :  sudo ./install.sh --server <adresse du serveur> --token <jeton>
-Windows       :  .\install.ps1 -Server <adresse du serveur> -Token <jeton>        (PowerShell en administrateur)
+Windows       :  .\install.cmd -Server <adresse du serveur> -Token <jeton>        (en administrateur)
 
 Le jeton est dans Server > Tokens de l'interface du serveur (ou affiché à l'installation du serveur). La sonde se
 présente au serveur, qui l'admet et lui envoie ses flux.
@@ -15,7 +15,7 @@ présente au serveur, qui l'admet et lui envoie ses flux.
 Serveur
 -------
 Linux / macOS :  sudo ./install.sh
-Windows       :  .\install.ps1
+Windows       :  .\install.cmd                                                     (en administrateur)
 
 Le serveur installe aussi VictoriaMetrics (les mesures, en local seulement) et Grafana (port 3000), déjà reliés :
 source de données et tableaux de bord SYNTRAF provisionnés. --no-stack / -NoStack si vous avez déjà les vôtres.
@@ -30,10 +30,14 @@ gardées. Les sondes peuvent aussi être mises à jour depuis le serveur (page U
 Serveur réinstallé ou remplacé : il a une nouvelle clé et un nouveau jeton, et chaque sonde refuse un serveur dont la
 clé a changé (elle mémorise la clé à sa première connexion). Sur chaque sonde, relancer l'installation avec l'adresse
 et le nouveau jeton :
-    sudo ./install.sh --server <adresse> --token <nouveau jeton>       (Windows : .\install.ps1 -Server … -Token …)
+    sudo ./install.sh --server <adresse> --token <nouveau jeton>       (Windows : .\install.cmd -Server … -Token …)
 La sonde oublie l'ancienne clé et se présente de nouveau ; l'approuver dans Configuration › Clients du serveur.
 
-Désinstallation : ./uninstall.sh (ou .\uninstall.ps1) ; --purge / -Purge efface aussi configuration et données.
+Désinstallation : ./uninstall.sh (ou .\uninstall.cmd) ; --purge / -Purge efface aussi configuration et données.
+
+Windows : install.cmd et uninstall.cmd lancent install.ps1 et uninstall.ps1 sans dépendre de la stratégie
+d'exécution PowerShell. Un .ps1 extrait d'un zip téléchargé est refusé (« is not digitally signed ») ;
+pour le lancer directement : powershell -ExecutionPolicy Bypass -File .\install.ps1 …
 
 Emplacements
 ------------

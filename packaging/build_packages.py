@@ -332,6 +332,8 @@ class Archive:
         data = Path(path).read_bytes()
         if rel.endswith(".sh"):  # construit sous Windows : jamais de CRLF dans un script shell
             data = data.replace(bytes([13, 10]), bytes([10]))
+        if rel.endswith(".cmd"):  # construit sous Linux (CI) : cmd.exe veut du CRLF
+            data = data.replace(bytes([13, 10]), bytes([10])).replace(bytes([10]), bytes([13, 10]))
         if rel.endswith(".ps1") and not data.startswith(b"\xef\xbb\xbf"):
             data = b"\xef\xbb\xbf" + data  # Windows PowerShell 5.1 lit un script sans BOM en ANSI (accents brisés)
         self.add_bytes(rel, data, mode)
@@ -352,6 +354,8 @@ def build(target, role, version):
     if t["os"] == "windows":
         a.add_file("install.ps1", templates / "install.ps1")
         a.add_file("uninstall.ps1", templates / "uninstall.ps1")
+        a.add_file("install.cmd", templates / "install.cmd")  # sans dépendre de la stratégie d'exécution
+        a.add_file("uninstall.cmd", templates / "uninstall.cmd")
     else:
         a.add_file("install.sh", templates / "install.sh", 0o755)
         a.add_file("uninstall.sh", templates / "uninstall.sh", 0o755)
