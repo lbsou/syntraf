@@ -935,11 +935,14 @@ CLIENT_MESSAGES = {
     "MAX_BANDWIDTH": "Empty, or a positive rate such as 10M",
     "MESH_LISTENERS_PORT_RANGE": "Empty, or a port range such as 15000-15100",
     "DEPLOYMENT_GROUP": "Empty, or up to 32 letters, digits, dots, hyphens or underscores (e.g. pilot, wave-1)",
+    "DESCRIPTION": "Up to 500 characters",
 }
-# Groupe de déploiement : étiquette libre pour les mises à jour par étapes (pilote, vague 1...). Sans effet sur les
-# mesures (absente de la configuration générée des clients).
+# Groupe de déploiement : étiquette libre pour les mises à jour par étapes (pilote, vague 1...). Description : notes
+# libres de l'admin sur le nœud (emplacement, réseau, contact). Sans effet sur les mesures (absentes de la
+# configuration générée des clients).
 DEPLOYMENT_GROUP_RE = re.compile(r"^[A-Za-z0-9._-]{1,32}$")
-METADATA_CLIENT_KEYS = {"DEPLOYMENT_GROUP"}
+CLIENT_DESCRIPTION_MAX = 500
+METADATA_CLIENT_KEYS = {"DEPLOYMENT_GROUP", "DESCRIPTION"}
 # Clés d'un client dont le changement ne demande pas de reconnexion : descriptives, ou qui ne jouent que sur les flux
 # générés (une sonde qui sait recevoir sa configuration en direct la reçoit sans être déconnectée)
 # EXTRA_ADDRESSES, OVERRIDE_DST_NODE_IP : seule l'adresse de quelques flux change (lib/st_addresses.py)
@@ -1352,6 +1355,8 @@ def _client_field_errors(values, cfg, with_uid=False):
     group = str(values.get("DEPLOYMENT_GROUP", "") or "").strip()
     if group and not DEPLOYMENT_GROUP_RE.match(group):
         errors["DEPLOYMENT_GROUP"] = CLIENT_MESSAGES["DEPLOYMENT_GROUP"]
+    if len(str(values.get("DESCRIPTION", "") or "").strip()) > CLIENT_DESCRIPTION_MAX:
+        errors["DESCRIPTION"] = CLIENT_MESSAGES["DESCRIPTION"]
     return errors
 
 
@@ -1375,6 +1380,12 @@ def _apply_client_form(c, values):
             c["DEPLOYMENT_GROUP"] = group
         else:
             c.pop("DEPLOYMENT_GROUP", None)
+    if "DESCRIPTION" in values:  # idem
+        description = str(values.get("DESCRIPTION") or "").strip()
+        if description:
+            c["DESCRIPTION"] = description
+        else:
+            c.pop("DESCRIPTION", None)
     # Les autres clés (EXCLUDED_CLIENT_UID, OVERRIDE_DST_NODE_IP...) ne sont pas dans le formulaire : conservées.
 
 
