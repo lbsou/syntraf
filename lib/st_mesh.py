@@ -1429,6 +1429,26 @@ def server_save_thread_status(obj_client, received_data):
     obj_client.thread_status = received_data['PAYLOAD']
 
 
+# Chaque connexion au canal de contrôle porte un numéro ; la fiche d'une sonde retient celui de sa session en cours
+_SESSIONS = itertools.count(1)
+
+
+def session_is_current(obj_client, session) -> bool:
+    """La fiche de la sonde appartient-elle encore à cette session ?
+
+    Une sonde qui change de réseau (portable) se reconnecte depuis sa nouvelle adresse avant que le serveur ne voie
+    mourir l'ancienne session. Quand celle-ci finissait (SOCKET TIMEOUT), elle marquait la sonde déconnectée et faisait
+    oublier son adresse, alors que la nouvelle session mesurait : état « déconnectée » avec des données qui arrivent,
+    pairs privés de destination (100 % de pertes vers elle)."""
+    return getattr(obj_client, "session", session) == session
+
+
+def _explain(obj_client, session, reason):
+    """Raison de fin de session, montrée seulement si la fiche est encore celle de cette session."""
+    if session_is_current(obj_client, session):
+        obj_client.status_explanation = reason
+
+
 class Handler(StreamRequestHandler):
     def handle(self):
         address = self.client_address
@@ -1448,9 +1468,11 @@ class Handler(StreamRequestHandler):
         log.debug(current_thread)
 
         uid = address[0]
+        session = next(_SESSIONS)
         dict_of_clients[uid] = cc_client(status="CONNECTING", status_since=datetime.now(),
                                          status_explanation="NOT YET AUTHENTICATED", client_uid="UNKNOWN",
                                          bool_dynamic_client=False, tcp_port=address[1], ip_address=address[0])
+        dict_of_clients[uid].session = session
 
         # Avant une authentification réussie : AUTH seulement, message court, avant l'échéance
         authenticated = False
@@ -1471,8 +1493,8 @@ class Handler(StreamRequestHandler):
 
                 if received_data is None:
                     server_log.debug(f"CONTEXT: {dict_of_clients[uid].client_uid} - INVALID DATA RECEIVED")
-                    dict_of_clients[uid].status_explanation = "CONNECTION RESET BY PEER"
-                    server_log.warning(f"CONNECTION RESET BY PEER: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+                    _explain(dict_of_clients[uid], session, "CONNECTION RESET BY PEER")
+                    server_log.warning(f"CONNECTION RESET BY PEER: {address[0]}: CLOSING CONNECTION")
                     if not auth_seen:
                         server_preauth_drop(address[0])
                     break
@@ -1482,9 +1504,9 @@ class Handler(StreamRequestHandler):
                     server_log.debug(
                         f"CONTEXT: {dict_of_clients[uid].client_uid} - RECEIVED {guard.clean(command)}")
                     if not guard.allowed(command, authenticated):
-                        server_log.warning(f"{dict_of_clients[uid].ip_address}: COMMAND {guard.clean(command)} "
+                        server_log.warning(f"{address[0]}: COMMAND {guard.clean(command)} "
                                            f"BEFORE AUTHENTICATION: CLOSING CONNECTION")
-                        dict_of_clients[uid].status_explanation = "COMMAND BEFORE AUTHENTICATION"
+                        _explain(dict_of_clients[uid], session, "COMMAND BEFORE AUTHENTICATION")
                         break
 
                     if received_data['COMMAND'] == "AUTH":
@@ -1520,6 +1542,9 @@ class Handler(StreamRequestHandler):
                         dict_of_clients[new_uid].capabilities = getattr(dict_of_clients[uid], "capabilities", set())
                         dict_of_clients[new_uid].ip_address = address[0]
                         dict_of_clients[new_uid].tcp_port = address[1]
+                        # la fiche appartient désormais à cette session : une session plus ancienne qui finirait
+                        # ensuite (sonde qui a changé de réseau) ne doit plus y toucher
+                        dict_of_clients[new_uid].session = session
                         dict_of_clients.pop(uid)
                         uid = new_uid
                         authenticated = True
@@ -1566,61 +1591,66 @@ class Handler(StreamRequestHandler):
                         print("UNKNOWN COMMAND:", received_data['COMMAND'])
 
         except ProtocolViolation as exc:
-            dict_of_clients[uid].status_explanation = "PROTOCOL VIOLATION"
-            server_log.warning(f"{dict_of_clients[uid].ip_address}: {exc}"
+            _explain(dict_of_clients[uid], session, "PROTOCOL VIOLATION")
+            server_log.warning(f"{address[0]}: {exc}"
                                f"{'' if authenticated else ' BEFORE AUTHENTICATION'}: CLOSING CONNECTION")
         except socket.timeout as exc:
-            server_log.warning(f"SOCKET TIMEOUT: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
-            dict_of_clients[uid].status_explanation = "SOCKET TIMEOUT"
+            server_log.warning(f"SOCKET TIMEOUT: {address[0]}: CLOSING CONNECTION")
+            _explain(dict_of_clients[uid], session, "SOCKET TIMEOUT")
         except json.JSONDecodeError as exc:
             server_log.error(f"JSON DECODING FAILED FOR STRING")
         except OSError as exc:
             if exc.errno == 32:  # BROKEN PIPE, THE OTHER END HAS GONE AWAY
-                dict_of_clients[uid].status_explanation = "BROKEN PIPE"
-                server_log.warning(f"BROKEN PIPE: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+                _explain(dict_of_clients[uid], session, "BROKEN PIPE")
+                server_log.warning(f"BROKEN PIPE: {address[0]}: CLOSING CONNECTION")
             # CONNECTION RESET BY PEER
             elif exc.errno == 104:
-                dict_of_clients[uid].status_explanation = "CONNECTION RESET BY PEER"
-                server_log.warning(f"CONNECTION RESET BY PEER: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+                _explain(dict_of_clients[uid], session, "CONNECTION RESET BY PEER")
+                server_log.warning(f"CONNECTION RESET BY PEER: {address[0]}: CLOSING CONNECTION")
                 if not auth_seen:
                     server_preauth_drop(address[0])
             elif exc.errno == 113:
-                dict_of_clients[uid].status_explanation = "NO ROUTE TO HOST"
-                server_log.error(f"NO ROUTE TO HOST: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+                _explain(dict_of_clients[uid], session, "NO ROUTE TO HOST")
+                server_log.error(f"NO ROUTE TO HOST: {address[0]}: CLOSING CONNECTION")
             # CONNECTION TIMEOUT
             elif exc.errno == 110:
-                dict_of_clients[uid].status_explanation = "CONNECTION TIMEOUT"
-                server_log.error(f"CONNECTION TIMEOUT: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+                _explain(dict_of_clients[uid], session, "CONNECTION TIMEOUT")
+                server_log.error(f"CONNECTION TIMEOUT: {address[0]}: CLOSING CONNECTION")
             # FOR WINDOWS [WinError 10053] #An established connection was aborted by the software in your host machine
             elif exc.errno == 10053:
-                dict_of_clients[uid].status_explanation = "CONNECTION ABORTED"
-                server_log.error(f"CONNECTION ABORTED: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+                _explain(dict_of_clients[uid], session, "CONNECTION ABORTED")
+                server_log.error(f"CONNECTION ABORTED: {address[0]}: CLOSING CONNECTION")
             # FOR WINDOWS [WinError 10054]
             elif exc.errno == 10054:
-                dict_of_clients[uid].status_explanation = "CONNECTION RESET BY PEER"
-                server_log.warning(f"CONNECTION RESET BY PEER: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+                _explain(dict_of_clients[uid], session, "CONNECTION RESET BY PEER")
+                server_log.warning(f"CONNECTION RESET BY PEER: {address[0]}: CLOSING CONNECTION")
             elif exc.errno == 10057:  # FOR WINDOWS [WinError 10057]
-                dict_of_clients[uid].status_explanation = "SOCKET IS NOT CONNECTED"
+                _explain(dict_of_clients[uid], session, "SOCKET IS NOT CONNECTED")
                 server_log.error(
-                    f"{type(exc).__name__.upper()}:{exc.errno}: {dict_of_clients[uid].ip_address}: CLOSING CONNECTION")
+                    f"{type(exc).__name__.upper()}:{exc.errno}: {address[0]}: CLOSING CONNECTION")
             else:
-                dict_of_clients[uid].status_explanation = "UNKNOWN OSError"
+                _explain(dict_of_clients[uid], session, "UNKNOWN OSError")
                 # e.g. a TLS handshake that failed because the client vanished in the middle of it
-                server_log.error(f"UNHANDLED OSError (st_mesh:handle): {dict_of_clients[uid].ip_address}: "
+                server_log.error(f"UNHANDLED OSError (st_mesh:handle): {address[0]}: "
                                  f"{type(exc).__name__}: {exc} (errno {exc.errno})")
         except Exception as exc:
-            dict_of_clients[uid].status_explanation = "UNKNOWN"
+            _explain(dict_of_clients[uid], session, "UNKNOWN")
             server_log.error(f"Handler:handle:{type(exc).__name__}:{exc}", exc_info=True)
 
         finally:
             # The socket on the other end is probably closed
-            server_log.warning(f"CLIENT: {dict_of_clients[uid].ip_address} DISCONNECTED")
+            current = session_is_current(dict_of_clients[uid], session)
+            if current:
+                server_log.warning(f"CLIENT: {address[0]} DISCONNECTED")
+            else:
+                server_log.info(f"CONTEXT: {dict_of_clients[uid].client_uid} - OLD SESSION FROM {address[0]} CLOSED, "
+                                f"A NEWER SESSION IS ACTIVE: STATUS AND ADDRESS KEPT")
 
             try:
                 # If this is a dynamic client, forget its ip address, but only if it has not come back within the
                 # grace delay: after a short outage it is usually back with the same IP, and the other clients'
                 # connectors resume by themselves.
-                if dict_of_clients[uid].bool_dynamic_client:
+                if current and dict_of_clients[uid].bool_dynamic_client:
                     obj_gone, token = dict_of_clients[uid], DYNAMIC_IP_FORGET.schedule(dict_of_clients[uid].client_uid)
 
                     def forget_if_not_back(obj_gone=obj_gone, token=token):
@@ -1634,21 +1664,22 @@ class Handler(StreamRequestHandler):
 
                 # Updating the status
                 # We don't want to overwrite a reason for failed authentication, so we overwrite only when the client was connected
-                if "CONNECTED" in dict_of_clients[uid].status:
+                if current and "CONNECTED" in dict_of_clients[uid].status:
                     dict_of_clients[uid].status = "DISCONNECTED"
                     dict_of_clients[uid].status_since = datetime.now()
 
                 # Reinitializing stats array so that the sparklines graphes does not appear in the webui
-                dict_of_clients[uid].system_stats['if_pct_usage_rx'] = []
-                dict_of_clients[uid].system_stats['if_pct_usage_tx'] = []
-                dict_of_clients[uid].system_stats['mem_pct_free'] = []
-                dict_of_clients[uid].system_stats['cpu_pct_usage'] = []
+                if current:
+                    dict_of_clients[uid].system_stats['if_pct_usage_rx'] = []
+                    dict_of_clients[uid].system_stats['if_pct_usage_tx'] = []
+                    dict_of_clients[uid].system_stats['mem_pct_free'] = []
+                    dict_of_clients[uid].system_stats['cpu_pct_usage'] = []
 
                 sckt.close()
 
             except Exception as e:
                 server_log.error(
-                    f"AN ERROR OCCURRED WHILE FREEING RESOURCE FOR THE CLIENT: {dict_of_clients[uid].client_uid}/{dict_of_clients[uid].ip_address}")
+                    f"AN ERROR OCCURRED WHILE FREEING RESOURCE FOR THE CLIENT: {dict_of_clients[uid].client_uid}/{address[0]}")
 
 
 class SSL_TCPServer(TCPServer):
