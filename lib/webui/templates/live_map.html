@@ -2,7 +2,7 @@
 {% from "_macros.html" import page_header %}
 {% block title %}Live map{% endblock %}
 {% block content %}
-{{ page_header("Live map", "The probes of one mesh group and what they measure: near each probe, the color and the value of what it receives over the last minute. Refreshed every 10 seconds. Move the time cursor to replay the network as it was during an incident.") }}
+{{ page_header("Live map", "The probes of one mesh group and what they measure: near each probe, the color and the value of what it receives over the last minute. Refreshed automatically (Refresh, above). Move the time cursor to replay the network as it was during an incident.") }}
 
 <section class="st-card">
   <div class="d-flex flex-wrap align-items-end gap-3 mb-2">
@@ -21,6 +21,13 @@
       <label for="lm_view" class="form-label small mb-0">Show</label>
       <select class="form-select form-select-sm" id="lm_view">
         <option value="pair">One line per pair</option><option value="arrows">Two arrows per pair</option>
+      </select>
+    </div>
+    <div>
+      <label for="lm_refresh" class="form-label small mb-0">Refresh</label>
+      <select class="form-select form-select-sm" id="lm_refresh">
+        <option value="5">every 5 s</option><option value="10">every 10 s</option><option value="30">every 30 s</option>
+        <option value="60">every minute</option><option value="0">paused</option>
       </select>
     </div>
     <button type="button" class="btn btn-sm btn-outline-light" id="lm_relayout" title="Forget the positions moved by hand">Rearrange</button>
@@ -529,6 +536,20 @@ el("lm_relayout").addEventListener("click", () => {
     showWhen();
     load();
 })();
-setInterval(() => { if (replay.at === null) load(); }, 10000);
+// Actualisation en direct : délai choisi (mémorisé par le navigateur), 10 s par défaut ; « en pause » l'arrête
+let refreshTimer = null;
+function applyRefresh() {
+    clearInterval(refreshTimer);
+    const s = Number(el("lm_refresh").value);
+    refreshTimer = s > 0 ? setInterval(() => { if (replay.at === null) load(); }, s * 1000) : null;
+}
+el("lm_refresh").value = localStorage.getItem("st-live-map-refresh") || "10";
+if (!el("lm_refresh").value) el("lm_refresh").value = "10";  // valeur mémorisée inconnue
+el("lm_refresh").addEventListener("change", () => {
+    localStorage.setItem("st-live-map-refresh", el("lm_refresh").value);
+    applyRefresh();
+    if (Number(el("lm_refresh").value) > 0 && replay.at === null) load();  // reprise : tout de suite
+});
+applyRefresh();
 </script>
 {% endblock %}
