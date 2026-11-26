@@ -19,8 +19,10 @@ bp = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(bp)
 
 
-def fake_api(vm_tags, grafana_tags, py_assets, pbs_tag, iperf_tag):
+def fake_api(vm_tags, grafana_tags, py_assets, pbs_tag, iperf_tag, cytoscape="3.35.0"):
     def api(url):
+        if "registry.npmjs.org/cytoscape/latest" in url:
+            return {"version": cytoscape}
         if "VictoriaMetrics/VictoriaMetrics/releases" in url:
             return [{"tag_name": t, "prerelease": False, "draft": False} for t in vm_tags]
         if "grafana/grafana/releases" in url:
@@ -108,3 +110,13 @@ def test_the_weekly_workflow_bumps_tests_and_opens_a_pull_request():
     for needle in ("schedule:", "workflow_dispatch:", "--bump", "test_install.sh", "gh pr create"):
         assert needle in wf, needle
     assert json  # (import gardé pour les évolutions du test)
+
+
+def test_the_web_interface_library_is_reported_but_never_bumped_alone(monkeypatch):
+    """Cytoscape (carte en direct) : la version embarquée est lue dans le fichier ; une nouvelle version change
+    l'interface, elle est signalée et se valide à la main."""
+    api = fake_api(["v1.156.0"], ["v13.0.2"], [], "x", "v3.22.1-v2", cytoscape="3.36.1")
+    v = bp.latest_versions(api)["cytoscape"]
+    shipped = (ROOT / "lib/web_ui_kindafixed2/static/cytoscape-js/cytoscape.min.js").read_text(encoding="utf-8")
+    assert f'"{v["pinned"]}"' in shipped and v["latest"] == "3.36.1" and v["auto"] is False and v["behind"] is True
+    assert bp.bump_text('VM_VERSION, GRAFANA_VERSION = "v1.156.0", "13.0.2"\n', {"cytoscape": v})[1] == []

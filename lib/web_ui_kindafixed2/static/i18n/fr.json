@@ -79,7 +79,7 @@
  "Address forced for {0}": "Adresse forcée pour {0}",
  "Address to add": "Adresse à ajouter",
  "Address used by each peer": "Adresse utilisée par chaque pair",
- "Addresses given to VPN clients. A flow to one of them, or from a probe that has one, travels through the VPN (live map). Separated by commas. Empty: no VPN.": "Adresses attribuées aux clients VPN. Un flux vers l'une d'elles, ou depuis une sonde qui en a une, passe par le VPN (carte en direct). Séparés par des virgules. Vide : pas de VPN.",
+ "Addresses given to VPN clients. A flow to one of them, or from a probe that has one, travels through the VPN (live map). Separated by commas. Empty: 192.168.1.0/24.": "Adresses attribuées aux clients VPN. Un flux vers l'une d'elles, ou depuis une sonde qui en a une, passe par le VPN (carte en direct). Séparés par des virgules. Vide : 192.168.1.0/24.",
  "Addresses of client '{0}' updated": "Adresses du client « {0} » modifiées",
  "Addresses, and how each peer reaches this client": "Adresses, et comment chaque pair joint ce client",
  "Administrators": "Administrateurs",

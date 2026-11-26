@@ -184,9 +184,14 @@ def internal_networks(config):
     return nets or [ipaddress.ip_network(n) for n in DEFAULT_INTERNAL_NETWORKS]
 
 
+DEFAULT_VPN_NETWORKS = ("192.168.1.0/24",)
+
+
 def vpn_networks(config):
+    """GLOBAL.VPN_NETWORKS, sinon DEFAULT_VPN_NETWORKS."""
     value = ((config or {}).get("GLOBAL", {}) or {}).get("VPN_NETWORKS")
-    return parse_networks(", ".join(value) if isinstance(value, list) else value)[0] if value else []
+    nets = parse_networks(", ".join(value) if isinstance(value, list) else value)[0] if value else []
+    return nets or [ipaddress.ip_network(n) for n in DEFAULT_VPN_NETWORKS]
 
 
 def full_tunnel(config):

@@ -242,11 +242,19 @@ def latest_versions(api=_api):
 
     tag = api("https://api.github.com/repos/lbsou/iperf3v/releases/latest")["tag_name"]
     out["iperf3v"] = entry(IPERF3V_TAG, tag, False, tag != IPERF3V_TAG and _semver(tag) >= _semver(IPERF3V_TAG))
+
+    # Bibliothèque de l'interface (carte en direct) : version lue dans le fichier livré ; signalée seulement, une
+    # nouvelle version change l'interface et se valide à la main (rendu de la carte)
+    shipped = CYTOSCAPE.read_text(encoding="utf-8", errors="replace") if CYTOSCAPE.exists() else ""
+    found = re.search(r'"(3\.\d+\.\d+)"', shipped)
+    if found:
+        out["cytoscape"] = entry(found.group(1), api("https://registry.npmjs.org/cytoscape/latest")["version"], False)
     return out
 
 
 NAMES = {"victoriametrics": "VictoriaMetrics", "grafana": "Grafana", "grafana-major": "Grafana (majeure)",
-         "python": "Python", "iperf3v": "iperf3v"}
+         "python": "Python", "iperf3v": "iperf3v", "cytoscape": "Cytoscape (carte)"}
+CYTOSCAPE = ROOT / "lib" / "web_ui_kindafixed2" / "static" / "cytoscape-js" / "cytoscape.min.js"
 
 
 def bump_text(text, versions):

@@ -261,3 +261,9 @@ def test_a_probe_is_on_the_vpn_when_one_of_its_addresses_is_in_a_vpn_subnet():
     clients = [{"UID": "H", "IP_ADDRESS": "0.0.0.0"}, {"UID": "P", "IP_ADDRESS": "10.249.77.29"}]
     assert sa.vpn_clients(clients, sa.parse_networks("10.251.0.0/16")[0], store) == {"H"}
     assert sa.vpn_clients(clients, [], store) == set()
+
+
+def test_the_vpn_networks_default_to_192_168_1_0_slash_24():
+    from lib import st_addresses as sa
+    assert [str(n) for n in sa.vpn_networks({})] == ["192.168.1.0/24"]
+    assert [str(n) for n in sa.vpn_networks({"GLOBAL": {"VPN_NETWORKS": "10.251.0.0/16"}})] == ["10.251.0.0/16"]
