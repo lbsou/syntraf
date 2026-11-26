@@ -74,6 +74,12 @@
         <div class="col-md-6">{{ field("c_deploy", "DEPLOYMENT_GROUP", "Deployment group (optional)", help="For staged updates, e.g. pilot, wave-1. Has no effect on the measurements.") }}</div>
     </div>
     <datalist id="c_deploy_list"></datalist>
+    <div class="mb-3">
+        <label for="c_desc" class="form-label">Description (optional)</label>
+        <textarea class="form-control" id="c_desc" data-field="DESCRIPTION" rows="3" maxlength="500" aria-describedby="c_desc_help"></textarea>
+        <div id="c_desc_help" class="form-text">Notes for administrators: location, network, contact. Has no effect on the measurements.</div>
+        <div class="invalid-feedback" data-feedback="DESCRIPTION"></div>
+    </div>
     <p class="small text-white-50 mb-0" id="c_advanced" hidden><i class="fas fa-info-circle me-1"></i>This client also has advanced settings (<span id="c_advanced_keys"></span>) edited in the configuration file; they are kept.</p>
 {% endcall %}
 
@@ -197,6 +203,12 @@ const crud = st.crud({
         {field: "MESH_LISTENERS_PORT_RANGE", title: "Port range", formatter: v => st.esc(v || "")},
         {field: "DEPLOYMENT_GROUP", title: "Deployment group", sortable: true,
          formatter: v => v ? `<span class="badge bg-secondary">${st.esc(v)}</span>` : ""},
+        {field: "DESCRIPTION", title: "Description", formatter: v => {
+            if (!v) return "";
+            const lines = String(v).split(/\r?\n/);
+            const short = lines[0].length > 60 ? lines[0].slice(0, 60) + "…" : lines[0] + (lines.length > 1 ? " …" : "");
+            return `<span title="${st.esc(v)}">${st.esc(short)}</span>`;
+        }},
     ],
     async fill(row) {
         const r = await st.api("GET", "/api/v1/mesh-groups");
@@ -220,6 +232,7 @@ const crud = st.crud({
         el("c_ports").value = row ? (row.MESH_LISTENERS_PORT_RANGE || "") : "";
         el("c_deploy").value = row ? (row.DEPLOYMENT_GROUP || "") : "";
         el("c_deploy").setAttribute("list", "c_deploy_list");
+        el("c_desc").value = row ? (row.DESCRIPTION || "") : "";
         const known = await st.api("GET", "/api/v1/config/clients");
         el("c_deploy_list").innerHTML = [...new Set((known.ok ? known.data : []).map(c => c.DEPLOYMENT_GROUP).filter(Boolean))]
             .sort().map(g => `<option value="${st.esc(g)}">`).join("");
@@ -235,6 +248,7 @@ const crud = st.crud({
         MESH_LISTENERS_PORT_RANGE: el("c_ports").value.trim(),
         BEHIND_NAT: el("c_nat").checked,
         DEPLOYMENT_GROUP: el("c_deploy").value.trim(),
+        DESCRIPTION: el("c_desc").value.trim(),
     }),
 });
 // ---- Accessibilité entrante (lib/st_reach.py) : les pairs essaient de joindre les ports de la sonde
