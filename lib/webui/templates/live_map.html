@@ -2,7 +2,7 @@
 {% from "_macros.html" import page_header %}
 {% block title %}Live map{% endblock %}
 {% block content %}
-{{ page_header("Live map", "The probes of one mesh group and what they measure: one arrow per direction, pointing to the probe that receives it and colored by the quality of that direction over the last minute. Refreshed every 10 seconds. Move the time cursor to replay the network as it was during an incident.") }}
+{{ page_header("Live map", "The probes of one mesh group and what they measure: near each probe, the color and the value of what it receives over the last minute. Refreshed every 10 seconds. Move the time cursor to replay the network as it was during an incident.") }}
 
 <section class="st-card">
   <div class="d-flex flex-wrap align-items-end gap-3 mb-2">
@@ -15,6 +15,12 @@
       <select class="form-select form-select-sm" id="lm_metric">
         <option value="loss">Loss</option><option value="mos">Voice quality (MOS)</option>
         <option value="rtt">Latency (round trip)</option><option value="jitter">Jitter</option>
+      </select>
+    </div>
+    <div>
+      <label for="lm_view" class="form-label small mb-0">Show</label>
+      <select class="form-select form-select-sm" id="lm_view">
+        <option value="pair">One line per pair</option><option value="arrows">Two arrows per pair</option>
       </select>
     </div>
     <button type="button" class="btn btn-sm btn-outline-light" id="lm_relayout" title="Forget the positions moved by hand">Rearrange</button>
@@ -40,7 +46,7 @@
   <div id="lm_note" class="small text-warning mb-2" hidden></div>
   <div class="row g-3">
     <div class="col-lg-9"><div id="lm_cy" style="height: 68vh; border: 1px solid #3a3a3a; border-radius: .5rem; background: #1e1e1e" role="img" aria-label="Map of the probes and their links"></div></div>
-    <div class="col-lg-3"><div id="lm_detail" class="small"><p class="text-white-50">Point at an arrow or a probe for its details. Each arrow is one direction of a pair: it points to the probe that receives it, and its value is the quality measured by that probe.</p></div></div>
+    <div class="col-lg-3"><div id="lm_detail" class="small"><p class="text-white-50">Point at a line or a probe for its details; click a probe to keep only its lines. Near each probe: what it receives, and the quality it measured.</p></div></div>
   </div>
   <details class="mt-2 small" id="lm_key_box" open>
     <summary class="text-white-50">Legend</summary>
@@ -53,8 +59,11 @@
         <div><svg width="18" height="18" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="#00bc8c" stroke="#3498db" stroke-width="2" stroke-dasharray="3 2"/></svg> dashed blue border: behind a NAT or a firewall, outbound only. It opens the connections itself and measures both directions; two such probes cannot measure each other.</div>
       </div>
       <div>
-        <div class="fw-bold mb-1">Arrows (one per direction)</div>
-        <div><svg width="44" height="12" aria-hidden="true"><line x1="2" y1="6" x2="34" y2="6" stroke="#00bc8c" stroke-width="3"/><polygon points="34,1 42,6 34,11" fill="#00bc8c"/></svg> points to the probe that receives that direction; the value near the tip is what it measured</div>
+        <div class="fw-bold mb-1">Lines</div>
+        <div><svg width="64" height="12" aria-hidden="true"><polygon points="10,1 2,6 10,11" fill="#e74c3c"/><line x1="10" y1="6" x2="32" y2="6" stroke="#e74c3c" stroke-width="3"/><line x1="32" y1="6" x2="54" y2="6" stroke="#00bc8c" stroke-width="3"/><polygon points="54,1 62,6 54,11" fill="#00bc8c"/></svg> one line per pair: the half that touches a probe has the color of what that probe receives, with the value it measured</div>
+        <div><svg width="44" height="12" aria-hidden="true"><line x1="2" y1="6" x2="34" y2="6" stroke="#00bc8c" stroke-width="3"/><polygon points="34,1 42,6 34,11" fill="#00bc8c"/></svg> two arrows per pair (Show): each arrow points to the probe that receives that direction</div>
+        <div>hover or click a probe: only its lines stay; click the background to see everything again</div>
+        <div>hover a line: moving dashes show the direction of each flow</div>
         <div>color: quality of that direction over the last minute (scale above)</div>
         <div><svg width="44" height="12" aria-hidden="true"><line x1="2" y1="6" x2="40" y2="6" stroke="#bbb" stroke-width="3"/></svg> solid: over the local network (<span id="lm_internal"></span>)</div>
         <div><svg width="44" height="12" aria-hidden="true"><line x1="2" y1="6" x2="40" y2="6" stroke="#bbb" stroke-width="3" stroke-dasharray="10 4"/></svg> ☁️ long dashes: over the Internet</div>
@@ -156,6 +165,76 @@ function arrowData(l, d, metric) {
             alert: alerted ? 1 : 0, via: d.via || "unknown", icon, value, raw: l, dir: d};
 }
 
+// Une ligne par paire : la moitié qui touche une sonde prend la couleur de ce qu'elle reçoit, avec sa valeur et une
+// pointe tournée vers elle ; chemin (☁️ / 🔒) au milieu, une fois (les deux s'il diffère d'un sens à l'autre)
+function pairData(l, metric) {
+    const show = v => v === null || v === undefined ? "" : LABELS[metric](v);
+    const into = id => l.directions.find(d => d.to === id);
+    const dA = into(l.a), dB = into(l.b);
+    const grade = d => metric === "rtt" ? l.grade.rtt : ((d && d.grade) || {})[metric] || "nodata";
+    const value = d => metric === "rtt" ? "" : show(d ? d[FIELD[metric]] : null);
+    const vias = [...new Set(l.directions.map(d => d.via || "unknown"))];
+    const alerted = (l.alerts || []).length ? 1 : 0;
+    return {id: `${l.a}|${l.b}|${l.mesh_group}`, source: l.a, target: l.b, pair: 1,
+            cA: COLORS[grade(dA)], cB: COLORS[grade(dB)], atA: value(dA),
+            atB: metric === "rtt" ? show(l.rtt_ms) : value(dB),
+            dashed: grade(dA) === "nodata" && grade(dB) === "nodata" ? 1 : 0, alert: alerted,
+            via: vias.length === 1 ? vias[0] : "mixed", icon: vias.map(v => ICON[v] || "").join(""), raw: l};
+}
+
+// Couleurs de chaque moitié : style posé sur l'élément (une liste de couleurs ne se lit pas dans les données)
+function paintPairs() {
+    cy.edges("[pair = 1]").forEach(e => e.style({
+        "line-fill": "linear-gradient",
+        "line-gradient-stop-colors": `${e.data("cA")} ${e.data("cA")} ${e.data("cB")} ${e.data("cB")}`,
+        "line-gradient-stop-positions": "0 50 50 100",
+        "source-arrow-color": e.data("cA"), "target-arrow-color": e.data("cB")}));
+}
+
+// ---- Focus : au survol d'une sonde ou d'une ligne, le reste s'efface ; un clic sur une sonde le fixe, un clic sur
+// le fond le retire
+let pinned = null;
+function focusOn(ele) {
+    const keep = ele.isNode() ? ele.closedNeighborhood() : ele.union(ele.connectedNodes());
+    cy.batch(() => { cy.elements().not(keep).not(".lm-flow").addClass("lm-dim"); keep.removeClass("lm-dim"); });
+}
+function clearFocus() { cy.elements().removeClass("lm-dim"); }
+function refocus() {
+    const n = pinned && cy.getElementById(pinned);
+    if (n && n.nonempty()) focusOn(n); else { pinned = null; clearFocus(); }
+}
+
+// ---- Sur la ligne survolée, des tirets défilent dans le sens de chaque flux
+let flow = null;
+function startFlow(edge) {
+    stopFlow();
+    const metric = el("lm_metric").value, l = edge.data("raw");
+    let animated;
+    if (edge.data("pair")) {
+        // deux fines lignes, une par sens, de part et d'autre de la ligne de la paire
+        animated = cy.add(l.directions.map(d => ({group: "edges", classes: "lm-flow", data: {
+            id: `flow:${d.from}>${d.to}`, source: d.from, target: d.to,
+            color: COLORS[metric === "rtt" ? l.grade.rtt : ((d.grade || {})[metric] || "nodata")]}})));
+    } else {
+        animated = edge;
+        edge.style({"line-style": "dashed", "line-dash-pattern": [12, 7]});
+    }
+    let offset = 0;
+    const step = () => {
+        offset -= 1.5;  // décalage négatif : les tirets avancent de la source vers la sonde qui reçoit
+        animated.style("line-dash-offset", offset);
+        flow.frame = requestAnimationFrame(step);
+    };
+    flow = {edge, animated, frame: requestAnimationFrame(step)};
+}
+function stopFlow() {
+    if (!flow) return;
+    cancelAnimationFrame(flow.frame);
+    if (flow.edge.data("pair")) flow.animated.remove();
+    else flow.animated.removeStyle("line-style line-dash-pattern line-dash-offset");
+    flow = null;
+}
+
 function legend(grades, metric) {
     const [a, b, c] = grades[metric];
     const better = metric === "mos" ? "≥" : "<", worse = metric === "mos" ? "<" : "≥";
@@ -171,7 +250,9 @@ function render(data) {
         ...data.nodes.map(n => ({group: "nodes", data: {id: n.id, label: n.behind_nat ? `${n.id} (NAT)` : n.id,
             lv: "bottom", lh: "center", mx: 0, my: 8,  // placement par défaut ; placeLabels le corrige
             color: STATUS[n.status] || "#777777", nat: n.behind_nat ? 1 : 0, raw: n}})),
-        ...data.links.flatMap(l => l.directions.map(d => ({group: "edges", data: arrowData(l, d, metric)}))),
+        ...(el("lm_view").value === "arrows"
+            ? data.links.flatMap(l => l.directions.map(d => ({group: "edges", data: arrowData(l, d, metric)})))
+            : data.links.map(l => ({group: "edges", data: pairData(l, metric)}))),
     ];
     if (!cy) {
         cy = cytoscape({
@@ -205,8 +286,20 @@ function render(data) {
                     "text-background-color": "#1e1e1e", "text-background-padding": 2, "text-background-shape": "roundrectangle"}},
                 {selector: "edge[dashed = 1]", style: {"line-style": "dashed", "line-dash-pattern": [5, 3], width: 2}},
                 {selector: "edge[alert = 1]", style: {"overlay-color": "#e74c3c", "overlay-opacity": 0.3, "overlay-padding": 6}},
-                {selector: "edge.lm-quiet", style: {"target-label": "", label: ""}},
+                // Une ligne par paire : pointe à chaque bout, tournée vers la sonde qui reçoit ; valeur près d'elle
+                {selector: "edge[pair = 1]", style: {"curve-style": "straight", "source-arrow-shape": "triangle",
+                    "source-distance-from-node": 3, "source-label": "data(atA)", "source-text-offset": 95,
+                    "target-label": "data(atB)", width: 5}},
+                {selector: "edge.lm-quiet", style: {"target-label": "", "source-label": "", label: ""}},
                 {selector: "edge.lm-hover", style: {"target-label": "data(value)", label: "data(icon)", "z-index": 30, width: 6}},
+                {selector: "edge[pair = 1].lm-hover", style: {"source-label": "data(atA)", "target-label": "data(atB)", width: 7}},
+                {selector: ".lm-dim", style: {opacity: 0.12}},
+                // Tirets qui défilent (ligne survolée, une ligne par paire) : fines, de part et d'autre, sans clic
+                {selector: "edge.lm-flow", style: {"curve-style": "unbundled-bezier", "control-point-distances": [24],
+                    "control-point-weights": [0.5], "line-color": "data(color)", width: 2.5, "line-style": "dashed",
+                    "line-dash-pattern": [10, 8], "target-arrow-shape": "triangle", "target-arrow-color": "data(color)",
+                    "arrow-scale": 0.9, "target-distance-from-node": 3, label: "", "target-label": "", events: "no",
+                    "z-index": 40}},
                 {selector: ":selected", style: {"overlay-opacity": 0.15, "overlay-color": "#fff"}},
             ],
             layout: layoutFor(data),
@@ -214,15 +307,25 @@ function render(data) {
         cy.on("dragfree", "node", () => { savePositions(); placeLabels(); });
         cy.on("layoutstop", () => { capZoom(); placeLabels(); });
         capZoom();
-        cy.on("mouseover", "edge", e => e.target.addClass("lm-hover"));
-        cy.on("mouseout", "edge", e => e.target.removeClass("lm-hover"));
+        cy.on("mouseover", "edge", e => { e.target.addClass("lm-hover"); startFlow(e.target); if (!pinned) focusOn(e.target); });
+        cy.on("mouseout", "edge", e => { e.target.removeClass("lm-hover"); stopFlow(); if (!pinned) clearFocus(); else refocus(); });
+        cy.on("mouseover", "node", e => { if (!pinned) focusOn(e.target); });
+        cy.on("mouseout", "node", () => { if (!pinned) clearFocus(); });
+        cy.on("tap", "node", e => { pinned = pinned === e.target.id() ? null : e.target.id(); refocus(); });
+        cy.on("tap", e => { if (e.target === cy) { pinned = null; clearFocus(); } });
+        // La souris quitte la carte d'un coup depuis une ligne : cytoscape ne voit pas de « mouseout »
+        el("lm_cy").addEventListener("mouseleave", () => {
+            stopFlow();
+            if (cy) cy.edges(".lm-hover").removeClass("lm-hover");
+            if (!pinned && cy) clearFocus();
+        });
         window.addEventListener("resize", () => { cy.resize(); cy.fit(undefined, 40); capZoom(); });
         cy.on("mouseover tap", "edge", e => showLink(e.target.data("raw"), e.target.data("dir")));
         cy.on("mouseover tap", "node", e => showNode(e.target.data("raw")));
         window.stLiveMap = cy;
     } else {
         const wanted = new Set(elements.map(x => x.data.id));
-        cy.elements().filter(x => !wanted.has(x.id())).remove();
+        cy.elements().not(".lm-flow").filter(x => !wanted.has(x.id())).remove();
         let added = false;
         for (const x of elements) {
             const existing = cy.getElementById(x.data.id);
@@ -232,7 +335,9 @@ function render(data) {
         if (added) cy.layout(layoutFor(data)).run();
     }
     // Beaucoup de flèches : leurs valeurs n'apparaissent qu'au survol (sinon elles se chevauchent au centre)
-    cy.edges().toggleClass("lm-quiet", cy.edges().length > 48);
+    cy.edges().not(".lm-flow").toggleClass("lm-quiet", cy.edges().not(".lm-flow").length > 48);
+    paintPairs();
+    refocus();
     placeLabels();  // l'actualisation remet les données des sondes : leur nom reprend sa place
     legend(data.grades, metric);
 }
@@ -391,6 +496,13 @@ el("lm_group").addEventListener("change", () => {
     load();
 });
 el("lm_metric").addEventListener("change", () => { if (last) render(last); drawStrip(); });
+el("lm_view").value = localStorage.getItem("st-live-map-view") || "pair";
+el("lm_view").addEventListener("change", () => {
+    localStorage.setItem("st-live-map-view", el("lm_view").value);
+    stopFlow();
+    if (cy) { cy.destroy(); cy = null; }
+    if (last) render(last);
+});
 el("lm_relayout").addEventListener("click", () => {
     localStorage.removeItem(SAVED());
     if (cy && last) cy.layout(layoutFor(last)).run();
