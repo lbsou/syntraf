@@ -151,8 +151,7 @@ function arrowData(l, d, metric) {
     const g = metric === "rtt" ? l.grade.rtt : (d.grade || {})[metric] || "nodata";
     const value = metric === "rtt" ? (first ? show(l.rtt_ms) : "") : show(d[FIELD[metric]]);
     const alerted = (l.alerts || []).some(a => a.startsWith(`${d.from} → ${d.to} `));
-    const same = l.directions.every(x => x.via === d.via);
-    const icon = same && d !== l.directions[0] ? "" : (ICON[d.via] || "");
+    const icon = ICON[d.via] || "";  // sur chaque flèche : les deux sens d'une paire sont décalés, sans chevauchement
     return {id: edgeId(l, d), source: d.from, target: d.to, color: COLORS[g], dashed: g === "nodata" ? 1 : 0,
             alert: alerted ? 1 : 0, via: d.via || "unknown", icon, value, raw: l, dir: d};
 }
