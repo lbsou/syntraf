@@ -12,7 +12,7 @@ from lib.st_mesh import client, server
 
 # SYNTRAF SERVER IMPORT
 if not CompilationOptions.client_only:
-    from lib.web_ui_kindafixed2 import create_app
+    from lib.webui import create_app
 
     # from gevent import monkey
     # monkey.patch_all()

@@ -117,6 +117,6 @@ def test_the_web_interface_library_is_reported_but_never_bumped_alone(monkeypatc
     l'interface, elle est signalée et se valide à la main."""
     api = fake_api(["v1.156.0"], ["v13.0.2"], [], "x", "v3.22.1-v2", cytoscape="3.36.1")
     v = bp.latest_versions(api)["cytoscape"]
-    shipped = (ROOT / "lib/web_ui_kindafixed2/static/cytoscape-js/cytoscape.min.js").read_text(encoding="utf-8")
+    shipped = (ROOT / "lib/webui/static/cytoscape-js/cytoscape.min.js").read_text(encoding="utf-8")
     assert f'"{v["pinned"]}"' in shipped and v["latest"] == "3.36.1" and v["auto"] is False and v["behind"] is True
     assert bp.bump_text('VM_VERSION, GRAFANA_VERSION = "v1.156.0", "13.0.2"\n', {"cytoscape": v})[1] == []

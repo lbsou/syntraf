@@ -1,7 +1,7 @@
 """Textes de l'interface à traduire : extraits des gabarits, du JavaScript et des messages de l'API.
 
-    python -m lib.web_ui_kindafixed2.i18n_extract            # textes sans traduction française
-    python -m lib.web_ui_kindafixed2.i18n_extract --all      # tous les textes
+    python -m lib.webui.i18n_extract            # textes sans traduction française
+    python -m lib.webui.i18n_extract --all      # tous les textes
 
 Le traducteur du navigateur (static/js/st_i18n.js) remplace chaque nœud de texte (et title, placeholder, aria-label)
 dont le contenu est une clé du dictionnaire (static/i18n/fr.json) ; « {0} », « {1} »… y désignent des valeurs

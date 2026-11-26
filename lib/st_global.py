@@ -42,7 +42,7 @@ def _available(name):
 def missing_server_parts():
     """Ce qui manque pour faire tourner un serveur : l'interface web (absente de la release des sondes) ou les
     paquets du serveur (une sonde installée depuis le dépôt n'a que requirements_client.txt)."""
-    missing = [] if (pathlib.Path(__file__).parent / "web_ui_kindafixed2").is_dir() else ["web interface"]
+    missing = [] if (pathlib.Path(__file__).parent / "webui").is_dir() else ["web interface"]
     return missing + [name for name in SERVER_PACKAGES if not _available(name)]
 
 
@@ -54,7 +54,7 @@ class CompilationOptions:
 
 class DefaultValues:
     # GLOBAL
-    SYNTRAF_VERSION = "0.45.31"
+    SYNTRAF_VERSION = "0.45.32"
     SYNTRAF_ROOT_DIR = pathlib.Path(__file__).parent.parent.absolute()  # code de la version qui tourne
     # Données (clés, état) : dans l'installation en place, même quand une release installée à distance tourne
     # (st_updater la désigne par SYNTRAF_BASE_DIR) ; sinon l'identité du client changerait à chaque mise à jour.

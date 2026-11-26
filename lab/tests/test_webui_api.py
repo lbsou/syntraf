@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 try:
     import toml
     from lib.st_conf_validation import validate_group, generate_client_config_mesh
-    from lib.web_ui_kindafixed2 import create_app
+    from lib.webui import create_app
 except (ImportError, SystemExit):
     pytest.skip("dépendances de SYNTRAF absentes (lancer dans l'image du lab)", allow_module_level=True)
 
@@ -80,7 +80,7 @@ def env(tmp_path):
     app = create_app(threads, {}, generated, tuples, {}, live, str(path), [FakeDb()], {}, clients)
     app.config["TESTING"] = True
     # Les tests de l'API passent par un jeton d'API (tests de l'authentification : test_auth.py)
-    from lib.web_ui_kindafixed2 import st_auth
+    from lib.webui import st_auth
     client = app.test_client()
     client.environ_base["HTTP_AUTHORIZATION"] = "Bearer " + st_auth.store_of(app).create_token("tests")
     return {"client": client, "app": app, "path": path, "threads": threads}
@@ -575,7 +575,7 @@ def test_probe_clock_limits_are_live_global_settings(env):
 
 def test_metrics_exposes_the_clock_of_each_connected_probe(env):
     from lib import st_clock
-    from lib.web_ui_kindafixed2 import st_api_v1
+    from lib.webui import st_api_v1
     with env["app"].app_context():
         obj = st_api_v1._state()["dict_of_clients"]["NODE_A"]
     st_clock.tracker(obj).add(1000.0, offset=0.042, delay=0.003)
@@ -597,7 +597,7 @@ def test_a_probe_can_be_paused_and_resumed_from_the_api(env):
 def test_the_clients_page_lists_declared_clients_only_and_points_to_pending_approvals(env):
     """Avant l'authentification, une connexion est rangée sous son adresse IP : la page Clients en faisait une ligne
     vide, sans dire qu'une demande attendait d'être approuvée (Configuration › Clients)."""
-    from lib.web_ui_kindafixed2 import st_api_v1
+    from lib.webui import st_api_v1
     with env["app"].app_context():
         st_api_v1._state()["dict_of_clients"]["10.120.130.27"] = type("Pending", (), {"status": "AUTH_FAILED"})()
     html = env["client"].get("/stats.html").get_data(as_text=True)

@@ -104,7 +104,7 @@ v1.4 - Automate aka GEARS
 
  [ ] CI: run the unit tests (lab/tests) and a linter on main (the workflow only tags, on "master")
  [X] Remove the old web interfaces (lib/web_ui, lib/webui_kindafixed, lib/st_webui.py1)
- [ ] Rename lib/web_ui_kindafixed2
+ [x] Rename lib/web_ui_kindafixed2 → lib/webui
  [X] Remove debug files from the repository root (thread_status.txt, threads.txt, client_status.txt, fake_data/)
  [ ] Split the large modules (st_mesh.py, st_conf_validation.py, st_mesh_group_ops.py)
  [ ] Finish the validation of listeners (TODO in st_conf_validation.py)

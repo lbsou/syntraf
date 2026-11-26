@@ -1,6 +1,6 @@
 # SYNTRAF GLOBAL IMPORT
 from lib import st_mesh_group_ops
-from lib.web_ui_kindafixed2.st_auth import actor as _actor
+from lib.webui.st_auth import actor as _actor
 from lib.st_global import CompilationOptions, DefaultValues
 
 # SYNTRAF SERVER IMPORT

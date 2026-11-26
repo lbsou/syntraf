@@ -281,7 +281,7 @@ def test_pausing_an_unknown_probe_is_refused(state):
 
 def test_the_paused_probe_still_shows_connected_with_its_pause(state):
     try:
-        from lib.web_ui_kindafixed2 import st_status
+        from lib.webui import st_status
     except ImportError:
         pytest.skip("interface web absente (paquets du serveur)")
     ops.set_client_paused(state, "WAVE_1", True, "tester")

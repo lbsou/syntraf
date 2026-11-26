@@ -1,4 +1,4 @@
-"""Authentification de l'interface et de l'API (lib/web_ui_kindafixed2/st_auth.py) : comptes, jetons d'API,
+"""Authentification de l'interface et de l'API (lib/webui/st_auth.py) : comptes, jetons d'API,
 contrôle d'accès, protection CSRF, limitation des échecs, en-têtes de sécurité.
 Tourne dans l'image du lab (dépendances de SYNTRAF).
 """
@@ -12,7 +12,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 try:
     import toml
-    from lib.web_ui_kindafixed2 import st_auth
+    from lib.webui import st_auth
     from test_webui_api import env  # noqa: F401 - fixture réutilisée
 except (ImportError, SystemExit):
     pytest.skip("dépendances de SYNTRAF absentes (lancer dans l'image du lab)", allow_module_level=True)

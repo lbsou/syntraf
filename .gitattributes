@@ -12,7 +12,7 @@
 crypto/* -linguist-detectable
 etc/* -linguist-detectable
 lib/web_ui/static/* -linguist-detectable
-lib/web_ui_kindafixed2/static/* -linguist-detectable
+lib/webui/static/* -linguist-detectable
 lib/webui_kindafixed/static/* -linguist-detectable
 *.html -linguist-detectable
 

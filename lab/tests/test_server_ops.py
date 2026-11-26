@@ -250,7 +250,7 @@ def test_the_iperf3_program_cannot_be_changed_remotely_even_to_an_existing_file(
 
 
 def test_directories_and_paths_are_not_masked_as_secrets():
-    st_status = pytest.importorskip("lib.web_ui_kindafixed2.st_status")  # interface : paquets du serveur
+    st_status = pytest.importorskip("lib.webui.st_status")  # interface : paquets du serveur
     display_value, MASK = st_status.display_value, st_status.MASK
     assert display_value("/etc/syntraf/rsa", "IPERF3_RSA_KEY_DIRECTORY") == "/etc/syntraf/rsa"
     assert display_value("abc", "IPERF3_PASSWORD") == MASK

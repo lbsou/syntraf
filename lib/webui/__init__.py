@@ -4,7 +4,7 @@ if CompilationOptions.client_only:  # sonde : l'interface web n'a pas ses paquet
     raise ImportError("the web interface needs the server packages, missing: " + ", ".join(missing_server_parts()))
 
 from flask import Flask
-from lib.web_ui_kindafixed2 import st_config
+from lib.webui import st_config
 import os
 import secrets
 from lib.st_global import DefaultValues
@@ -16,18 +16,18 @@ def create_app(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generat
     """Initialize the core application."""
     os.chdir(DefaultValues.SYNTRAF_ROOT_DIR)
 
-    app = Flask(__name__, instance_relative_config=False, static_folder=os.path.abspath('lib/web_ui_kindafixed2/static/'), static_url_path="/static")
+    app = Flask(__name__, instance_relative_config=False, static_folder=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static'), static_url_path="/static")
     app.config.from_object(st_config.ProductionConfig)
     # Authentification (comptes, jetons d'API, CSRF, en-têtes) ; clé de session gardée à côté de la configuration
-    from lib.web_ui_kindafixed2 import st_auth
+    from lib.webui import st_auth
     st_auth.init_app(app, config_file_path, tls=bool((config.get("SERVER") or {}).get("WEBUI_TLS")))
 
     with app.app_context():
 
         # Include blueprint
-        from lib.web_ui_kindafixed2.st_home_bp import st_home_bp
+        from lib.webui.st_home_bp import st_home_bp
 
-        from lib.web_ui_kindafixed2.st_api_v1 import st_api_v1, st_ops_bp
+        from lib.webui.st_api_v1 import st_api_v1, st_ops_bp
 
         # Register Blueprints
         app.register_blueprint(st_home_bp)
@@ -38,7 +38,7 @@ def create_app(threads_n_processes, subprocess_iperf_dict, _dict_by_node_generat
         from lib import st_config_store, st_flow_catalog
         st_config_store.set_listener("databases", lambda entry: st_flow_catalog.publish_event(entry, conn_db))
 
-        from lib.web_ui_kindafixed2.st_status import display_value
+        from lib.webui.st_status import display_value
         app.jinja_env.filters["st_display"] = display_value
 
         @app.context_processor

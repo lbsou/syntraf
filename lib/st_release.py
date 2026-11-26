@@ -36,7 +36,8 @@ SECRET_NAMES = ("syntraf_client_token", "syntraf_client_uid", "credentials")
 # Release des sondes (profil « client ») : ni l'interface web ni les modules propres au serveur. Ce que le serveur
 # distribue : une sonde n'en exécute rien, et l'interface pèse 98 % de la release complète.
 PROFILES = ("full", "client")
-CLIENT_EXCLUDED_DIRS = ("lib/web_ui_kindafixed2/", "lib/web_ui/", "lib/webui_kindafixed/", "lib/webui/")
+# l'interface (lib/webui), et ses anciens noms : un dossier resté d'une ancienne installation n'est jamais envoyé
+CLIENT_EXCLUDED_DIRS = ("lib/webui/", "lib/web_ui_kindafixed2/", "lib/web_ui/", "lib/webui_kindafixed/")
 CLIENT_EXCLUDED_FILES = {"requirements_server.txt", "lib/st_mesh_group_ops.py", "lib/st_vm_admin.py",
                          "lib/st_db_factory.py", "lib/st_victoriametrics.py", "lib/st_capacity.py",
                          "lib/st_config_store.py", "lib/st_certs.py", "lib/st_flow_catalog.py"}

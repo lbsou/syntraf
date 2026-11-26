@@ -16,7 +16,7 @@ from flask import Blueprint, Response, current_app, g, jsonify, request, send_fi
 from lib import st_config_store as store
 from lib import st_mesh_group_ops as ops
 from lib import st_log_search
-from lib.web_ui_kindafixed2 import st_status
+from lib.webui import st_status
 from lib.st_vm_admin import VmAdmin, VmError
 
 try:
@@ -36,7 +36,7 @@ def _state():
 
 
 def _actor():
-    from lib.web_ui_kindafixed2.st_auth import actor
+    from lib.webui.st_auth import actor
     return actor()
 
 

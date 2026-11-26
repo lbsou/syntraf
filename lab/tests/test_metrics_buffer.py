@@ -13,7 +13,7 @@ try:
     import lib.st_process_and_thread  # noqa: F401 - charge st_mesh dans l'ordre du serveur (import circulaire sinon)
     from lib import st_mesh
     from lib.st_obj_cc_client import cc_client
-    from lib.web_ui_kindafixed2 import st_status
+    from lib.webui import st_status
 except (ImportError, SystemExit):
     pytest.skip("dépendances de SYNTRAF absentes (lancer dans l'image du lab)", allow_module_level=True)
 

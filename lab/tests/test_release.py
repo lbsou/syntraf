@@ -98,22 +98,22 @@ def test_only_the_code_is_shipped_never_a_secret_or_a_config(tmp_path):
     # Liste blanche : une release est téléchargeable par un client ; rien d'autre que le code n'y entre
     root = tree(tmp_path / "srv", {
         "syntraf.py": "x", "requirements_client.txt": "toml\n", "lib/st_x.py": "x",
-        "lib/web_ui_kindafixed2/static/js/a.js": "x", "lib/web_ui_kindafixed2/templates/a.html": "x",
+        "lib/webui/static/js/a.js": "x", "lib/webui/templates/a.html": "x",
         ".env": "SECRET_KEY=x", "config.toml": "TOKEN='x'", "etc/config.toml": "x", "config.toml.pending.json": "{}",
-        "syntraf_client_token": "x", "lib/.env": "x", "lib/web_ui_kindafixed2/users.db": "x", "lib/x.toml": "x",
+        "syntraf_client_token": "x", "lib/.env": "x", "lib/webui/users.db": "x", "lib/x.toml": "x",
         "lib/key.pem": "x", "lib/credentials.csv": "x", "tools/build.py": "x", "README.md": "x",
         "config.toml.history/v1.toml": "x", "config.toml.audit.jsonl": "x"})
     info = rel.build(str(root), str(tmp_path / "out"), "0.45")
     with tarfile.open(info["path"]) as t:
         names = set(t.getnames())
-    assert names == {"syntraf.py", "requirements_client.txt", "lib/st_x.py", "lib/web_ui_kindafixed2/static/js/a.js",
-                     "lib/web_ui_kindafixed2/templates/a.html", "manifest.json"}
+    assert names == {"syntraf.py", "requirements_client.txt", "lib/st_x.py", "lib/webui/static/js/a.js",
+                     "lib/webui/templates/a.html", "manifest.json"}
 
 
 # ---------------------------------------------------------------------------------- release des sondes (légère)
 
 def test_the_client_release_leaves_the_server_out(src, tmp_path):
-    tree(src, {"lib/web_ui_kindafixed2/__init__.py": "app\n", "lib/web_ui_kindafixed2/static/big.js": "x" * 5000,
+    tree(src, {"lib/webui/__init__.py": "app\n", "lib/webui/static/big.js": "x" * 5000,
                "lib/st_mesh_group_ops.py": "ops\n", "lib/st_victoriametrics.py": "vm\n",
                "requirements_server.txt": "Flask\n"})
     info = rel.build(str(src), str(tmp_path / "out"), "0.45", profile="client")
@@ -131,7 +131,7 @@ def test_the_client_release_leaves_the_server_out(src, tmp_path):
 
 
 def test_the_server_distributes_the_client_release(src, tmp_path):
-    tree(src, {"lib/web_ui_kindafixed2/__init__.py": "app\n"})
+    tree(src, {"lib/webui/__init__.py": "app\n"})
     info = rel.builtin(str(src), str(tmp_path / "data"), "0.45")
     with tarfile.open(info["path"]) as t:
         assert not any(n.startswith("lib/web_ui") for n in t.getnames())

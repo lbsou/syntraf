@@ -432,7 +432,7 @@ class HealthPublisher:
             return False
         self.last = now
         try:
-            from lib.web_ui_kindafixed2 import st_status
+            from lib.webui import st_status
             from lib.st_flow_catalog import _write
             from lib import st_maintenance
             evaluate_health(st_status.snapshot(state), now, settings=Settings.from_config(state.get("config")),

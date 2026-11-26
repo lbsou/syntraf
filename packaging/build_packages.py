@@ -254,7 +254,7 @@ def latest_versions(api=_api):
 
 NAMES = {"victoriametrics": "VictoriaMetrics", "grafana": "Grafana", "grafana-major": "Grafana (majeure)",
          "python": "Python", "iperf3v": "iperf3v", "cytoscape": "Cytoscape (carte)"}
-CYTOSCAPE = ROOT / "lib" / "web_ui_kindafixed2" / "static" / "cytoscape-js" / "cytoscape.min.js"
+CYTOSCAPE = ROOT / "lib" / "webui" / "static" / "cytoscape-js" / "cytoscape.min.js"
 
 
 def bump_text(text, versions):
