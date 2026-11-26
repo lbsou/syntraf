@@ -239,6 +239,7 @@ function render(data) {
 
 const VIA = {local: "local network", internet: "Internet", vpn: "VPN", unknown: "unknown"};
 const ICON = {internet: "☁️", vpn: "🔒"};  // émojis en couleur : même taille
+const PATH_ICON = {internet: "☁️ ", vpn: "🔒 "};
 
 function fmt(v, f) { return v === null || v === undefined ? "–" : f(v); }
 
@@ -247,11 +248,14 @@ function showLink(l, dir) {
     el("lm_detail").innerHTML = `<h3 class="h6">${dir ? `${st.esc(dir.from)} → ${st.esc(dir.to)}` : `${st.esc(l.a)} ↔ ${st.esc(l.b)}`}</h3>
         <p class="text-white-50 mb-2">Mesh group ${st.esc(l.mesh_group || "")} · round trip ${fmt(l.rtt_ms, v => v.toFixed(1) + " ms")}</p>
         ${l.alerts && l.alerts.length ? `<p class="text-danger mb-2"><i class="fas fa-bell me-1" aria-hidden="true"></i>Alerts open: ${l.alerts.map(st.esc).join(", ")}</p>` : ""}
-        <table class="table table-sm small"><thead><tr><th scope="col">Direction</th><th scope="col">Path</th><th scope="col">Loss</th><th scope="col">Jitter</th><th scope="col">MOS</th></tr></thead><tbody>
-        ${l.directions.map(d => `<tr${here(d) ? ' class="table-active fw-bold"' : ""}><td>${st.esc(d.from)} → ${st.esc(d.to)}</td>
-            <td>${st.esc(VIA[d.via] || VIA.unknown)}${d.address ? `<br><code class="small">${st.esc(d.address)}</code>` : ""}</td><td>${fmt(d.loss_pct, v => v.toFixed(1) + " %")}</td>
-            <td>${fmt(d.jitter_ms, v => v.toFixed(1) + " ms")}</td><td>${fmt(d.mos, v => v.toFixed(2))}</td></tr>`).join("")}
-        </tbody></table>`;
+        ${l.directions.map(d => `<div class="border rounded p-2 mb-2${here(d) ? " border-info" : " border-secondary"}">
+            <div class="fw-bold text-break">${st.esc(d.from)} → ${st.esc(d.to)}</div>
+            <div class="text-white-50">${PATH_ICON[d.via] || ""}${st.esc(VIA[d.via] || VIA.unknown)}${d.address ? ` · <code class="small">${st.esc(d.address)}</code>` : ""}</div>
+            <div class="d-flex flex-wrap gap-3 mt-1">
+                <span><span class="text-white-50">Loss</span> ${fmt(d.loss_pct, v => v.toFixed(1) + " %")}</span>
+                <span><span class="text-white-50">Jitter</span> ${fmt(d.jitter_ms, v => v.toFixed(1) + " ms")}</span>
+                <span><span class="text-white-50">MOS</span> ${fmt(d.mos, v => v.toFixed(2))}</span>
+            </div></div>`).join("")}`;
 }
 
 function showNode(n) {
