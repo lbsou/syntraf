@@ -706,7 +706,13 @@ def client_command_restart(ssl_conn):
         # remove pid file
         pid_file_path = DefaultValues.SYNTRAF_PID_FILE
         pid_file = pathlib.Path(pid_file_path)
-        pid_file.unlink()
+        pid_file.unlink(missing_ok=True)
+
+        # Sous le superviseur : il relance SYNTRAF (EXIT_RESTART). Pas d'execv : sous Windows, il lancerait un
+        # nouveau processus enfant de celui-ci, tué avec lui par le job object (lib/st_children.py).
+        from lib import st_updater
+        if os.environ.get(st_updater.ENV_CHILD):
+            os._exit(st_updater.EXIT_RESTART)
 
         # if we are inside a pyinstaller bundle
         if getattr(sys, 'frozen', False):

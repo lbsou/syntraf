@@ -153,6 +153,13 @@ def run():
         tightened = st_files.tighten(st_files.private_paths(config, cli_parameters.config_file))
         if tightened:
             log.warning(f"PERMISSIONS OF {len(tightened)} SECRET FILE(S) RESTRICTED TO THEIR OWNER (0600)")
+    if bool_config_valid and "CLIENT" in config and os.environ.get("SYNTRAF_SUPERVISED"):
+        # Les iperf3 ne survivent pas à SYNTRAF (Windows : job object), et ceux laissés par une instance précédente
+        # (version sans cette protection, plantage) sont arrêtés : ils tenaient des ports et des sessions que plus
+        # personne ne lisait. Sous le superviseur seulement : il relance SYNTRAF lui-même (lib/st_children.py).
+        from lib import st_children
+        st_children.bind_to_me()
+        st_children.kill_strays(config.get('GLOBAL', {}).get('IPERF3_BINARY_PATH'))
     if bool_config_valid and "SERVER" in config:
         # Renvoi vers un collecteur syslog (SIEM), si configuré ; réglable à chaud depuis la page Logs
         from lib import st_syslog
