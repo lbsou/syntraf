@@ -160,3 +160,68 @@ def test_a_restart_asked_by_the_server_goes_through_the_supervisor(monkeypatch, 
     with pytest.raises(SystemExit) as stop:
         st_mesh.client_command_restart(Conn())
     assert stop.value.code == st_updater.EXIT_RESTART
+
+
+# --------------------------------------------------------------------- port d'écoute pris (V0930-TELECOM, 27 nov.)
+# Un écouteur relancé toutes les 10 s, « LAST BREATH : ' - ' » : iperf3 avait dit pourquoi (port pris), dans sa
+# sortie JSON, mais SYNTRAF ne l'affichait pas ; et personne ne savait qui tenait le port.
+
+def test_the_program_holding_a_port_is_found():
+    import socket
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    s.listen(1)
+    try:
+        port = s.getsockname()[1]
+        assert os.getpid() in [pid for pid, _ in st_children.port_holders(port)]
+    finally:
+        s.close()
+
+
+class Proc:
+    def __init__(self, pid, exe):
+        self.pid, self._exe, self.killed = pid, exe, False
+
+    def exe(self):
+        return self._exe
+
+    def kill(self):
+        self.killed = True
+
+
+def test_a_port_held_by_our_own_stray_iperf3_is_freed(monkeypatch, caplog, tmp_path):
+    ours, other = Proc(4242, str(tmp_path / "iperf3v.exe")), Proc(4343, r"C:\Tools\other.exe")
+    monkeypatch.setattr(st_children, "_holders", lambda port: [ours, other])
+    monkeypatch.setattr(st_children, "_wait", lambda procs, timeout: None)
+    with caplog.at_level("WARNING"):
+        killed, others = st_children.free_port(15999, str(tmp_path / "iperf3v.exe"))
+    assert (killed, others) == ([4242], [(4343, r"C:\Tools\other.exe")])
+    assert ours.killed and not other.killed
+    text = caplog.text
+    assert "PORT 15999" in text and "4242" in text and "other.exe" in text
+
+
+def test_a_foreign_holder_is_reported_once_not_every_ten_seconds(monkeypatch, caplog, tmp_path):
+    other = Proc(5151, r"C:\Tools\other.exe")
+    monkeypatch.setattr(st_children, "_holders", lambda port: [other])
+    st_children._REPORTED.clear()
+    with caplog.at_level("WARNING"):
+        st_children.free_port(15999, str(tmp_path / "iperf3v.exe"))
+        st_children.free_port(15999, str(tmp_path / "iperf3v.exe"))
+    assert caplog.text.count("other.exe") == 1
+
+
+def test_the_death_of_an_iperf3_says_what_iperf3_said(caplog):
+    try:
+        import lib.st_process_and_thread as pt
+    except (ImportError, SystemExit):
+        pytest.skip("dépendances de SYNTRAF absentes (lancer dans l'image du lab)")
+    from types import SimpleNamespace
+    done = subprocess.Popen([sys.executable, "-c", "pass"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    done.wait()
+    thr = SimpleNamespace(subproc=done, last_error="error - unable to start listener for connections: Address already in use")
+    threads = [thr]
+    with caplog.at_level("WARNING"):
+        breath = pt.iperf3_print_last_breath("KEY_SERVING_W34650", "LISTENER", threads, thr)
+    assert "Address already in use" in caplog.text and "Address already in use" in breath
+    assert threads == []

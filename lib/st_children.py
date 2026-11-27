@@ -15,6 +15,7 @@ import os
 log = logging.getLogger("syntraf." + __name__)
 
 _JOB = None  # handle du job object : gardé ouvert tant que SYNTRAF vit (sa fermeture tue les enfants)
+_REPORTED = set()  # (port, pid) d'un programme étranger déjà signalé : une fois, pas à chaque relance (10 s)
 
 
 def _norm(path):
@@ -58,6 +59,71 @@ def kill_strays(binary, timeout=5.0):
     for p in still:
         log.error(f"IPERF3 LEFT BY A PREVIOUS RUN (PID {p.pid}) COULD NOT BE STOPPED")
     return sorted(p.pid for p in gone)
+
+
+def _holders(port):
+    """Processus (psutil) qui ont une socket locale sur ce port (TCP en écoute ou UDP)."""
+    import psutil
+    pids = set()
+    try:
+        conns = psutil.net_connections(kind="inet")
+    except (psutil.Error, OSError):
+        return []
+    for c in conns:
+        if c.laddr and c.laddr.port == port and c.pid and (c.status == psutil.CONN_LISTEN or c.type == 2):
+            pids.add(c.pid)
+    out = []
+    for pid in sorted(pids):
+        try:
+            out.append(psutil.Process(pid))
+        except psutil.Error:
+            continue
+    return out
+
+
+def _exe(p):
+    try:
+        return p.exe() or ""
+    except Exception:  # noqa: BLE001 - accès refusé, processus disparu
+        return ""
+
+
+def _wait(procs, timeout):
+    import psutil
+    psutil.wait_procs(procs, timeout=timeout)
+
+
+def port_holders(port):
+    """[(pid, exécutable)] des programmes qui tiennent ce port."""
+    return [(p.pid, _exe(p)) for p in _holders(port)]
+
+
+def free_port(port, binary, timeout=5.0):
+    """Un écouteur ne peut pas ouvrir son port : qui le tient ? Un iperf3 de cette installation (orphelin) est arrêté ;
+    un autre programme est nommé dans le journal (une fois). Renvoie (pid arrêtés, [(pid, exécutable) étrangers])."""
+    target = _norm(binary) if binary else None
+    killed, others, mine = [], [], []
+    for p in _holders(port):
+        if p.pid == os.getpid():
+            continue
+        exe = _exe(p)
+        if target and exe and _norm(exe) == target:
+            log.warning(f"PORT {port} HELD BY AN IPERF3 LEFT BY A PREVIOUS RUN (PID {p.pid}): STOPPING IT")
+            try:
+                p.kill()
+                mine.append(p)
+                killed.append(p.pid)
+            except Exception:  # noqa: BLE001
+                log.error(f"PORT {port}: IPERF3 PID {p.pid} COULD NOT BE STOPPED")
+        else:
+            others.append((p.pid, exe))
+            if (port, p.pid) not in _REPORTED:
+                _REPORTED.add((port, p.pid))
+                log.warning(f"PORT {port} HELD BY ANOTHER PROGRAM: PID {p.pid} {exe or '(unknown executable)'}; "
+                            f"THIS LISTENER CANNOT START UNTIL IT IS STOPPED OR THE PORT RANGE IS CHANGED")
+    if mine:
+        _wait(mine, timeout)
+    return killed, others
 
 
 def bind_to_me():

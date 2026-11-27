@@ -157,7 +157,9 @@ def run():
         # Les iperf3 ne survivent pas à SYNTRAF (Windows : job object), et ceux laissés par une instance précédente
         # (version sans cette protection, plantage) sont arrêtés : ils tenaient des ports et des sessions que plus
         # personne ne lisait. Sous le superviseur seulement : il relance SYNTRAF lui-même (lib/st_children.py).
-        from lib import st_children
+        from lib import st_children, st_log_forward
+        # renvoi des journaux au serveur dès maintenant : ce qui suit lui parviendra à la connexion
+        st_log_forward.install()
         st_children.bind_to_me()
         st_children.kill_strays(config.get('GLOBAL', {}).get('IPERF3_BINARY_PATH'))
     if bool_config_valid and "SERVER" in config:

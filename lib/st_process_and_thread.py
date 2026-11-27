@@ -434,6 +434,9 @@ def thread_udp_hole(config, connector_key, connector_value, threads_n_processes,
 
 def iperf3_print_last_breath(edge_key, edge_type, threads_n_processes, thr_temp):
     stderr_last_breath = ""
+    # En --json-stream, iperf3 donne sa raison dans un événement « error » de sa sortie, déjà lue par READ_LOG
+    # (lib/st_iperf3_readlog.py) : sans elle, le message disait « LAST BREATH : ' - ' » (port pris, refus...)
+    said = str(getattr(thr_temp, "last_error", "") or "")
     if thr_temp.subproc:
         for l in thr_temp.subproc.stderr:
             stderr_last_breath = f"{stderr_last_breath} - {l}"
@@ -443,7 +446,8 @@ def iperf3_print_last_breath(edge_key, edge_type, threads_n_processes, thr_temp)
 
         last_breath = last_breath.replace("\r", "")
         last_breath = last_breath.replace("\n", "")
-        log.warning(f"IPERF3 {edge_type} '{edge_key}' DIED OR NEVER START. LAST BREATH : '{last_breath.upper()} - {stderr_last_breath}'")
+        log.warning(f"IPERF3 {edge_type} '{edge_key}' DIED OR NEVER START. LAST BREATH : '{last_breath.upper()} - {stderr_last_breath}'"
+                    + (f" IPERF3: {said}" if said else ""))
 
     except subprocess.TimeoutExpired:
         log.warning("TIMEOUTEXPIRED")
@@ -453,7 +457,7 @@ def iperf3_print_last_breath(edge_key, edge_type, threads_n_processes, thr_temp)
         pass
     threads_n_processes.remove(thr_temp)
     # Dernières paroles d'iperf3 (sortie et erreurs) : disent si le pair avait répondu (détection des silences)
-    return f"{locals().get('last_breath') or ''} {stderr_last_breath}"
+    return f"{locals().get('last_breath') or ''} {stderr_last_breath} {said}".strip()
 
 
 def start_grace_s(config, edge_value):
@@ -592,6 +596,13 @@ def terminate_listener_and_childs(threads_n_processes, listener_key, thr_temp, c
     # Print the last breath and remove from threads_n_processes dict
     breath = iperf3_print_last_breath(listener_key, "LISTENER", threads_n_processes, thr_temp)
     _end_of_session(config, "LISTENER", listener_key, thr_temp, breath)
+    # Port déjà pris : un iperf3 orphelin de cette installation est arrêté, un autre programme est nommé
+    if "in use" in (breath or "").lower() and getattr(thr_temp, "port", None):
+        try:
+            from lib import st_children
+            st_children.free_port(int(thr_temp.port), config.get('GLOBAL', {}).get('IPERF3_BINARY_PATH'))
+        except Exception as exc:  # noqa: BLE001 - le diagnostic ne doit pas empêcher la relance
+            log.debug(f"free_port:{type(exc).__name__}:{exc}")
 
 
 def close_listeners_and_connectors(threads_n_processes, _config):
