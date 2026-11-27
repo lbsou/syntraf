@@ -2015,7 +2015,7 @@ def _replay_instant(at):
 def live_topology(state, mesh_group=None, at=None):
     """Sondes (état, NAT) et liens attendus, colorés selon la qualité de la dernière minute (lib/st_live_map.py) ;
     at (secondes Unix) : l'état du réseau à cet instant passé, pour rejouer un incident."""
-    from lib import st_flow_catalog, st_live_map
+    from lib import st_flow_catalog, st_host_stats, st_live_map
     cfg = state["config"]
     mesh_group = _map_group(cfg, mesh_group)
     flows = st_flow_catalog.expected_flows(cfg, state.get("_dict_by_node_generated_config") or {})
@@ -2024,7 +2024,8 @@ def live_topology(state, mesh_group=None, at=None):
         obj = state["dict_of_clients"].get(c["UID"])
         clients.append({"uid": c["UID"], "status": getattr(obj, "status", "NEVER_SEEN") if obj else "NEVER_SEEN",
                         "behind_nat": bool(c.get("BEHIND_NAT")) or bool(getattr(obj, "nat_detected", False)),
-                        "mesh_groups": c.get("MESH_GROUP_UID_LIST", [])})
+                        "mesh_groups": c.get("MESH_GROUP_UID_LIST", []),
+                        "host": st_host_stats.latest(obj)})  # charge du poste : CPU, mémoire, carte réseau
     vm = next((d for d in cfg.get("DATABASE", []) if str(d.get("DB_ENGINE", "")).lower() == "victoriametrics"), None)
     metrics = {"loss": {}, "jitter": {}, "mos": {}, "rtt": {}}
     alerts = []
@@ -2036,8 +2037,10 @@ def live_topology(state, mesh_group=None, at=None):
         admin = VmAdmin(vm)
         metrics = st_live_map.read_metrics(admin, at=at)
         past = st_live_map.read_status(admin, at)  # sans collecte de /metrics : état inconnu
+        hosts = st_live_map.read_host(admin, at)  # charge des postes à cet instant (historisée par /metrics)
         for c in clients:
             c["status"] = past.get(c["uid"], "UNKNOWN")
+            c["host"] = hosts.get(c["uid"])
         alerts = st_live_map.read_alerts(admin, at)
     else:
         if vm is not None:

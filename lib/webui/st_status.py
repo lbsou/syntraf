@@ -3,6 +3,7 @@ import datetime as dt
 import ipaddress
 import json
 
+from lib import st_host_stats
 from lib.st_global import DefaultValues
 
 # Threads du serveur dont la mort rend le service inutilisable (les flux iperf3 vivent chez les clients).
@@ -61,6 +62,7 @@ def clients(state):
             "listeners": len(gen.get("LISTENERS") or {}),
             "connectors": len(gen.get("CONNECTORS") or {}),
             "declared": uid in declared,
+            "host": st_host_stats.latest(obj),  # charge du poste : CPU, mémoire, carte réseau (None si inconnue)
         })
     return rows
 
@@ -188,6 +190,21 @@ def metrics(state):
     metric("syntraf_client_clock_drift_ppm", "Drift of the client clock over the last hour (positive: it gains).",
            "gauge", [({"client": c["uid"]}, c["clock_drift_ppm"]) for c in snap["clients"]
                      if c.get("clock_drift_ppm") is not None and c["status"] == "CONNECTED"])
+    # Charge du poste de chaque sonde connectée (dernière valeur reçue, moins d'une minute)
+    for name, field, help_text in (
+            ("syntraf_client_cpu_percent", "cpu_pct", "CPU used on the probe host, average of all cores (%)."),
+            ("syntraf_client_cpu_busiest_core_percent", "cpu_busiest_core_pct",
+             "CPU used by the busiest core of the probe host (%)."),
+            ("syntraf_client_memory_used_percent", "mem_used_pct", "Memory used on the probe host (%)."),
+            ("syntraf_client_nic_rx_bits_per_second", "nic_rx_bps",
+             "Traffic received by the probe network interface (bit/s), all applications."),
+            ("syntraf_client_nic_tx_bits_per_second", "nic_tx_bps",
+             "Traffic sent by the probe network interface (bit/s), all applications."),
+            ("syntraf_client_nic_speed_mbps", "nic_speed_mbps", "Link speed of the probe network interface (Mbit/s)."),
+            ("syntraf_client_nic_rx_percent", "nic_rx_pct", "Receive usage of the probe network interface (%)."),
+            ("syntraf_client_nic_tx_percent", "nic_tx_pct", "Transmit usage of the probe network interface (%).")):
+        metric(name, help_text, "gauge", [({"client": c["uid"]}, c["host"][field]) for c in snap["clients"]
+                                          if c.get("host") and c["host"].get(field) is not None])
     metric("syntraf_mesh_groups", "Mesh groups by state.", "gauge",
            [({"state": s}, snap["mesh_groups_summary"][s]) for s in ("enabled", "disabled")])
     metric("syntraf_database_up", "1 if the database is reachable.", "gauge",

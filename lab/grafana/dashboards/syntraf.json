@@ -1189,7 +1189,7 @@
     {
       "id": 203,
       "type": "row",
-      "title": "Derniers tests TCP",
+      "title": "Charge des postes source et destination",
       "collapsed": false,
       "panels": [],
       "gridPos": {
@@ -1201,6 +1201,357 @@
     },
     {
       "id": 9,
+      "type": "timeseries",
+      "title": "CPU du poste",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "syntraf-vm"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 47,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "syntraf-vm"
+          },
+          "expr": "syntraf_client_cpu_percent{client=~\"$client\"} or syntraf_client_cpu_percent{client=~\"$server\"}",
+          "legendFormat": "{{client}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never",
+            "thresholdsStyle": {
+              "mode": "line+area"
+            }
+          },
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 85
+              },
+              {
+                "color": "red",
+                "value": 95
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "Charge du poste de chaque sonde, mesurée en continu par la sonde et publiée sur /metrics par le serveur (collectée toutes les 15 s). CPU : moyenne des cœurs (sondes 0.45.42 et plus) ; le cœur le plus chargé révèle un processus qui en sature un seul. Carte réseau : tout le trafic du poste, pas seulement SYNTRAF."
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "CPU : cœur le plus chargé",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "syntraf-vm"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 47,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "syntraf-vm"
+          },
+          "expr": "syntraf_client_cpu_busiest_core_percent{client=~\"$client\"} or syntraf_client_cpu_busiest_core_percent{client=~\"$server\"}",
+          "legendFormat": "{{client}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never",
+            "thresholdsStyle": {
+              "mode": "line+area"
+            }
+          },
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 85
+              },
+              {
+                "color": "red",
+                "value": 95
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "Charge du poste de chaque sonde, mesurée en continu par la sonde et publiée sur /metrics par le serveur (collectée toutes les 15 s). CPU : moyenne des cœurs (sondes 0.45.42 et plus) ; le cœur le plus chargé révèle un processus qui en sature un seul. Carte réseau : tout le trafic du poste, pas seulement SYNTRAF."
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Mémoire utilisée",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "syntraf-vm"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 56,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "syntraf-vm"
+          },
+          "expr": "syntraf_client_memory_used_percent{client=~\"$client\"} or syntraf_client_memory_used_percent{client=~\"$server\"}",
+          "legendFormat": "{{client}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never",
+            "thresholdsStyle": {
+              "mode": "line+area"
+            }
+          },
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 85
+              },
+              {
+                "color": "red",
+                "value": 95
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "Charge du poste de chaque sonde, mesurée en continu par la sonde et publiée sur /metrics par le serveur (collectée toutes les 15 s). CPU : moyenne des cœurs (sondes 0.45.42 et plus) ; le cœur le plus chargé révèle un processus qui en sature un seul. Carte réseau : tout le trafic du poste, pas seulement SYNTRAF."
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Carte réseau : reçu",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "syntraf-vm"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 56,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "syntraf-vm"
+          },
+          "expr": "syntraf_client_nic_rx_bits_per_second{client=~\"$client\"} or syntraf_client_nic_rx_bits_per_second{client=~\"$server\"}",
+          "legendFormat": "{{client}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bps",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "Charge du poste de chaque sonde, mesurée en continu par la sonde et publiée sur /metrics par le serveur (collectée toutes les 15 s). CPU : moyenne des cœurs (sondes 0.45.42 et plus) ; le cœur le plus chargé révèle un processus qui en sature un seul. Carte réseau : tout le trafic du poste, pas seulement SYNTRAF."
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Carte réseau : envoyé",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "syntraf-vm"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 65,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "syntraf-vm"
+          },
+          "expr": "syntraf_client_nic_tx_bits_per_second{client=~\"$client\"} or syntraf_client_nic_tx_bits_per_second{client=~\"$server\"}",
+          "legendFormat": "{{client}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bps",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "showPoints": "never"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "Charge du poste de chaque sonde, mesurée en continu par la sonde et publiée sur /metrics par le serveur (collectée toutes les 15 s). CPU : moyenne des cœurs (sondes 0.45.42 et plus) ; le cœur le plus chargé révèle un processus qui en sature un seul. Carte réseau : tout le trafic du poste, pas seulement SYNTRAF."
+    },
+    {
+      "id": 204,
+      "type": "row",
+      "title": "Derniers tests TCP",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 74,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 14,
       "type": "table",
       "title": "Débit TCP · dernier test",
       "description": "Tests TCP planifiés (page Tests TCP de SYNTRAF), un point par test. Lu dans le sens des données : en ligne la sonde qui envoie, en colonne celle qui reçoit. Débit reçu, sans les premières secondes (-O). « NAT ↔ NAT » : deux sondes derrière un NAT ne peuvent pas se joindre ; la paire n'est pas mesurée.",
@@ -1210,7 +1561,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 47,
+        "y": 75,
         "w": 12,
         "h": 10
       },
@@ -1363,7 +1714,7 @@
       }
     },
     {
-      "id": 10,
+      "id": 15,
       "type": "timeseries",
       "title": "Débit TCP",
       "datasource": {
@@ -1372,7 +1723,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 47,
+        "y": 75,
         "w": 12,
         "h": 9
       },

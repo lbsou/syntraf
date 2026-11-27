@@ -77,6 +77,31 @@ def read_status(vm, at):
     return out
 
 
+# Charge du poste (publiée sur /metrics par le serveur, collectée par VictoriaMetrics) : métrique -> champ
+HOST_METRICS = {"syntraf_client_cpu_percent": "cpu_pct", "syntraf_client_cpu_busiest_core_percent": "cpu_busiest_core_pct",
+                "syntraf_client_memory_used_percent": "mem_used_pct", "syntraf_client_nic_rx_bits_per_second": "nic_rx_bps",
+                "syntraf_client_nic_tx_bits_per_second": "nic_tx_bps", "syntraf_client_nic_speed_mbps": "nic_speed_mbps",
+                "syntraf_client_nic_rx_percent": "nic_rx_pct", "syntraf_client_nic_tx_percent": "nic_tx_pct"}
+
+
+def read_host(vm, at):
+    """{sonde: {champ: valeur}} : la charge de chaque poste à cet instant (dernière valeur des 2 minutes qui
+    précèdent) ; {} sans collecte de /metrics."""
+    out = {}
+    for metric, field in HOST_METRICS.items():
+        try:
+            result = _query(vm, f"max by (client) (last_over_time({metric}[2m]))", at)
+        except Exception:  # noqa: BLE001
+            continue
+        for r in result or []:
+            uid = (r.get("metric") or {}).get("client")
+            try:
+                out.setdefault(uid, {})[field] = round(float(r["value"][1]), 1)
+            except (KeyError, IndexError, TypeError, ValueError):
+                continue
+    return out
+
+
 def read_alerts(vm, at):
     """Alertes hors baseline ouvertes à cet instant : [{CLIENT, SERVER, MESH_GROUP, METRIC}]."""
     try:
@@ -186,9 +211,10 @@ def build(flows, clients, metrics, mesh_group=None, alerts=None, paths=None):
         links.append(link)
     used = {x for l in links for x in (l["a"], l["b"])}
     nodes = [{"id": c["uid"], "status": c.get("status", "UNKNOWN"), "behind_nat": bool(c.get("behind_nat")),
-              "mesh_groups": c.get("mesh_groups", [])}
+              "mesh_groups": c.get("mesh_groups", []), "host": c.get("host")}
              for c in clients if mesh_group in (None, "") or c["uid"] in used]
     known = {n["id"] for n in nodes}
-    nodes += [{"id": u, "status": "UNKNOWN", "behind_nat": False, "mesh_groups": []} for u in sorted(used - known)]
+    nodes += [{"id": u, "status": "UNKNOWN", "behind_nat": False, "mesh_groups": [], "host": None}
+              for u in sorted(used - known)]
     return {"nodes": nodes, "links": sorted(links, key=lambda l: (l["mesh_group"] or "", l["a"], l["b"])),
             "grades": {k: list(v) for k, v in GRADES.items()}}

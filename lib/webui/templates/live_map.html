@@ -30,6 +30,10 @@
         <option value="60">every minute</option><option value="0">paused</option>
       </select>
     </div>
+    <div class="form-check form-switch mb-1">
+      <input class="form-check-input" type="checkbox" role="switch" id="lm_host" checked>
+      <label class="form-check-label small" for="lm_host">Load of the hosts</label>
+    </div>
     <button type="button" class="btn btn-sm btn-outline-light" id="lm_relayout" title="Forget the positions moved by hand">Rearrange</button>
     <div class="small ms-auto" id="lm_legend" aria-live="polite"></div>
   </div>
@@ -64,6 +68,9 @@
         <div><svg width="18" height="18" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="#e74c3c" stroke="#2b2b2b" stroke-width="2"/></svg> disconnected</div>
         <div><svg width="18" height="18" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="#777777" stroke="#2b2b2b" stroke-width="2"/></svg> never seen, or unknown at that time</div>
         <div><svg width="18" height="18" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="#00bc8c" stroke="#3498db" stroke-width="2" stroke-dasharray="3 2"/></svg> dashed blue border: behind a NAT or a firewall, outbound only. It opens the connections itself and measures both directions; two such probes cannot measure each other.</div>
+        <div>under the name (Load of the hosts): CPU of the host (average of its cores; * = busiest core, older probe), memory used, and its network card (↓ received, ↑ sent, all traffic, bit/s)</div>
+        <div><span class="d-inline-block align-middle me-1 rounded" style="width:1.4rem;height:.8rem;background:#7a4a0c"></span>85 % or more</div>
+        <div><span class="d-inline-block align-middle me-1 rounded" style="width:1.4rem;height:.8rem;background:#7d241c"></span>95 % or more (CPU, memory or network card)</div>
       </div>
       <div>
         <div class="fw-bold mb-1">Lines</div>
@@ -157,6 +164,38 @@ function placeLabels() {
                 lh: side === "left" ? "left" : side === "right" ? "right" : "center",
                 mx: side === "left" ? -8 : side === "right" ? 8 : 0, my: side === "top" ? -8 : side === "bottom" ? 8 : 0});
     }));
+}
+
+// Charge du poste sous le nom de la sonde : CPU (moyenne des cœurs ; à défaut, sonde plus ancienne, le cœur le plus
+// chargé, marqué *), mémoire utilisée, et trafic de sa carte réseau (tout le trafic du poste, pas seulement SYNTRAF)
+const LOAD_BG = {"": "#1e1e1e", warn: "#7a4a0c", high: "#7d241c"};
+function bits(bps) {
+    if (bps === null || bps === undefined) return "–";
+    if (bps >= 1e9) return `${(bps / 1e9).toFixed(1)} Gb/s`;
+    if (bps >= 1e6) return `${(bps / 1e6).toFixed(1)} Mb/s`;
+    if (bps >= 1e3) return `${Math.round(bps / 1e3)} kb/s`;
+    return `${Math.round(bps)} b/s`;
+}
+const pct = v => `${Math.round(v)} %`;
+function hostCpu(h) { return h.cpu_pct ?? h.cpu_busiest_core_pct; }
+function hostLines(h) {
+    if (!h) return [];
+    const lines = [], first = [], cpu = hostCpu(h);
+    if (cpu !== null && cpu !== undefined) first.push(`CPU ${pct(cpu)}${h.cpu_pct == null ? "*" : ""}`);
+    if (h.mem_used_pct != null) first.push(`RAM ${pct(h.mem_used_pct)}`);
+    if (first.length) lines.push(first.join(" · "));
+    if (h.nic_rx_bps != null || h.nic_tx_bps != null) lines.push(`↓ ${bits(h.nic_rx_bps)}  ↑ ${bits(h.nic_tx_bps)}`);
+    else if (h.nic_rx_pct != null || h.nic_tx_pct != null) lines.push(`↓ ${pct(h.nic_rx_pct ?? 0)}  ↑ ${pct(h.nic_tx_pct ?? 0)}`);
+    return lines;
+}
+function hostLevel(h) {
+    if (!h) return "";
+    const worst = Math.max(...[hostCpu(h), h.mem_used_pct, h.nic_rx_pct, h.nic_tx_pct].filter(v => v != null), -1);
+    return worst >= 95 ? "high" : worst >= 85 ? "warn" : "";
+}
+function nodeLabel(n) {
+    const name = n.behind_nat ? `${n.id} (NAT)` : n.id;
+    return [name, ...(el("lm_host").checked ? hostLines(n.host) : [])].join("\n");
 }
 
 function edgeId(l, d) { return `${d.from}>${d.to}|${l.mesh_group}`; }
@@ -254,9 +293,10 @@ function legend(grades, metric) {
 function render(data) {
     const metric = el("lm_metric").value;
     const elements = [
-        ...data.nodes.map(n => ({group: "nodes", data: {id: n.id, label: n.behind_nat ? `${n.id} (NAT)` : n.id,
+        ...data.nodes.map(n => ({group: "nodes", data: {id: n.id, label: nodeLabel(n),
             lv: "bottom", lh: "center", mx: 0, my: 8,  // placement par défaut ; placeLabels le corrige
-            color: STATUS[n.status] || "#777777", nat: n.behind_nat ? 1 : 0, raw: n}})),
+            color: STATUS[n.status] || "#777777", nat: n.behind_nat ? 1 : 0,
+            lbg: LOAD_BG[el("lm_host").checked ? hostLevel(n.host) : ""], raw: n}})),
         ...(el("lm_view").value === "arrows"
             ? data.links.flatMap(l => l.directions.map(d => ({group: "edges", data: arrowData(l, d, metric)})))
             : data.links.map(l => ({group: "edges", data: pairData(l, metric)}))),
@@ -269,7 +309,7 @@ function render(data) {
                     "font-size": 12, "text-valign": "data(lv)", "text-halign": "data(lh)",
                     "text-margin-x": "data(mx)", "text-margin-y": "data(my)",
                     width: 30, height: 30, "border-width": 3, "border-color": "#2b2b2b",
-                    "text-wrap": "wrap", "text-max-width": 110, "text-background-color": "#1e1e1e",
+                    "text-wrap": "wrap", "text-max-width": 190, "text-background-color": "data(lbg)",
                     "text-background-opacity": 0.8, "text-background-padding": 2, "text-background-shape": "roundrectangle",
                     // sous les flèches ; le nom est placé côté extérieur de la carte (placeLabels), loin d'elles
                     "min-zoomed-font-size": 7, "z-index-compare": "manual", "z-index": 10}},
@@ -372,7 +412,28 @@ function showLink(l, dir) {
 
 function showNode(n) {
     el("lm_detail").innerHTML = `<h3 class="h6">${st.esc(n.id)}</h3><p class="mb-1">${st.badge(n.status)}${n.behind_nat ? ' <span class="badge bg-info text-dark">behind NAT</span>' : ""}</p>
-        <p class="text-white-50">Mesh groups: ${n.mesh_groups.length ? n.mesh_groups.map(st.esc).join(", ") : "–"}</p>`;
+        <p class="text-white-50">Mesh groups: ${n.mesh_groups.length ? n.mesh_groups.map(st.esc).join(", ") : "–"}</p>
+        ${hostDetail(n.host)}`;
+}
+
+function hostDetail(h) {
+    if (!h) return `<p class="text-white-50 mb-0">Load of the host: unknown</p>`;
+    const row = (label, value) => `<tr><th class="fw-normal text-white-50 pe-2">${label}</th><td>${value}</td></tr>`;
+    const show = v => v === null || v === undefined ? "–" : pct(v);
+    const share = v => v === null || v === undefined ? "" : v < 0.1 ? " (< 0.1 %)" : ` (${v.toFixed(1)} %)`;
+    const level = hostLevel(h);
+    const badge = level ? ` <span class="badge ${level === "high" ? "bg-danger" : "bg-warning text-dark"}">${level === "high" ? "very high load" : "high load"}</span>` : "";
+    return `<h4 class="h6 mt-2">Load of the host${badge}</h4>
+        <table class="table table-sm table-borderless small mb-1"><tbody>
+        ${row("CPU, average of the cores", show(h.cpu_pct))}
+        ${row("CPU, busiest core", show(h.cpu_busiest_core_pct))}
+        ${row("Memory used", show(h.mem_used_pct))}
+        ${row(h.nic ? `Network card (${st.esc(h.nic)}), received` : "Network card, received", bits(h.nic_rx_bps) + share(h.nic_rx_pct))}
+        ${row("Network card, sent", bits(h.nic_tx_bps) + share(h.nic_tx_pct))}
+        ${row("Link speed", h.nic_speed_mbps ? bits(h.nic_speed_mbps * 1e6) : "unknown")}
+        </tbody></table>
+        <p class="text-white-50 small mb-0">${h.age_s != null ? `Measured ${Math.round(h.age_s)} s ago by the probe.` : "Value at that instant."}</p>
+        <p class="text-white-50 small mb-0">The network card counts all the traffic of the host, not only SYNTRAF.</p>`;
 }
 
 async function load() {
@@ -503,6 +564,11 @@ el("lm_group").addEventListener("change", () => {
     load();
 });
 el("lm_metric").addEventListener("change", () => { if (last) render(last); drawStrip(); });
+el("lm_host").checked = localStorage.getItem("st-live-map-host") !== "0";
+el("lm_host").addEventListener("change", () => {
+    localStorage.setItem("st-live-map-host", el("lm_host").checked ? "1" : "0");
+    if (last) render(last);
+});
 el("lm_view").value = localStorage.getItem("st-live-map-view") || "pair";
 el("lm_view").addEventListener("change", () => {
     localStorage.setItem("st-live-map-view", el("lm_view").value);

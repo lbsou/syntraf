@@ -1241,6 +1241,9 @@ def server_save_stats_metric(obj_client, received_data):
     """
     # Mesures en attente d'envoi chez le client (None : client d'une version qui ne le rapporte pas)
     obj_client.metrics_buffer = received_data['PAYLOAD'].get('metrics_buffer')
+    # Charge du poste (CPU, mémoire, carte réseau) : publiée sur /metrics et affichée sur la carte en direct
+    from lib import st_host_stats
+    st_host_stats.record(obj_client, received_data['PAYLOAD'])
 
     # Make sure that the client system stats history does not get too big
     if len(obj_client.system_stats.setdefault('if_pct_usage_rx', [])) >= 100: obj_client.system_stats[

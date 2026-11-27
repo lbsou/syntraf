@@ -231,6 +231,36 @@ def stat(pid, title, expr, unit, thresholds, x, y, w=24, h=5, description=""):
                         "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False}}}
 
 
+# ---------------------------------------------------------------------------
+# Charge du poste des sondes (publiée sur /metrics par le serveur, collectée par VictoriaMetrics)
+# ---------------------------------------------------------------------------
+HOST_HELP = ("Charge du poste de chaque sonde, mesurée en continu par la sonde et publiée sur /metrics par le serveur "
+             "(collectée toutes les 15 s). CPU : moyenne des cœurs (sondes 0.45.42 et plus) ; le cœur le plus chargé "
+             "révèle un processus qui en sature un seul. Carte réseau : tout le trafic du poste, pas seulement SYNTRAF.")
+HOST_PCT = {"min": 0, "max": 100, "thresholds": steps(("green", None), ("orange", 85), ("red", 95)),
+            "custom": {"lineWidth": 1, "fillOpacity": 10, "spanNulls": False, "showPoints": "never",
+                       "thresholdsStyle": {"mode": "line+area"}}}
+
+
+def host_panels(selector=""):
+    """CPU, cœur le plus chargé, mémoire, carte réseau reçu et envoyé. selector : filtre PromQL sur l'étiquette
+    client (ex. source ou destination choisie) ; vide : toutes les sondes."""
+    def expr(metric):
+        if not selector:
+            return metric
+        return " or ".join(f'{metric}{{client=~"{v}"}}' for v in selector.split("|"))
+
+    def panel(title, metric, unit, extra):
+        p = timeseries(0, title, expr(metric), unit, 0, 0, extra, legend="{{client}}")
+        p["description"] = HOST_HELP
+        return p
+    return [panel("CPU du poste", "syntraf_client_cpu_percent", "percent", HOST_PCT),
+            panel("CPU : cœur le plus chargé", "syntraf_client_cpu_busiest_core_percent", "percent", HOST_PCT),
+            panel("Mémoire utilisée", "syntraf_client_memory_used_percent", "percent", HOST_PCT),
+            panel("Carte réseau : reçu", "syntraf_client_nic_rx_bits_per_second", "bps", {"min": 0}),
+            panel("Carte réseau : envoyé", "syntraf_client_nic_tx_bits_per_second", "bps", {"min": 0})]
+
+
 def series_dashboard():
     bitrate = timeseries(3, "Débit reçu", f"SYNTRAF_RX_BITRATE{{{SEL}}}", "Kbits", 0, 0)
     bitrate["targets"].append(expected_bitrate())
@@ -277,6 +307,8 @@ def series_dashboard():
             timeseries(4, "Gigue", f"SYNTRAF_RX_JITTER{{{SEL}}}", "ms", 0, 0),
             timeseries(5, "Paquets perdus par intervalle", f"SYNTRAF_RX_PACKET_LOSS{{{SEL}}}", "none", 0, 0, LOSS_COLOR),
         ]),
+        # Une perte s'explique parfois par le poste et non par le réseau : charge de la source et de la destination
+        ("Charge des postes source et destination", host_panels("$client|$server")),
         ("Derniers tests TCP", [
             matrix(6, "Débit TCP · dernier test", tcp_latest("BITRATE_MBPS", tcp_sel), "Mbits", 1, TCP_RATE_STEPS, 0, 0,
                    TCP_HELP, row="SRC", column="DST"),
@@ -631,6 +663,7 @@ def health_dashboard():
                   "Pente de l'écart sur la dernière heure, en millionièmes : positive, l'horloge de la sonde avance. "
                   "15 ppm ≈ 1,3 s par jour, une horloge sans synchronisation (NTP). Calculée après une heure de mesures."),
         ]),
+        ("Postes des sondes", host_panels()),
         ("Serveur et bases", [
             state(5, "Bases de données", "syntraf_database_up", "{{database}}", "en ligne", "injoignable"),
             state(6, "Fils du serveur", "syntraf_thread_up", "{{thread}}", "actif", "arrêté"),

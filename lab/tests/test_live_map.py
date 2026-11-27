@@ -267,3 +267,31 @@ def test_the_vpn_networks_default_to_192_168_1_0_slash_24():
     from lib import st_addresses as sa
     assert [str(n) for n in sa.vpn_networks({})] == ["192.168.1.0/24"]
     assert [str(n) for n in sa.vpn_networks({"GLOBAL": {"VPN_NETWORKS": "10.251.0.0/16"}})] == ["10.251.0.0/16"]
+
+
+class HostVm:
+    """VictoriaMetrics simulé : charge des postes publiée sur /metrics."""
+    def __init__(self):
+        self.calls = []
+
+    def query(self, expr, time=None):
+        self.calls.append((expr, time))
+        values = {"syntraf_client_cpu_percent": {"A": 12.34}, "syntraf_client_memory_used_percent": {"A": 61, "B": 97.5},
+                  "syntraf_client_nic_rx_bits_per_second": {"B": 25_000_000}}
+        metric = next((m for m in values if f"({m}[" in expr), None)
+        return [{"metric": {"client": c}, "value": [time, str(v)]} for c, v in values.get(metric, {}).items()]
+
+
+def test_the_load_of_each_probe_host_is_read_at_a_past_instant():
+    vm = HostVm()
+    assert lm.read_host(vm, 1000) == {"A": {"cpu_pct": 12.3, "mem_used_pct": 61.0},
+                                      "B": {"mem_used_pct": 97.5, "nic_rx_bps": 25000000.0}}
+    assert {t for _, t in vm.calls} == {1000}
+
+
+def test_a_probe_on_the_map_carries_the_load_of_its_host():
+    host = {"cpu_pct": 40.0, "mem_used_pct": 70.0}
+    clients = [dict(c, host=host if c["uid"] == "A" else None) for c in CLIENTS]
+    m = lm.build(FLOWS, clients, METRICS)
+    nodes = {n["id"]: n for n in m["nodes"]}
+    assert nodes["A"]["host"] == host and nodes["B"]["host"] is None

@@ -239,3 +239,14 @@ def test_maintenance_windows_show_as_regions_in_grafana():
     for d in all_dashboards():
         a = next((x for x in d["annotations"]["list"] if x["name"] == "Maintenance"), None)
         assert a is not None and "SYNTRAF_MAINTENANCE_ACTIVE" in a["expr"], d["title"]
+
+
+def test_the_load_of_the_probe_hosts_is_charted_for_all_probes_and_for_the_chosen_pair():
+    health = " ".join(t["expr"] for p in bd.health_dashboard()["panels"] for t in p.get("targets", []))
+    for m in ("syntraf_client_cpu_percent", "syntraf_client_cpu_busiest_core_percent",
+              "syntraf_client_memory_used_percent", "syntraf_client_nic_rx_bits_per_second",
+              "syntraf_client_nic_tx_bits_per_second"):
+        assert m in health, m
+    overview = [t["expr"] for p in bd.series_dashboard()["panels"] for t in p.get("targets", [])
+                if "syntraf_client_cpu_percent" in t["expr"]]
+    assert overview == ['syntraf_client_cpu_percent{client=~"$client"} or syntraf_client_cpu_percent{client=~"$server"}']
