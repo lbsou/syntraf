@@ -20,6 +20,12 @@
 
 {% call crud_modal() %}
     {{ field("c_uid", "UID", "Name", help="4 to 50 characters: letters, digits, '_' or '-'. The client announces this name when it connects; it cannot be changed later.", attrs='required maxlength="50"') }}
+    <div class="mb-3">
+        <label for="c_desc" class="form-label">Description (optional)</label>
+        <textarea class="form-control" id="c_desc" data-field="DESCRIPTION" rows="3" maxlength="500" aria-describedby="c_desc_help"></textarea>
+        <div id="c_desc_help" class="form-text">Notes for administrators: location, network, contact. Has no effect on the measurements.</div>
+        <div class="invalid-feedback" data-feedback="DESCRIPTION"></div>
+    </div>
     <fieldset class="mb-3">
         <legend class="form-label fs-6">Address</legend>
         <div class="form-check form-check-inline">
@@ -74,12 +80,6 @@
         <div class="col-md-6">{{ field("c_deploy", "DEPLOYMENT_GROUP", "Deployment group (optional)", help="For staged updates, e.g. pilot, wave-1. Has no effect on the measurements.") }}</div>
     </div>
     <datalist id="c_deploy_list"></datalist>
-    <div class="mb-3">
-        <label for="c_desc" class="form-label">Description (optional)</label>
-        <textarea class="form-control" id="c_desc" data-field="DESCRIPTION" rows="3" maxlength="500" aria-describedby="c_desc_help"></textarea>
-        <div id="c_desc_help" class="form-text">Notes for administrators: location, network, contact. Has no effect on the measurements.</div>
-        <div class="invalid-feedback" data-feedback="DESCRIPTION"></div>
-    </div>
     <p class="small text-white-50 mb-0" id="c_advanced" hidden><i class="fas fa-info-circle me-1"></i>This client also has advanced settings (<span id="c_advanced_keys"></span>) edited in the configuration file; they are kept.</p>
 {% endcall %}
 

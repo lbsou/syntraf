@@ -45,7 +45,7 @@
     <p class="small text-white-50">Recommended: update one client first; once it shows “up to date”, update the others.</p>
     <div class="table-responsive">
         <table class="table table-sm table-hover mb-0">
-            <thead><tr><th scope="col" style="width:2rem"><span class="visually-hidden">Select</span></th><th scope="col">Client</th><th scope="col">Group</th>
+            <thead><tr><th scope="col" style="width:2rem"><input class="form-check-input" type="checkbox" id="select_all" aria-label="Select all the clients shown" title="Select all the clients shown"></th><th scope="col">Client</th><th scope="col">Group</th>
                 <th scope="col">Running release</th><th scope="col">State</th><th scope="col">Detail</th></tr></thead>
             <tbody id="rows"></tbody>
         </table>
@@ -61,6 +61,13 @@ const BADGES = {
     NOT_SUPPORTED: ["bg-secondary", "not supported"],
 };
 const UPDATABLE = ["OUTDATED", "FAILED", "ROLLED_BACK"];
+// Pourquoi un client coché ne sera pas mis à jour (même texte que l'état affiché)
+function reason(uid) {
+    const stage = stages[uid];
+    const tr = t => window.st_i18n ? st_i18n.t(t) : t;  // inséré dans une phrase : traduit ici
+    if (stage === "ROLLED_BACK") return tr("rolled back: turn on Retry rolled back");
+    return tr((BADGES[stage] || [null, (stage || "unknown").toLowerCase().replace(/_/g, " ")])[1]);
+}
 let selected = new Set();
 
 function bytes(n) { return n > 1048576 ? `${(n / 1048576).toFixed(1)} MiB` : `${Math.round(n / 1024)} KiB`; }
@@ -127,14 +134,24 @@ async function load() {
     r.data.clients.filter(c => !shown.includes(c)).forEach(c => selected.delete(c.uid));
     el("rows").innerHTML = shown.map(c => {
         const [cls, label] = BADGES[c.stage] || ["bg-secondary", c.stage];
-        const can = UPDATABLE.includes(c.stage);
-        if (!can) selected.delete(c.uid);
         return `<tr><td><input class="form-check-input" type="checkbox" data-uid="${st.esc(c.uid)}" aria-label="Select ${st.esc(c.uid)}"
-                ${can ? "" : "disabled"} ${selected.has(c.uid) ? "checked" : ""}></td>
+                ${selected.has(c.uid) ? "checked" : ""}></td>
             <th scope="row">${st.esc(c.uid)}</th><td>${c.group ? `<span class="badge bg-secondary">${st.esc(c.group)}</span>` : ""}</td>
             <td><code>${st.esc(c.release || "–")}</code></td>
             <td><span class="badge ${cls}">${label}</span></td><td class="small text-white-50">${st.esc(c.detail)}</td></tr>`;
     }).join("") || '<tr><td colspan="6" class="st-empty"><i class="fas fa-network-wired"></i>No client declared.</td></tr>';
+    stages = Object.fromEntries(r.data.clients.map(c => [c.uid, c.stage]));
+    syncSelection();
+}
+
+// Case de l'en-tête : cochée si tous les clients affichés le sont, à moitié si certains seulement
+let stages = {};
+function syncSelection() {
+    const boxes = [...el("rows").querySelectorAll("input[data-uid]")];
+    const n = boxes.filter(b => b.checked).length;
+    el("select_all").checked = boxes.length > 0 && n === boxes.length;
+    el("select_all").indeterminate = n > 0 && n < boxes.length;
+    el("select_all").disabled = !boxes.length;
     el("update").disabled = !selected.size;
 }
 
@@ -142,11 +159,22 @@ el("rows").addEventListener("change", e => {
     const box = e.target.closest("input[data-uid]");
     if (!box) return;
     box.checked ? selected.add(box.dataset.uid) : selected.delete(box.dataset.uid);
-    el("update").disabled = !selected.size;
+    syncSelection();
+});
+el("select_all").addEventListener("change", () => {
+    const on = el("select_all").checked;
+    el("rows").querySelectorAll("input[data-uid]").forEach(b => {
+        b.checked = on;
+        on ? selected.add(b.dataset.uid) : selected.delete(b.dataset.uid);
+    });
+    syncSelection();
 });
 el("select_outdated").addEventListener("click", () => {
-    el("rows").querySelectorAll("input[data-uid]:not(:disabled)").forEach(b => { b.checked = true; selected.add(b.dataset.uid); });
-    el("update").disabled = !selected.size;
+    el("rows").querySelectorAll("input[data-uid]").forEach(b => {
+        b.checked = UPDATABLE.includes(stages[b.dataset.uid]);
+        b.checked ? selected.add(b.dataset.uid) : selected.delete(b.dataset.uid);
+    });
+    syncSelection();
 });
 el("group_filter").addEventListener("change", load);
 el("groups").addEventListener("click", async e => {
@@ -163,7 +191,15 @@ el("groups").addEventListener("click", async e => {
 });
 el("update").addEventListener("click", async () => {
     const clients = [...selected];
-    if (!await st.confirm({title: `Update ${clients.length} client(s)?`, body: `${clients.join(", ")} will download this server's release, install it and restart. Their measurements stop for a few seconds.`, confirmText: "Update"})) return;
+    const ready = clients.filter(u => UPDATABLE.includes(stages[u]) && (stages[u] !== "ROLLED_BACK" || el("force").checked));
+    const left = clients.filter(u => !ready.includes(u));
+    if (!ready.length) {
+        st.toast(`None of the selected clients can be updated now: ${left.map(u => `${u} (${reason(u)})`).join(", ")}.`, "warning");
+        return;
+    }
+    const body = `${ready.join(", ")} will download this server's release, install it and restart. Their measurements stop for a few seconds.`
+        + (left.length ? ` Skipped: ${left.map(u => `${u} (${reason(u)})`).join(", ")}.` : "");
+    if (!await st.confirm({title: `Update ${ready.length} client(s)?`, body, confirmText: "Update"})) return;
     const r = await st.api("POST", "/api/v1/updates", {CLIENTS: clients, FORCE: el("force").checked});
     if (!r.ok) { st.toast(r.error.message, "danger"); return; }
     const skipped = Object.entries(r.data.skipped).map(([u, why]) => `${u}: ${why}`);
